@@ -1,0 +1,1 @@
+"use client";export default function TransportDetailError({error,reset}:{error:Error;reset:()=>void}){return <main style={{maxWidth:600,margin:"80px auto",textAlign:"center"}}><p>Failed to load movement</p><p>{error.message}</p><button onClick={reset}>Try again</button></main>}

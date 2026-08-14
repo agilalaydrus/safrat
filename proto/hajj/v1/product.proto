@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service ProductService {
+  rpc CreateProduct(CreateProductRequest) returns (Product);
+  rpc GetProduct(GetProductRequest) returns (Product);
+  rpc ListProducts(ListProductsRequest) returns (ListProductsResponse);
+  rpc UpdateProduct(UpdateProductRequest) returns (Product);
+  rpc DeleteProduct(DeleteProductRequest) returns (DeleteProductResponse);
+}
+
+message Product {
+  string id = 1;
+  string operator_id = 2;
+  string season_id = 3;
+  string name = 4;
+  string type = 5;
+  int64 price_idr = 6;
+  int32 duration_days = 7;
+  string description = 8;
+  repeated string inclusions = 9;
+  bool is_active = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+message CreateProductRequest {
+  string season_id = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  string type = 3 [(buf.validate.field).string.min_len = 1];
+  int64 price_idr = 4;
+  int32 duration_days = 5;
+  string description = 6;
+  repeated string inclusions = 7;
+}
+
+message GetProductRequest { string product_id = 1 [(buf.validate.field).string.min_len = 1]; }
+message ListProductsRequest { string season_id = 1 [(buf.validate.field).string.min_len = 1]; }
+message ListProductsResponse { repeated Product products = 1; }
+
+message UpdateProductRequest {
+  string product_id = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  string type = 3 [(buf.validate.field).string.min_len = 1];
+  int64 price_idr = 4;
+  int32 duration_days = 5;
+  string description = 6;
+  repeated string inclusions = 7;
+  bool is_active = 8;
+}
+
+message DeleteProductRequest { string product_id = 1 [(buf.validate.field).string.min_len = 1]; }
+message DeleteProductResponse {}

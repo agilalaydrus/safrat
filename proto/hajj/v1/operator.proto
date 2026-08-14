@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service OperatorService {
+  rpc CreateOperator(CreateOperatorRequest) returns (Operator);
+  rpc GetMyOperator(GetMyOperatorRequest) returns (Operator);
+  rpc ListAuditLogs(ListAuditLogsRequest) returns (ListAuditLogsResponse);
+}
+
+message Operator {
+  string id = 1;
+  string better_auth_org_id = 2;
+  string name = 3;
+  string country = 4;
+  string email = 5;
+  string license_number = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message CreateOperatorRequest {
+  string better_auth_org_id = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  string country = 3;
+  string email = 4 [(buf.validate.field).string.email = true];
+  string license_number = 5;
+}
+
+message GetMyOperatorRequest {}
+
+message AuditLog {
+  string id = 1;
+  string action = 2;
+  string entity_id = 3;
+  string description = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+message ListAuditLogsRequest { int32 limit = 1; }
+message ListAuditLogsResponse { repeated AuditLog logs = 1; }

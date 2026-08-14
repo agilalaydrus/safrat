@@ -1,0 +1,44 @@
+package handler
+
+import (
+	"context"
+
+	"connectrpc.com/connect"
+	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
+	"github.com/hajj-saas/api/internal/middleware"
+	"github.com/hajj-saas/api/internal/service"
+)
+
+type OperatorHandler struct {
+	operatorService *service.OperatorService
+}
+
+func NewOperatorHandler(operatorService *service.OperatorService) *OperatorHandler {
+	return &OperatorHandler{operatorService: operatorService}
+}
+
+func (h *OperatorHandler) CreateOperator(ctx context.Context, req *connect.Request[hajjv1.CreateOperatorRequest]) (*connect.Response[hajjv1.Operator], error) {
+	operatorID := middleware.OperatorIDFromCtx(ctx)
+	result, err := h.operatorService.Create(ctx, operatorID, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *OperatorHandler) GetMyOperator(ctx context.Context, _ *connect.Request[hajjv1.GetMyOperatorRequest]) (*connect.Response[hajjv1.Operator], error) {
+	operatorID := middleware.OperatorIDFromCtx(ctx)
+	result, err := h.operatorService.GetMy(ctx, operatorID)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *OperatorHandler) ListAuditLogs(ctx context.Context, req *connect.Request[hajjv1.ListAuditLogsRequest]) (*connect.Response[hajjv1.ListAuditLogsResponse], error) {
+	logs, err := h.operatorService.ListAuditLogs(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg.Limit)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(&hajjv1.ListAuditLogsResponse{Logs: logs}), nil
+}

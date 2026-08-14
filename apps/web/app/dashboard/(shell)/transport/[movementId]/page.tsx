@@ -1,0 +1,1 @@
+import MovementDetail from "@/components/transport/MovementDetail";export default async function Page({params}:{params:Promise<{movementId:string}>}){const{movementId}=await params;return <MovementDetail movementId={movementId}/>}

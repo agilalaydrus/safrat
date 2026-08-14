@@ -1,0 +1,34 @@
+syntax = "proto3";
+package hajj.v1;
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "hajj/v1/pilgrim.proto";
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service AccommodationService {
+  rpc CreateHotel(CreateHotelRequest) returns (Hotel);
+  rpc GetHotel(GetHotelRequest) returns (Hotel);
+  rpc ListHotels(ListHotelsRequest) returns (ListHotelsResponse);
+  rpc CreateRoom(CreateRoomRequest) returns (Room);
+  rpc BulkCreateRooms(BulkCreateRoomsRequest) returns (BulkCreateRoomsResponse);
+  rpc ListRooms(ListRoomsRequest) returns (ListRoomsResponse);
+  rpc AllocatePilgrim(AllocatePilgrimRequest) returns (RoomAllocation);
+  rpc DeallocatePilgrim(DeallocatePilgrimRequest) returns (google.protobuf.Empty);
+  rpc GetRoomManifest(GetRoomManifestRequest) returns (RoomManifest);
+}
+message Hotel { string id=1; string operator_id=2; string season_id=3; string name=4; string city=5; int32 star_rating=6; string address=7; google.protobuf.Timestamp created_at=8; google.protobuf.Timestamp check_in_date=9; google.protobuf.Timestamp check_out_date=10; }
+message Room { string id=1; string hotel_id=2; string operator_id=3; string room_number=4; string room_type=5; int32 capacity=6; int32 floor=7; string notes=8; google.protobuf.Timestamp created_at=9; int32 allocated_count=10; string gender=11; }
+message RoomAllocation { string id=1; string room_id=2; string pilgrim_id=3; string operator_id=4; google.protobuf.Timestamp allocated_at=5; string assigned_by=6; }
+message CreateHotelRequest { string season_id=1; string name=2; string city=3; int32 star_rating=4; string address=5; google.protobuf.Timestamp check_in_date=6; google.protobuf.Timestamp check_out_date=7; }
+message GetHotelRequest { string hotel_id=1; }
+message ListHotelsRequest { string season_id=1; }
+message ListHotelsResponse { repeated Hotel hotels=1; }
+message CreateRoomRequest { string hotel_id=1; string room_number=2; string room_type=3; int32 capacity=4; int32 floor=5; string notes=6; string gender=8; }
+message BulkCreateRoomsRequest { string hotel_id=1; repeated string room_numbers=2; string room_type=3; int32 capacity=4; int32 floor=5; string gender=6; string notes=7; }
+message BulkCreateRoomsResponse { repeated Room rooms=1; }
+message ListRoomsRequest { string hotel_id=1; }
+message ListRoomsResponse { repeated Room rooms=1; }
+message AllocatePilgrimRequest { string room_id=1; string pilgrim_id=2; }
+message DeallocatePilgrimRequest { string pilgrim_id=1; }
+message GetRoomManifestRequest { string room_id=1; }
+message RoomManifest { Room room=1; repeated Pilgrim pilgrims=2; int32 available_capacity=3; }

@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service SeasonService {
+  rpc CreateSeason(CreateSeasonRequest) returns (Season);
+  rpc ListSeasons(ListSeasonsRequest) returns (ListSeasonsResponse);
+  rpc SetActiveSeason(SetActiveSeasonRequest) returns (Season);
+}
+
+enum SeasonType {
+  SEASON_TYPE_UNSPECIFIED = 0;
+  SEASON_TYPE_HAJJ = 1;
+  SEASON_TYPE_UMRAH = 2;
+}
+
+message Season {
+  string id = 1;
+  string operator_id = 2;
+  string name = 3;
+  SeasonType type = 4;
+  google.protobuf.Timestamp start_date = 5;
+  google.protobuf.Timestamp end_date = 6;
+  bool is_active = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+message CreateSeasonRequest {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  SeasonType type = 2 [(buf.validate.field).enum.defined_only = true];
+  google.protobuf.Timestamp start_date = 3 [(buf.validate.field).required = true];
+  google.protobuf.Timestamp end_date = 4 [(buf.validate.field).required = true];
+}
+
+message ListSeasonsRequest {}
+
+message ListSeasonsResponse { repeated Season seasons = 1; }
+
+message SetActiveSeasonRequest {
+  string season_id = 1 [(buf.validate.field).string.min_len = 1];
+}

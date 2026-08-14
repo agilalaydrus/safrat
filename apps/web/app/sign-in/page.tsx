@@ -1,0 +1,8 @@
+"use client";
+
+import Link from "next/link";
+import { AuthForm } from "@/components/auth/AuthForm";
+import { PublicOnly } from "@/components/auth/PublicOnly";
+
+export default function SignInPage(){return <PublicOnly><main style={page}><div style={card}><div style={brand}><Link href="/" aria-label="Safrat home" style={logo}>Safrat</Link><p style={tagline}>Where every journey begins</p></div><div className="gold-divider"/><h2 style={heading}>Sign in to your account</h2><p style={sub}>Enter your credentials to access the dashboard</p><AuthForm mode="sign-in"/><p style={footer}>Don&apos;t have an account? <Link href="/sign-up" style={footerLink}>Create account</Link></p></div></main></PublicOnly>;}
+const page:React.CSSProperties={minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--color-cream-100)",padding:"24px"};const card:React.CSSProperties={background:"#fff",border:"1px solid var(--color-cream-400)",borderRadius:14,padding:"36px 32px",width:"100%",maxWidth:420};const brand:React.CSSProperties={textAlign:"center",marginBottom:4};const logo:React.CSSProperties={fontFamily:"'Playfair Display',serif",fontSize:32,fontWeight:700,color:"var(--color-emerald-900)"};const tagline:React.CSSProperties={fontSize:12,color:"var(--color-warm-400)",marginTop:3};const heading:React.CSSProperties={fontSize:20,fontWeight:500,marginTop:16,marginBottom:4};const sub:React.CSSProperties={fontSize:13,color:"var(--color-warm-400)",marginBottom:20};const footer:React.CSSProperties={textAlign:"center",fontSize:13,color:"var(--color-warm-400)",marginTop:20};const footerLink:React.CSSProperties={color:"var(--color-emerald-900)",fontWeight:600};

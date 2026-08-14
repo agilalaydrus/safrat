@@ -1,0 +1,352 @@
+"use client";
+
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { Timestamp } from "@bufbuild/protobuf";
+import { IconX } from "@tabler/icons-react";
+import { Gender, Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
+import { pilgrimClient } from "@/lib/rpc";
+
+type FormValues = {
+  fullName: string;
+  passportNumber: string;
+  nationality: string;
+  dateOfBirth: string;
+  gender: "" | "MALE" | "FEMALE";
+  phone: string;
+  emergencyContact: string;
+  preferredLang: string;
+  medicalNotes: string;
+  requiresWheelchair: boolean;
+  groupId: string;
+  mahramId: string;
+};
+
+type Props = {
+  open: boolean;
+  onClose: () => void;
+  seasonId: string;
+  pilgrims: Pilgrim[];
+  onSaved: (name: string) => void;
+  initial?: Pilgrim;
+};
+
+// The API stores ISO 3166-1 alpha-2 country codes; labels remain readable for coordinators.
+const NATIONALITIES = [
+  ["AF", "Afghanistan"], ["DZ", "Algeria"], ["AZ", "Azerbaijan"], ["BH", "Bahrain"], ["BD", "Bangladesh"],
+  ["BA", "Bosnia and Herzegovina"], ["BN", "Brunei"], ["TD", "Chad"], ["KM", "Comoros"], ["DJ", "Djibouti"],
+  ["EG", "Egypt"], ["ER", "Eritrea"], ["ET", "Ethiopia"], ["GM", "Gambia"], ["GN", "Guinea"], ["ID", "Indonesia"],
+  ["IR", "Iran"], ["IQ", "Iraq"], ["JO", "Jordan"], ["KZ", "Kazakhstan"], ["KW", "Kuwait"], ["KG", "Kyrgyzstan"],
+  ["LB", "Lebanon"], ["LY", "Libya"], ["MY", "Malaysia"], ["MV", "Maldives"], ["ML", "Mali"], ["MR", "Mauritania"],
+  ["MA", "Morocco"], ["NE", "Niger"], ["NG", "Nigeria"], ["OM", "Oman"], ["PK", "Pakistan"], ["PS", "Palestine"],
+  ["QA", "Qatar"], ["SA", "Saudi Arabia"], ["SN", "Senegal"], ["SL", "Sierra Leone"], ["SO", "Somalia"],
+  ["SD", "Sudan"], ["SY", "Syria"], ["TJ", "Tajikistan"], ["TN", "Tunisia"], ["TR", "Turkey"], ["TM", "Turkmenistan"],
+  ["AE", "United Arab Emirates"], ["UZ", "Uzbekistan"], ["YE", "Yemen"], ["OT", "Other"],
+] as const;
+
+const EMPTY_FORM: FormValues = {
+  fullName: "", passportNumber: "", nationality: "", dateOfBirth: "", gender: "",
+  phone: "", emergencyContact: "", preferredLang: "ar", medicalNotes: "",
+  requiresWheelchair: false, groupId: "", mahramId: "",
+};
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function valuesFromPilgrim(pilgrim?: Pilgrim): FormValues {
+  if (!pilgrim) return { ...EMPTY_FORM };
+  return {
+    fullName: pilgrim.fullName,
+    passportNumber: pilgrim.passportNumber,
+    nationality: pilgrim.nationality,
+    dateOfBirth: pilgrim.dateOfBirth?.toDate().toISOString().slice(0, 10) ?? "",
+    gender: pilgrim.gender === Gender.FEMALE ? "FEMALE" : pilgrim.gender === Gender.MALE ? "MALE" : "",
+    phone: pilgrim.phone,
+    emergencyContact: pilgrim.emergencyContact,
+    preferredLang: pilgrim.preferredLang,
+    medicalNotes: pilgrim.medicalNotes,
+    requiresWheelchair: pilgrim.requiresWheelchair,
+    groupId: pilgrim.groupId,
+    mahramId: pilgrim.mahramId,
+  };
+}
+
+export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, onSaved, initial }: Props) {
+  const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [form, setForm] = useState<FormValues>(EMPTY_FORM);
+  const [mahramPilgrims, setMahramPilgrims] = useState<Pilgrim[]>(pilgrims);
+  const [loadingMahrams, setLoadingMahrams] = useState(false);
+  const initialFormValues = useRef<FormValues>(EMPTY_FORM);
+
+  useEffect(() => {
+    if (!open) return;
+    const values = valuesFromPilgrim(initial);
+    initialFormValues.current = values;
+    setForm(values);
+    setFieldErrors({});
+  }, [open, initial]);
+
+  useEffect(() => {
+    if (!open || !seasonId) return;
+    let cancelled = false;
+
+    async function loadMahramPilgrims() {
+      setLoadingMahrams(true);
+      // The dashboard only holds one page of pilgrims; load candidates for the full season.
+      setMahramPilgrims(pilgrims);
+      try {
+        const response = await pilgrimClient.listPilgrims({ seasonId, limit: 100, offset: 0 });
+        if (!cancelled) setMahramPilgrims(response.pilgrims);
+      } catch {
+        // Keep the dashboard's current page available if the supplementary load fails.
+      } finally {
+        if (!cancelled) setLoadingMahrams(false);
+      }
+    }
+
+    void loadMahramPilgrims();
+    return () => { cancelled = true; };
+  }, [open, pilgrims, seasonId]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape") requestClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, form, saving]);
+
+  const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormValues.current);
+  const eligibleMahrams = mahramPilgrims.filter((pilgrim) => {
+    if (pilgrim.id === initial?.id) return false;
+    if (form.gender === "FEMALE") return pilgrim.gender === Gender.MALE;
+    return true;
+  });
+
+  function requestClose(force = false) {
+    if (!force && saving) return;
+    if (!force && isDirty && !window.confirm("Discard unsaved changes?")) return;
+    onClose();
+  }
+
+  function update(key: keyof FormValues, value: string | boolean) {
+    setForm((current) => ({ ...current, [key]: value }) as FormValues);
+    setFieldErrors((current) => {
+      if (!current[key]) return current;
+      const { [key]: _removed, ...remaining } = current;
+      return remaining;
+    });
+  }
+
+  function validate(): Record<string, string> {
+    const errs: Record<string, string> = {};
+    if (!seasonId) errs._form = "Select an active season before adding a pilgrim.";
+    if (!form.fullName.trim()) errs.fullName = "Full name is required.";
+    if (!form.passportNumber.trim()) errs.passportNumber = "Passport number is required.";
+    if (!form.nationality) errs.nationality = "Nationality is required.";
+    else if (!/^[A-Z]{2}$/.test(form.nationality)) errs.nationality = "Select a valid nationality.";
+    if (!form.dateOfBirth) errs.dateOfBirth = "Date of birth is required.";
+    if (!form.gender) errs.gender = "Gender is required.";
+    if (form.passportNumber && !/^[A-Z0-9]{5,20}$/.test(form.passportNumber.toUpperCase())) {
+      errs.passportNumber = "Passport number must be 5-20 alphanumeric characters.";
+    }
+    if (form.dateOfBirth) {
+      const dob = new Date(form.dateOfBirth);
+      const today = new Date();
+      const minAge = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+      if (Number.isNaN(dob.getTime()) || dob >= today) errs.dateOfBirth = "Date of birth must be in the past.";
+      else if (dob > minAge) errs.dateOfBirth = "Pilgrim must be at least 1 year old.";
+    }
+    if (form.phone && !/^\+?[\d\s\-()]{7,20}$/.test(form.phone)) {
+      errs.phone = "Enter a valid phone number.";
+    }
+    if (form.emergencyContact && !/^\+?[\d\s\-()]{7,20}$/.test(form.emergencyContact)) {
+      errs.emergencyContact = "Enter a valid phone number.";
+    }
+    if (form.mahramId && !UUID_PATTERN.test(form.mahramId)) {
+      errs.mahramId = "Select a valid mahram.";
+    }
+    return errs;
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFieldErrors({});
+    const errs = validate();
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      window.requestAnimationFrame(() => {
+        document.querySelector("[data-field-error]")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload = {
+        seasonId,
+        groupId: form.groupId.trim(),
+        fullName: form.fullName.trim(),
+        passportNumber: form.passportNumber.toUpperCase().trim(),
+        nationality: form.nationality,
+        dateOfBirth: Timestamp.fromDate(new Date(`${form.dateOfBirth}T00:00:00Z`)),
+        gender: form.gender === "FEMALE" ? Gender.FEMALE : Gender.MALE,
+        phone: form.phone.trim(),
+        emergencyContact: form.emergencyContact.trim(),
+        preferredLang: form.preferredLang,
+        medicalNotes: form.medicalNotes.trim(),
+        requiresWheelchair: form.requiresWheelchair,
+        mahramId: form.mahramId,
+      };
+      if (initial) await pilgrimClient.updatePilgrim({ ...payload, pilgrimId: initial.id });
+      else await pilgrimClient.createPilgrim(payload);
+      onSaved(payload.fullName);
+      requestClose(true);
+    } catch (caught) {
+      const message = caught instanceof Error ? caught.message : "Unable to save pilgrim.";
+      if (/already|duplicate|exists/i.test(message)) {
+        setFieldErrors({ passportNumber: "This passport is already registered for this season." });
+      } else if (/unauthenticated/i.test(message)) {
+        setFieldErrors({ _form: "Your session expired. Please sign in again." });
+      } else if (/invalid_argument|validation failed/i.test(message)) {
+        setFieldErrors({ _form: "Data jamaah belum lengkap atau belum sesuai. Periksa kembali isian Anda." });
+      } else {
+        setFieldErrors({ _form: "Data jamaah belum dapat disimpan. Silakan coba lagi." });
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) return null;
+
+  return (
+    <div role="dialog" aria-modal="true" aria-label={initial ? "Edit pilgrim" : "Add pilgrim"} style={overlay}>
+      <aside style={sheet}>
+        <div style={stickyHeader}>
+          <div>
+            <p style={eyebrow}>PILGRIM RECORD</p>
+            <h2 style={{ margin: 0 }}>{initial ? "Edit pilgrim" : "Add pilgrim"}</h2>
+          </div>
+          <button type="button" className="btn-close-sheet" onClick={() => requestClose()} style={closeBtn} aria-label="Close"><IconX size={18} /></button>
+        </div>
+        <div style={formBody}>
+        <form id="pilgrim-form" onSubmit={submit} style={{ display: "grid", gap: 24 }}>
+          <Section title="Identity">
+            <Field fieldKey="fullName" label="Full name" required error={fieldErrors.fullName}>
+              <input className="safrat-input" required value={form.fullName} onChange={(event) => update("fullName", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.fullName)} />
+            </Field>
+            <Field fieldKey="passportNumber" label="Passport number" required error={fieldErrors.passportNumber}>
+              <input className="safrat-input" required value={form.passportNumber} onChange={(event) => update("passportNumber", event.target.value.toUpperCase())} style={input} aria-invalid={Boolean(fieldErrors.passportNumber)} />
+            </Field>
+            <Field fieldKey="nationality" label="Nationality" required error={fieldErrors.nationality}>
+              <select className="safrat-input" required value={form.nationality} onChange={(event) => update("nationality", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.nationality)}>
+                <option value="">Choose nationality</option>
+                {NATIONALITIES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+              </select>
+            </Field>
+            <Field fieldKey="dateOfBirth" label="Date of birth" required error={fieldErrors.dateOfBirth}>
+              <input className="safrat-input" required type="date" value={form.dateOfBirth} onChange={(event) => update("dateOfBirth", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.dateOfBirth)} />
+            </Field>
+            <Field fieldKey="gender" label="Gender" required error={fieldErrors.gender}>
+              <div className="safrat-radio-group">
+                {(["MALE", "FEMALE"] as const).map((value) => (
+                  <label key={value} className={`safrat-radio-label${form.gender === value ? " selected" : ""}`} onClick={() => update("gender", value)}>
+                    <input type="radio" name="gender" checked={form.gender === value} onChange={() => update("gender", value)} />
+                    <span className="safrat-radio-dot"><span className="safrat-radio-dot-inner" /></span>
+                    {value === "MALE" ? "Male" : "Female"}
+                  </label>
+                ))}
+              </div>
+            </Field>
+          </Section>
+
+          <div style={sectionDivider}>
+            <Section title="Contact">
+              <Field fieldKey="phone" label="Phone" error={fieldErrors.phone}>
+                <input className="safrat-input" value={form.phone} onChange={(event) => update("phone", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.phone)} />
+              </Field>
+              <Field fieldKey="emergencyContact" label="Emergency contact" error={fieldErrors.emergencyContact}>
+                <input className="safrat-input" value={form.emergencyContact} onChange={(event) => update("emergencyContact", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.emergencyContact)} />
+              </Field>
+            </Section>
+          </div>
+
+          <div style={sectionDivider}>
+            <Section title="Preferences">
+              <Field fieldKey="preferredLang" label="Preferred language">
+                <select className="safrat-input" value={form.preferredLang} onChange={(event) => update("preferredLang", event.target.value)} style={input}>
+                  <option value="ar">Arabic</option><option value="en">English</option><option value="id">Bahasa Indonesia</option>
+                </select>
+              </Field>
+              <Field fieldKey="medicalNotes" label="Medical notes">
+                <textarea className="safrat-input" value={form.medicalNotes} maxLength={500} onChange={(event) => update("medicalNotes", event.target.value)} style={{ ...input, minHeight: 90, padding: "10px 14px" }} />
+                <span style={characterCount}>{form.medicalNotes.length}/500</span>
+              </Field>
+              <div>
+                <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <input className="safrat-input" type="checkbox" checked={form.requiresWheelchair} onChange={(event) => update("requiresWheelchair", event.target.checked)} />
+                  Requires wheelchair
+                </label>
+                {form.requiresWheelchair && form.gender === "FEMALE" && !form.mahramId && (
+                  <p style={advisory}>Advisory: Wheelchair pilgrims typically require a mahram. Consider assigning one.</p>
+                )}
+              </div>
+            </Section>
+          </div>
+
+          <div style={sectionDivider}>
+            <Section title="Group & Mahram">
+              <Field fieldKey="groupId" label="Group code" hint="Short label to identify the group (e.g. GRP-A). Leave blank to assign later.">
+                <input className="safrat-input" value={form.groupId} onChange={(event) => update("groupId", event.target.value)} placeholder="e.g. GRP-A" style={input} />
+              </Field>
+              <Field fieldKey="mahramId" label="Mahram" hint="For female pilgrims: select male guardian (wali/mahram)" error={fieldErrors.mahramId}>
+                <select className="safrat-input" value={form.mahramId} onChange={(event) => update("mahramId", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.mahramId)}>
+                  {loadingMahrams ? <option value="">Loading eligible pilgrims...</option> : eligibleMahrams.length === 0 ? <option value="">No eligible pilgrims found</option> : <option value="">No mahram selected</option>}
+                  {eligibleMahrams.map((pilgrim) => <option key={pilgrim.id} value={pilgrim.id}>{pilgrim.fullName} — {pilgrim.passportNumber}</option>)}
+                </select>
+              </Field>
+            </Section>
+          </div>
+
+          {fieldErrors._form && <p role="alert" style={formError}>{fieldErrors._form}</p>}
+        </form>
+        </div>
+        <div style={stickyFooter}>
+          <button form="pilgrim-form" disabled={saving || !seasonId} style={primary}>{saving ? "Saving…" : initial ? "Save changes" : "Add pilgrim"}</button>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return <section style={{ display: "grid", gap: 16 }}><p style={sectionTitle}>{title}</p>{children}</section>;
+}
+
+function Field({ fieldKey, label, required, hint, error, children }: { fieldKey: string; label: string; required?: boolean; hint?: string; error?: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: "grid", gap: 6 }}>
+      <span style={fieldLabel}>{label}{required && <span style={{ color: "var(--color-danger-600)", marginLeft: 2, fontWeight: 400 }}>*</span>}</span>
+      {children}
+      {hint && <span style={{ fontSize: 11, color: "var(--color-warm-400)", marginTop: 2 }}>{hint}</span>}
+      {error && <span data-field-error={fieldKey} style={{ fontSize: 11, color: "var(--color-danger-600)" }}>{error}</span>}
+    </div>
+  );
+}
+
+const overlay: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 20, display: "flex", justifyContent: "flex-end", background: "rgba(26,20,16,.48)", backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)" };
+const sheet: React.CSSProperties = { width: "min(560px,100%)", height: "100vh", display: "flex", flexDirection: "column", background: "#ffffff", boxShadow: "-6px 0 32px rgba(26,20,16,.12)", borderRadius: "16px 0 0 16px", animation: "sheet-in .22s cubic-bezier(0,0,.2,1)", overflow: "hidden" };
+const stickyHeader: React.CSSProperties = { position: "sticky", top: 0, zIndex: 10, background: "#ffffff", borderBottom: "1px solid var(--color-cream-300)", padding: "20px 24px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexShrink: 0 };
+const closeBtn: React.CSSProperties = { width: 40, height: 40, borderRadius: "50%", border: "1px solid var(--color-cream-400)", background: "transparent", color: "var(--color-warm-400)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, transition: "background .15s, color .15s" };
+const formBody: React.CSSProperties = { flex: 1, overflowY: "auto", padding: "24px", display: "grid", gap: 0 };
+const stickyFooter: React.CSSProperties = { position: "sticky", bottom: 0, background: "#ffffff", borderTop: "1px solid var(--color-cream-300)", padding: "16px 24px", flexShrink: 0 };
+const eyebrow: React.CSSProperties = { margin: "0 0 6px", color: "var(--color-gold-800)", fontSize: 11, fontWeight: 700, letterSpacing: ".08em" };
+const input: React.CSSProperties = { minHeight: 48, width: "100%", border: "1.5px solid var(--color-cream-400)", borderRadius: 10, padding: "0 14px", background: "#ffffff", font: "inherit", color: "var(--color-warm-900)", outline: "none", transition: "border-color .15s, box-shadow .15s" };
+const primary: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 10, background: "var(--color-gold-500)", color: "var(--color-warm-900)", fontWeight: 700, padding: "0 20px", cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 14, width: "100%" };
+const sectionDivider: React.CSSProperties = { paddingTop: 28 };
+const sectionTitle: React.CSSProperties = { margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--color-warm-400)", paddingBottom: 8, borderBottom: "1px solid var(--color-cream-300)", fontFamily: "'Plus Jakarta Sans', sans-serif" };
+const fieldLabel: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--color-warm-700)", display: "block", marginBottom: 6 };
+const characterCount: React.CSSProperties = { fontSize: 11, color: "var(--color-warm-400)", textAlign: "right", display: "block" };
+const advisory: React.CSSProperties = { fontSize: 11, color: "var(--color-gold-800)", marginTop: 4, background: "var(--color-gold-50)", padding: "8px 10px", borderRadius: 6 };
+const formError: React.CSSProperties = { margin: 0, fontSize: 13, color: "var(--color-danger-600)", background: "var(--color-danger-100)", padding: "10px 12px", borderRadius: 8 };

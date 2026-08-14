@@ -1,0 +1,122 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service PilgrimService {
+  rpc CreatePilgrim(CreatePilgrimRequest) returns (Pilgrim);
+  rpc ListPilgrims(ListPilgrimsRequest) returns (ListPilgrimsResponse);
+  rpc GetPilgrim(GetPilgrimRequest) returns (Pilgrim);
+  rpc UpdatePilgrim(UpdatePilgrimRequest) returns (Pilgrim);
+  rpc MarkSubstituted(MarkSubstitutedRequest) returns (Pilgrim);
+  rpc SubstitutePilgrim(SubstitutePilgrimRequest) returns (SubstitutePilgrimResult);
+  rpc GetPilgrimStats(GetPilgrimStatsRequest) returns (PilgrimStats);
+}
+
+enum Gender {
+  GENDER_UNSPECIFIED = 0;
+  GENDER_MALE = 1;
+  GENDER_FEMALE = 2;
+}
+
+message Pilgrim {
+  string id = 1;
+  string season_id = 2;
+  string operator_id = 3;
+  string group_id = 4;
+  string full_name = 5;
+  string passport_number = 6;
+  string nationality = 7;
+  google.protobuf.Timestamp date_of_birth = 8;
+  Gender gender = 9;
+  string photo_url = 10;
+  string phone = 11;
+  string emergency_contact = 12;
+  string preferred_lang = 13;
+  string medical_notes = 14;
+  bool requires_wheelchair = 15;
+  string mahram_id = 16;
+  bool is_substituted = 17;
+  string substituted_by_id = 18;
+  string app_access_code = 19;
+  google.protobuf.Timestamp created_at = 20;
+  google.protobuf.Timestamp updated_at = 21;
+}
+
+message CreatePilgrimRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+  string group_id = 2;
+  string full_name = 3 [(buf.validate.field).string = {min_len: 2, max_len: 100}];
+  string passport_number = 4 [(buf.validate.field).string = {min_len: 5, max_len: 20}];
+  string nationality = 5 [(buf.validate.field).string.len = 2];
+  google.protobuf.Timestamp date_of_birth = 6 [(buf.validate.field).required = true];
+  Gender gender = 7 [(buf.validate.field).enum = {defined_only: true, in: [1, 2]}];
+  string photo_url = 8;
+  string phone = 9;
+  string emergency_contact = 10;
+  string preferred_lang = 11;
+  string medical_notes = 12;
+  bool requires_wheelchair = 13;
+  string mahram_id = 14;
+}
+
+message ListPilgrimsRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message ListPilgrimsResponse {
+  repeated Pilgrim pilgrims = 1;
+  int64 total_count = 2;
+}
+
+message GetPilgrimRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message UpdatePilgrimRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+  string group_id = 2;
+  string full_name = 3 [(buf.validate.field).string = {min_len: 2, max_len: 100}];
+  string passport_number = 4 [(buf.validate.field).string = {min_len: 5, max_len: 20}];
+  string nationality = 5 [(buf.validate.field).string.len = 2];
+  google.protobuf.Timestamp date_of_birth = 6 [(buf.validate.field).required = true];
+  Gender gender = 7 [(buf.validate.field).enum = {defined_only: true, in: [1, 2]}];
+  string photo_url = 8;
+  string phone = 9;
+  string emergency_contact = 10;
+  string preferred_lang = 11;
+  string medical_notes = 12;
+  bool requires_wheelchair = 13;
+  string mahram_id = 14;
+}
+
+message MarkSubstitutedRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message SubstitutePilgrimRequest {
+  string original_pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+  string replacement_pilgrim_id = 2 [(buf.validate.field).string.uuid = true];
+}
+
+message SubstitutePilgrimResult {
+  Pilgrim original = 1;
+  Pilgrim replacement = 2;
+}
+
+message GetPilgrimStatsRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message PilgrimStats {
+  int32 total = 1;
+  int32 substituted = 2;
+  int32 requires_wheelchair = 3;
+  int32 unassigned_group = 4;
+}

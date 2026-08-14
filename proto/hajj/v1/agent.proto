@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service AgentService {
+  rpc CreateAgent(CreateAgentRequest) returns (Agent);
+  rpc GetAgent(GetAgentRequest) returns (Agent);
+  rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse);
+  rpc UpdateAgent(UpdateAgentRequest) returns (Agent);
+  rpc DeleteAgent(DeleteAgentRequest) returns (DeleteAgentResponse);
+}
+
+message Agent {
+  string id = 1;
+  string operator_id = 2;
+  string name = 3;
+  string phone = 4;
+  string email = 5;
+  double commission_rate = 6;
+  string notes = 7;
+  bool is_active = 8;
+  int32 pilgrim_count = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message CreateAgentRequest {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  string phone = 2;
+  string email = 3;
+  double commission_rate = 4;
+  string notes = 5;
+}
+
+message GetAgentRequest { string agent_id = 1 [(buf.validate.field).string.min_len = 1]; }
+message ListAgentsRequest {}
+message ListAgentsResponse { repeated Agent agents = 1; }
+
+message UpdateAgentRequest {
+  string agent_id = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  string phone = 3;
+  string email = 4;
+  double commission_rate = 5;
+  string notes = 6;
+  bool is_active = 7;
+}
+
+message DeleteAgentRequest { string agent_id = 1 [(buf.validate.field).string.min_len = 1]; }
+message DeleteAgentResponse {}

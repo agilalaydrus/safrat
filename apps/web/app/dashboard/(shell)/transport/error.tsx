@@ -1,0 +1,1 @@
+"use client";export default function TransportError({error,reset}:{error:Error;reset:()=>void}){return <main style={{maxWidth:600,margin:"80px auto",textAlign:"center"}}><p>Failed to load transport</p><p>{error.message}</p><button onClick={reset}>Try again</button></main>}

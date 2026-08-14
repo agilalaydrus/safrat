@@ -1,0 +1,18 @@
+package domain
+
+import "time"
+
+type Product struct {
+	ID           string
+	OperatorID   string
+	SeasonID     string
+	Name         string
+	Type         string
+	PriceIDR     int64
+	DurationDays int32
+	Description  string
+	Inclusions   []string
+	IsActive     bool
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}

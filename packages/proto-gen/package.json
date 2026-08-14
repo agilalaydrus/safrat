@@ -1,0 +1,10 @@
+{
+  "name": "@hajj-saas/proto-gen",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {
+    "@bufbuild/protobuf": "^1.10.0",
+    "@connectrpc/connect": "^1.6.1"
+  }
+}

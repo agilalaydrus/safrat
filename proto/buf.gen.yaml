@@ -1,0 +1,17 @@
+version: v2
+plugins:
+  # protobuf/go generates message types; Connect generates the service bindings.
+  - remote: buf.build/protocolbuffers/go
+    out: ../apps/api/internal/gen
+    opt: paths=source_relative
+  - remote: buf.build/connectrpc/go
+    out: ../apps/api/internal/gen
+    opt: paths=source_relative
+  # These generator versions match the repository's @bufbuild/protobuf v1 runtime.
+  - remote: buf.build/bufbuild/es:v1.10.0
+    out: ../packages/proto-gen
+    opt: target=ts,import_extension=none
+    include_imports: true
+  - remote: buf.build/connectrpc/es:v1.6.1
+    out: ../packages/proto-gen
+    opt: target=ts,import_extension=none

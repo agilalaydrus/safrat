@@ -1,0 +1,12 @@
+.env
+.env.local
+.env.*.local
+node_modules
+.turbo
+.next
+dist
+coverage
+apps/api/db/generated
+apps/api/internal/gen
+packages/proto-gen/hajj
+*.log
