@@ -71,6 +71,8 @@ These live only in `CODEX_SPEC.md` section 7, not obviously in the code — chec
 - Orders/commissions: `platformMargin + operatorMargin + agentMargin ≤ 1.0`, validated on product save; `agentCommission = 0` when there's no `agentId`.
 - Substitutions are irreversible once `isSubstituted = true`, and must always write an audit log entry.
 
+**Error observability (Sentry).** Both apps report unhandled/internal errors to Sentry when a DSN is configured, and are silent no-ops when it isn't (safe for local dev). Backend: `SENTRY_DSN` in `apps/api/.env`, initialized in `cmd/server/main.go`, captured in `internal/service/errors.go`'s `serviceError` — only truly unmapped (`CodeInternal`) errors are reported; the client now gets a generic "internal error" message instead of the wrapped Go error (previously leaked raw error text, including DB errors, to callers). Frontend: `NEXT_PUBLIC_SENTRY_DSN` in `apps/web/.env.local`, wired via `apps/web/instrumentation.ts` (server/edge), `apps/web/instrumentation-client.ts` (browser), and `apps/web/app/global-error.tsx` (React render errors) — the standard `@sentry/nextjs` App Router layout, not the wizard-generated one.
+
 ## Coding conventions
 
 - Go: `snake_case` filenames, `PascalCase` types. Never `panic` in request handlers; never expose raw DB errors to clients — map errors through the `AppError`/`connectError` pattern used in `internal/service/errors.go` and handlers.

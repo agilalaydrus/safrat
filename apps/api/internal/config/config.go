@@ -12,6 +12,7 @@ type Config struct {
 	DatabaseURL      string
 	BetterAuthSecret string
 	AllowedOrigin    string
+	SentryDSN        string
 }
 
 func Load() (Config, error) {
@@ -20,6 +21,8 @@ func Load() (Config, error) {
 		DatabaseURL:      strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		BetterAuthSecret: strings.TrimSpace(os.Getenv("BETTER_AUTH_SECRET")),
 		AllowedOrigin:    strings.TrimRight(strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGIN")), "/"),
+		// SentryDSN is optional — unset means sentry.Init is a no-op (see main.go).
+		SentryDSN: strings.TrimSpace(os.Getenv("SENTRY_DSN")),
 	}
 	if config.DatabaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")

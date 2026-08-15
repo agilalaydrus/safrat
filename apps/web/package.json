@@ -13,6 +13,7 @@
     "@connectrpc/connect": "^1.6.1",
     "@connectrpc/connect-web": "^1.6.1",
     "@hajj-saas/proto-gen": "workspace:*",
+    "@sentry/nextjs": "^10.70.0",
     "@tabler/icons-react": "^3.46.0",
     "better-auth": "^1.6.28",
     "next": "15.2.3",

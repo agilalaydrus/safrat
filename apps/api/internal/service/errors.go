@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"connectrpc.com/connect"
+	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/apperror"
 )
 
@@ -33,6 +34,10 @@ func serviceError(method string, err error) error {
 	case errors.Is(err, apperror.ErrUnauthorized):
 		return connect.NewError(connect.CodeUnauthenticated, err)
 	default:
-		return connect.NewError(connect.CodeInternal, fmt.Errorf("%s: %w", method, err))
+		// Unmapped errors are bugs, not expected failure modes — report them.
+		// sentry.Init (main.go) is a no-op when SENTRY_DSN is unset, so this is
+		// safe to call unconditionally in dev.
+		sentry.CaptureException(fmt.Errorf("%s: %w", method, err))
+		return connect.NewError(connect.CodeInternal, errors.New("internal error"))
 	}
 }

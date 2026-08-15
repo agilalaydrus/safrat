@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/config"
 	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/hajj-saas/api/internal/gen/hajj/v1/hajjv1connect"
@@ -27,6 +28,14 @@ func main() {
 		logger.Error("invalid configuration", "error", err)
 		os.Exit(1)
 	}
+
+	// sentry.Init with an empty DSN is a documented no-op — safe to call
+	// unconditionally so local dev without SENTRY_DSN set just doesn't report.
+	if err := sentry.Init(sentry.ClientOptions{Dsn: config.SentryDSN}); err != nil {
+		logger.Error("init sentry", "error", err)
+	}
+	defer sentry.Flush(2 * time.Second)
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -42,6 +51,8 @@ func main() {
 		pool, err = pgxpool.New(ctx, config.DatabaseURL)
 		if err != nil {
 			logger.Error("connect database", "error", err)
+			sentry.CaptureException(err)
+			sentry.Flush(2 * time.Second)
 			os.Exit(1)
 		}
 		defer pool.Close()
