@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "hajj/v1/transport.proto";
+import "hajj/v1/product.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// PilgrimAppService is entirely public — every method authenticates via
+// app_access_code instead of a Better Auth session. See publicProcedures in
+// internal/middleware/auth.go.
+service PilgrimAppService {
+  rpc GetMyInfo(PilgrimAppRequest) returns (PilgrimAppInfo);
+  rpc ListMySchedule(PilgrimAppRequest) returns (ListMyScheduleResponse);
+  rpc ListMyProducts(PilgrimAppRequest) returns (ListMyProductsResponse);
+}
+
+message PilgrimAppRequest {
+  string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message PilgrimAppInfo {
+  string id = 1;
+  string full_name = 2;
+  string passport_number = 3;
+  string group_name = 4;
+  string hotel_name = 5;
+  string room_number = 6;
+  bool requires_wheelchair = 7;
+  Movement next_movement = 8;
+}
+
+message ListMyScheduleResponse {
+  repeated Movement movements = 1;
+}
+
+message ListMyProductsResponse {
+  repeated Product products = 1;
+}

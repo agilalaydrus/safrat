@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { IconBuildingHospital, IconBus, IconFileAnalytics, IconLayoutDashboard, IconLogout, IconMenu2, IconSettings, IconShoppingCart, IconUserDollar, IconUsers } from "@tabler/icons-react";
+import { IconBuildingHospital, IconBus, IconFileAnalytics, IconLayoutDashboard, IconLogout, IconMenu2, IconSettings, IconShoppingCart, IconSos, IconUserDollar, IconUsers } from "@tabler/icons-react";
 import { authClient } from "@/lib/auth-client";
 import { operatorClient, seasonClient } from "@/lib/rpc";
 
-const nav = [["Overview", "/dashboard", IconLayoutDashboard], ["Pilgrims", "/dashboard/pilgrims", IconUsers], ["Accommodation", "/dashboard/accommodation", IconBuildingHospital], ["Transport", "/dashboard/transport", IconBus], ["Products", "/dashboard/products", IconShoppingCart], ["Agents", "/dashboard/agents", IconUserDollar], ["Reports", "/dashboard/reports", IconFileAnalytics]] as const;
+const nav = [["Overview", "/dashboard", IconLayoutDashboard], ["Pilgrims", "/dashboard/pilgrims", IconUsers], ["Accommodation", "/dashboard/accommodation", IconBuildingHospital], ["Transport", "/dashboard/transport", IconBus], ["SOS", "/dashboard/sos", IconSos], ["Products", "/dashboard/products", IconShoppingCart], ["Agents", "/dashboard/agents", IconUserDollar], ["Reports", "/dashboard/reports", IconFileAnalytics]] as const;
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname(); const router = useRouter(); const { data: session } = authClient.useSession(); const [open, setOpen] = useState(false); const [operator, setOperator] = useState(""); const [season, setSeason] = useState("");

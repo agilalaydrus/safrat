@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service SOSService {
+  // CreateSOSAlert is public (app_access_code) — see publicProcedures in
+  // internal/middleware/auth.go. Deliberately NOT rate-limited: throttling a
+  // safety feature is the wrong failure mode. See ratelimit.go.
+  rpc CreateSOSAlert(CreateSOSAlertRequest) returns (SOSAlert);
+
+  // Authenticated — the coordinator dashboard.
+  rpc ListActiveSOSAlerts(ListActiveSOSAlertsRequest) returns (ListSOSAlertsResponse);
+  rpc AcknowledgeSOSAlert(AcknowledgeSOSAlertRequest) returns (SOSAlert);
+  rpc ResolveSOSAlert(ResolveSOSAlertRequest) returns (SOSAlert);
+}
+
+message SOSAlert {
+  string id = 1;
+  string pilgrim_id = 2;
+  string pilgrim_name = 3;
+  string status = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp acknowledged_at = 6;
+  google.protobuf.Timestamp resolved_at = 7;
+  string notes = 8;
+}
+
+message CreateSOSAlertRequest {
+  string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message ListActiveSOSAlertsRequest {}
+message ListSOSAlertsResponse { repeated SOSAlert alerts = 1; }
+
+message AcknowledgeSOSAlertRequest {
+  string sos_alert_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message ResolveSOSAlertRequest {
+  string sos_alert_id = 1 [(buf.validate.field).string.min_len = 1];
+  string notes = 2;
+}

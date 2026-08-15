@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/hajj-saas/api/internal/domain"
+	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -79,6 +79,15 @@ func pgUUID(value string) (pgtype.UUID, error) {
 		return pgtype.UUID{}, fmt.Errorf("parse UUID: %w", err)
 	}
 	return pgtype.UUID{Bytes: parsed, Valid: true}, nil
+}
+
+// pgText treats an empty string as NULL — used for optional text columns
+// (e.g. a Better Auth user id that may be absent).
+func pgText(value string) pgtype.Text {
+	if value == "" {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: value, Valid: true}
 }
 
 func pgTimestamp(value time.Time) pgtype.Timestamptz {

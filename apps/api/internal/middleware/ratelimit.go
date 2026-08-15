@@ -18,8 +18,18 @@ import (
 // that needs its own abuse guard.
 const rateLimitBurst = 5 // requests allowed immediately, refilling at the rate below
 
+// SOSService/CreateSOSAlert is deliberately NOT in this map — see sos.go.
+// The PilgrimAppService/ChatService entries are read/poll endpoints a
+// legitimate pilgrim's own device calls repeatedly (app open, periodic
+// refresh, chat polling), so they get a much looser per-IP ceiling than a
+// one-shot form like ApplyAsAgent.
 var rateLimitedProcedures = map[string]rate.Limit{
-	"/hajj.v1.AgentService/ApplyAsAgent": rate.Every(time.Hour / rateLimitBurst), // 5 per hour per IP
+	"/hajj.v1.AgentService/ApplyAsAgent":        rate.Every(time.Hour / rateLimitBurst), // 5 per hour per IP
+	"/hajj.v1.PilgrimAppService/GetMyInfo":      rate.Every(time.Minute / 4),            // 4 per minute per IP
+	"/hajj.v1.PilgrimAppService/ListMySchedule": rate.Every(time.Minute / 4),
+	"/hajj.v1.PilgrimAppService/ListMyProducts": rate.Every(time.Minute / 4),
+	"/hajj.v1.ChatService/ListMyMessages":       rate.Every(time.Second * 3), // supports ~3s polling
+	"/hajj.v1.ChatService/SendMyMessage":        rate.Every(time.Minute / 10),
 }
 
 type ipLimiter struct {

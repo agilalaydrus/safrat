@@ -1,0 +1,101 @@
+package service
+
+import (
+	"context"
+	"strings"
+
+	"github.com/hajj-saas/api/internal/apperror"
+	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
+	"github.com/hajj-saas/api/internal/middleware"
+	"github.com/hajj-saas/api/internal/repository"
+	"google.golang.org/protobuf/types/known/timestamppb"
+)
+
+type GroupLeaderService struct {
+	operatorRepository    *repository.OperatorRepository
+	groupLeaderRepository *repository.GroupLeaderRepository
+}
+
+func NewGroupLeaderService(operators *repository.OperatorRepository, groupLeaders *repository.GroupLeaderRepository) *GroupLeaderService {
+	return &GroupLeaderService{operatorRepository: operators, groupLeaderRepository: groupLeaders}
+}
+
+func (s *GroupLeaderService) ListMyGroups(ctx context.Context, orgID string) (*hajjv1.ListMyGroupsResponse, error) {
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.ListMyGroups", err)
+	}
+	groups, err := s.groupLeaderRepository.ListMyGroups(ctx, op.ID, middleware.UserIDFromCtx(ctx))
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.ListMyGroups", err)
+	}
+	result := &hajjv1.ListMyGroupsResponse{Groups: make([]*hajjv1.LeaderGroup, 0, len(groups))}
+	for _, group := range groups {
+		result.Groups = append(result.Groups, &hajjv1.LeaderGroup{Id: group.ID, Name: group.Name, Capacity: group.Capacity, PilgrimCount: group.PilgrimCount})
+	}
+	return result, nil
+}
+
+func (s *GroupLeaderService) GetGroupRoster(ctx context.Context, orgID string, req *hajjv1.GetGroupRosterRequest) (*hajjv1.GetGroupRosterResponse, error) {
+	if req == nil || strings.TrimSpace(req.GroupId) == "" {
+		return nil, serviceError("GroupLeaderService.GetGroupRoster", apperror.ErrValidation)
+	}
+	op, err := s.authorizeGroup(ctx, orgID, req.GroupId)
+	if err != nil {
+		return nil, err
+	}
+	pilgrims, err := s.groupLeaderRepository.GetRoster(ctx, op, req.GroupId)
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.GetGroupRoster", err)
+	}
+	result := &hajjv1.GetGroupRosterResponse{Pilgrims: make([]*hajjv1.Pilgrim, 0, len(pilgrims))}
+	for _, p := range pilgrims {
+		result.Pilgrims = append(result.Pilgrims, pilgrimMessage(p))
+	}
+	return result, nil
+}
+
+func (s *GroupLeaderService) ListCheckIns(ctx context.Context, orgID string, req *hajjv1.ListCheckInsRequest) (*hajjv1.ListCheckInsResponse, error) {
+	if req == nil || strings.TrimSpace(req.MovementId) == "" {
+		return nil, serviceError("GroupLeaderService.ListCheckIns", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.ListCheckIns", err)
+	}
+	checkIns, err := s.groupLeaderRepository.ListCheckIns(ctx, op.ID, req.MovementId)
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.ListCheckIns", err)
+	}
+	result := &hajjv1.ListCheckInsResponse{CheckIns: make([]*hajjv1.CheckIn, 0, len(checkIns))}
+	for _, c := range checkIns {
+		result.CheckIns = append(result.CheckIns, &hajjv1.CheckIn{Id: c.ID, MovementId: c.MovementID, PilgrimId: c.PilgrimID, Type: c.Type, CreatedAt: timestamppb.New(c.CreatedAt)})
+	}
+	return result, nil
+}
+
+func (s *GroupLeaderService) CreateCheckIn(ctx context.Context, orgID string, req *hajjv1.CreateCheckInRequest) (*hajjv1.CheckIn, error) {
+	if req == nil || strings.TrimSpace(req.MovementId) == "" || strings.TrimSpace(req.PilgrimId) == "" || (req.Type != "DEPARTURE" && req.Type != "ARRIVAL") {
+		return nil, serviceError("GroupLeaderService.CreateCheckIn", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.CreateCheckIn", err)
+	}
+	checkIn, err := s.groupLeaderRepository.CreateCheckIn(ctx, op.ID, req.MovementId, req.PilgrimId, req.Type, middleware.UserIDFromCtx(ctx))
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.CreateCheckIn", apperror.ErrAlreadyExists)
+	}
+	return &hajjv1.CheckIn{Id: checkIn.ID, MovementId: checkIn.MovementID, PilgrimId: checkIn.PilgrimID, Type: checkIn.Type, CreatedAt: timestamppb.New(checkIn.CreatedAt)}, nil
+}
+
+func (s *GroupLeaderService) authorizeGroup(ctx context.Context, orgID, groupID string) (string, error) {
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return "", serviceError("GroupLeaderService", err)
+	}
+	if err := s.groupLeaderRepository.EnsureLeaderOwnsGroup(ctx, op.ID, groupID, middleware.UserIDFromCtx(ctx)); err != nil {
+		return "", serviceError("GroupLeaderService", apperror.ErrForbidden)
+	}
+	return op.ID, nil
+}

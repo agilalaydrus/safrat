@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   "/api/auth",
   "/pilgrim",
   "/apply",
+  "/firebase-messaging-sw.js",
 ];
 
 export function middleware(request: NextRequest) {

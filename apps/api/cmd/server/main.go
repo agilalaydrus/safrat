@@ -16,6 +16,7 @@ import (
 	"github.com/hajj-saas/api/internal/gen/hajj/v1/hajjv1connect"
 	"github.com/hajj-saas/api/internal/handler"
 	"github.com/hajj-saas/api/internal/middleware"
+	"github.com/hajj-saas/api/internal/notification"
 	"github.com/hajj-saas/api/internal/repository"
 	"github.com/hajj-saas/api/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -64,6 +65,17 @@ func main() {
 		transportRepository := repository.NewTransportRepository(queries, pool)
 		productRepository := repository.NewProductRepository(queries)
 		agentRepository := repository.NewAgentRepository(queries)
+		sosRepository := repository.NewSOSRepository(queries)
+		chatRepository := repository.NewChatRepository(queries)
+		groupLeaderRepository := repository.NewGroupLeaderRepository(queries)
+		notificationRepository := repository.NewNotificationRepository(queries)
+
+		firebasePusher, err := notification.NewFirebasePusher(ctx, logger, config.FirebaseServiceAccountJSON, notificationRepository)
+		if err != nil {
+			logger.Error("init firebase", "error", err)
+			sentry.CaptureException(err)
+		}
+
 		operatorService := service.NewOperatorService(operatorRepository)
 		pilgrimService := service.NewPilgrimService(operatorRepository, pilgrimRepository, accommodationRepository, transportRepository, pool)
 		seasonService := service.NewSeasonService(operatorRepository, seasonRepository)
@@ -71,6 +83,11 @@ func main() {
 		transportService := service.NewTransportService(operatorRepository, transportRepository)
 		productService := service.NewProductService(operatorRepository, productRepository)
 		agentService := service.NewAgentService(operatorRepository, agentRepository)
+		pilgrimAppService := service.NewPilgrimAppService(pilgrimRepository, productRepository)
+		sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, firebasePusher)
+		chatService := service.NewChatService(operatorRepository, pilgrimRepository, chatRepository, groupLeaderRepository)
+		groupLeaderService := service.NewGroupLeaderService(operatorRepository, groupLeaderRepository)
+		notificationService := service.NewNotificationService(operatorRepository, notificationRepository)
 		operatorHandler := handler.NewOperatorHandler(operatorService)
 		pilgrimHandler := handler.NewPilgrimHandler(pilgrimService)
 		seasonHandler := handler.NewSeasonHandler(seasonService)
@@ -78,6 +95,11 @@ func main() {
 		transportHandler := handler.NewTransportHandler(transportService)
 		productHandler := handler.NewProductHandler(productService)
 		agentHandler := handler.NewAgentHandler(agentService)
+		pilgrimAppHandler := handler.NewPilgrimAppHandler(pilgrimAppService)
+		sosHandler := handler.NewSOSHandler(sosService)
+		chatHandler := handler.NewChatHandler(chatService)
+		groupLeaderHandler := handler.NewGroupLeaderHandler(groupLeaderService)
+		notificationHandler := handler.NewNotificationHandler(notificationService)
 		handlerOptions := []connect.HandlerOption{connect.WithInterceptors(
 			middleware.NewRateLimitInterceptor(),
 			middleware.NewAuthInterceptor(pool),
@@ -89,6 +111,11 @@ func main() {
 		transportPath, transportServiceHandler := hajjv1connect.NewTransportServiceHandler(transportHandler, handlerOptions...)
 		productPath, productServiceHandler := hajjv1connect.NewProductServiceHandler(productHandler, handlerOptions...)
 		agentPath, agentServiceHandler := hajjv1connect.NewAgentServiceHandler(agentHandler, handlerOptions...)
+		pilgrimAppPath, pilgrimAppServiceHandler := hajjv1connect.NewPilgrimAppServiceHandler(pilgrimAppHandler, handlerOptions...)
+		sosPath, sosServiceHandler := hajjv1connect.NewSOSServiceHandler(sosHandler, handlerOptions...)
+		chatPath, chatServiceHandler := hajjv1connect.NewChatServiceHandler(chatHandler, handlerOptions...)
+		groupLeaderPath, groupLeaderServiceHandler := hajjv1connect.NewGroupLeaderServiceHandler(groupLeaderHandler, handlerOptions...)
+		notificationPath, notificationServiceHandler := hajjv1connect.NewNotificationServiceHandler(notificationHandler, handlerOptions...)
 		mux.Handle(operatorPath, operatorServiceHandler)
 		mux.Handle(pilgrimPath, pilgrimServiceHandler)
 		mux.Handle(seasonPath, seasonServiceHandler)
@@ -96,6 +123,11 @@ func main() {
 		mux.Handle(transportPath, transportServiceHandler)
 		mux.Handle(productPath, productServiceHandler)
 		mux.Handle(agentPath, agentServiceHandler)
+		mux.Handle(pilgrimAppPath, pilgrimAppServiceHandler)
+		mux.Handle(sosPath, sosServiceHandler)
+		mux.Handle(chatPath, chatServiceHandler)
+		mux.Handle(groupLeaderPath, groupLeaderServiceHandler)
+		mux.Handle(notificationPath, notificationServiceHandler)
 		mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, request *http.Request) {
 			if err := pool.Ping(request.Context()); err != nil {
 				http.Error(w, `{"status":"database_unavailable"}`, http.StatusServiceUnavailable)

@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service ChatService {
+  // Public (app_access_code) — the pilgrim side of a group's chat board.
+  rpc ListMyMessages(ChatAppRequest) returns (ListChatMessagesResponse);
+  rpc SendMyMessage(SendMyMessageRequest) returns (ChatMessage);
+
+  // Authenticated — the group leader side. Server resolves the caller's
+  // group from groups.leader_id, not from the request.
+  rpc ListGroupMessages(ListGroupMessagesRequest) returns (ListChatMessagesResponse);
+  rpc SendGroupMessage(SendGroupMessageRequest) returns (ChatMessage);
+}
+
+message ChatMessage {
+  string id = 1;
+  string group_id = 2;
+  string sender_name = 3;
+  bool from_pilgrim = 4;
+  string body = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message ChatAppRequest {
+  string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message SendMyMessageRequest {
+  string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
+  string body = 2 [(buf.validate.field).string.min_len = 1];
+}
+
+message ListChatMessagesResponse { repeated ChatMessage messages = 1; }
+
+message ListGroupMessagesRequest {
+  string group_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message SendGroupMessageRequest {
+  string group_id = 1 [(buf.validate.field).string.min_len = 1];
+  string body = 2 [(buf.validate.field).string.min_len = 1];
+}

@@ -16,6 +16,10 @@ RETURNING *;
 SELECT * FROM pilgrims
 WHERE id = $1 AND operator_id = $2;
 
+-- name: GetPilgrimByAppAccessCode :one
+SELECT * FROM pilgrims
+WHERE app_access_code = $1 AND is_substituted = false;
+
 -- name: GetPilgrimByPassport :one
 SELECT * FROM pilgrims
 WHERE operator_id = $1 AND season_id = $2 AND passport_number = $3;

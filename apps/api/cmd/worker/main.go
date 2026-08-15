@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/hajj-saas/api/internal/gen/db"
+	"github.com/hajj-saas/api/internal/notification"
 	"github.com/hajj-saas/api/internal/repository"
 	"github.com/hajj-saas/api/internal/service"
 	"github.com/hajj-saas/api/internal/worker"
@@ -35,8 +36,18 @@ func main() {
 	queries := db.New(pool)
 	operatorRepository := repository.NewOperatorRepository(queries)
 	agentRepository := repository.NewAgentRepository(queries)
+	pilgrimRepository := repository.NewPilgrimRepository(queries)
+	sosRepository := repository.NewSOSRepository(queries)
+	notificationRepository := repository.NewNotificationRepository(queries)
 	agentService := service.NewAgentService(operatorRepository, agentRepository)
 	tierHandler := worker.NewTierHandler(logger, operatorRepository, agentService)
+
+	firebasePusher, err := notification.NewFirebasePusher(context.Background(), logger, strings.TrimSpace(os.Getenv("FIREBASE_SERVICE_ACCOUNT_JSON")), notificationRepository)
+	if err != nil {
+		logger.Error("init firebase", "error", err)
+	}
+	sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, firebasePusher)
+	sosHandler := worker.NewSOSHandler(logger, sosService)
 
 	redisOpt, err := asynq.ParseRedisURI(redisURL)
 	if err != nil {
@@ -49,6 +60,10 @@ func main() {
 		logger.Error("register tier recalculation schedule", "error", err)
 		os.Exit(1)
 	}
+	if _, err := scheduler.Register("@every 1m", worker.NewSOSEscalateTask()); err != nil {
+		logger.Error("register SOS escalation schedule", "error", err)
+		os.Exit(1)
+	}
 	go func() {
 		if err := scheduler.Run(); err != nil {
 			logger.Error("scheduler stopped", "error", err)
@@ -58,6 +73,7 @@ func main() {
 
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(worker.TaskTierRecalculateAll, tierHandler.HandleRecalculateAll)
+	mux.HandleFunc(worker.TaskSOSEscalate, sosHandler.HandleEscalate)
 
 	server := asynq.NewServer(redisOpt, asynq.Config{Concurrency: 5, Logger: slogAdapter{logger}})
 	logger.Info("worker listening", "redis", redisURL)

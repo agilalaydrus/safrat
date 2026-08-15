@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "hajj/v1/pilgrim.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// GroupLeaderService is fully authenticated and self-scoped — every method
+// filters by groups.leader_id = the caller's Better Auth user id, resolved
+// server-side, never taken from the request.
+service GroupLeaderService {
+  rpc ListMyGroups(ListMyGroupsRequest) returns (ListMyGroupsResponse);
+  rpc GetGroupRoster(GetGroupRosterRequest) returns (GetGroupRosterResponse);
+  rpc ListCheckIns(ListCheckInsRequest) returns (ListCheckInsResponse);
+  rpc CreateCheckIn(CreateCheckInRequest) returns (CheckIn);
+}
+
+message LeaderGroup {
+  string id = 1;
+  string name = 2;
+  int32 capacity = 3;
+  int32 pilgrim_count = 4;
+}
+
+message ListMyGroupsRequest {}
+message ListMyGroupsResponse { repeated LeaderGroup groups = 1; }
+
+message GetGroupRosterRequest {
+  string group_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+message GetGroupRosterResponse { repeated Pilgrim pilgrims = 1; }
+
+message CheckIn {
+  string id = 1;
+  string movement_id = 2;
+  string pilgrim_id = 3;
+  string type = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+message ListCheckInsRequest {
+  string movement_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+message ListCheckInsResponse { repeated CheckIn check_ins = 1; }
+
+message CreateCheckInRequest {
+  string movement_id = 1 [(buf.validate.field).string.min_len = 1];
+  string pilgrim_id = 2 [(buf.validate.field).string.min_len = 1];
+  string type = 3 [(buf.validate.field).string = {in: ["DEPARTURE", "ARRIVAL"]}];
+}

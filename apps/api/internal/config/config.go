@@ -8,11 +8,12 @@ import (
 )
 
 type Config struct {
-	Port             string
-	DatabaseURL      string
-	BetterAuthSecret string
-	AllowedOrigin    string
-	SentryDSN        string
+	Port                       string
+	DatabaseURL                string
+	BetterAuthSecret           string
+	AllowedOrigin              string
+	SentryDSN                  string
+	FirebaseServiceAccountJSON string
 }
 
 func Load() (Config, error) {
@@ -23,6 +24,9 @@ func Load() (Config, error) {
 		AllowedOrigin:    strings.TrimRight(strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGIN")), "/"),
 		// SentryDSN is optional — unset means sentry.Init is a no-op (see main.go).
 		SentryDSN: strings.TrimSpace(os.Getenv("SENTRY_DSN")),
+		// FirebaseServiceAccountJSON is optional — unset means SOS push notifications
+		// are a no-op (see internal/notification.NewFirebasePusher).
+		FirebaseServiceAccountJSON: strings.TrimSpace(os.Getenv("FIREBASE_SERVICE_ACCOUNT_JSON")),
 	}
 	if config.DatabaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")

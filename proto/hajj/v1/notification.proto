@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// NotificationService is authenticated — used by coordinators (SOS dashboard)
+// and group leaders to register a browser for Firebase push.
+service NotificationService {
+  rpc RegisterPushSubscription(RegisterPushSubscriptionRequest) returns (google.protobuf.Empty);
+}
+
+message RegisterPushSubscriptionRequest {
+  string fcm_token = 1 [(buf.validate.field).string.min_len = 1];
+}

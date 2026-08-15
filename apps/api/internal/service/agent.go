@@ -80,6 +80,7 @@ func (s *AgentService) Update(ctx context.Context, orgID string, req *hajjv1.Upd
 	}
 	return agentMessage(agent), nil
 }
+
 // ApplyAsAgent is the public application path — there is no authenticated
 // operator identity here, so operator_id comes from the request itself.
 func (s *AgentService) ApplyAsAgent(ctx context.Context, req *hajjv1.ApplyAsAgentRequest) (*hajjv1.Agent, error) {

@@ -1,10 +1,15 @@
 import { createClient } from "@connectrpc/connect";
 import { AccommodationService } from "@hajj-saas/proto-gen/hajj/v1/accommodation_connect";
 import { AgentService } from "@hajj-saas/proto-gen/hajj/v1/agent_connect";
+import { ChatService } from "@hajj-saas/proto-gen/hajj/v1/chat_connect";
+import { GroupLeaderService } from "@hajj-saas/proto-gen/hajj/v1/groupleader_connect";
+import { NotificationService } from "@hajj-saas/proto-gen/hajj/v1/notification_connect";
 import { OperatorService } from "@hajj-saas/proto-gen/hajj/v1/operator_connect";
+import { PilgrimAppService } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_app_connect";
 import { PilgrimService } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_connect";
 import { ProductService } from "@hajj-saas/proto-gen/hajj/v1/product_connect";
 import { SeasonService } from "@hajj-saas/proto-gen/hajj/v1/season_connect";
+import { SOSService } from "@hajj-saas/proto-gen/hajj/v1/sos_connect";
 import { TransportService } from "@hajj-saas/proto-gen/hajj/v1/transport_connect";
 import { transport } from "./transport";
 
@@ -15,3 +20,8 @@ export const accommodationClient = createClient(AccommodationService, transport)
 export const transportClient = createClient(TransportService, transport);
 export const productClient = createClient(ProductService, transport);
 export const agentClient = createClient(AgentService, transport);
+export const pilgrimAppClient = createClient(PilgrimAppService, transport);
+export const sosClient = createClient(SOSService, transport);
+export const chatClient = createClient(ChatService, transport);
+export const groupLeaderClient = createClient(GroupLeaderService, transport);
+export const notificationClient = createClient(NotificationService, transport);
