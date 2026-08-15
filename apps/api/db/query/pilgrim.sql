@@ -74,14 +74,18 @@ SET group_id = $2,
     updated_at = NOW()
 WHERE id = $1 AND operator_id = $3;
 
--- name: CountPilgrimsByOperator :one
-SELECT COUNT(*) FROM pilgrims WHERE operator_id = $1;
+-- name: CountPilgrimsBySeason :one
+SELECT COUNT(*) FROM pilgrims WHERE operator_id = $1 AND season_id = $2;
 
 -- name: GetPilgrimStats :one
+-- Substituted pilgrims are replaced/inactive — every other roster count in
+-- the app (group rosters, group pilgrim_count, etc.) already excludes them,
+-- so total/wheelchair/unassigned here must too, or the dashboard overcounts
+-- against what every other screen shows.
 SELECT
-  COUNT(*)::int AS total,
+  COUNT(*) FILTER (WHERE NOT is_substituted)::int AS total,
   COUNT(*) FILTER (WHERE is_substituted)::int AS substituted,
-  COUNT(*) FILTER (WHERE requires_wheelchair)::int AS requires_wheelchair,
-  COUNT(*) FILTER (WHERE group_id IS NULL)::int AS unassigned_group
+  COUNT(*) FILTER (WHERE NOT is_substituted AND requires_wheelchair)::int AS requires_wheelchair,
+  COUNT(*) FILTER (WHERE NOT is_substituted AND group_id IS NULL)::int AS unassigned_group
 FROM pilgrims
 WHERE operator_id = $1 AND season_id = $2;

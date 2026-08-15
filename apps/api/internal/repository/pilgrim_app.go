@@ -47,6 +47,17 @@ func (r *PilgrimRepository) UpdateLocation(ctx context.Context, appAccessCode st
 	})
 }
 
+// SetWheelchairRequest lets a pilgrim self-report a wheelchair need — public,
+// same as UpdateLocation. Returns the pilgrim's id/operatorID/name so the
+// caller can write an audit log entry without a second lookup.
+func (r *PilgrimRepository) SetWheelchairRequest(ctx context.Context, appAccessCode string, requiresWheelchair bool) (pilgrimID, operatorID, fullName string, err error) {
+	row, err := r.queries.SetPilgrimWheelchairRequest(ctx, db.SetPilgrimWheelchairRequestParams{AppAccessCode: appAccessCode, RequiresWheelchair: requiresWheelchair})
+	if err != nil {
+		return "", "", "", err
+	}
+	return uuidString(row.ID), uuidString(row.OperatorID), row.FullName, nil
+}
+
 func (r *PilgrimRepository) ListUpcomingMovements(ctx context.Context, operatorID, seasonID string) ([]*Movement, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {

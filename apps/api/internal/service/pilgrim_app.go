@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/hajj-saas/api/internal/apperror"
@@ -13,10 +14,11 @@ import (
 type PilgrimAppService struct {
 	pilgrimRepository *repository.PilgrimRepository
 	productRepository *repository.ProductRepository
+	auditRepository   *repository.AuditRepository
 }
 
-func NewPilgrimAppService(pilgrims *repository.PilgrimRepository, products *repository.ProductRepository) *PilgrimAppService {
-	return &PilgrimAppService{pilgrimRepository: pilgrims, productRepository: products}
+func NewPilgrimAppService(pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, audit *repository.AuditRepository) *PilgrimAppService {
+	return &PilgrimAppService{pilgrimRepository: pilgrims, productRepository: products, auditRepository: audit}
 }
 
 func (s *PilgrimAppService) GetMyInfo(ctx context.Context, req *hajjv1.PilgrimAppRequest) (*hajjv1.PilgrimAppInfo, error) {
@@ -44,6 +46,22 @@ func (s *PilgrimAppService) UpdateMyLocation(ctx context.Context, req *hajjv1.Up
 		return nil, serviceError("PilgrimAppService.UpdateMyLocation", err)
 	}
 	return &hajjv1.UpdateMyLocationResponse{}, nil
+}
+
+func (s *PilgrimAppService) RequestWheelchair(ctx context.Context, req *hajjv1.RequestWheelchairRequest) (*hajjv1.RequestWheelchairResponse, error) {
+	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" {
+		return nil, serviceError("PilgrimAppService.RequestWheelchair", apperror.ErrValidation)
+	}
+	pilgrimID, operatorID, fullName, err := s.pilgrimRepository.SetWheelchairRequest(ctx, req.AppAccessCode, req.RequiresWheelchair)
+	if err != nil {
+		return nil, serviceError("PilgrimAppService.RequestWheelchair", apperror.ErrNotFound)
+	}
+	action, message := "pilgrim_wheelchair_requested", fmt.Sprintf("%s meminta bantuan kursi roda", fullName)
+	if !req.RequiresWheelchair {
+		action, message = "pilgrim_wheelchair_cancelled", fmt.Sprintf("%s membatalkan permintaan kursi roda", fullName)
+	}
+	_ = s.auditRepository.Write(ctx, operatorID, "", action, "pilgrim", pilgrimID, message)
+	return &hajjv1.RequestWheelchairResponse{RequiresWheelchair: req.RequiresWheelchair}, nil
 }
 
 func (s *PilgrimAppService) ListMySchedule(ctx context.Context, req *hajjv1.PilgrimAppRequest) (*hajjv1.ListMyScheduleResponse, error) {

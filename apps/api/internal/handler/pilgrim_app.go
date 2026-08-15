@@ -34,6 +34,13 @@ func (h *PilgrimAppHandler) UpdateMyLocation(ctx context.Context, req *connect.R
 	}
 	return connect.NewResponse(result), nil
 }
+func (h *PilgrimAppHandler) RequestWheelchair(ctx context.Context, req *connect.Request[hajjv1.RequestWheelchairRequest]) (*connect.Response[hajjv1.RequestWheelchairResponse], error) {
+	result, err := h.pilgrimAppService.RequestWheelchair(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
 func (h *PilgrimAppHandler) ListMyProducts(ctx context.Context, req *connect.Request[hajjv1.PilgrimAppRequest]) (*connect.Response[hajjv1.ListMyProductsResponse], error) {
 	result, err := h.pilgrimAppService.ListMyProducts(ctx, req.Msg)
 	if err != nil {

@@ -15,6 +15,12 @@ LEFT JOIN hotels h ON h.id = r.hotel_id
 WHERE p.app_access_code = $1 AND p.is_substituted = false
 ORDER BY p.id, ra.allocated_at DESC NULLS LAST;
 
+-- name: SetPilgrimWheelchairRequest :one
+UPDATE pilgrims
+SET requires_wheelchair = $2, updated_at = NOW()
+WHERE app_access_code = $1 AND is_substituted = false
+RETURNING id, operator_id, full_name;
+
 -- name: ListUpcomingMovementsForSeason :many
 SELECT * FROM movements
 WHERE season_id = $1 AND operator_id = $2 AND status = 'scheduled'

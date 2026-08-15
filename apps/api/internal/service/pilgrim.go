@@ -94,7 +94,7 @@ func (s *PilgrimService) List(ctx context.Context, authenticatedOrgID string, re
 	if err != nil {
 		return nil, serviceError("PilgrimService.List", err)
 	}
-	count, err := s.pilgrimRepository.CountByOperator(ctx, operator.ID)
+	count, err := s.pilgrimRepository.CountBySeason(ctx, operator.ID, request.SeasonId)
 	if err != nil {
 		return nil, serviceError("PilgrimService.List", err)
 	}

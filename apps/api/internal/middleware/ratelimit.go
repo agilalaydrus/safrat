@@ -24,13 +24,14 @@ const rateLimitBurst = 5 // requests allowed immediately, refilling at the rate 
 // refresh, chat polling), so they get a much looser per-IP ceiling than a
 // one-shot form like ApplyAsAgent.
 var rateLimitedProcedures = map[string]rate.Limit{
-	"/hajj.v1.AgentService/ApplyAsAgent":          rate.Every(time.Hour / rateLimitBurst), // 5 per hour per IP
-	"/hajj.v1.PilgrimAppService/GetMyInfo":        rate.Every(time.Minute / 4),            // 4 per minute per IP
-	"/hajj.v1.PilgrimAppService/ListMySchedule":   rate.Every(time.Minute / 4),
-	"/hajj.v1.PilgrimAppService/ListMyProducts":   rate.Every(time.Minute / 4),
-	"/hajj.v1.PilgrimAppService/UpdateMyLocation": rate.Every(time.Minute / 4), // pings every 5min; allows retries
-	"/hajj.v1.ChatService/ListMyMessages":         rate.Every(time.Second * 3), // supports ~3s polling
-	"/hajj.v1.ChatService/SendMyMessage":          rate.Every(time.Minute / 10),
+	"/hajj.v1.AgentService/ApplyAsAgent":           rate.Every(time.Hour / rateLimitBurst), // 5 per hour per IP
+	"/hajj.v1.PilgrimAppService/GetMyInfo":         rate.Every(time.Minute / 4),            // 4 per minute per IP
+	"/hajj.v1.PilgrimAppService/ListMySchedule":    rate.Every(time.Minute / 4),
+	"/hajj.v1.PilgrimAppService/ListMyProducts":    rate.Every(time.Minute / 4),
+	"/hajj.v1.PilgrimAppService/UpdateMyLocation":  rate.Every(time.Minute / 4), // pings every 5min; allows retries
+	"/hajj.v1.PilgrimAppService/RequestWheelchair": rate.Every(time.Minute / 4),
+	"/hajj.v1.ChatService/ListMyMessages":          rate.Every(time.Second * 3), // supports ~3s polling
+	"/hajj.v1.ChatService/SendMyMessage":           rate.Every(time.Minute / 10),
 }
 
 type ipLimiter struct {

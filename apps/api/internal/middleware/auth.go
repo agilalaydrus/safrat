@@ -24,14 +24,15 @@ const (
 // (like operator_id) must come from the request body instead of ctx, and the service
 // layer must validate them explicitly since there's no session to trust.
 var publicProcedures = map[string]bool{
-	"/hajj.v1.AgentService/ApplyAsAgent":          true,
-	"/hajj.v1.PilgrimAppService/GetMyInfo":        true,
-	"/hajj.v1.PilgrimAppService/ListMySchedule":   true,
-	"/hajj.v1.PilgrimAppService/ListMyProducts":   true,
-	"/hajj.v1.PilgrimAppService/UpdateMyLocation": true,
-	"/hajj.v1.SOSService/CreateSOSAlert":          true,
-	"/hajj.v1.ChatService/ListMyMessages":         true,
-	"/hajj.v1.ChatService/SendMyMessage":          true,
+	"/hajj.v1.AgentService/ApplyAsAgent":           true,
+	"/hajj.v1.PilgrimAppService/GetMyInfo":         true,
+	"/hajj.v1.PilgrimAppService/ListMySchedule":    true,
+	"/hajj.v1.PilgrimAppService/ListMyProducts":    true,
+	"/hajj.v1.PilgrimAppService/UpdateMyLocation":  true,
+	"/hajj.v1.PilgrimAppService/RequestWheelchair": true,
+	"/hajj.v1.SOSService/CreateSOSAlert":           true,
+	"/hajj.v1.ChatService/ListMyMessages":          true,
+	"/hajj.v1.ChatService/SendMyMessage":           true,
 }
 
 // NewAuthInterceptor validates Better Auth's opaque database session token.

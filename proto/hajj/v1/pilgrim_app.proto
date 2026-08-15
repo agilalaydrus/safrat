@@ -20,6 +20,9 @@ service PilgrimAppService {
   // more, best-effort, right before an SOS alert is sent) so a coordinator
   // or leader always has a recent GPS fix to work from during an emergency.
   rpc UpdateMyLocation(UpdateMyLocationRequest) returns (UpdateMyLocationResponse);
+  // RequestWheelchair lets a pilgrim self-report a wheelchair need directly
+  // from the app instead of requiring a coordinator to set it on their behalf.
+  rpc RequestWheelchair(RequestWheelchairRequest) returns (RequestWheelchairResponse);
 }
 
 message PilgrimAppRequest {
@@ -52,3 +55,12 @@ message UpdateMyLocationRequest {
 }
 
 message UpdateMyLocationResponse {}
+
+message RequestWheelchairRequest {
+  string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
+  bool requires_wheelchair = 2;
+}
+
+message RequestWheelchairResponse {
+  bool requires_wheelchair = 1;
+}
