@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Buf lint
+        uses: bufbuild/buf-setup-action@v1
+      - run: buf lint proto/
+        # buf breaking against main is intentionally not run here yet — it
+        # currently fails to resolve proto/buf.lock dependencies against the
+        # main branch's historical state, unrelated to any real breaking
+        # change. Fix that resolution before adding a breaking-change gate.
+
+      - name: Go build, vet, test
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api/go.mod
+      - run: cd apps/api && go build ./... && go vet ./...
+      - run: cd apps/api && go test ./...
+
+      - name: TypeScript typecheck
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: corepack enable && corepack prepare pnpm@9 --activate
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck

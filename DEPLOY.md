@@ -389,7 +389,9 @@ sudo systemctl status certbot.timer
 
 ## 8. GitHub Actions CI/CD
 
-`.github/workflows/deploy.yml`:
+**Current state:** only the `test` job below is actually wired up, as `.github/workflows/ci.yml` — it runs on every push to `main` and every PR, with no secrets required. The `build-and-deploy` job is documented here but not yet created as a workflow file: it needs `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` (and `NEXT_PUBLIC_VAPID_PUBLIC_KEY`) configured as GitHub Secrets first, and a real VPS to deploy to. `ci.yml` also skips the `buf breaking` step below — resolving `proto/buf.lock` against the `main` branch's historical state currently fails for reasons unrelated to any real breaking change; fix that before adding the gate.
+
+`.github/workflows/deploy.yml` (reference — not yet created):
 
 ```yaml
 name: Deploy to VPS
