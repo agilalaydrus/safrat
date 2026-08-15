@@ -67,8 +67,10 @@ func main() {
 		transportHandler := handler.NewTransportHandler(transportService)
 		productHandler := handler.NewProductHandler(productService)
 		agentHandler := handler.NewAgentHandler(agentService)
-		interceptor := middleware.NewAuthInterceptor(pool)
-		handlerOptions := []connect.HandlerOption{connect.WithInterceptors(interceptor)}
+		handlerOptions := []connect.HandlerOption{connect.WithInterceptors(
+			middleware.NewRateLimitInterceptor(),
+			middleware.NewAuthInterceptor(pool),
+		)}
 		operatorPath, operatorServiceHandler := hajjv1connect.NewOperatorServiceHandler(operatorHandler, handlerOptions...)
 		pilgrimPath, pilgrimServiceHandler := hajjv1connect.NewPilgrimServiceHandler(pilgrimHandler, handlerOptions...)
 		seasonPath, seasonServiceHandler := hajjv1connect.NewSeasonServiceHandler(seasonHandler, handlerOptions...)

@@ -10,3 +10,4 @@ apps/api/db/generated
 apps/api/internal/gen
 packages/proto-gen/hajj
 *.log
+.DS_Store
