@@ -24,10 +24,15 @@ VALUES
   ('00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000001', 'Musim Haji 2025', 'HAJJ', '2025-06-15 00:00:00+07', '2025-07-01 23:59:59+03', true),
   ('00000000-0000-4000-8000-000000000102', '00000000-0000-4000-8000-000000000001', 'Musim Haji 2024', 'HAJJ', '2024-06-01 00:00:00+07', '2024-06-20 23:59:59+03', false);
 
-INSERT INTO groups (id, season_id, operator_id, name, capacity)
+-- GROUP-A's leader is whoever is currently logged in (the same session used to resolve
+-- the operator above), so the admin Groups page and the leader's /leader app agree on
+-- the same group out of the box. GROUP-B is left unassigned deliberately, to demo the
+-- "no leader assigned" state on the admin Groups page.
+INSERT INTO groups (id, season_id, operator_id, name, capacity, leader_id)
 VALUES
-  ('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000001', 'GROUP-A', 40),
-  ('00000000-0000-4000-8000-000000000202', '00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000001', 'GROUP-B', 40);
+  ('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000001', 'GROUP-A', 40,
+    (SELECT s."userId" FROM session s WHERE s."activeOrganizationId" IS NOT NULL AND s."expiresAt" > NOW() ORDER BY s."expiresAt" DESC LIMIT 1)),
+  ('00000000-0000-4000-8000-000000000202', '00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000001', 'GROUP-B', 40, NULL);
 
 INSERT INTO pilgrims (id, season_id, operator_id, group_id, full_name, passport_number, nationality, date_of_birth, gender, phone, emergency_contact, preferred_lang, requires_wheelchair, mahram_id, is_substituted)
 VALUES
@@ -114,5 +119,16 @@ VALUES
   ('00000000-0000-4000-8000-000000000802', '00000000-0000-4000-8000-000000000702', '00000000-0000-4000-8000-000000000001', 'B 5678 ABC', 40, 'Pak Andi', '+628121000002'),
   ('00000000-0000-4000-8000-000000000803', '00000000-0000-4000-8000-000000000703', '00000000-0000-4000-8000-000000000001', 'B 9012 DEF', 15, 'Pak Rudi', '+628121000003'),
   ('00000000-0000-4000-8000-000000000804', '00000000-0000-4000-8000-000000000704', '00000000-0000-4000-8000-000000000001', 'B 3456 GHI', 15, 'Pak Deni', '+628121000004');
+
+-- A couple of GROUP-A chat messages so /leader/[groupId]/chat and the pilgrim PWA's
+-- Chat tab both have something to show immediately.
+INSERT INTO chat_messages (id, operator_id, group_id, sender_pilgrim_id, body, created_at)
+VALUES
+  ('00000000-0000-4000-8000-000000000901', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000301', 'Assalamualaikum, jam berapa kumpul di lobby besok?', NOW() - INTERVAL '2 hours');
+INSERT INTO chat_messages (id, operator_id, group_id, sender_user_id, body, created_at)
+SELECT '00000000-0000-4000-8000-000000000902', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000201',
+  (SELECT s."userId" FROM session s WHERE s."activeOrganizationId" IS NOT NULL AND s."expiresAt" > NOW() ORDER BY s."expiresAt" DESC LIMIT 1),
+  'Wa alaikumsalam, jam 05.00 pagi ya setelah subuh.', NOW() - INTERVAL '1 hour 50 minutes'
+WHERE EXISTS (SELECT 1 FROM session WHERE "activeOrganizationId" IS NOT NULL AND "expiresAt" > NOW());
 
 COMMIT;

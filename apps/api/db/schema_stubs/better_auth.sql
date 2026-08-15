@@ -12,3 +12,11 @@ CREATE TABLE "user" (
   "createdAt" timestamptz NOT NULL,
   "updatedAt" timestamptz NOT NULL
 );
+
+CREATE TABLE "member" (
+  id text PRIMARY KEY,
+  "organizationId" text NOT NULL,
+  "userId" text NOT NULL,
+  role text NOT NULL,
+  "createdAt" timestamptz NOT NULL
+);

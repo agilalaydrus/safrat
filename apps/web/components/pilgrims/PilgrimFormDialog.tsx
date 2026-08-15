@@ -4,7 +4,8 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { Timestamp } from "@bufbuild/protobuf";
 import { IconX } from "@tabler/icons-react";
 import { Gender, Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
-import { pilgrimClient } from "@/lib/rpc";
+import { Group } from "@hajj-saas/proto-gen/hajj/v1/group_pb";
+import { groupClient, pilgrimClient } from "@/lib/rpc";
 
 type FormValues = {
   fullName: string;
@@ -75,6 +76,7 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
   const [form, setForm] = useState<FormValues>(EMPTY_FORM);
   const [mahramPilgrims, setMahramPilgrims] = useState<Pilgrim[]>(pilgrims);
   const [loadingMahrams, setLoadingMahrams] = useState(false);
+  const [groups, setGroups] = useState<Group[]>([]);
   const initialFormValues = useRef<FormValues>(EMPTY_FORM);
 
   useEffect(() => {
@@ -106,6 +108,11 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
     void loadMahramPilgrims();
     return () => { cancelled = true; };
   }, [open, pilgrims, seasonId]);
+
+  useEffect(() => {
+    if (!open || !seasonId) return;
+    groupClient.listGroups({ seasonId }).then((response) => setGroups(response.groups)).catch(() => setGroups([]));
+  }, [open, seasonId]);
 
   useEffect(() => {
     if (!open) return;
@@ -297,8 +304,11 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
 
           <div style={sectionDivider}>
             <Section title="Group & Mahram">
-              <Field fieldKey="groupId" label="Group code" hint="Short label to identify the group (e.g. GRP-A). Leave blank to assign later.">
-                <input className="safrat-input" value={form.groupId} onChange={(event) => update("groupId", event.target.value)} placeholder="e.g. GRP-A" style={input} />
+              <Field fieldKey="groupId" label="Group" hint="Leave unassigned to assign later from the Groups page.">
+                <select className="safrat-input" value={form.groupId} onChange={(event) => update("groupId", event.target.value)} style={input}>
+                  <option value="">Not assigned</option>
+                  {groups.map((group) => <option key={group.id} value={group.id}>{group.name} ({group.pilgrimCount}/{group.capacity})</option>)}
+                </select>
               </Field>
               <Field fieldKey="mahramId" label="Mahram" hint="For female pilgrims: select male guardian (wali/mahram)" error={fieldErrors.mahramId}>
                 <select className="safrat-input" value={form.mahramId} onChange={(event) => update("mahramId", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.mahramId)}>
