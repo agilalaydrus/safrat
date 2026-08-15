@@ -20,6 +20,11 @@ WHERE id = $1 AND operator_id = $2;
 SELECT * FROM pilgrims
 WHERE app_access_code = $1 AND is_substituted = false;
 
+-- name: UpdatePilgrimLocation :exec
+UPDATE pilgrims
+SET last_lat = $2, last_lng = $3, last_location_at = NOW()
+WHERE app_access_code = $1 AND is_substituted = false;
+
 -- name: GetPilgrimByPassport :one
 SELECT * FROM pilgrims
 WHERE operator_id = $1 AND season_id = $2 AND passport_number = $3;

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
 import { IconHome, IconSos, IconMessageCircle, IconCalendarEvent, IconShoppingBag } from "@tabler/icons-react";
 import { useRegisterShellServiceWorker } from "@/lib/register-sw";
+import { useLocationPing } from "@/lib/geolocation";
 
 const TABS = [
   ["Beranda", "", IconHome],
@@ -18,6 +19,7 @@ export default function PilgrimLayout({ children }: { children: React.ReactNode 
   const pathname = usePathname();
   const { code } = useParams<{ code: string }>();
   const base = `/pilgrim/${code}`;
+  useLocationPing(code);
 
   return (
     <div style={shell}>

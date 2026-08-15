@@ -1,6 +1,6 @@
 -- name: CreateSOSAlert :one
-INSERT INTO sos_alerts (operator_id, pilgrim_id)
-VALUES ($1, $2)
+INSERT INTO sos_alerts (operator_id, pilgrim_id, lat, lng)
+VALUES ($1, $2, $3, $4)
 RETURNING *;
 
 -- name: ListActiveSOSAlerts :many

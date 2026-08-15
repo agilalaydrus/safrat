@@ -14,4 +14,6 @@ type SOSAlert struct {
 	ResolvedAt     *time.Time
 	Notes          string
 	CreatedAt      time.Time
+	Lat            *float64
+	Lng            *float64
 }

@@ -24,6 +24,9 @@ type Pilgrim struct {
 	AppAccessCode      string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	LastLat            *float64
+	LastLng            *float64
+	LastLocationAt     *time.Time
 }
 
 type PilgrimInput struct {

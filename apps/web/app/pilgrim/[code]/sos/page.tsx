@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { IconCheck, IconSos, IconWifiOff } from "@tabler/icons-react";
 import { sosClient } from "@/lib/rpc";
 import { enqueueAction, useOfflineQueueFlush } from "@/lib/offline";
+import { getFreshLocation } from "@/lib/geolocation";
 
 const SOS_QUEUE_KIND = "sos-alert";
 const HISTORY_KEY = "safrat:sos-sent-log";
@@ -18,8 +19,8 @@ export default function PilgrimSOSPage() {
   const [history, setHistory] = useState<SentEntry[]>([]);
 
   useOfflineQueueFlush(SOS_QUEUE_KIND, async (payload) => {
-    const { appAccessCode } = payload as { appAccessCode: string };
-    await sosClient.createSOSAlert({ appAccessCode });
+    const { appAccessCode, lat, lng } = payload as { appAccessCode: string; lat?: number; lng?: number };
+    await sosClient.createSOSAlert({ appAccessCode, lat, lng });
     markDelivered();
   });
 
@@ -49,12 +50,15 @@ export default function PilgrimSOSPage() {
     setConfirming(false);
     const entry: SentEntry = { at: new Date().toISOString(), delivered: false };
     saveHistory([...history, entry]);
+    // Best-effort fresh GPS fix — a short timeout so SOS never waits long on
+    // it; falls back server-side to the pilgrim's last periodic location ping.
+    const location = await getFreshLocation();
     try {
-      await sosClient.createSOSAlert({ appAccessCode: code });
+      await sosClient.createSOSAlert({ appAccessCode: code, lat: location?.lat, lng: location?.lng });
       markDelivered();
       setStatus("sent");
     } catch {
-      enqueueAction(SOS_QUEUE_KIND, { appAccessCode: code });
+      enqueueAction(SOS_QUEUE_KIND, { appAccessCode: code, lat: location?.lat, lng: location?.lng });
       setStatus("queued");
     }
   }

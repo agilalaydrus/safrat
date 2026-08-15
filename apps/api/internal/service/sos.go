@@ -40,7 +40,14 @@ func (s *SOSService) CreateSOSAlert(ctx context.Context, req *hajjv1.CreateSOSAl
 	if err != nil {
 		return nil, serviceError("SOSService.CreateSOSAlert", apperror.ErrNotFound)
 	}
-	alert, err := s.sosRepository.Create(ctx, pilgrim.OperatorID, pilgrim.ID)
+	// Prefer a fresh one-shot GPS fix from the SOS request itself; fall back
+	// to the pilgrim's last periodic location ping (see UpdateMyLocation)
+	// when the device couldn't get one in time.
+	lat, lng := req.Lat, req.Lng
+	if lat == nil || lng == nil {
+		lat, lng = pilgrim.LastLat, pilgrim.LastLng
+	}
+	alert, err := s.sosRepository.Create(ctx, pilgrim.OperatorID, pilgrim.ID, lat, lng)
 	if err != nil {
 		return nil, serviceError("SOSService.CreateSOSAlert", err)
 	}
@@ -121,6 +128,12 @@ func sosAlertMessage(alert *domain.SOSAlert) *hajjv1.SOSAlert {
 	}
 	if alert.ResolvedAt != nil {
 		message.ResolvedAt = timestamppb.New(*alert.ResolvedAt)
+	}
+	if alert.Lat != nil && alert.Lng != nil {
+		message.Lat = *alert.Lat
+		message.Lng = *alert.Lng
+		message.HasLocation = true
+		message.LocationAt = timestamppb.New(alert.CreatedAt)
 	}
 	return message
 }

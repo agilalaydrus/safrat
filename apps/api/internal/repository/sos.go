@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type SOSRepository struct{ queries *db.Queries }
@@ -14,7 +15,7 @@ func NewSOSRepository(queries *db.Queries) *SOSRepository {
 	return &SOSRepository{queries: queries}
 }
 
-func (r *SOSRepository) Create(ctx context.Context, operatorID, pilgrimID string) (*domain.SOSAlert, error) {
+func (r *SOSRepository) Create(ctx context.Context, operatorID, pilgrimID string, lat, lng *float64) (*domain.SOSAlert, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -23,11 +24,18 @@ func (r *SOSRepository) Create(ctx context.Context, operatorID, pilgrimID string
 	if err != nil {
 		return nil, err
 	}
-	alert, err := r.queries.CreateSOSAlert(ctx, db.CreateSOSAlertParams{OperatorID: opUUID, PilgrimID: pilgrimUUID})
+	alert, err := r.queries.CreateSOSAlert(ctx, db.CreateSOSAlertParams{OperatorID: opUUID, PilgrimID: pilgrimUUID, Lat: float8Value(lat), Lng: float8Value(lng)})
 	if err != nil {
 		return nil, err
 	}
 	return toSOSAlert(alert, ""), nil
+}
+
+func float8Value(value *float64) pgtype.Float8 {
+	if value == nil {
+		return pgtype.Float8{}
+	}
+	return pgtype.Float8{Float64: *value, Valid: true}
 }
 
 func (r *SOSRepository) ListActive(ctx context.Context, operatorID string) ([]*domain.SOSAlert, error) {
@@ -41,7 +49,7 @@ func (r *SOSRepository) ListActive(ctx context.Context, operatorID string) ([]*d
 	}
 	result := make([]*domain.SOSAlert, 0, len(rows))
 	for _, row := range rows {
-		alert := db.SosAlert{ID: row.ID, OperatorID: row.OperatorID, PilgrimID: row.PilgrimID, Status: row.Status, AcknowledgedBy: row.AcknowledgedBy, AcknowledgedAt: row.AcknowledgedAt, ResolvedBy: row.ResolvedBy, ResolvedAt: row.ResolvedAt, Notes: row.Notes, CreatedAt: row.CreatedAt}
+		alert := db.SosAlert{ID: row.ID, OperatorID: row.OperatorID, PilgrimID: row.PilgrimID, Status: row.Status, AcknowledgedBy: row.AcknowledgedBy, AcknowledgedAt: row.AcknowledgedAt, ResolvedBy: row.ResolvedBy, ResolvedAt: row.ResolvedAt, Notes: row.Notes, CreatedAt: row.CreatedAt, Lat: row.Lat, Lng: row.Lng}
 		result = append(result, toSOSAlert(alert, row.PilgrimName))
 	}
 	return result, nil
@@ -58,7 +66,7 @@ func (r *SOSRepository) ListActiveForLeader(ctx context.Context, operatorID, lea
 	}
 	result := make([]*domain.SOSAlert, 0, len(rows))
 	for _, row := range rows {
-		alert := db.SosAlert{ID: row.ID, OperatorID: row.OperatorID, PilgrimID: row.PilgrimID, Status: row.Status, AcknowledgedBy: row.AcknowledgedBy, AcknowledgedAt: row.AcknowledgedAt, ResolvedBy: row.ResolvedBy, ResolvedAt: row.ResolvedAt, Notes: row.Notes, CreatedAt: row.CreatedAt}
+		alert := db.SosAlert{ID: row.ID, OperatorID: row.OperatorID, PilgrimID: row.PilgrimID, Status: row.Status, AcknowledgedBy: row.AcknowledgedBy, AcknowledgedAt: row.AcknowledgedAt, ResolvedBy: row.ResolvedBy, ResolvedAt: row.ResolvedAt, Notes: row.Notes, CreatedAt: row.CreatedAt, Lat: row.Lat, Lng: row.Lng}
 		result = append(result, toSOSAlert(alert, row.PilgrimName))
 	}
 	return result, nil
@@ -73,7 +81,7 @@ func (r *SOSRepository) EscalateStale(ctx context.Context) ([]*domain.SOSAlert, 
 	}
 	result := make([]*domain.SOSAlert, 0, len(rows))
 	for _, row := range rows {
-		alert := db.SosAlert{ID: row.ID, OperatorID: row.OperatorID, PilgrimID: row.PilgrimID, Status: row.Status, AcknowledgedBy: row.AcknowledgedBy, AcknowledgedAt: row.AcknowledgedAt, ResolvedBy: row.ResolvedBy, ResolvedAt: row.ResolvedAt, Notes: row.Notes, CreatedAt: row.CreatedAt}
+		alert := db.SosAlert{ID: row.ID, OperatorID: row.OperatorID, PilgrimID: row.PilgrimID, Status: row.Status, AcknowledgedBy: row.AcknowledgedBy, AcknowledgedAt: row.AcknowledgedAt, ResolvedBy: row.ResolvedBy, ResolvedAt: row.ResolvedAt, Notes: row.Notes, CreatedAt: row.CreatedAt, Lat: row.Lat, Lng: row.Lng}
 		result = append(result, toSOSAlert(alert, row.PilgrimName))
 	}
 	return result, nil
@@ -127,5 +135,7 @@ func toSOSAlert(alert db.SosAlert, pilgrimName string) *domain.SOSAlert {
 		t := alert.ResolvedAt.Time
 		result.ResolvedAt = &t
 	}
+	result.Lat = float8Ptr(alert.Lat)
+	result.Lng = float8Ptr(alert.Lng)
 	return result
 }

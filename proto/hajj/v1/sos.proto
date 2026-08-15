@@ -28,10 +28,22 @@ message SOSAlert {
   google.protobuf.Timestamp acknowledged_at = 6;
   google.protobuf.Timestamp resolved_at = 7;
   string notes = 8;
+  // Location at the moment the alert was raised, if a GPS fix was available
+  // (either a fresh one from the pilgrim's device, or their last periodic
+  // ping — see PilgrimAppService.UpdateMyLocation). has_location is false
+  // when neither was ever available.
+  double lat = 9;
+  double lng = 10;
+  bool has_location = 11;
+  google.protobuf.Timestamp location_at = 12;
 }
 
 message CreateSOSAlertRequest {
   string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
+  // Optional — a fresh one-shot GPS fix taken right before sending. Falls
+  // back to the pilgrim's last periodic location ping when omitted/unavailable.
+  optional double lat = 2 [(buf.validate.field).double = {gte: -90, lte: 90}];
+  optional double lng = 3 [(buf.validate.field).double = {gte: -180, lte: 180}];
 }
 
 message ListActiveSOSAlertsRequest {}

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { IconBell, IconBellOff, IconCheck, IconSos } from "@tabler/icons-react";
+import { IconBell, IconBellOff, IconCheck, IconMapPin, IconSos } from "@tabler/icons-react";
 import { SOSAlert } from "@hajj-saas/proto-gen/hajj/v1/sos_pb";
 import { notificationClient, sosClient } from "@/lib/rpc";
 import { requestPushToken } from "@/lib/firebase";
@@ -79,6 +79,11 @@ export default function SOSDashboard() {
                 </div>
                 <span style={badge(alert.status)}>{alertStatusLabel(alert.status)}</span>
               </div>
+              {alert.hasLocation ? (
+                <a href={`https://www.google.com/maps?q=${alert.lat},${alert.lng}`} target="_blank" rel="noreferrer" style={mapLink}><IconMapPin size={15} />Lihat lokasi di peta</a>
+              ) : (
+                <p style={noLocation}><IconMapPin size={15} />Lokasi tidak tersedia</p>
+              )}
               <div style={actions}>
                 {alert.status !== "ACKNOWLEDGED" && alert.status !== "ESCALATED" && <button style={ackButton} onClick={() => acknowledge(alert.id)}><IconCheck size={16} />Konfirmasi</button>}
                 {alert.status === "ESCALATED" && <button style={ackButton} onClick={() => acknowledge(alert.id)}><IconCheck size={16} />Konfirmasi (dieskalasi)</button>}
@@ -108,6 +113,8 @@ const card: React.CSSProperties = { background: "#fff", border: "1px solid var(-
 const escalatedCard: React.CSSProperties = { border: "1px solid var(--color-danger-600)", background: "#fdf0f0" };
 const row: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 };
 const actions: React.CSSProperties = { display: "flex", gap: 10, marginTop: 14 };
+const mapLink: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, color: "var(--color-emerald-900)", fontSize: 13, fontWeight: 600 };
+const noLocation: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, color: "var(--color-warm-400)", fontSize: 13 };
 const ackButton: React.CSSProperties = { minHeight: 40, border: 0, borderRadius: 8, padding: "0 14px", background: "var(--color-emerald-900)", color: "#fff", display: "inline-flex", alignItems: "center", gap: 6, fontWeight: 700 };
 const resolveButton: React.CSSProperties = { minHeight: 40, border: "1px solid var(--color-cream-500)", borderRadius: 8, padding: "0 14px", background: "transparent", color: "var(--color-warm-700)" };
 const empty: React.CSSProperties = { minHeight: 280, display: "grid", placeItems: "center", alignContent: "center", gap: 12, border: "1px dashed var(--color-cream-400)", borderRadius: 12 };

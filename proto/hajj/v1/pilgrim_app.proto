@@ -16,6 +16,10 @@ service PilgrimAppService {
   rpc GetMyInfo(PilgrimAppRequest) returns (PilgrimAppInfo);
   rpc ListMySchedule(PilgrimAppRequest) returns (ListMyScheduleResponse);
   rpc ListMyProducts(PilgrimAppRequest) returns (ListMyProductsResponse);
+  // UpdateMyLocation is called every 5 minutes by the pilgrim PWA (and once
+  // more, best-effort, right before an SOS alert is sent) so a coordinator
+  // or leader always has a recent GPS fix to work from during an emergency.
+  rpc UpdateMyLocation(UpdateMyLocationRequest) returns (UpdateMyLocationResponse);
 }
 
 message PilgrimAppRequest {
@@ -40,3 +44,11 @@ message ListMyScheduleResponse {
 message ListMyProductsResponse {
   repeated Product products = 1;
 }
+
+message UpdateMyLocationRequest {
+  string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
+  double lat = 2 [(buf.validate.field).double = {gte: -90, lte: 90}];
+  double lng = 3 [(buf.validate.field).double = {gte: -180, lte: 180}];
+}
+
+message UpdateMyLocationResponse {}

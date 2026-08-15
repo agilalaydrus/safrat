@@ -27,6 +27,13 @@ func (h *PilgrimAppHandler) ListMySchedule(ctx context.Context, req *connect.Req
 	}
 	return connect.NewResponse(result), nil
 }
+func (h *PilgrimAppHandler) UpdateMyLocation(ctx context.Context, req *connect.Request[hajjv1.UpdateMyLocationRequest]) (*connect.Response[hajjv1.UpdateMyLocationResponse], error) {
+	result, err := h.pilgrimAppService.UpdateMyLocation(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
 func (h *PilgrimAppHandler) ListMyProducts(ctx context.Context, req *connect.Request[hajjv1.PilgrimAppRequest]) (*connect.Response[hajjv1.ListMyProductsResponse], error) {
 	result, err := h.pilgrimAppService.ListMyProducts(ctx, req.Msg)
 	if err != nil {

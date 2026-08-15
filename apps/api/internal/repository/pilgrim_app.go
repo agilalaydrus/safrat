@@ -5,6 +5,7 @@ import (
 
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // GetAppInfo is the public Pilgrim App's entry point — looked up by
@@ -33,6 +34,17 @@ func (r *PilgrimRepository) GetByAppAccessCode(ctx context.Context, appAccessCod
 		return nil, err
 	}
 	return toPilgrim(pilgrim), nil
+}
+
+// UpdateLocation is called every 5 minutes by the pilgrim PWA — a fire-and-
+// forget GPS ping, not operator-scoped since the caller has no session, same
+// as GetAppInfo.
+func (r *PilgrimRepository) UpdateLocation(ctx context.Context, appAccessCode string, lat, lng float64) error {
+	return r.queries.UpdatePilgrimLocation(ctx, db.UpdatePilgrimLocationParams{
+		AppAccessCode: appAccessCode,
+		LastLat:       pgtype.Float8{Float64: lat, Valid: true},
+		LastLng:       pgtype.Float8{Float64: lng, Valid: true},
+	})
 }
 
 func (r *PilgrimRepository) ListUpcomingMovements(ctx context.Context, operatorID, seasonID string) ([]*Movement, error) {

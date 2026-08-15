@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/apperror"
@@ -274,7 +275,26 @@ func toPilgrim(value db.Pilgrim) *domain.Pilgrim {
 		AppAccessCode:      value.AppAccessCode,
 		CreatedAt:          value.CreatedAt.Time,
 		UpdatedAt:          value.UpdatedAt.Time,
+		LastLat:            float8Ptr(value.LastLat),
+		LastLng:            float8Ptr(value.LastLng),
+		LastLocationAt:     timestamptzPtr(value.LastLocationAt),
 	}
+}
+
+func float8Ptr(value pgtype.Float8) *float64 {
+	if !value.Valid {
+		return nil
+	}
+	v := value.Float64
+	return &v
+}
+
+func timestamptzPtr(value pgtype.Timestamptz) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	t := value.Time
+	return &t
 }
 
 func uuidString(value pgtype.UUID) string {

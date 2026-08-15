@@ -36,6 +36,16 @@ func (s *PilgrimAppService) GetMyInfo(ctx context.Context, req *hajjv1.PilgrimAp
 	return result, nil
 }
 
+func (s *PilgrimAppService) UpdateMyLocation(ctx context.Context, req *hajjv1.UpdateMyLocationRequest) (*hajjv1.UpdateMyLocationResponse, error) {
+	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" {
+		return nil, serviceError("PilgrimAppService.UpdateMyLocation", apperror.ErrValidation)
+	}
+	if err := s.pilgrimRepository.UpdateLocation(ctx, req.AppAccessCode, req.Lat, req.Lng); err != nil {
+		return nil, serviceError("PilgrimAppService.UpdateMyLocation", err)
+	}
+	return &hajjv1.UpdateMyLocationResponse{}, nil
+}
+
 func (s *PilgrimAppService) ListMySchedule(ctx context.Context, req *hajjv1.PilgrimAppRequest) (*hajjv1.ListMyScheduleResponse, error) {
 	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" {
 		return nil, serviceError("PilgrimAppService.ListMySchedule", apperror.ErrValidation)
