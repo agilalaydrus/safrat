@@ -10,6 +10,14 @@ JOIN pilgrims p ON p.id = s.pilgrim_id
 WHERE s.operator_id = $1 AND s.status IN ('ACTIVE','ACKNOWLEDGED','ESCALATED')
 ORDER BY s.created_at DESC;
 
+-- name: ListActiveSOSAlertsForLeader :many
+SELECT s.*, p.full_name AS pilgrim_name
+FROM sos_alerts s
+JOIN pilgrims p ON p.id = s.pilgrim_id
+JOIN groups g ON g.id = p.group_id
+WHERE s.operator_id = $1 AND g.leader_id = $2 AND s.status IN ('ACTIVE','ACKNOWLEDGED','ESCALATED')
+ORDER BY s.created_at DESC;
+
 -- name: GetSOSAlert :one
 SELECT * FROM sos_alerts
 WHERE id = $1 AND operator_id = $2;

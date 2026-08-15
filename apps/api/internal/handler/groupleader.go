@@ -42,3 +42,10 @@ func (h *GroupLeaderHandler) CreateCheckIn(ctx context.Context, req *connect.Req
 	}
 	return connect.NewResponse(result), nil
 }
+func (h *GroupLeaderHandler) ListMySOSAlerts(ctx context.Context, _ *connect.Request[hajjv1.ListMySOSAlertsRequest]) (*connect.Response[hajjv1.ListSOSAlertsResponse], error) {
+	result, err := h.groupLeaderService.ListMySOSAlerts(ctx, middleware.OperatorIDFromCtx(ctx))
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

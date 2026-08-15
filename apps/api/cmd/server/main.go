@@ -88,7 +88,7 @@ func main() {
 		pilgrimAppService := service.NewPilgrimAppService(pilgrimRepository, productRepository)
 		sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, firebasePusher)
 		chatService := service.NewChatService(operatorRepository, pilgrimRepository, chatRepository, groupRepository)
-		groupLeaderService := service.NewGroupLeaderService(operatorRepository, groupLeaderRepository)
+		groupLeaderService := service.NewGroupLeaderService(operatorRepository, groupLeaderRepository, sosRepository)
 		notificationService := service.NewNotificationService(operatorRepository, notificationRepository)
 		operatorHandler := handler.NewOperatorHandler(operatorService)
 		pilgrimHandler := handler.NewPilgrimHandler(pilgrimService)

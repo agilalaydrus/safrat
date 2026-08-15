@@ -4,11 +4,13 @@ import { IconBell, IconBellOff, IconCheck, IconSos } from "@tabler/icons-react";
 import { SOSAlert } from "@hajj-saas/proto-gen/hajj/v1/sos_pb";
 import { notificationClient, sosClient } from "@/lib/rpc";
 import { requestPushToken } from "@/lib/firebase";
+import { enableSosAlarm, useSosAlarm } from "@/lib/sos-alarm";
 
 export default function SOSDashboard() {
   const [alerts, setAlerts] = useState<SOSAlert[]>([]);
   const [notice, setNotice] = useState("");
   const [pushEnabled, setPushEnabled] = useState(false);
+  const [alarmEnabled, setAlarmEnabled] = useState(false);
   const [resolvingId, setResolvingId] = useState("");
 
   const refresh = () => sosClient.listActiveSOSAlerts({}).then((r) => setAlerts(r.alerts)).catch(() => setNotice("Gagal memuat notifikasi SOS."));
@@ -19,13 +21,25 @@ export default function SOSDashboard() {
     return () => window.clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (typeof window !== "undefined" && "Notification" in window) setAlarmEnabled(Notification.permission === "granted");
+  }, []);
+
+  useSosAlarm(alerts, "SOS Aktif");
+
+  async function enableAlarm() {
+    const granted = await enableSosAlarm();
+    setAlarmEnabled(granted);
+    setNotice(granted ? "Notifikasi & suara SOS telah diaktifkan di perangkat ini." : "Izin notifikasi ditolak — aktifkan dari pengaturan browser Anda.");
+  }
+
   async function enablePush() {
     const token = await requestPushToken();
-    if (!token) { setNotice("Notifikasi push tidak tersedia (periksa konfigurasi Firebase atau izin browser)."); return; }
+    if (!token) { setNotice("Notifikasi push latar belakang tidak tersedia (periksa konfigurasi Firebase). Notifikasi & suara saat aplikasi terbuka tetap bisa diaktifkan di atas."); return; }
     try {
       await notificationClient.registerPushSubscription({ fcmToken: token });
       setPushEnabled(true);
-      setNotice("Notifikasi push untuk SOS telah diaktifkan.");
+      setNotice("Notifikasi push latar belakang untuk SOS telah diaktifkan.");
     } catch {
       setNotice("Gagal mendaftarkan notifikasi push.");
     }
@@ -45,7 +59,10 @@ export default function SOSDashboard() {
     <main style={page}>
       <header style={head}>
         <div><p style={ey}>OPERASIONAL / SOS</p><h1 style={title}>Notifikasi SOS</h1></div>
-        <button style={pushEnabled ? enabledButton : ghostButton} onClick={enablePush} disabled={pushEnabled}>{pushEnabled ? <IconBell size={18} /> : <IconBellOff size={18} />}{pushEnabled ? "Push aktif" : "Aktifkan notifikasi push"}</button>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button style={alarmEnabled ? enabledButton : ghostButton} onClick={enableAlarm} disabled={alarmEnabled}>{alarmEnabled ? <IconBell size={18} /> : <IconBellOff size={18} />}{alarmEnabled ? "Notifikasi & suara aktif" : "Aktifkan notifikasi & suara"}</button>
+          <button style={pushEnabled ? enabledButton : ghostButton} onClick={enablePush} disabled={pushEnabled}>{pushEnabled ? <IconBell size={18} /> : <IconBellOff size={18} />}{pushEnabled ? "Push latar belakang aktif" : "Aktifkan push latar belakang"}</button>
+        </div>
       </header>
       <div className="gold-divider" />
       {notice && <p style={{ color: "var(--color-gold-800)" }}>{notice}</p>}

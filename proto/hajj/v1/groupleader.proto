@@ -5,6 +5,7 @@ package hajj.v1;
 import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
 import "hajj/v1/pilgrim.proto";
+import "hajj/v1/sos.proto";
 
 option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 
@@ -16,6 +17,10 @@ service GroupLeaderService {
   rpc GetGroupRoster(GetGroupRosterRequest) returns (GetGroupRosterResponse);
   rpc ListCheckIns(ListCheckInsRequest) returns (ListCheckInsResponse);
   rpc CreateCheckIn(CreateCheckInRequest) returns (CheckIn);
+  // ListMySOSAlerts returns active/escalated SOS alerts for pilgrims in
+  // groups this leader leads — a narrower view than the coordinator
+  // dashboard's operator-wide SOSService.ListActiveSOSAlerts.
+  rpc ListMySOSAlerts(ListMySOSAlertsRequest) returns (ListSOSAlertsResponse);
 }
 
 message LeaderGroup {
@@ -51,3 +56,5 @@ message CreateCheckInRequest {
   string pilgrim_id = 2 [(buf.validate.field).string.min_len = 1];
   string type = 3 [(buf.validate.field).string = {in: ["DEPARTURE", "ARRIVAL"]}];
 }
+
+message ListMySOSAlertsRequest {}

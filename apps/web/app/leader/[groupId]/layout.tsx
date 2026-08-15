@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
-import { IconArrowLeft, IconClipboardCheck, IconMessageCircle, IconUsersGroup } from "@tabler/icons-react";
+import { IconArrowLeft, IconClipboardCheck, IconMessageCircle, IconSos, IconUsersGroup } from "@tabler/icons-react";
 
 const TABS = [
   ["Daftar Jamaah", "", IconUsersGroup],
   ["Check-In", "check-in", IconClipboardCheck],
   ["Chat", "chat", IconMessageCircle],
+  ["SOS", "sos", IconSos],
 ] as const;
 
 export default function LeaderGroupLayout({ children }: { children: React.ReactNode }) {

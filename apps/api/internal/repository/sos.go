@@ -47,6 +47,23 @@ func (r *SOSRepository) ListActive(ctx context.Context, operatorID string) ([]*d
 	return result, nil
 }
 
+func (r *SOSRepository) ListActiveForLeader(ctx context.Context, operatorID, leaderUserID string) ([]*domain.SOSAlert, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListActiveSOSAlertsForLeader(ctx, db.ListActiveSOSAlertsForLeaderParams{OperatorID: opUUID, LeaderID: pgText(leaderUserID)})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*domain.SOSAlert, 0, len(rows))
+	for _, row := range rows {
+		alert := db.SosAlert{ID: row.ID, OperatorID: row.OperatorID, PilgrimID: row.PilgrimID, Status: row.Status, AcknowledgedBy: row.AcknowledgedBy, AcknowledgedAt: row.AcknowledgedAt, ResolvedBy: row.ResolvedBy, ResolvedAt: row.ResolvedAt, Notes: row.Notes, CreatedAt: row.CreatedAt}
+		result = append(result, toSOSAlert(alert, row.PilgrimName))
+	}
+	return result, nil
+}
+
 // EscalateStale flips every ACTIVE alert older than 10 minutes to ESCALATED,
 // across all operators — the worker's periodic sweep, not scoped to one operator.
 func (r *SOSRepository) EscalateStale(ctx context.Context) ([]*domain.SOSAlert, error) {

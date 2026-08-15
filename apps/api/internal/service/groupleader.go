@@ -14,10 +14,29 @@ import (
 type GroupLeaderService struct {
 	operatorRepository    *repository.OperatorRepository
 	groupLeaderRepository *repository.GroupLeaderRepository
+	sosRepository         *repository.SOSRepository
 }
 
-func NewGroupLeaderService(operators *repository.OperatorRepository, groupLeaders *repository.GroupLeaderRepository) *GroupLeaderService {
-	return &GroupLeaderService{operatorRepository: operators, groupLeaderRepository: groupLeaders}
+func NewGroupLeaderService(operators *repository.OperatorRepository, groupLeaders *repository.GroupLeaderRepository, sos *repository.SOSRepository) *GroupLeaderService {
+	return &GroupLeaderService{operatorRepository: operators, groupLeaderRepository: groupLeaders, sosRepository: sos}
+}
+
+// ListMySOSAlerts scopes the coordinator-wide SOS surface down to only
+// pilgrims in groups this leader leads.
+func (s *GroupLeaderService) ListMySOSAlerts(ctx context.Context, orgID string) (*hajjv1.ListSOSAlertsResponse, error) {
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.ListMySOSAlerts", err)
+	}
+	alerts, err := s.sosRepository.ListActiveForLeader(ctx, op.ID, middleware.UserIDFromCtx(ctx))
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.ListMySOSAlerts", err)
+	}
+	result := &hajjv1.ListSOSAlertsResponse{Alerts: make([]*hajjv1.SOSAlert, 0, len(alerts))}
+	for _, alert := range alerts {
+		result.Alerts = append(result.Alerts, sosAlertMessage(alert))
+	}
+	return result, nil
 }
 
 func (s *GroupLeaderService) ListMyGroups(ctx context.Context, orgID string) (*hajjv1.ListMyGroupsResponse, error) {
