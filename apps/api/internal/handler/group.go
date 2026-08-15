@@ -50,3 +50,10 @@ func (h *GroupHandler) ListOperatorMembers(ctx context.Context, _ *connect.Reque
 	}
 	return connect.NewResponse(result), nil
 }
+func (h *GroupHandler) GetGroupRoster(ctx context.Context, req *connect.Request[hajjv1.GetGroupRosterRequest]) (*connect.Response[hajjv1.GetGroupRosterResponse], error) {
+	result, err := h.groupService.GetGroupRoster(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

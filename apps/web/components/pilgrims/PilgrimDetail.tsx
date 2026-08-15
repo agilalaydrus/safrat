@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { IconCopy, IconEdit, IconUser } from "@tabler/icons-react";
 import { Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
-import { pilgrimClient } from "@/lib/rpc";
+import { pilgrimClient, groupClient } from "@/lib/rpc";
 import PilgrimFormDialog from "./PilgrimFormDialog";
 
 export default function PilgrimDetail({ id }: { id: string }) {
   const [pilgrim, setPilgrim] = useState<Pilgrim>();
+  const [group, setGroup] = useState<{ name: string; leaderName: string }>();
   const [edit, setEdit] = useState(false);
   const [confirmSubstitution, setConfirmSubstitution] = useState(false);
   const [replacementSearch, setReplacementSearch] = useState("");
@@ -21,6 +22,13 @@ export default function PilgrimDetail({ id }: { id: string }) {
   useEffect(() => {
     pilgrimClient.getPilgrim({ pilgrimId: id }).then(setPilgrim).catch(() => setNotice("Gagal memuat data jamaah."));
   }, [id]);
+
+  useEffect(() => {
+    if (!pilgrim?.groupId || !pilgrim?.seasonId) { setGroup(undefined); return; }
+    groupClient.listGroups({ seasonId: pilgrim.seasonId })
+      .then((response) => setGroup(response.groups.find((g) => g.id === pilgrim.groupId)))
+      .catch(() => setGroup(undefined));
+  }, [pilgrim?.groupId, pilgrim?.seasonId]);
 
   useEffect(() => {
     if (!confirmSubstitution || !pilgrim) return;
@@ -71,7 +79,7 @@ export default function PilgrimDetail({ id }: { id: string }) {
       </section>
       <aside style={card}>
         <h2>Penempatan</h2>
-        <Details values={[["Rombongan", pilgrim.groupId ? "Sudah ditentukan" : "Belum ditentukan"], ["Kamar", "Belum ditentukan"], ["Kendaraan", "Belum ditentukan"]]} />
+        <Details values={[["Rombongan", pilgrim.groupId ? (group?.name ?? "Memuat...") : "Belum ditentukan"], ["Ketua Rombongan", pilgrim.groupId ? (group?.leaderName || "Belum ada ketua") : "-"], ["Kamar", "Belum ditentukan"], ["Kendaraan", "Belum ditentukan"]]} />
         <div className="gold-divider" />
         <h2>Kode akses</h2>
         <code style={code}>{pilgrim.appAccessCode}</code>

@@ -99,6 +99,26 @@ func (r *GroupRepository) Delete(ctx context.Context, operatorID, groupID string
 	return r.queries.DeleteGroup(ctx, db.DeleteGroupParams{ID: groupUUID, OperatorID: opUUID})
 }
 
+func (r *GroupRepository) GetRoster(ctx context.Context, operatorID, groupID string) ([]*domain.Pilgrim, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	groupUUID, err := pgUUID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListGroupRoster(ctx, db.ListGroupRosterParams{GroupID: groupUUID, OperatorID: opUUID})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*domain.Pilgrim, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, toPilgrim(row))
+	}
+	return result, nil
+}
+
 func (r *GroupRepository) ListOperatorMembers(ctx context.Context, betterAuthOrgID string) ([]*domain.OperatorMember, error) {
 	rows, err := r.queries.ListOperatorMembers(ctx, betterAuthOrgID)
 	if err != nil {

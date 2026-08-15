@@ -4,6 +4,7 @@ package hajj.v1;
 
 import "buf/validate/validate.proto";
 import "google/protobuf/empty.proto";
+import "hajj/v1/groupleader.proto";
 
 option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 
@@ -16,6 +17,7 @@ service GroupService {
   rpc UpdateGroup(UpdateGroupRequest) returns (Group);
   rpc DeleteGroup(DeleteGroupRequest) returns (google.protobuf.Empty);
   rpc ListOperatorMembers(ListOperatorMembersRequest) returns (ListOperatorMembersResponse);
+  rpc GetGroupRoster(GetGroupRosterRequest) returns (GetGroupRosterResponse);
 }
 
 message Group {

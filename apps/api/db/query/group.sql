@@ -1,7 +1,7 @@
 -- name: ListGroupsByLeader :many
 SELECT g.*, COUNT(p.id)::int AS pilgrim_count
 FROM groups g
-LEFT JOIN pilgrims p ON p.group_id = g.id
+LEFT JOIN pilgrims p ON p.group_id = g.id AND p.is_substituted = false
 WHERE g.operator_id = $1 AND g.leader_id = $2
 GROUP BY g.id
 ORDER BY g.name ASC;

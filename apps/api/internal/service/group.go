@@ -98,6 +98,28 @@ func (s *GroupService) ListOperatorMembers(ctx context.Context, orgID string) (*
 	return result, nil
 }
 
+// GetGroupRoster lets an admin/coordinator inspect any of the operator's
+// groups' member lists from the Groups dashboard — operator-scoped like the
+// rest of GroupService, not leader-scoped like GroupLeaderService.GetGroupRoster.
+func (s *GroupService) GetGroupRoster(ctx context.Context, orgID string, req *hajjv1.GetGroupRosterRequest) (*hajjv1.GetGroupRosterResponse, error) {
+	if req == nil || strings.TrimSpace(req.GroupId) == "" {
+		return nil, serviceError("GroupService.GetGroupRoster", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("GroupService.GetGroupRoster", err)
+	}
+	pilgrims, err := s.groupRepository.GetRoster(ctx, op.ID, req.GroupId)
+	if err != nil {
+		return nil, serviceError("GroupService.GetGroupRoster", err)
+	}
+	result := &hajjv1.GetGroupRosterResponse{Pilgrims: make([]*hajjv1.Pilgrim, 0, len(pilgrims))}
+	for _, p := range pilgrims {
+		result.Pilgrims = append(result.Pilgrims, pilgrimMessage(p))
+	}
+	return result, nil
+}
+
 func groupMessage(group *domain.Group) *hajjv1.Group {
 	return &hajjv1.Group{Id: group.ID, SeasonId: group.SeasonID, Name: group.Name, Capacity: group.Capacity, PilgrimCount: group.PilgrimCount, LeaderId: group.LeaderID, LeaderName: group.LeaderName}
 }
