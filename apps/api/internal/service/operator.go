@@ -71,7 +71,7 @@ func (s *OperatorService) ListAuditLogs(ctx context.Context, authenticatedOrgID 
 	}
 	result := make([]*hajjv1.AuditLog, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, &hajjv1.AuditLog{Id: row.ID, Action: row.Action, EntityId: row.EntityID, Description: row.Description, CreatedAt: timestamppb.New(row.CreatedAt)})
+		result = append(result, &hajjv1.AuditLog{Id: row.ID, Action: row.Action, EntityType: row.EntityType, EntityId: row.EntityID, Description: row.Description, CreatedAt: timestamppb.New(row.CreatedAt), ActorName: row.ActorName})
 	}
 	return result, nil
 }

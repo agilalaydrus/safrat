@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { accommodationClient } from "@/lib/rpc";
 
 type Props = { open: boolean; hotelId: string; onClose: () => void; onSaved: () => void };
-const capacities: Record<string, number> = { single: 1, double: 2, triple: 3, quad: 4 };
+const capacities: Record<string, number> = { single: 1, double: 2, triple: 3, quadruple: 4 };
 
 export default function RoomFormDialog({ open, hotelId, onClose, onSaved }: Props) {
   const [form, setForm] = useState({ roomNumber: "", roomType: "", gender: "", capacity: "", floor: "", notes: "" }); const [error, setError] = useState(""); const [saving, setSaving] = useState(false);

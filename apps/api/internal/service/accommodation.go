@@ -20,10 +20,15 @@ type AccommodationService struct {
 	operators *repository.OperatorRepository
 	pilgrims  *repository.PilgrimRepository
 	repo      *repository.AccommodationRepository
+	audit     *repository.AuditRepository
 }
 
-func NewAccommodationService(o *repository.OperatorRepository, p *repository.PilgrimRepository, r *repository.AccommodationRepository) *AccommodationService {
-	return &AccommodationService{operators: o, pilgrims: p, repo: r}
+func NewAccommodationService(o *repository.OperatorRepository, p *repository.PilgrimRepository, r *repository.AccommodationRepository, audit *repository.AuditRepository) *AccommodationService {
+	return &AccommodationService{operators: o, pilgrims: p, repo: r, audit: audit}
+}
+
+func (s *AccommodationService) logActivity(ctx context.Context, operatorID, action, entityID, message string) {
+	_ = s.audit.Write(ctx, operatorID, middleware.UserIDFromCtx(ctx), action, "accommodation", entityID, message)
 }
 func (s *AccommodationService) operator(ctx context.Context, org string) (string, error) {
 	v, e := s.operators.GetByBetterAuthOrgID(ctx, org)
@@ -169,6 +174,7 @@ func (s *AccommodationService) AllocatePilgrim(ctx context.Context, org string, 
 	if e != nil {
 		return nil, serviceError("AccommodationService.AllocatePilgrim", e)
 	}
+	s.logActivity(ctx, op, "room_allocated", p.ID, fmt.Sprintf("%s ditempatkan di kamar %s", p.FullName, room.RoomNumber))
 	return allocationMessage(v), nil
 }
 func (s *AccommodationService) DeallocatePilgrim(ctx context.Context, org string, r *hajjv1.DeallocatePilgrimRequest) (*emptypb.Empty, error) {
@@ -176,10 +182,33 @@ func (s *AccommodationService) DeallocatePilgrim(ctx context.Context, org string
 	if e != nil {
 		return nil, serviceError("AccommodationService.DeallocatePilgrim", e)
 	}
+	p, e := s.pilgrims.Get(ctx, op, r.PilgrimId)
+	if e != nil {
+		return nil, serviceError("AccommodationService.DeallocatePilgrim", e)
+	}
 	if e = s.repo.Deallocate(ctx, op, r.PilgrimId); e != nil {
 		return nil, serviceError("AccommodationService.DeallocatePilgrim", e)
 	}
+	s.logActivity(ctx, op, "room_deallocated", p.ID, fmt.Sprintf("%s dikeluarkan dari kamar", p.FullName))
 	return &emptypb.Empty{}, nil
+}
+func (s *AccommodationService) ListPilgrimRoomAssignments(ctx context.Context, org string, r *hajjv1.ListPilgrimRoomAssignmentsRequest) (*hajjv1.ListPilgrimRoomAssignmentsResponse, error) {
+	if r == nil || r.SeasonId == "" {
+		return nil, serviceError("AccommodationService.ListPilgrimRoomAssignments", apperror.ErrValidation)
+	}
+	op, e := s.operator(ctx, org)
+	if e != nil {
+		return nil, serviceError("AccommodationService.ListPilgrimRoomAssignments", e)
+	}
+	rows, e := s.repo.ListPilgrimRoomAssignments(ctx, op, r.SeasonId)
+	if e != nil {
+		return nil, serviceError("AccommodationService.ListPilgrimRoomAssignments", e)
+	}
+	out := &hajjv1.ListPilgrimRoomAssignmentsResponse{Assignments: make([]*hajjv1.PilgrimRoomAssignment, 0, len(rows))}
+	for _, row := range rows {
+		out.Assignments = append(out.Assignments, &hajjv1.PilgrimRoomAssignment{PilgrimId: row.PilgrimID, HotelName: row.HotelName, RoomNumber: row.RoomNumber, RoomType: row.RoomType})
+	}
+	return out, nil
 }
 func (s *AccommodationService) Manifest(ctx context.Context, org string, r *hajjv1.GetRoomManifestRequest) (*hajjv1.RoomManifest, error) {
 	op, e := s.operator(ctx, org)

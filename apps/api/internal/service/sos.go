@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/hajj-saas/api/internal/apperror"
@@ -15,6 +16,7 @@ type SOSService struct {
 	operatorRepository *repository.OperatorRepository
 	pilgrimRepository  *repository.PilgrimRepository
 	sosRepository      *repository.SOSRepository
+	auditRepository    *repository.AuditRepository
 	notifier           SOSNotifier
 }
 
@@ -25,8 +27,12 @@ type SOSNotifier interface {
 	NotifySOSAlert(ctx context.Context, operatorID string, alert *domain.SOSAlert)
 }
 
-func NewSOSService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, sos *repository.SOSRepository, notifier SOSNotifier) *SOSService {
-	return &SOSService{operatorRepository: operators, pilgrimRepository: pilgrims, sosRepository: sos, notifier: notifier}
+func NewSOSService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, sos *repository.SOSRepository, audit *repository.AuditRepository, notifier SOSNotifier) *SOSService {
+	return &SOSService{operatorRepository: operators, pilgrimRepository: pilgrims, sosRepository: sos, auditRepository: audit, notifier: notifier}
+}
+
+func (s *SOSService) logActivity(ctx context.Context, operatorID, userID, action, entityID, message string) {
+	_ = s.auditRepository.Write(ctx, operatorID, userID, action, "sos_alert", entityID, message)
 }
 
 // CreateSOSAlert is the public, unauthenticated entry point — see
@@ -52,6 +58,7 @@ func (s *SOSService) CreateSOSAlert(ctx context.Context, req *hajjv1.CreateSOSAl
 		return nil, serviceError("SOSService.CreateSOSAlert", err)
 	}
 	alert.PilgrimName = pilgrim.FullName
+	s.logActivity(ctx, pilgrim.OperatorID, "", "sos_created", alert.ID, fmt.Sprintf("SOS dari %s", pilgrim.FullName))
 	if s.notifier != nil {
 		s.notifier.NotifySOSAlert(ctx, pilgrim.OperatorID, alert)
 	}
@@ -66,11 +73,11 @@ func (s *SOSService) EscalateStaleAlerts(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if s.notifier == nil {
-		return nil
-	}
 	for _, alert := range alerts {
-		s.notifier.NotifySOSAlert(ctx, alert.OperatorID, alert)
+		s.logActivity(ctx, alert.OperatorID, "", "sos_escalated", alert.ID, fmt.Sprintf("SOS %s dieskalasi — belum dikonfirmasi 10 menit", alert.PilgrimName))
+		if s.notifier != nil {
+			s.notifier.NotifySOSAlert(ctx, alert.OperatorID, alert)
+		}
 	}
 	return nil
 }
@@ -103,6 +110,7 @@ func (s *SOSService) AcknowledgeSOSAlert(ctx context.Context, orgID, userID stri
 	if err != nil {
 		return nil, serviceError("SOSService.AcknowledgeSOSAlert", apperror.ErrFailedPrecondition)
 	}
+	s.logActivity(ctx, op.ID, userID, "sos_acknowledged", alert.ID, "SOS dikonfirmasi")
 	return sosAlertMessage(alert), nil
 }
 
@@ -118,6 +126,7 @@ func (s *SOSService) ResolveSOSAlert(ctx context.Context, orgID, userID string, 
 	if err != nil {
 		return nil, serviceError("SOSService.ResolveSOSAlert", apperror.ErrFailedPrecondition)
 	}
+	s.logActivity(ctx, op.ID, userID, "sos_resolved", alert.ID, "SOS ditandai selesai")
 	return sosAlertMessage(alert), nil
 }
 

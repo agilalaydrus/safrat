@@ -210,7 +210,7 @@ func (r *PilgrimRepository) WriteAuditLogTx(ctx context.Context, tx pgx.Tx, oper
 	if err != nil {
 		return err
 	}
-	return databaseError(r.queries.WithTx(tx).CreateAuditLog(ctx, db.CreateAuditLogParams{OperatorID: operatorUUID, UserID: userID, Action: action, EntityID: entityUUID, JsonbBuildObject: message}))
+	return databaseError(r.queries.WithTx(tx).CreateAuditLog(ctx, db.CreateAuditLogParams{OperatorID: operatorUUID, UserID: userID, Action: action, EntityType: "pilgrim", EntityID: entityUUID, Column6: message}))
 }
 
 func (r *PilgrimRepository) CountByOperator(ctx context.Context, operatorID string) (int64, error) {

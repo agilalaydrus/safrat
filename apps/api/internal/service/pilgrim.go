@@ -22,11 +22,19 @@ type PilgrimService struct {
 	pilgrimRepository       *repository.PilgrimRepository
 	accommodationRepository *repository.AccommodationRepository
 	transportRepository     *repository.TransportRepository
+	auditRepository         *repository.AuditRepository
 	db                      *pgxpool.Pool
 }
 
-func NewPilgrimService(operatorRepository *repository.OperatorRepository, pilgrimRepository *repository.PilgrimRepository, accommodationRepository *repository.AccommodationRepository, transportRepository *repository.TransportRepository, db *pgxpool.Pool) *PilgrimService {
-	return &PilgrimService{operatorRepository: operatorRepository, pilgrimRepository: pilgrimRepository, accommodationRepository: accommodationRepository, transportRepository: transportRepository, db: db}
+func NewPilgrimService(operatorRepository *repository.OperatorRepository, pilgrimRepository *repository.PilgrimRepository, accommodationRepository *repository.AccommodationRepository, transportRepository *repository.TransportRepository, auditRepository *repository.AuditRepository, db *pgxpool.Pool) *PilgrimService {
+	return &PilgrimService{operatorRepository: operatorRepository, pilgrimRepository: pilgrimRepository, accommodationRepository: accommodationRepository, transportRepository: transportRepository, auditRepository: auditRepository, db: db}
+}
+
+// logActivity records a real, timestamped entry for the dashboard's Aktivitas
+// Terbaru feed. Fire-and-forget by design — an audit-log failure must never
+// fail the operation it's describing.
+func (s *PilgrimService) logActivity(ctx context.Context, operatorID, action, entityID, message string) {
+	_ = s.auditRepository.Write(ctx, operatorID, middleware.UserIDFromCtx(ctx), action, "pilgrim", entityID, message)
 }
 
 func (s *PilgrimService) Create(ctx context.Context, authenticatedOrgID string, request *hajjv1.CreatePilgrimRequest) (*hajjv1.Pilgrim, error) {
@@ -49,6 +57,7 @@ func (s *PilgrimService) Create(ctx context.Context, authenticatedOrgID string, 
 	if err != nil {
 		return nil, serviceError("PilgrimService.Create", err)
 	}
+	s.logActivity(ctx, operator.ID, "pilgrim_created", pilgrim.ID, fmt.Sprintf("Jamaah %s ditambahkan", pilgrim.FullName))
 	return pilgrimMessage(pilgrim), nil
 }
 
@@ -136,6 +145,14 @@ func (s *PilgrimService) Update(ctx context.Context, authenticatedOrgID string, 
 	pilgrim, err := s.pilgrimRepository.Update(ctx, operator.ID, request.PilgrimId, input)
 	if err != nil {
 		return nil, serviceError("PilgrimService.Update", err)
+	}
+	switch {
+	case input.GroupID != existing.GroupID:
+		s.logActivity(ctx, operator.ID, "pilgrim_group_changed", pilgrim.ID, fmt.Sprintf("Rombongan %s diperbarui", pilgrim.FullName))
+	case input.RequiresWheelchair != existing.RequiresWheelchair:
+		s.logActivity(ctx, operator.ID, "pilgrim_wheelchair_changed", pilgrim.ID, fmt.Sprintf("Kebutuhan kursi roda %s diperbarui", pilgrim.FullName))
+	default:
+		s.logActivity(ctx, operator.ID, "pilgrim_updated", pilgrim.ID, fmt.Sprintf("Data jamaah %s diperbarui", pilgrim.FullName))
 	}
 	return pilgrimMessage(pilgrim), nil
 }

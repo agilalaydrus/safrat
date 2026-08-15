@@ -70,6 +70,13 @@ func (h *AccommodationHandler) DeallocatePilgrim(c context.Context, r *connect.R
 	}
 	return connect.NewResponse(v), nil
 }
+func (h *AccommodationHandler) ListPilgrimRoomAssignments(c context.Context, r *connect.Request[hajjv1.ListPilgrimRoomAssignmentsRequest]) (*connect.Response[hajjv1.ListPilgrimRoomAssignmentsResponse], error) {
+	v, e := h.s.ListPilgrimRoomAssignments(c, middleware.OperatorIDFromCtx(c), r.Msg)
+	if e != nil {
+		return nil, connectError(e)
+	}
+	return connect.NewResponse(v), nil
+}
 func (h *AccommodationHandler) GetRoomManifest(c context.Context, r *connect.Request[hajjv1.GetRoomManifestRequest]) (*connect.Response[hajjv1.RoomManifest], error) {
 	v, e := h.s.Manifest(c, middleware.OperatorIDFromCtx(c), r.Msg)
 	if e != nil {

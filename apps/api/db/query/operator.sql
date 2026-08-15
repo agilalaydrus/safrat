@@ -14,8 +14,12 @@ SELECT * FROM operators WHERE id = $1;
 SELECT id FROM operators;
 
 -- name: ListAuditLogs :many
-SELECT id, operator_id, action, entity_id, COALESCE(metadata ->> 'message', action) AS description, created_at
-FROM audit_logs
-WHERE operator_id = $1
-ORDER BY created_at DESC
+SELECT a.id, a.operator_id, a.action, a.entity_type, a.entity_id,
+       COALESCE(a.metadata ->> 'message', a.action) AS description,
+       a.created_at,
+       COALESCE(u.name, '') AS actor_name
+FROM audit_logs a
+LEFT JOIN "user" u ON u.id = a.user_id
+WHERE a.operator_id = $1
+ORDER BY a.created_at DESC
 LIMIT $2;

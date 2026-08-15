@@ -39,6 +39,7 @@ func main() {
 	pilgrimRepository := repository.NewPilgrimRepository(queries)
 	sosRepository := repository.NewSOSRepository(queries)
 	notificationRepository := repository.NewNotificationRepository(queries)
+	auditRepository := repository.NewAuditRepository(queries)
 	agentService := service.NewAgentService(operatorRepository, agentRepository)
 	tierHandler := worker.NewTierHandler(logger, operatorRepository, agentService)
 
@@ -46,7 +47,7 @@ func main() {
 	if err != nil {
 		logger.Error("init firebase", "error", err)
 	}
-	sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, firebasePusher)
+	sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, auditRepository, firebasePusher)
 	sosHandler := worker.NewSOSHandler(logger, sosService)
 
 	redisOpt, err := asynq.ParseRedisURI(redisURL)

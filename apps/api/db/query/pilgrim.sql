@@ -74,10 +74,6 @@ SET group_id = $2,
     updated_at = NOW()
 WHERE id = $1 AND operator_id = $3;
 
--- name: CreateAuditLog :exec
-INSERT INTO audit_logs (operator_id, user_id, action, entity_type, entity_id, metadata)
-VALUES ($1, $2, $3, 'pilgrim', $4, jsonb_build_object('message', $5));
-
 -- name: CountPilgrimsByOperator :one
 SELECT COUNT(*) FROM pilgrims WHERE operator_id = $1;
 

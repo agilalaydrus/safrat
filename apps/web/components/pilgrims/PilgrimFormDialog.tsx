@@ -29,6 +29,8 @@ type Props = {
   pilgrims: Pilgrim[];
   onSaved: (name: string) => void;
   initial?: Pilgrim;
+  /** Pre-selects a group when adding a new pilgrim from the Rombongan page — ignored in edit mode. */
+  defaultGroupId?: string;
 };
 
 // The API stores ISO 3166-1 alpha-2 country codes; labels remain readable for coordinators.
@@ -70,7 +72,7 @@ function valuesFromPilgrim(pilgrim?: Pilgrim): FormValues {
   };
 }
 
-export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, onSaved, initial }: Props) {
+export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, onSaved, initial, defaultGroupId }: Props) {
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [form, setForm] = useState<FormValues>(EMPTY_FORM);
@@ -82,10 +84,11 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
   useEffect(() => {
     if (!open) return;
     const values = valuesFromPilgrim(initial);
+    if (!initial && defaultGroupId) values.groupId = defaultGroupId;
     initialFormValues.current = values;
     setForm(values);
     setFieldErrors({});
-  }, [open, initial]);
+  }, [open, initial, defaultGroupId]);
 
   useEffect(() => {
     if (!open || !seasonId) return;

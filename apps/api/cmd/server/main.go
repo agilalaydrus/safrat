@@ -70,6 +70,7 @@ func main() {
 		chatRepository := repository.NewChatRepository(queries)
 		groupLeaderRepository := repository.NewGroupLeaderRepository(queries)
 		notificationRepository := repository.NewNotificationRepository(queries)
+		auditRepository := repository.NewAuditRepository(queries)
 
 		firebasePusher, err := notification.NewFirebasePusher(ctx, logger, config.FirebaseServiceAccountJSON, notificationRepository)
 		if err != nil {
@@ -78,15 +79,15 @@ func main() {
 		}
 
 		operatorService := service.NewOperatorService(operatorRepository)
-		pilgrimService := service.NewPilgrimService(operatorRepository, pilgrimRepository, accommodationRepository, transportRepository, pool)
+		pilgrimService := service.NewPilgrimService(operatorRepository, pilgrimRepository, accommodationRepository, transportRepository, auditRepository, pool)
 		seasonService := service.NewSeasonService(operatorRepository, seasonRepository)
-		accommodationService := service.NewAccommodationService(operatorRepository, pilgrimRepository, accommodationRepository)
-		transportService := service.NewTransportService(operatorRepository, transportRepository)
+		accommodationService := service.NewAccommodationService(operatorRepository, pilgrimRepository, accommodationRepository, auditRepository)
+		transportService := service.NewTransportService(operatorRepository, transportRepository, auditRepository)
 		productService := service.NewProductService(operatorRepository, productRepository)
 		agentService := service.NewAgentService(operatorRepository, agentRepository)
-		groupService := service.NewGroupService(operatorRepository, groupRepository)
+		groupService := service.NewGroupService(operatorRepository, groupRepository, auditRepository)
 		pilgrimAppService := service.NewPilgrimAppService(pilgrimRepository, productRepository)
-		sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, firebasePusher)
+		sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, auditRepository, firebasePusher)
 		chatService := service.NewChatService(operatorRepository, pilgrimRepository, chatRepository, groupRepository)
 		groupLeaderService := service.NewGroupLeaderService(operatorRepository, groupLeaderRepository, sosRepository)
 		notificationService := service.NewNotificationService(operatorRepository, notificationRepository)

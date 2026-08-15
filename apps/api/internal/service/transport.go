@@ -18,10 +18,15 @@ import (
 type TransportService struct {
 	operatorRepo  *repository.OperatorRepository
 	transportRepo *repository.TransportRepository
+	auditRepo     *repository.AuditRepository
 }
 
-func NewTransportService(o *repository.OperatorRepository, t *repository.TransportRepository) *TransportService {
-	return &TransportService{operatorRepo: o, transportRepo: t}
+func NewTransportService(o *repository.OperatorRepository, t *repository.TransportRepository, audit *repository.AuditRepository) *TransportService {
+	return &TransportService{operatorRepo: o, transportRepo: t, auditRepo: audit}
+}
+
+func (s *TransportService) logActivity(ctx context.Context, operatorID, action, entityID, message string) {
+	_ = s.auditRepo.Write(ctx, operatorID, middleware.UserIDFromCtx(ctx), action, "movement", entityID, message)
 }
 func (s *TransportService) operator(ctx context.Context, org string) (string, error) {
 	o, e := s.operatorRepo.GetByBetterAuthOrgID(ctx, org)
@@ -42,6 +47,7 @@ func (s *TransportService) CreateMovement(ctx context.Context, org string, r *ha
 	if e != nil {
 		return nil, serviceError("TransportService.CreateMovement", e)
 	}
+	s.logActivity(ctx, op, "movement_created", v.ID, fmt.Sprintf("Pergerakan %s dijadwalkan (%s → %s)", v.Name, v.Origin, v.Destination))
 	return movementMessage(v), nil
 }
 func (s *TransportService) GetMovement(ctx context.Context, org string, r *hajjv1.GetMovementRequest) (*hajjv1.Movement, error) {

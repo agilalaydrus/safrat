@@ -257,6 +257,31 @@ func hotel(v db.Hotel) *Hotel {
 func room(v db.Room) *Room {
 	return &Room{ID: uuidString(v.ID), HotelID: uuidString(v.HotelID), OperatorID: uuidString(v.OperatorID), RoomNumber: v.RoomNumber, RoomType: v.RoomType, Capacity: v.Capacity, Floor: v.Floor.Int32, Notes: v.Notes.String, Gender: v.Gender, CreatedAt: v.CreatedAt.Time}
 }
+
+type PilgrimRoomAssignment struct {
+	PilgrimID, HotelName, RoomNumber, RoomType string
+}
+
+func (r *AccommodationRepository) ListPilgrimRoomAssignments(ctx context.Context, opID, seasonID string) ([]*PilgrimRoomAssignment, error) {
+	op, e := pgUUID(opID)
+	if e != nil {
+		return nil, e
+	}
+	season, e := pgUUID(seasonID)
+	if e != nil {
+		return nil, e
+	}
+	rows, e := r.queries.ListPilgrimRoomAssignments(ctx, db.ListPilgrimRoomAssignmentsParams{OperatorID: op, SeasonID: season})
+	if e != nil {
+		return nil, e
+	}
+	result := make([]*PilgrimRoomAssignment, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &PilgrimRoomAssignment{PilgrimID: uuidString(row.PilgrimID), HotelName: row.HotelName, RoomNumber: row.RoomNumber, RoomType: row.RoomType})
+	}
+	return result, nil
+}
+
 func allocation(v db.RoomAllocation) *Allocation {
 	return &Allocation{ID: uuidString(v.ID), RoomID: uuidString(v.RoomID), PilgrimID: uuidString(v.PilgrimID), OperatorID: uuidString(v.OperatorID), AssignedBy: v.AssignedBy, AllocatedAt: v.AllocatedAt.Time}
 }

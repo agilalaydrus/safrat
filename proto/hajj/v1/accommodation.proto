@@ -15,6 +15,9 @@ service AccommodationService {
   rpc AllocatePilgrim(AllocatePilgrimRequest) returns (RoomAllocation);
   rpc DeallocatePilgrim(DeallocatePilgrimRequest) returns (google.protobuf.Empty);
   rpc GetRoomManifest(GetRoomManifestRequest) returns (RoomManifest);
+  // ListPilgrimRoomAssignments lets the Jamaah dashboard show each pilgrim's
+  // hotel/room in one call instead of one lookup per pilgrim.
+  rpc ListPilgrimRoomAssignments(ListPilgrimRoomAssignmentsRequest) returns (ListPilgrimRoomAssignmentsResponse);
 }
 message Hotel { string id=1; string operator_id=2; string season_id=3; string name=4; string city=5; int32 star_rating=6; string address=7; google.protobuf.Timestamp created_at=8; google.protobuf.Timestamp check_in_date=9; google.protobuf.Timestamp check_out_date=10; }
 message Room { string id=1; string hotel_id=2; string operator_id=3; string room_number=4; string room_type=5; int32 capacity=6; int32 floor=7; string notes=8; google.protobuf.Timestamp created_at=9; int32 allocated_count=10; string gender=11; }
@@ -32,3 +35,6 @@ message AllocatePilgrimRequest { string room_id=1; string pilgrim_id=2; }
 message DeallocatePilgrimRequest { string pilgrim_id=1; }
 message GetRoomManifestRequest { string room_id=1; }
 message RoomManifest { Room room=1; repeated Pilgrim pilgrims=2; int32 available_capacity=3; }
+message ListPilgrimRoomAssignmentsRequest { string season_id=1; }
+message PilgrimRoomAssignment { string pilgrim_id=1; string hotel_name=2; string room_number=3; string room_type=4; }
+message ListPilgrimRoomAssignmentsResponse { repeated PilgrimRoomAssignment assignments=1; }

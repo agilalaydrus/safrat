@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
+	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/repository"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -14,10 +16,15 @@ import (
 type GroupService struct {
 	operatorRepository *repository.OperatorRepository
 	groupRepository    *repository.GroupRepository
+	auditRepository    *repository.AuditRepository
 }
 
-func NewGroupService(operators *repository.OperatorRepository, groups *repository.GroupRepository) *GroupService {
-	return &GroupService{operatorRepository: operators, groupRepository: groups}
+func NewGroupService(operators *repository.OperatorRepository, groups *repository.GroupRepository, audit *repository.AuditRepository) *GroupService {
+	return &GroupService{operatorRepository: operators, groupRepository: groups, auditRepository: audit}
+}
+
+func (s *GroupService) logActivity(ctx context.Context, operatorID, action, entityID, message string) {
+	_ = s.auditRepository.Write(ctx, operatorID, middleware.UserIDFromCtx(ctx), action, "group", entityID, message)
 }
 
 func (s *GroupService) ListGroups(ctx context.Context, orgID string, req *hajjv1.ListGroupsRequest) (*hajjv1.ListGroupsResponse, error) {
@@ -51,6 +58,7 @@ func (s *GroupService) CreateGroup(ctx context.Context, orgID string, req *hajjv
 	if err != nil {
 		return nil, serviceError("GroupService.CreateGroup", err)
 	}
+	s.logActivity(ctx, op.ID, "group_created", group.ID, fmt.Sprintf("Rombongan %s dibuat", group.Name))
 	return groupMessage(group), nil
 }
 
@@ -66,6 +74,7 @@ func (s *GroupService) UpdateGroup(ctx context.Context, orgID string, req *hajjv
 	if err != nil {
 		return nil, serviceError("GroupService.UpdateGroup", err)
 	}
+	s.logActivity(ctx, op.ID, "group_updated", group.ID, fmt.Sprintf("Rombongan %s diperbarui", group.Name))
 	return groupMessage(group), nil
 }
 

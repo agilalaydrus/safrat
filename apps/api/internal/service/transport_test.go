@@ -57,7 +57,7 @@ func newTransportHarness(t *testing.T) *transportHarness {
 		_, _ = pool.Exec(context.Background(), `DELETE FROM operators WHERE id=$1`, operatorID)
 		pool.Close()
 	})
-	return &transportHarness{ctx: middleware.ContextWithIdentity(ctx, userID, orgID), pool: pool, queries: queries, service: NewTransportService(repository.NewOperatorRepository(queries), transportRepo), orgID: orgID, userID: userID, operator: operatorID, seasonID: seasonID}
+	return &transportHarness{ctx: middleware.ContextWithIdentity(ctx, userID, orgID), pool: pool, queries: queries, service: NewTransportService(repository.NewOperatorRepository(queries), transportRepo, repository.NewAuditRepository(queries)), orgID: orgID, userID: userID, operator: operatorID, seasonID: seasonID}
 }
 
 func (h *transportHarness) movement(t *testing.T, status string) string {
@@ -221,7 +221,7 @@ func TestSubstitutePilgrimUnassignsTransportSeat(t *testing.T) {
 	if _, err := h.service.AssignSeat(h.ctx, h.orgID, &hajjv1.AssignSeatRequest{VehicleId: vehicleID, PilgrimId: original, SeatNumber: 1}); err != nil {
 		t.Fatal(err)
 	}
-	pilgrims := NewPilgrimService(repository.NewOperatorRepository(h.queries), repository.NewPilgrimRepository(h.queries), repository.NewAccommodationRepository(h.queries), repository.NewTransportRepository(h.queries, h.pool), h.pool)
+	pilgrims := NewPilgrimService(repository.NewOperatorRepository(h.queries), repository.NewPilgrimRepository(h.queries), repository.NewAccommodationRepository(h.queries), repository.NewTransportRepository(h.queries, h.pool), repository.NewAuditRepository(h.queries), h.pool)
 	if _, err := pilgrims.SubstitutePilgrim(h.ctx, h.orgID, original, replacement); err != nil {
 		t.Fatalf("substitute: %v", err)
 	}

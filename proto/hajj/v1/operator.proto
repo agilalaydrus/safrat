@@ -39,6 +39,8 @@ message AuditLog {
   string entity_id = 3;
   string description = 4;
   google.protobuf.Timestamp created_at = 5;
+  string entity_type = 6;
+  string actor_name = 7;
 }
 
 message ListAuditLogsRequest { int32 limit = 1; }

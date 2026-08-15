@@ -10,14 +10,17 @@ import {
   IconBus,
   IconFileImport,
   IconUserPlus,
+  IconUser,
+  IconUsersGroup,
+  IconHome2,
+  IconSos,
 } from "@tabler/icons-react";
 import { PilgrimStats } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
-import { Movement } from "@hajj-saas/proto-gen/hajj/v1/transport_pb";
+import { AuditLog } from "@hajj-saas/proto-gen/hajj/v1/operator_pb";
 import {
-  accommodationClient,
+  operatorClient,
   pilgrimClient,
   seasonClient,
-  transportClient,
 } from "@/lib/rpc";
 import { PageHero } from "@/components/ui/PageHero";
 import { StatCard } from "@/components/ui/StatCard";
@@ -29,9 +32,18 @@ const QUICK_ACTIONS = [
   { icon: IconBus, title: "Buat Pergerakan", desc: "Jadwalkan transportasi dan penugasan kursi", href: "/dashboard/transport" },
 ];
 
+const ACTIVITY_ICON: Record<string, typeof IconUser> = {
+  pilgrim: IconUser,
+  group: IconUsersGroup,
+  accommodation: IconHome2,
+  movement: IconBus,
+  sos_alert: IconSos,
+};
+
 function relativeTime(ts: Timestamp): string {
   const diff = Date.now() - ts.toDate().getTime();
   const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Baru saja";
   if (mins < 60) return `${mins} mnt lalu`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs} jam lalu`;
@@ -43,7 +55,7 @@ export default function DashboardPage() {
   const [seasonId, setSeasonId] = useState("");
   const [seasonName, setSeasonName] = useState("");
   const [stats, setStats] = useState<PilgrimStats | null>(null);
-  const [movements, setMovements] = useState<Movement[]>([]);
+  const [activity, setActivity] = useState<AuditLog[]>([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -79,16 +91,13 @@ export default function DashboardPage() {
       setStats(null);
       setError("");
       try {
-        const [statsResponse, hotelsResponse, movementsResponse] = await Promise.all([
+        const [statsResponse, auditResponse] = await Promise.all([
           pilgrimClient.getPilgrimStats({ seasonId }),
-          accommodationClient.listHotels({ seasonId }),
-          transportClient.listMovements({ seasonId }),
+          operatorClient.listAuditLogs({ limit: 8 }),
         ]);
-        // Fetch hotels with the other dashboard resources so this view stays in sync.
-        void hotelsResponse;
         if (!cancelled) {
           setStats(statsResponse);
-          setMovements(movementsResponse.movements);
+          setActivity(auditResponse.logs);
         }
       } catch (caught) {
         if (cancelled) return;
@@ -103,10 +112,6 @@ export default function DashboardPage() {
     void loadDashboard();
     return () => { cancelled = true; };
   }, [router, seasonId]);
-
-  const recentMovements = [...movements]
-    .sort((a, b) => (b.scheduledAt?.toDate().getTime() ?? 0) - (a.scheduledAt?.toDate().getTime() ?? 0))
-    .slice(0, 3);
 
   return (
     <div>
@@ -152,16 +157,18 @@ export default function DashboardPage() {
           <div style={actCard}>
             <div style={actHead}>
               <p style={actTitle}>Aktivitas Terbaru</p>
-              <Link href="/dashboard/transport" style={actLink}>Lihat semua →</Link>
             </div>
-            {recentMovements.length ? recentMovements.map((movement) => (
-              <div key={movement.id} style={actRow}>
-                <div style={actIcon}><IconBus size={14} aria-hidden /></div>
-                <p style={actText}>{movement.name} · {movement.origin} → {movement.destination}</p>
-                <p style={actTime}>{movement.scheduledAt ? relativeTime(movement.scheduledAt) : "Belum dijadwalkan"}</p>
-              </div>
-            )) : (
-              <p style={emptyActivity}>Belum ada pergerakan yang dijadwalkan.</p>
+            {activity.length ? activity.map((log) => {
+              const Icon = ACTIVITY_ICON[log.entityType] ?? IconUser;
+              return (
+                <div key={log.id} style={actRow}>
+                  <div style={actIcon}><Icon size={14} aria-hidden /></div>
+                  <p style={actText}>{log.description}{log.actorName ? <span style={actActor}> · oleh {log.actorName}</span> : null}</p>
+                  <p style={actTime}>{log.createdAt ? relativeTime(log.createdAt) : ""}</p>
+                </div>
+              );
+            }) : (
+              <p style={emptyActivity}>Belum ada aktivitas tercatat.</p>
             )}
           </div>
         </section>
@@ -185,7 +192,7 @@ const cardArrow: React.CSSProperties = { display: "inline-flex", alignItems: "ce
 const actCard: React.CSSProperties = { background: "#fff", border: "1px solid var(--color-cream-400)", borderRadius: 10, overflow: "hidden" };
 const actHead: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderBottom: "1px solid var(--color-cream-300)" };
 const actTitle: React.CSSProperties = { fontSize: 13, fontWeight: 600 };
-const actLink: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: "var(--color-gold-600)" };
+const actActor: React.CSSProperties = { color: "var(--color-warm-400)" };
 const actRow: React.CSSProperties = { display: "flex", alignItems: "center", gap: 12, padding: "10px 18px", borderBottom: "1px solid rgba(237,229,212,.5)" };
 const actIcon: React.CSSProperties = { width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "var(--color-emerald-50)", color: "var(--color-emerald-800)" };
 const actText: React.CSSProperties = { flex: 1, fontSize: 12, color: "var(--color-warm-700)", lineHeight: 1.4 };

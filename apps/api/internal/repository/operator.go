@@ -85,7 +85,7 @@ func (r *OperatorRepository) ListAuditLogs(ctx context.Context, operatorID strin
 	}
 	logs := make([]*domain.AuditLog, 0, len(rows))
 	for _, row := range rows {
-		logs = append(logs, &domain.AuditLog{ID: uuid.UUID(row.ID.Bytes).String(), Action: row.Action, EntityID: uuid.UUID(row.EntityID.Bytes).String(), Description: row.Description, CreatedAt: row.CreatedAt.Time})
+		logs = append(logs, &domain.AuditLog{ID: uuid.UUID(row.ID.Bytes).String(), Action: row.Action, EntityType: row.EntityType, EntityID: uuid.UUID(row.EntityID.Bytes).String(), Description: row.Description, CreatedAt: row.CreatedAt.Time, ActorName: row.ActorName})
 	}
 	return logs, nil
 }

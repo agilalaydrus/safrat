@@ -15,7 +15,9 @@ type Operator struct {
 type AuditLog struct {
 	ID          string
 	Action      string
+	EntityType  string
 	EntityID    string
 	Description string
 	CreatedAt   time.Time
+	ActorName   string
 }
