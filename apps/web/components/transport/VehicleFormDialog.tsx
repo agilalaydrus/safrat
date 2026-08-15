@@ -1,14 +1,18 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { IconX } from "@tabler/icons-react";
 import { transportClient } from "@/lib/rpc";
 
 type Props = { open: boolean; movementId: string; onClose: () => void; onSaved: () => void };
 
+const emptyForm = { plateNumber: "", capacity: "", driverName: "", driverPhone: "" };
+
 export default function VehicleFormDialog({ open, movementId, onClose, onSaved }: Props) {
-  const [form, setForm] = useState({ plateNumber: "", capacity: "", driverName: "", driverPhone: "" });
+  const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
+
+  useEffect(() => { if (open) { setForm(emptyForm); setError(""); } }, [open]);
 
   if (!open) return null;
 

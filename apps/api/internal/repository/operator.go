@@ -47,6 +47,33 @@ func (r *OperatorRepository) GetByBetterAuthOrgID(ctx context.Context, betterAut
 	return toOperator(operator), nil
 }
 
+func (r *OperatorRepository) GetByID(ctx context.Context, operatorID string) (*domain.Operator, error) {
+	id, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	operator, err := r.queries.GetOperatorByID(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperror.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toOperator(operator), nil
+}
+
+func (r *OperatorRepository) ListIDs(ctx context.Context) ([]string, error) {
+	rows, err := r.queries.ListOperatorIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, uuid.UUID(row.Bytes).String())
+	}
+	return ids, nil
+}
+
 func (r *OperatorRepository) ListAuditLogs(ctx context.Context, operatorID string, limit int32) ([]*domain.AuditLog, error) {
 	id, err := pgUUID(operatorID)
 	if err != nil {

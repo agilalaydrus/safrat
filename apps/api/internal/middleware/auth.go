@@ -17,11 +17,23 @@ const (
 	ctxKeyOperatorID contextKey = "operator_id"
 )
 
+// publicProcedures lists RPCs that must be reachable without a Better Auth session —
+// e.g. a prospective agent applying via a public link. Keep this list minimal and
+// treat every addition as a security decision: identity fields these handlers need
+// (like operator_id) must come from the request body instead of ctx, and the service
+// layer must validate them explicitly since there's no session to trust.
+var publicProcedures = map[string]bool{
+	"/hajj.v1.AgentService/ApplyAsAgent": true,
+}
+
 // NewAuthInterceptor validates Better Auth's opaque database session token.
 // Better Auth does not issue JWTs for its default session strategy.
 func NewAuthInterceptor(pool *pgxpool.Pool) connect.Interceptor {
 	return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, request connect.AnyRequest) (connect.AnyResponse, error) {
+			if publicProcedures[request.Spec().Procedure] {
+				return next(ctx, request)
+			}
 			token, err := bearerToken(request.Header().Get("Authorization"))
 			if err != nil {
 				return nil, connect.NewError(connect.CodeUnauthenticated, err)

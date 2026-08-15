@@ -2,10 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { IconBus, IconPlus } from "@tabler/icons-react";
+import { Timestamp } from "@bufbuild/protobuf";
+import { IconBus, IconPlus, IconTemplate } from "@tabler/icons-react";
 import { Movement } from "@hajj-saas/proto-gen/hajj/v1/transport_pb";
 import { seasonClient, transportClient } from "@/lib/rpc";
 import MovementFormDialog from "./MovementFormDialog";
+
+const HAJJ_MOVEMENT_TEMPLATE = [
+  { name: "Jeddah Airport → Makkah", origin: "Jeddah", destination: "Makkah" },
+  { name: "Makkah → Mina (Tarwiyah)", origin: "Makkah", destination: "Mina" },
+  { name: "Mina → Arafah", origin: "Mina", destination: "Arafah" },
+  { name: "Arafah → Muzdalifah", origin: "Arafah", destination: "Muzdalifah" },
+  { name: "Muzdalifah → Mina", origin: "Muzdalifah", destination: "Mina" },
+  { name: "Mina → Makkah", origin: "Mina", destination: "Makkah" },
+  { name: "Makkah → Madinah", origin: "Makkah", destination: "Madinah" },
+  { name: "Madinah → Jeddah Airport", origin: "Madinah", destination: "Jeddah" },
+];
 
 export default function TransportDashboard() {
   const [season, setSeason] = useState("");
@@ -13,6 +25,7 @@ export default function TransportDashboard() {
   const [moves, setMoves] = useState<Movement[]>([]);
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState("");
+  const [working, setWorking] = useState(false);
 
   useEffect(() => {
     seasonClient.listSeasons({}).then((response) => {
@@ -29,6 +42,29 @@ export default function TransportDashboard() {
   };
 
   useEffect(refresh, [season]);
+
+  async function useTemplate() {
+    if (!season || working) return;
+    setWorking(true);
+    setNotice("");
+    try {
+      const start = new Date();
+      start.setDate(start.getDate() + 1);
+      let i = 0;
+      for (const step of HAJJ_MOVEMENT_TEMPLATE) {
+        const scheduledAt = new Date(start);
+        scheduledAt.setDate(start.getDate() + i);
+        await transportClient.createMovement({ seasonId: season, name: step.name, origin: step.origin, destination: step.destination, scheduledAt: Timestamp.fromDate(scheduledAt) });
+        i += 1;
+      }
+      setNotice("Hajj movement template created (8 movements).");
+      refresh();
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "Unable to create the movement template.");
+    } finally {
+      setWorking(false);
+    }
+  }
 
   const groups = useMemo(() => Object.entries(moves.reduce<Record<string, Movement[]>>((result, movement) => {
     const date = movement.scheduledAt?.toDate().toLocaleDateString() ?? "Unscheduled";
@@ -48,6 +84,7 @@ export default function TransportDashboard() {
           <select value={season} onChange={(event) => setSeason(event.target.value)} style={input}>
             {seasons.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
+          <button disabled={!season || working} onClick={() => void useTemplate()} style={ghost}><IconTemplate size={18} />Use Hajj template</button>
           <button disabled={!season} onClick={() => setOpen(true)} style={emerald}><IconPlus size={18} />Add Movement</button>
         </div>
       </header>
@@ -97,6 +134,7 @@ const title: React.CSSProperties = { fontSize: "clamp(32px,5vw,48px)", margin: 0
 const subtitle: React.CSSProperties = { color: "var(--color-warm-500)" };
 const input: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 12px", background: "var(--color-cream-200)", color: "var(--color-warm-900)" };
 const emerald: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, padding: "0 18px", display: "inline-flex", alignItems: "center", gap: 8, background: "var(--color-emerald-900)", color: "var(--color-cream-100)", fontWeight: 700 };
+const ghost: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-cream-500)", borderRadius: 8, padding: "0 18px", display: "inline-flex", alignItems: "center", gap: 8, background: "transparent", color: "var(--color-warm-700)", fontWeight: 700 };
 const gold: React.CSSProperties = { ...emerald, background: "var(--color-gold-500)", color: "var(--color-warm-900)" };
 const grid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(270px,1fr))", gap: 16 };
 const card: React.CSSProperties = { display: "grid", gap: 12, background: "white", border: "1px solid var(--color-cream-400)", borderRadius: 12, padding: 20, color: "var(--color-warm-900)", textDecoration: "none" };

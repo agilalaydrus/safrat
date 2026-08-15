@@ -80,6 +80,63 @@ func (s *AgentService) Update(ctx context.Context, orgID string, req *hajjv1.Upd
 	}
 	return agentMessage(agent), nil
 }
+// ApplyAsAgent is the public application path — there is no authenticated
+// operator identity here, so operator_id comes from the request itself.
+func (s *AgentService) ApplyAsAgent(ctx context.Context, req *hajjv1.ApplyAsAgentRequest) (*hajjv1.Agent, error) {
+	if req == nil || strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.OperatorId) == "" {
+		return nil, serviceError("AgentService.ApplyAsAgent", apperror.ErrValidation)
+	}
+	if _, err := s.operatorRepository.GetByID(ctx, req.OperatorId); err != nil {
+		return nil, serviceError("AgentService.ApplyAsAgent", err)
+	}
+	referredByAgentID := ""
+	if code := strings.TrimSpace(req.ReferredByCode); code != "" {
+		referrer, err := s.agentRepository.GetByReferralCode(ctx, req.OperatorId, code)
+		if err == nil {
+			referredByAgentID = referrer.ID
+		}
+	}
+	agent, err := s.agentRepository.CreateApplication(ctx, req.OperatorId, req.Name, req.Phone, req.Email, referredByAgentID)
+	if err != nil {
+		return nil, serviceError("AgentService.ApplyAsAgent", err)
+	}
+	return agentMessage(agent), nil
+}
+
+// RecalculateTiers is invoked by the tier-recalculation worker (cmd/worker), not by
+// any RPC.
+// TODO(payout): this only recomputes tier, not payout. Payout needs order/revenue
+// data to multiply commissionRate against, which doesn't exist without Module 7
+// (Orders) — deliberately out of scope for now, not a silent gap.
+func (s *AgentService) RecalculateTiers(ctx context.Context, operatorID string) error {
+	rows, err := s.agentRepository.ListActiveForTiering(ctx, operatorID)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		tier := tierForPilgrimCount(row.PilgrimCount)
+		if tier == row.Tier {
+			continue
+		}
+		agentID := uuid.UUID(row.ID.Bytes).String()
+		if err := s.agentRepository.UpdateTier(ctx, operatorID, agentID, tier); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func tierForPilgrimCount(count int32) string {
+	switch {
+	case count >= 30:
+		return "GOLD"
+	case count >= 10:
+		return "SILVER"
+	default:
+		return "BRONZE"
+	}
+}
+
 func (s *AgentService) Delete(ctx context.Context, orgID string, req *hajjv1.DeleteAgentRequest) (*hajjv1.DeleteAgentResponse, error) {
 	if req == nil {
 		return nil, serviceError("AgentService.Delete", apperror.ErrValidation)
@@ -94,5 +151,5 @@ func (s *AgentService) Delete(ctx context.Context, orgID string, req *hajjv1.Del
 	return &hajjv1.DeleteAgentResponse{}, nil
 }
 func agentMessage(agent *domain.Agent) *hajjv1.Agent {
-	return &hajjv1.Agent{Id: agent.ID, OperatorId: agent.OperatorID, Name: agent.Name, Phone: agent.Phone, Email: agent.Email, CommissionRate: agent.CommissionRate, Notes: agent.Notes, IsActive: agent.IsActive, PilgrimCount: agent.PilgrimCount, CreatedAt: timestamppb.New(agent.CreatedAt), UpdatedAt: timestamppb.New(agent.UpdatedAt)}
+	return &hajjv1.Agent{Id: agent.ID, OperatorId: agent.OperatorID, Name: agent.Name, Phone: agent.Phone, Email: agent.Email, CommissionRate: agent.CommissionRate, Notes: agent.Notes, IsActive: agent.IsActive, PilgrimCount: agent.PilgrimCount, ReferralCode: agent.ReferralCode, Tier: agent.Tier, ReferredByAgentId: agent.ReferredByAgentID, CreatedAt: timestamppb.New(agent.CreatedAt), UpdatedAt: timestamppb.New(agent.UpdatedAt)}
 }

@@ -42,6 +42,13 @@ func (h *AgentHandler) UpdateAgent(ctx context.Context, req *connect.Request[haj
 	}
 	return connect.NewResponse(result), nil
 }
+func (h *AgentHandler) ApplyAsAgent(ctx context.Context, req *connect.Request[hajjv1.ApplyAsAgentRequest]) (*connect.Response[hajjv1.Agent], error) {
+	result, err := h.agentService.ApplyAsAgent(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
 func (h *AgentHandler) DeleteAgent(ctx context.Context, req *connect.Request[hajjv1.DeleteAgentRequest]) (*connect.Response[hajjv1.DeleteAgentResponse], error) {
 	result, err := h.agentService.Delete(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
 	if err != nil {

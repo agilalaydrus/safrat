@@ -13,6 +13,9 @@ service AgentService {
   rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse);
   rpc UpdateAgent(UpdateAgentRequest) returns (Agent);
   rpc DeleteAgent(DeleteAgentRequest) returns (DeleteAgentResponse);
+  // ApplyAsAgent is the one public, unauthenticated RPC on this service — see
+  // middleware.NewAuthInterceptor's public-procedure allowlist.
+  rpc ApplyAsAgent(ApplyAsAgentRequest) returns (Agent);
 }
 
 message Agent {
@@ -27,6 +30,17 @@ message Agent {
   int32 pilgrim_count = 9;
   google.protobuf.Timestamp created_at = 10;
   google.protobuf.Timestamp updated_at = 11;
+  string referral_code = 12;
+  string tier = 13;
+  string referred_by_agent_id = 14;
+}
+
+message ApplyAsAgentRequest {
+  string operator_id = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  string phone = 3;
+  string email = 4;
+  string referred_by_code = 5;
 }
 
 message CreateAgentRequest {

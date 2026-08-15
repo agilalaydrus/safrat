@@ -75,6 +75,50 @@ func (r *AgentRepository) Update(ctx context.Context, operatorID, agentID, name,
 	return toAgent(agent, 0), nil
 }
 
+func (r *AgentRepository) CreateApplication(ctx context.Context, operatorID, name, phone, email, referredByAgentID string) (*domain.Agent, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	agent, err := r.queries.CreateAgentApplication(ctx, db.CreateAgentApplicationParams{OperatorID: opUUID, Name: name, Phone: phone, Email: email, Column5: referredByAgentID})
+	if err != nil {
+		return nil, err
+	}
+	return toAgent(agent, 0), nil
+}
+
+func (r *AgentRepository) GetByReferralCode(ctx context.Context, operatorID, referralCode string) (*domain.Agent, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	agent, err := r.queries.GetAgentByReferralCode(ctx, db.GetAgentByReferralCodeParams{ReferralCode: referralCode, OperatorID: opUUID})
+	if err != nil {
+		return nil, err
+	}
+	return toAgent(agent, 0), nil
+}
+
+func (r *AgentRepository) ListActiveForTiering(ctx context.Context, operatorID string) ([]db.ListActiveAgentsForTieringRow, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	return r.queries.ListActiveAgentsForTiering(ctx, opUUID)
+}
+
+func (r *AgentRepository) UpdateTier(ctx context.Context, operatorID, agentID, tier string) error {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return err
+	}
+	agentUUID, err := pgUUID(agentID)
+	if err != nil {
+		return err
+	}
+	return r.queries.UpdateAgentTier(ctx, db.UpdateAgentTierParams{ID: agentUUID, OperatorID: opUUID, Tier: tier})
+}
+
 func (r *AgentRepository) Delete(ctx context.Context, operatorID, agentID string) error {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
@@ -88,5 +132,9 @@ func (r *AgentRepository) Delete(ctx context.Context, operatorID, agentID string
 }
 
 func toAgent(agent db.Agent, pilgrimCount int32) *domain.Agent {
-	return &domain.Agent{ID: uuid.UUID(agent.ID.Bytes).String(), OperatorID: uuid.UUID(agent.OperatorID.Bytes).String(), Name: agent.Name, Phone: agent.Phone, Email: agent.Email, CommissionRate: agent.CommissionRate, Notes: agent.Notes, IsActive: agent.IsActive, PilgrimCount: pilgrimCount, CreatedAt: agent.CreatedAt.Time, UpdatedAt: agent.UpdatedAt.Time}
+	referredBy := ""
+	if agent.ReferredByAgentID.Valid {
+		referredBy = uuid.UUID(agent.ReferredByAgentID.Bytes).String()
+	}
+	return &domain.Agent{ID: uuid.UUID(agent.ID.Bytes).String(), OperatorID: uuid.UUID(agent.OperatorID.Bytes).String(), Name: agent.Name, Phone: agent.Phone, Email: agent.Email, CommissionRate: agent.CommissionRate, Notes: agent.Notes, IsActive: agent.IsActive, PilgrimCount: pilgrimCount, ReferralCode: agent.ReferralCode, Tier: agent.Tier, ReferredByAgentID: referredBy, CreatedAt: agent.CreatedAt.Time, UpdatedAt: agent.UpdatedAt.Time}
 }

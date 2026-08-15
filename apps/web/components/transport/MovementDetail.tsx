@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { IconPlus } from "@tabler/icons-react";
+import { IconDownload, IconPlus } from "@tabler/icons-react";
 import { Movement, Vehicle } from "@hajj-saas/proto-gen/hajj/v1/transport_pb";
-import { transportClient } from "@/lib/rpc";
+import { transportClient, pilgrimClient } from "@/lib/rpc";
+import { exportCSV } from "@/lib/csv";
 import VehicleFormDialog from "./VehicleFormDialog";
 import VehicleManifestPanel from "./VehicleManifestPanel";
 
@@ -62,6 +63,28 @@ export default function MovementDetail({ movementId }: { movementId: string }) {
   }
 
   const isScheduled = movement?.status === "scheduled";
+
+  async function exportManifest() {
+    setNotice("");
+    try {
+      const scheduled = movement?.scheduledAt?.toDate().toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) ?? "";
+      const pilgrimsResponse = movement?.seasonId ? await pilgrimClient.listPilgrims({ seasonId: movement.seasonId, limit: 1000, offset: 0 }) : undefined;
+      const pilgrimById = new Map((pilgrimsResponse?.pilgrims ?? []).map((p) => [p.id, p]));
+      const headers = ["Movement", "Origin", "Destination", "Scheduled", "Vehicle Plate", "Driver", "Driver Phone", "Seat No.", "Full Name", "Passport No.", "Nationality", "Gender", "Date of Birth", "Phone", "Group Code", "Wheelchair", "Emergency Contact"];
+      const rows: string[][] = [];
+      for (const vehicle of vehicles) {
+        const manifest = await transportClient.getVehicleManifest({ vehicleId: vehicle.id });
+        rows.push(...manifest.pilgrims.map((p) => {
+          const full = pilgrimById.get(p.id);
+          return [movement?.name ?? "", movement?.origin ?? "", movement?.destination ?? "", scheduled, vehicle.plateNumber, vehicle.driverName || "-", vehicle.driverPhone || "-", String(p.seatNumber), p.fullName, p.passportNumber, full?.nationality ?? "", p.gender, full?.dateOfBirth?.toDate().toLocaleDateString("id-ID") ?? "", full?.phone ?? "", full?.groupId || "-", p.requiresWheelchair ? "Yes" : "No", full?.emergencyContact ?? ""];
+        }));
+      }
+      exportCSV(`${movement?.name ?? "movement"}-manifest.csv`, headers, rows);
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "Unable to export manifest.");
+    }
+  }
+
   return (
     <main style={page}>
       <Link href="/dashboard/transport" style={backLink}>Back to transport</Link>
@@ -79,7 +102,10 @@ export default function MovementDetail({ movementId }: { movementId: string }) {
             {movement.status === "departed" && <button disabled={working} onClick={() => void updateStatus("arrived")} style={emerald}>Mark Arrived</button>}
           </div>}
         </div>
-        <button disabled={!isScheduled} onClick={() => setVehicleFormOpen(true)} style={emerald}><IconPlus size={18} />Add Vehicle</button>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+          {!!vehicles.length && <button onClick={() => void exportManifest()} style={secondary}><IconDownload size={18} />Export CSV</button>}
+          <button disabled={!isScheduled} onClick={() => setVehicleFormOpen(true)} style={emerald}><IconPlus size={18} />Add Vehicle</button>
+        </div>
       </header>
       <div className="gold-divider" />
       {notice && <p role="alert" style={noticeStyle}>{notice}</p>}

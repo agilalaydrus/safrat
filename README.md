@@ -19,18 +19,21 @@ pnpm dev
 
 cd apps/api
 go run ./cmd/server
+
+# Agent tier-recalculation worker (needs Redis, see below)
+go run ./cmd/worker
 ```
 
 ## Local services
 
-Copy `.env.example` to `.env`, set `BETTER_AUTH_SECRET`, then start PostgreSQL and apply migrations:
+Copy `.env.example` to `.env`, set `BETTER_AUTH_SECRET`, then start PostgreSQL and Redis and apply migrations:
 
 ```bash
-docker compose up -d postgres
+docker compose up -d postgres redis
 goose -dir apps/api/db/migrations postgres "$DATABASE_URL" up
 ```
 
-The Go API fails closed unless `DATABASE_URL`, `BETTER_AUTH_SECRET`, and `CORS_ALLOWED_ORIGIN` are configured.
+The Go API fails closed unless `DATABASE_URL`, `BETTER_AUTH_SECRET`, and `CORS_ALLOWED_ORIGIN` are configured. `cmd/worker` additionally requires `REDIS_URL` and periodically recalculates agent tiers (Bronze/Silver/Gold) from referred pilgrim counts — it does not compute payouts, which need order data that doesn't exist yet.
 
 ## Deployment
 

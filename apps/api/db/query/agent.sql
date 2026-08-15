@@ -30,3 +30,24 @@ WHERE id = $1 AND operator_id = $2;
 UPDATE pilgrims
 SET agent_id = $2, updated_at = NOW()
 WHERE id = $1 AND operator_id = $3;
+
+-- name: CreateAgentApplication :one
+INSERT INTO agents (operator_id, name, phone, email, is_active, referred_by_agent_id)
+VALUES ($1, $2, $3, $4, false, NULLIF($5::text, '')::uuid)
+RETURNING *;
+
+-- name: GetAgentByReferralCode :one
+SELECT * FROM agents
+WHERE referral_code = $1 AND operator_id = $2;
+
+-- name: UpdateAgentTier :exec
+UPDATE agents
+SET tier = $3, updated_at = NOW()
+WHERE id = $1 AND operator_id = $2;
+
+-- name: ListActiveAgentsForTiering :many
+SELECT a.id, a.operator_id, a.tier, COUNT(p.id)::int AS pilgrim_count
+FROM agents a
+LEFT JOIN pilgrims p ON p.agent_id = a.id
+WHERE a.operator_id = $1 AND a.is_active = true
+GROUP BY a.id;

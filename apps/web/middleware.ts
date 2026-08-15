@@ -8,6 +8,7 @@ const PUBLIC_PATHS = [
   "/sign-up",
   "/api/auth",
   "/pilgrim",
+  "/apply",
 ];
 
 export function middleware(request: NextRequest) {
