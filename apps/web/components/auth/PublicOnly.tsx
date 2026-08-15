@@ -25,7 +25,6 @@ export function PublicOnly({ children }: { children: React.ReactNode }) {
         const firstOrganization = organizations.data?.[0];
         if (!firstOrganization) {
           router.replace("/onboarding");
-          router.refresh();
           return;
         }
 
@@ -37,7 +36,6 @@ export function PublicOnly({ children }: { children: React.ReactNode }) {
 
         if (!cancelled) {
           router.replace("/dashboard");
-          router.refresh();
         }
       } catch {
         // A failed refresh must not lock a genuine signed-out user out of the form.

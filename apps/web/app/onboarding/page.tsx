@@ -41,7 +41,6 @@ export default function OnboardingPage() {
         setStep(2);
       } else {
         await seasonClient.createSeason({ name: values.seasonName, type: values.seasonType === "HAJJ" ? SeasonType.HAJJ : SeasonType.UMRAH, startDate: Timestamp.fromDate(new Date(`${values.startDate}T00:00:00.000Z`)), endDate: Timestamp.fromDate(new Date(`${values.endDate}T00:00:00.000Z`)) });
-        router.refresh();
         router.push("/dashboard");
       }
     } catch (caught) { setError(caught instanceof Error ? caught.message : "We could not create your workspace. Please try again."); }
