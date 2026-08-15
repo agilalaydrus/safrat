@@ -12,6 +12,21 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+var productCategories = map[string]bool{"TRAVEL_PACKAGE": true, "EQUIPMENT": true, "ROAMING_DATA": true, "PPOB_CREDIT": true}
+
+// validateProductTypeAndCategory enforces that `type` (HAJJ/UMRAH) only
+// applies to TRAVEL_PACKAGE — other categories (equipment, roaming data,
+// pulsa/PPOB) aren't Hajj- or Umrah-specific and must leave it blank.
+func validateProductTypeAndCategory(category, productType string) bool {
+	if !productCategories[category] {
+		return false
+	}
+	if category == "TRAVEL_PACKAGE" {
+		return productType == "HAJJ" || productType == "UMRAH"
+	}
+	return productType == ""
+}
+
 type ProductService struct {
 	operatorRepository *repository.OperatorRepository
 	productRepository  *repository.ProductRepository
@@ -21,14 +36,14 @@ func NewProductService(operators *repository.OperatorRepository, products *repos
 	return &ProductService{operatorRepository: operators, productRepository: products}
 }
 func (s *ProductService) Create(ctx context.Context, orgID string, req *hajjv1.CreateProductRequest) (*hajjv1.Product, error) {
-	if req == nil || strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.SeasonId) == "" || (req.Type != "HAJJ" && req.Type != "UMRAH") {
+	if req == nil || strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.SeasonId) == "" || !validateProductTypeAndCategory(req.Category, req.Type) {
 		return nil, serviceError("ProductService.Create", apperror.ErrValidation)
 	}
 	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
 	if err != nil {
 		return nil, serviceError("ProductService.Create", err)
 	}
-	product, err := s.productRepository.Create(ctx, op.ID, req.SeasonId, req.Name, req.Type, req.Description, req.PriceIdr, req.DurationDays, req.Inclusions)
+	product, err := s.productRepository.Create(ctx, op.ID, req.SeasonId, req.Name, req.Category, req.Type, req.Description, req.PriceIdr, req.DurationDays, req.Inclusions)
 	if err != nil {
 		return nil, serviceError("ProductService.Create", err)
 	}
@@ -67,7 +82,7 @@ func (s *ProductService) List(ctx context.Context, orgID string, req *hajjv1.Lis
 	return result, nil
 }
 func (s *ProductService) Update(ctx context.Context, orgID string, req *hajjv1.UpdateProductRequest) (*hajjv1.Product, error) {
-	if req == nil || strings.TrimSpace(req.Name) == "" || (req.Type != "HAJJ" && req.Type != "UMRAH") {
+	if req == nil || strings.TrimSpace(req.Name) == "" || !validateProductTypeAndCategory(req.Category, req.Type) {
 		return nil, serviceError("ProductService.Update", apperror.ErrValidation)
 	}
 	if _, err := uuid.Parse(req.ProductId); err != nil {
@@ -77,7 +92,7 @@ func (s *ProductService) Update(ctx context.Context, orgID string, req *hajjv1.U
 	if err != nil {
 		return nil, serviceError("ProductService.Update", err)
 	}
-	product, err := s.productRepository.Update(ctx, op.ID, req.ProductId, req.Name, req.Type, req.Description, req.PriceIdr, req.DurationDays, req.Inclusions, req.IsActive)
+	product, err := s.productRepository.Update(ctx, op.ID, req.ProductId, req.Name, req.Category, req.Type, req.Description, req.PriceIdr, req.DurationDays, req.Inclusions, req.IsActive)
 	if err != nil {
 		return nil, serviceError("ProductService.Update", err)
 	}
@@ -97,5 +112,5 @@ func (s *ProductService) Delete(ctx context.Context, orgID string, req *hajjv1.D
 	return &hajjv1.DeleteProductResponse{}, nil
 }
 func productMessage(product *domain.Product) *hajjv1.Product {
-	return &hajjv1.Product{Id: product.ID, OperatorId: product.OperatorID, SeasonId: product.SeasonID, Name: product.Name, Type: product.Type, PriceIdr: product.PriceIDR, DurationDays: product.DurationDays, Description: product.Description, Inclusions: product.Inclusions, IsActive: product.IsActive, CreatedAt: timestamppb.New(product.CreatedAt), UpdatedAt: timestamppb.New(product.UpdatedAt)}
+	return &hajjv1.Product{Id: product.ID, OperatorId: product.OperatorID, SeasonId: product.SeasonID, Name: product.Name, Category: product.Category, Type: product.Type, PriceIdr: product.PriceIDR, DurationDays: product.DurationDays, Description: product.Description, Inclusions: product.Inclusions, IsActive: product.IsActive, CreatedAt: timestamppb.New(product.CreatedAt), UpdatedAt: timestamppb.New(product.UpdatedAt)}
 }

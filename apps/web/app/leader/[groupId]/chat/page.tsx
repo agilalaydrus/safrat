@@ -58,9 +58,9 @@ export default function LeaderChatPage() {
 
   return (
     <main style={page}>
-      {offline && <p style={offlineBanner}><IconWifiOff size={16} />Showing saved messages — you're offline</p>}
+      {offline && <p style={offlineBanner}><IconWifiOff size={16} />Menampilkan pesan tersimpan — Anda sedang offline</p>}
       <div style={list}>
-        {messages.length === 0 && <p style={{ color: "var(--color-warm-400)", textAlign: "center", marginTop: 40 }}>No messages yet.</p>}
+        {messages.length === 0 && <p style={{ color: "var(--color-warm-400)", textAlign: "center", marginTop: 40 }}>Belum ada pesan.</p>}
         {messages.map((message) => (
           <div key={message.id} style={{ ...bubble, ...(message.fromPilgrim ? theirs : mine) }}>
             {message.fromPilgrim && <p style={sender}>{message.senderName}</p>}
@@ -70,7 +70,7 @@ export default function LeaderChatPage() {
         <div ref={bottomRef} />
       </div>
       <form onSubmit={submit} style={composer}>
-        <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Message this group..." style={input} />
+        <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Kirim pesan ke rombongan ini..." style={input} />
         <button disabled={sending || !draft.trim()} style={sendButton} aria-label="Send"><IconSend size={20} /></button>
       </form>
     </main>

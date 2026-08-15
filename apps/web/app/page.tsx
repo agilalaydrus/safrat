@@ -4,10 +4,10 @@ import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 
 const FEATURES = [
-  { icon: "👥", title: "Pilgrim Management", desc: "Daftarkan, impor, dan kelola data jamaah dengan mudah. Substitusi otomatis jika ada perubahan." },
-  { icon: "🏨", title: "Accommodation", desc: "Alokasikan kamar hotel, kelola kapasitas, dan pantau hunian secara real-time." },
-  { icon: "🚌", title: "Transport & Movement", desc: "Jadwalkan pergerakan, assign kursi bus, dan lacak status armada." },
-  { icon: "📊", title: "Reports & Export", desc: "Ekspor manifest jamaah, laporan kamar, dan data operasional dalam satu klik." },
+  { icon: "👥", title: "Manajemen Jamaah", desc: "Daftarkan, impor, dan kelola data jamaah dengan mudah. Substitusi otomatis jika ada perubahan." },
+  { icon: "🏨", title: "Akomodasi", desc: "Alokasikan kamar hotel, kelola kapasitas, dan pantau hunian secara real-time." },
+  { icon: "🚌", title: "Transportasi & Jadwal", desc: "Jadwalkan pergerakan, tetapkan kursi bus, dan lacak status armada." },
+  { icon: "📊", title: "Laporan & Ekspor", desc: "Ekspor manifest jamaah, laporan kamar, dan data operasional dalam satu klik." },
 ];
 
 export default function LandingPage() {
@@ -23,14 +23,14 @@ export default function LandingPage() {
           <span style={signedIn}>{session?.user?.email}</span>
           <Link href={dashboardHref} style={navCta}>Dashboard</Link>
         </> : !isPending && <>
-          <Link href="/sign-in" style={navLink}>Sign in</Link>
-          <Link href="/sign-up" style={navCta}>Create account</Link>
+          <Link href="/sign-in" style={navLink}>Masuk</Link>
+          <Link href="/sign-up" style={navCta}>Buat akun</Link>
         </>}
       </div>
     </nav>
     <section style={hero}>
-      <p style={eyebrow}>HAJJ & UMRAH OPERATOR PLATFORM</p>
-      <h1 style={heroTitle}>Where every<br />journey begins</h1>
+      <p style={eyebrow}>PLATFORM OPERATOR HAJI & UMRAH</p>
+      <h1 style={heroTitle}>Setiap perjalanan<br />dimulai di sini</h1>
       <p style={heroSub}>Safrat membantu operator Haji & Umrah mengelola jamaah, akomodasi, dan transportasi dalam satu platform yang terintegrasi.</p>
       <div style={ctaRow}>
         {isAuthenticated ? <Link href={dashboardHref} style={heroCta}>Buka dashboard</Link> : !isPending && <>
@@ -51,7 +51,7 @@ export default function LandingPage() {
       <p style={bannerText}>Bergabunglah dengan operator yang mempercayakan pengelolaan jamaah kepada Safrat.</p>
       <Link href={isAuthenticated ? dashboardHref : "/sign-up"} style={heroCta}>{isAuthenticated ? "Buka dashboard" : "Daftar gratis"}</Link>
     </section>
-    <footer style={footer}><Link href="/" aria-label="Safrat home" style={navLogo}>Safrat</Link><p style={{ fontSize: 12, color: "var(--color-warm-400)", marginTop: 4 }}>© 2026 Safrat. All rights reserved.</p></footer>
+    <footer style={footer}><Link href="/" aria-label="Safrat home" style={navLogo}>Safrat</Link><p style={{ fontSize: 12, color: "var(--color-warm-400)", marginTop: 4 }}>© 2026 Safrat. Hak cipta dilindungi.</p></footer>
   </div>;
 }
 

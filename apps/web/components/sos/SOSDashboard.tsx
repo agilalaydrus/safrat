@@ -11,7 +11,7 @@ export default function SOSDashboard() {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [resolvingId, setResolvingId] = useState("");
 
-  const refresh = () => sosClient.listActiveSOSAlerts({}).then((r) => setAlerts(r.alerts)).catch(() => setNotice("Unable to load SOS alerts."));
+  const refresh = () => sosClient.listActiveSOSAlerts({}).then((r) => setAlerts(r.alerts)).catch(() => setNotice("Gagal memuat notifikasi SOS."));
 
   useEffect(() => {
     refresh();
@@ -21,22 +21,22 @@ export default function SOSDashboard() {
 
   async function enablePush() {
     const token = await requestPushToken();
-    if (!token) { setNotice("Push notifications aren't available (check Firebase config or browser permission)."); return; }
+    if (!token) { setNotice("Notifikasi push tidak tersedia (periksa konfigurasi Firebase atau izin browser)."); return; }
     try {
       await notificationClient.registerPushSubscription({ fcmToken: token });
       setPushEnabled(true);
-      setNotice("Push notifications enabled for SOS alerts.");
+      setNotice("Notifikasi push untuk SOS telah diaktifkan.");
     } catch {
-      setNotice("Unable to register for push notifications.");
+      setNotice("Gagal mendaftarkan notifikasi push.");
     }
   }
 
   async function acknowledge(id: string) {
-    try { await sosClient.acknowledgeSOSAlert({ sosAlertId: id }); void refresh(); } catch { setNotice("Unable to acknowledge alert."); }
+    try { await sosClient.acknowledgeSOSAlert({ sosAlertId: id }); void refresh(); } catch { setNotice("Gagal mengonfirmasi notifikasi."); }
   }
   async function resolve(id: string) {
     setResolvingId(id);
-    try { await sosClient.resolveSOSAlert({ sosAlertId: id, notes: "" }); void refresh(); } catch { setNotice("Unable to resolve alert."); } finally { setResolvingId(""); }
+    try { await sosClient.resolveSOSAlert({ sosAlertId: id, notes: "" }); void refresh(); } catch { setNotice("Gagal menyelesaikan notifikasi."); } finally { setResolvingId(""); }
   }
 
   const active = alerts.filter((a) => a.status !== "RESOLVED");
@@ -44,13 +44,13 @@ export default function SOSDashboard() {
   return (
     <main style={page}>
       <header style={head}>
-        <div><p style={ey}>OPERATIONS / SOS</p><h1 style={title}>SOS Alerts</h1></div>
-        <button style={pushEnabled ? enabledButton : ghostButton} onClick={enablePush} disabled={pushEnabled}>{pushEnabled ? <IconBell size={18} /> : <IconBellOff size={18} />}{pushEnabled ? "Push enabled" : "Enable push alerts"}</button>
+        <div><p style={ey}>OPERASIONAL / SOS</p><h1 style={title}>Notifikasi SOS</h1></div>
+        <button style={pushEnabled ? enabledButton : ghostButton} onClick={enablePush} disabled={pushEnabled}>{pushEnabled ? <IconBell size={18} /> : <IconBellOff size={18} />}{pushEnabled ? "Push aktif" : "Aktifkan notifikasi push"}</button>
       </header>
       <div className="gold-divider" />
       {notice && <p style={{ color: "var(--color-gold-800)" }}>{notice}</p>}
       {!active.length ? (
-        <section style={empty}><IconSos size={48} color="var(--color-warm-400)" /><h2 style={{ margin: 0 }}>No active SOS alerts</h2></section>
+        <section style={empty}><IconSos size={48} color="var(--color-warm-400)" /><h2 style={{ margin: 0 }}>Tidak ada notifikasi SOS aktif</h2></section>
       ) : (
         <div style={list}>
           {active.map((alert) => (
@@ -60,12 +60,12 @@ export default function SOSDashboard() {
                   <strong style={{ fontSize: 18 }}>{alert.pilgrimName}</strong>
                   <p style={{ margin: "4px 0 0", color: "var(--color-warm-500)", fontSize: 13 }}>{alert.createdAt?.toDate().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
                 </div>
-                <span style={badge(alert.status)}>{alert.status}</span>
+                <span style={badge(alert.status)}>{alertStatusLabel(alert.status)}</span>
               </div>
               <div style={actions}>
-                {alert.status !== "ACKNOWLEDGED" && alert.status !== "ESCALATED" && <button style={ackButton} onClick={() => acknowledge(alert.id)}><IconCheck size={16} />Acknowledge</button>}
-                {alert.status === "ESCALATED" && <button style={ackButton} onClick={() => acknowledge(alert.id)}><IconCheck size={16} />Acknowledge (escalated)</button>}
-                <button disabled={resolvingId === alert.id} style={resolveButton} onClick={() => resolve(alert.id)}>Mark resolved</button>
+                {alert.status !== "ACKNOWLEDGED" && alert.status !== "ESCALATED" && <button style={ackButton} onClick={() => acknowledge(alert.id)}><IconCheck size={16} />Konfirmasi</button>}
+                {alert.status === "ESCALATED" && <button style={ackButton} onClick={() => acknowledge(alert.id)}><IconCheck size={16} />Konfirmasi (dieskalasi)</button>}
+                <button disabled={resolvingId === alert.id} style={resolveButton} onClick={() => resolve(alert.id)}>Tandai selesai</button>
               </div>
             </article>
           ))}
@@ -73,6 +73,11 @@ export default function SOSDashboard() {
       )}
     </main>
   );
+}
+
+function alertStatusLabel(status: string): string {
+  const map: Record<string, string> = { ACTIVE: "Aktif", ACKNOWLEDGED: "Dikonfirmasi", ESCALATED: "Dieskalasi", RESOLVED: "Selesai" };
+  return map[status] ?? status;
 }
 
 const page: React.CSSProperties = { maxWidth: 1000, margin: "0 auto", padding: "32px 24px" };

@@ -23,10 +23,10 @@ export default function PilgrimSchedulePage() {
 
   return (
     <main style={page}>
-      <p style={eyebrow}>YOUR JOURNEY</p>
-      <h1 style={title}>Schedule</h1>
-      {fromCache && <p style={offlineBanner}><IconWifiOff size={16} />Showing saved schedule — you're offline</p>}
-      {loaded && !movements.length && <p style={{ color: "var(--color-warm-400)" }}>No upcoming movements yet.</p>}
+      <p style={eyebrow}>PERJALANAN ANDA</p>
+      <h1 style={title}>Jadwal</h1>
+      {fromCache && <p style={offlineBanner}><IconWifiOff size={16} />Menampilkan jadwal tersimpan — Anda sedang offline</p>}
+      {loaded && !movements.length && <p style={{ color: "var(--color-warm-400)" }}>Belum ada jadwal perjalanan mendatang.</p>}
       <div style={list}>
         {movements.map((movement) => (
           <article key={movement.id} style={card}>

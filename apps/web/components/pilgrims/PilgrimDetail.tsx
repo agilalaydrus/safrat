@@ -19,23 +19,23 @@ export default function PilgrimDetail({ id }: { id: string }) {
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
-    pilgrimClient.getPilgrim({ pilgrimId: id }).then(setPilgrim).catch(() => setNotice("Unable to load pilgrim."));
+    pilgrimClient.getPilgrim({ pilgrimId: id }).then(setPilgrim).catch(() => setNotice("Gagal memuat data jamaah."));
   }, [id]);
 
   useEffect(() => {
     if (!confirmSubstitution || !pilgrim) return;
-    pilgrimClient.listPilgrims({ seasonId: pilgrim.seasonId, limit: 100, offset: 0 }).then((response) => setReplacementPilgrims(response.pilgrims)).catch(() => setNotice("Unable to load replacement pilgrims."));
+    pilgrimClient.listPilgrims({ seasonId: pilgrim.seasonId, limit: 100, offset: 0 }).then((response) => setReplacementPilgrims(response.pilgrims)).catch(() => setNotice("Gagal memuat calon pengganti."));
   }, [confirmSubstitution, pilgrim?.seasonId]);
 
   useEffect(() => { const timeout = window.setTimeout(() => setReplacementTerm(replacementSearch), 300); return () => window.clearTimeout(timeout); }, [replacementSearch]);
 
   const candidates = useMemo(() => replacementPilgrims.filter((candidate) => candidate.id !== pilgrim?.id && !candidate.isSubstituted && `${candidate.fullName} ${candidate.passportNumber}`.toLowerCase().includes(replacementTerm.toLowerCase())), [pilgrim?.id, replacementPilgrims, replacementTerm]);
 
-  if (!pilgrim) return <main style={page}>{notice || "Loading pilgrim..."}</main>;
+  if (!pilgrim) return <main style={page}>{notice || "Memuat data jamaah..."}</main>;
 
   const copy = async () => {
     await navigator.clipboard.writeText(pilgrim.appAccessCode);
-    setNotice("Access code copied");
+    setNotice("Kode akses disalin");
   };
 
   const substitute = async () => {
@@ -47,48 +47,48 @@ export default function PilgrimDetail({ id }: { id: string }) {
       setConfirmSubstitution(false);
       setSelectedReplacement(undefined);
       setReplacementSearch("");
-      setNotice("Substitution complete");
+      setNotice("Penggantian selesai");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to mark pilgrim as substituted.";
-      setNotice(`Failed: ${message}`);
+      const message = error instanceof Error ? error.message : "Gagal menandai jamaah sebagai digantikan.";
+      setNotice(`Gagal: ${message}`);
     } finally {
       setSubstituting(false);
     }
   };
 
   return <main style={page}>
-    <Link href="/dashboard/pilgrims" style={{ color: "var(--color-gold-800)" }}>Back to pilgrims</Link>
+    <Link href="/dashboard/pilgrims" style={{ color: "var(--color-gold-800)" }}>Kembali ke daftar jamaah</Link>
     <header style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginTop: 20 }}>
-      <div><p style={eyebrow}>PILGRIM PROFILE</p><h1 style={{ margin: 0, fontSize: 40 }}>{pilgrim.fullName}</h1></div>
-      <button onClick={() => setEdit(true)} style={emerald}><IconEdit size={18} />Edit</button>
+      <div><p style={eyebrow}>PROFIL JAMAAH</p><h1 style={{ margin: 0, fontSize: 40 }}>{pilgrim.fullName}</h1></div>
+      <button onClick={() => setEdit(true)} style={emerald}><IconEdit size={18} />Ubah</button>
     </header>
     <div className="gold-divider" />
     <div style={grid}>
       <section style={card}>
         <div style={avatar}><IconUser size={36} /></div>
-        <h2>Identity</h2>
-        <Details values={[["Passport", pilgrim.passportNumber], ["Nationality", pilgrim.nationality], ["Gender", pilgrim.gender === 2 ? "Female" : "Male"], ["Date of birth", pilgrim.dateOfBirth?.toDate().toLocaleDateString() ?? "-"], ["Phone", pilgrim.phone || "-"], ["Emergency contact", pilgrim.emergencyContact || "-"], ["Language", pilgrim.preferredLang]]} />
+        <h2>Identitas</h2>
+        <Details values={[["Paspor", pilgrim.passportNumber], ["Kewarganegaraan", pilgrim.nationality], ["Jenis kelamin", pilgrim.gender === 2 ? "Wanita" : "Pria"], ["Tanggal lahir", pilgrim.dateOfBirth?.toDate().toLocaleDateString("id-ID") ?? "-"], ["Telepon", pilgrim.phone || "-"], ["Kontak darurat", pilgrim.emergencyContact || "-"], ["Bahasa", pilgrim.preferredLang]]} />
       </section>
       <aside style={card}>
-        <h2>Allocations</h2>
-        <Details values={[["Group", pilgrim.groupId ? "Assigned group" : "Unassigned"], ["Room", "Not assigned"], ["Vehicle", "Not assigned"]]} />
+        <h2>Penempatan</h2>
+        <Details values={[["Rombongan", pilgrim.groupId ? "Sudah ditentukan" : "Belum ditentukan"], ["Kamar", "Belum ditentukan"], ["Kendaraan", "Belum ditentukan"]]} />
         <div className="gold-divider" />
-        <h2>Access code</h2>
+        <h2>Kode akses</h2>
         <code style={code}>{pilgrim.appAccessCode}</code>
         <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-          <button onClick={copy} style={gold}><IconCopy size={18} />Copy</button>
+          <button onClick={copy} style={gold}><IconCopy size={18} />Salin</button>
           {/* TODO: wire when API exposes regenerateAccessCode RPC */}
-          <button disabled style={disabled}>Regenerate</button>
+          <button disabled style={disabled}>Buat Ulang</button>
         </div>
         <div className="gold-divider" />
-        <h2>Substitution</h2>
-        {pilgrim.isSubstituted ? <p style={{ color: "var(--color-gold-800)" }}>Marked as substituted</p> : confirmSubstitution ? <div style={confirmation}>
-          {selectedReplacement ? <><p style={{ margin: 0 }}>Replace {pilgrim.fullName} with {selectedReplacement.fullName}?</p><p style={{ margin: 0, color: "var(--color-warm-500)", fontSize: 13 }}>{selectedReplacement.passportNumber}</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button disabled={substituting} onClick={substitute} style={danger}>{substituting ? "Replacing..." : "Confirm substitution"}</button><button onClick={() => setSelectedReplacement(undefined)} style={disabled}>Choose another</button></div></> : <><label style={{ display: "grid", gap: 6, color: "var(--color-warm-500)", fontSize: 14 }}>Find a replacement<input value={replacementSearch} onChange={(event) => setReplacementSearch(event.target.value)} placeholder="Search name or passport" style={input} /></label><div style={{ display: "grid", gap: 8, maxHeight: 240, overflowY: "auto" }}>{candidates.map((candidate) => <button key={candidate.id} onClick={() => setSelectedReplacement(candidate)} style={candidateButton}><strong>{candidate.fullName}</strong><span>{candidate.passportNumber}</span></button>)}{!candidates.length && <p style={{ margin: 0, color: "var(--color-warm-500)" }}>No eligible replacement pilgrims found.</p>}</div><button onClick={() => setConfirmSubstitution(false)} style={disabled}>Cancel</button></>}
-        </div> : <button onClick={() => setConfirmSubstitution(true)} style={danger}>Mark as Substituted</button>}
+        <h2>Penggantian Jamaah</h2>
+        {pilgrim.isSubstituted ? <p style={{ color: "var(--color-gold-800)" }}>Ditandai sebagai digantikan</p> : confirmSubstitution ? <div style={confirmation}>
+          {selectedReplacement ? <><p style={{ margin: 0 }}>Ganti {pilgrim.fullName} dengan {selectedReplacement.fullName}?</p><p style={{ margin: 0, color: "var(--color-warm-500)", fontSize: 13 }}>{selectedReplacement.passportNumber}</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button disabled={substituting} onClick={substitute} style={danger}>{substituting ? "Mengganti..." : "Konfirmasi penggantian"}</button><button onClick={() => setSelectedReplacement(undefined)} style={disabled}>Pilih yang lain</button></div></> : <><label style={{ display: "grid", gap: 6, color: "var(--color-warm-500)", fontSize: 14 }}>Cari pengganti<input value={replacementSearch} onChange={(event) => setReplacementSearch(event.target.value)} placeholder="Cari nama atau paspor" style={input} /></label><div style={{ display: "grid", gap: 8, maxHeight: 240, overflowY: "auto" }}>{candidates.map((candidate) => <button key={candidate.id} onClick={() => setSelectedReplacement(candidate)} style={candidateButton}><strong>{candidate.fullName}</strong><span>{candidate.passportNumber}</span></button>)}{!candidates.length && <p style={{ margin: 0, color: "var(--color-warm-500)" }}>Tidak ada calon pengganti yang memenuhi syarat.</p>}</div><button onClick={() => setConfirmSubstitution(false)} style={disabled}>Batal</button></>}
+        </div> : <button onClick={() => setConfirmSubstitution(true)} style={danger}>Tandai sebagai Digantikan</button>}
       </aside>
     </div>
     {notice && <p role="status">{notice}</p>}
-    <PilgrimFormDialog open={edit} onClose={() => setEdit(false)} seasonId={pilgrim.seasonId} pilgrims={[pilgrim]} initial={pilgrim} onSaved={() => { setNotice("Pilgrim updated"); pilgrimClient.getPilgrim({ pilgrimId: id }).then(setPilgrim); }} />
+    <PilgrimFormDialog open={edit} onClose={() => setEdit(false)} seasonId={pilgrim.seasonId} pilgrims={[pilgrim]} initial={pilgrim} onSaved={() => { setNotice("Data jamaah diperbarui"); pilgrimClient.getPilgrim({ pilgrimId: id }).then(setPilgrim); }} />
   </main>;
 }
 

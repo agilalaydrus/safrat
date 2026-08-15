@@ -7,6 +7,7 @@ type Product struct {
 	OperatorID   string
 	SeasonID     string
 	Name         string
+	Category     string
 	Type         string
 	PriceIDR     int64
 	DurationDays int32

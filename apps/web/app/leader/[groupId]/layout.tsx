@@ -5,7 +5,7 @@ import { usePathname, useParams } from "next/navigation";
 import { IconArrowLeft, IconClipboardCheck, IconMessageCircle, IconUsersGroup } from "@tabler/icons-react";
 
 const TABS = [
-  ["Roster", "", IconUsersGroup],
+  ["Daftar Jamaah", "", IconUsersGroup],
   ["Check-In", "check-in", IconClipboardCheck],
   ["Chat", "chat", IconMessageCircle],
 ] as const;
@@ -17,9 +17,9 @@ export default function LeaderGroupLayout({ children }: { children: React.ReactN
 
   return (
     <div style={shell}>
-      <header style={header}><Link href="/leader" style={backLink}><IconArrowLeft size={18} />All groups</Link></header>
+      <header style={header}><Link href="/leader" style={backLink}><IconArrowLeft size={18} />Semua rombongan</Link></header>
       <div style={content}>{children}</div>
-      <nav style={tabBar} aria-label="Leader group navigation">
+      <nav style={tabBar} aria-label="Navigasi rombongan">
         {TABS.map(([label, segment, Icon]) => {
           const href = segment ? `${base}/${segment}` : base;
           const active = pathname === href;

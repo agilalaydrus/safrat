@@ -26,7 +26,7 @@ export default function AccommodationDashboard() {
         setSeasons(response.seasons);
         setSeasonId(response.seasons.find((season) => season.isActive)?.id ?? response.seasons[0]?.id ?? "");
       })
-      .catch(() => setNotice("Unable to load seasons."));
+      .catch(() => setNotice("Gagal memuat data musim."));
   }, []);
 
   const refresh = async () => {
@@ -44,7 +44,7 @@ export default function AccommodationDashboard() {
       for (const [hotelId, rooms] of pairs) next[hotelId] = roomSummary(rooms.rooms);
       setSummaries(next);
     } catch {
-      setNotice("Unable to load hotels.");
+      setNotice("Gagal memuat data hotel.");
     } finally {
       setLoading(false);
     }
@@ -65,23 +65,23 @@ export default function AccommodationDashboard() {
     <main style={page}>
       <header style={header}>
         <div>
-          <p style={eyebrow}>OPERATIONS / ACCOMMODATION</p>
-          <h1 style={title}>Accommodation</h1>
-          <p style={{ margin: 0, color: "var(--color-warm-500)" }}>Plan room inventory and pilgrim allocations for every stop.</p>
+          <p style={eyebrow}>OPERASIONAL / AKOMODASI</p>
+          <h1 style={title}>Akomodasi</h1>
+          <p style={{ margin: 0, color: "var(--color-warm-500)" }}>Kelola ketersediaan kamar dan penempatan jamaah di setiap lokasi.</p>
         </div>
         <div style={actions}>
-          <select aria-label="Season" value={seasonId} onChange={(event) => setSeasonId(event.target.value)} style={select}>
-            {seasons.length ? seasons.map((season) => <option key={season.id} value={season.id}>{season.name}{season.isActive ? " · Active" : ""}</option>) : <option value="">Select season</option>}
+          <select aria-label="Musim" value={seasonId} onChange={(event) => setSeasonId(event.target.value)} style={select}>
+            {seasons.length ? seasons.map((season) => <option key={season.id} value={season.id}>{season.name}{season.isActive ? " · Aktif" : ""}</option>) : <option value="">Pilih musim</option>}
           </select>
-          <button disabled={!seasonId} onClick={() => setFormOpen(true)} style={emerald}><IconPlus size={18} />Add Hotel</button>
+          <button disabled={!seasonId} onClick={() => setFormOpen(true)} style={emerald}><IconPlus size={18} />Tambah Hotel</button>
         </div>
       </header>
       <div className="gold-divider" />
       {!loading && hotels.length > 0 && (
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search hotels..." style={searchInput} />
+        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari hotel..." style={searchInput} />
       )}
       {notice && <p role="status" style={{ color: "var(--color-gold-800)" }}>{notice}</p>}
-      {loading ? <section style={empty}>Loading accommodation...</section> : grouped.length ? (
+      {loading ? <section style={empty}>Memuat data akomodasi...</section> : grouped.length ? (
         <div style={{ display: "grid", gap: 32 }}>
           {grouped.map(({ city, hotels: cityHotels }) => (
             <section key={city}>
@@ -91,18 +91,18 @@ export default function AccommodationDashboard() {
           ))}
         </div>
       ) : <Empty onAdd={() => setFormOpen(true)} />}
-      <HotelFormDialog open={formOpen} seasonId={seasonId} onClose={() => setFormOpen(false)} onSaved={() => { setNotice("Hotel added"); void refresh(); }} />
+      <HotelFormDialog open={formOpen} seasonId={seasonId} onClose={() => setFormOpen(false)} onSaved={() => { setNotice("Hotel berhasil ditambahkan"); void refresh(); }} />
     </main>
   );
 }
 
 function HotelCard({ hotel, summary }: { hotel: Hotel; summary?: Summary }) {
   const dates = [formatDate(hotel.checkInDate), formatDate(hotel.checkOutDate)].filter(Boolean).join(" - ");
-  return <article style={hotelCard}><div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><div><p style={sectionEyebrow}>{hotel.city}</p><h3 style={{ margin: 0, fontSize: 23 }}>{hotel.name}</h3></div>{hotel.starRating > 0 && <span style={star}>{"★".repeat(hotel.starRating)}</span>}</div><div className="gold-divider" /><p style={detail}>{dates || "Dates not yet set"}</p><div style={metrics}><span><IconBed size={17} />{summary?.rooms ?? 0} rooms</span><span>{summary?.occupied ?? 0}/{summary?.capacity ?? 0} occupied</span></div><Link href={`/dashboard/accommodation/${hotel.id}`} style={manage}>Manage rooms</Link></article>;
+  return <article style={hotelCard}><div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><div><p style={sectionEyebrow}>{hotel.city}</p><h3 style={{ margin: 0, fontSize: 23 }}>{hotel.name}</h3></div>{hotel.starRating > 0 && <span style={star}>{"★".repeat(hotel.starRating)}</span>}</div><div className="gold-divider" /><p style={detail}>{dates || "Tanggal belum ditentukan"}</p><div style={metrics}><span><IconBed size={17} />{summary?.rooms ?? 0} kamar</span><span>{summary?.occupied ?? 0}/{summary?.capacity ?? 0} terisi</span></div><Link href={`/dashboard/accommodation/${hotel.id}`} style={manage}>Kelola kamar</Link></article>;
 }
 
 function Empty({ onAdd }: { onAdd: () => void }) {
-  return <section style={empty}><IconBuilding size={48} color="var(--color-warm-400)" /><h2 style={{ margin: 0 }}>No hotels yet for this season</h2><p style={{ margin: 0, color: "var(--color-warm-500)", maxWidth: 380 }}>Add your first hotel to start building rooms and allocating pilgrims.</p><button onClick={onAdd} style={gold}><IconPlus size={18} />Add Hotel</button></section>;
+  return <section style={empty}><IconBuilding size={48} color="var(--color-warm-400)" /><h2 style={{ margin: 0 }}>Belum ada hotel untuk musim ini</h2><p style={{ margin: 0, color: "var(--color-warm-500)", maxWidth: 380 }}>Tambahkan hotel pertama Anda untuk mulai mengatur kamar dan penempatan jamaah.</p><button onClick={onAdd} style={gold}><IconPlus size={18} />Tambah Hotel</button></section>;
 }
 
 function roomSummary(rooms: Room[]): Summary {

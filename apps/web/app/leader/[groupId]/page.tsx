@@ -19,14 +19,14 @@ export default function LeaderRosterPage() {
         if (result.data) setPilgrims(result.data.pilgrims);
         setFromCache(result.fromCache);
       })
-      .catch(() => setError("Unable to load this group's roster."));
+      .catch(() => setError("Gagal memuat daftar jamaah rombongan ini."));
   }, [groupId]);
 
   return (
     <main style={page}>
-      <p style={eyebrow}>ROSTER</p>
-      <h1 style={title}>{pilgrims.length} pilgrims</h1>
-      {fromCache && <p style={offlineBanner}><IconWifiOff size={16} />Showing saved roster — you're offline</p>}
+      <p style={eyebrow}>DAFTAR JAMAAH</p>
+      <h1 style={title}>{pilgrims.length} jamaah</h1>
+      {fromCache && <p style={offlineBanner}><IconWifiOff size={16} />Menampilkan data tersimpan — Anda sedang offline</p>}
       {error && <p style={{ color: "var(--color-danger-600)" }}>{error}</p>}
       <div style={list}>
         {pilgrims.map((pilgrim) => (

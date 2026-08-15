@@ -15,6 +15,11 @@ service ProductService {
   rpc DeleteProduct(DeleteProductRequest) returns (DeleteProductResponse);
 }
 
+// `category` is a plain string, not an enum, matching the rest of this
+// service's status-like fields (movement.status, vehicle.status, agent.tier).
+// Known values: TRAVEL_PACKAGE, EQUIPMENT, ROAMING_DATA, PPOB_CREDIT — see the
+// CHECK constraint on products.category and service/product.go for validation.
+// Only TRAVEL_PACKAGE uses `type` (HAJJ/UMRAH); the others leave it blank.
 message Product {
   string id = 1;
   string operator_id = 2;
@@ -28,16 +33,18 @@ message Product {
   bool is_active = 10;
   google.protobuf.Timestamp created_at = 11;
   google.protobuf.Timestamp updated_at = 12;
+  string category = 13;
 }
 
 message CreateProductRequest {
   string season_id = 1 [(buf.validate.field).string.min_len = 1];
   string name = 2 [(buf.validate.field).string.min_len = 1];
-  string type = 3 [(buf.validate.field).string.min_len = 1];
+  string type = 3;
   int64 price_idr = 4;
   int32 duration_days = 5;
   string description = 6;
   repeated string inclusions = 7;
+  string category = 8 [(buf.validate.field).string.min_len = 1];
 }
 
 message GetProductRequest { string product_id = 1 [(buf.validate.field).string.min_len = 1]; }
@@ -47,12 +54,13 @@ message ListProductsResponse { repeated Product products = 1; }
 message UpdateProductRequest {
   string product_id = 1 [(buf.validate.field).string.min_len = 1];
   string name = 2 [(buf.validate.field).string.min_len = 1];
-  string type = 3 [(buf.validate.field).string.min_len = 1];
+  string type = 3;
   int64 price_idr = 4;
   int32 duration_days = 5;
   string description = 6;
   repeated string inclusions = 7;
   bool is_active = 8;
+  string category = 9 [(buf.validate.field).string.min_len = 1];
 }
 
 message DeleteProductRequest { string product_id = 1 [(buf.validate.field).string.min_len = 1]; }

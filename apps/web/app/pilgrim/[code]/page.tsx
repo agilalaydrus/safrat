@@ -19,45 +19,45 @@ export default function PilgrimHomePage() {
         if (result.data) setInfo(result.data);
         setFromCache(result.fromCache);
       })
-      .catch(() => setError("We couldn't find your access code. Please check the link and try again."));
+      .catch(() => setError("Kode akses tidak ditemukan. Mohon periksa kembali tautan yang diberikan."));
   }, [code]);
 
   if (error) {
     return <main style={page}><p style={errorText}>{error}</p></main>;
   }
   if (!info) {
-    return <main style={page}><p style={{ color: "var(--color-warm-400)" }}>Loading...</p></main>;
+    return <main style={page}><p style={{ color: "var(--color-warm-400)" }}>Memuat...</p></main>;
   }
 
   const movement = info.nextMovement;
   return (
     <main style={page}>
-      {fromCache && <p style={offlineBanner}><IconWifiOff size={16} />Showing saved info — you're offline</p>}
+      {fromCache && <p style={offlineBanner}><IconWifiOff size={16} />Menampilkan data tersimpan — Anda sedang offline</p>}
       <p style={eyebrow}>ASSALAMUALAIKUM</p>
       <h1 style={title}>{info.fullName}</h1>
-      {info.requiresWheelchair && <p style={wheelchairNote}><IconWheelchair size={16} />Wheelchair assistance noted</p>}
+      {info.requiresWheelchair && <p style={wheelchairNote}><IconWheelchair size={16} />Membutuhkan bantuan kursi roda</p>}
 
       <div style={grid}>
         <div style={card}>
           <IconUsersGroup size={22} color="var(--color-emerald-800)" />
-          <p style={cardLabel}>Group</p>
-          <p style={cardValue}>{info.groupName || "Not assigned yet"}</p>
+          <p style={cardLabel}>Rombongan</p>
+          <p style={cardValue}>{info.groupName || "Belum ditentukan"}</p>
         </div>
         <div style={card}>
           <IconBuilding size={22} color="var(--color-emerald-800)" />
           <p style={cardLabel}>Hotel</p>
-          <p style={cardValue}>{info.hotelName || "Not assigned yet"}</p>
+          <p style={cardValue}>{info.hotelName || "Belum ditentukan"}</p>
         </div>
         <div style={card}>
           <IconBed size={22} color="var(--color-emerald-800)" />
-          <p style={cardLabel}>Room</p>
-          <p style={cardValue}>{info.roomNumber || "Not assigned yet"}</p>
+          <p style={cardLabel}>Kamar</p>
+          <p style={cardValue}>{info.roomNumber || "Belum ditentukan"}</p>
         </div>
       </div>
 
       {movement && (
         <section style={nextCard}>
-          <p style={eyebrow}><IconBus size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />NEXT MOVEMENT</p>
+          <p style={eyebrow}><IconBus size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />JADWAL BERIKUTNYA</p>
           <h2 style={{ margin: "4px 0 6px", fontSize: 22 }}>{movement.name}</h2>
           <p style={{ margin: 0, color: "var(--color-warm-500)" }}>{movement.origin} → {movement.destination}</p>
           <p style={{ margin: "6px 0 0", fontWeight: 700, color: "var(--color-gold-800)" }}>{movement.scheduledAt?.toDate().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</p>

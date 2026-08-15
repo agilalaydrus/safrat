@@ -83,9 +83,9 @@ export default function LeaderCheckInPage() {
       if (/unavailable|network|fetch/i.test(message)) {
         enqueueAction(QUEUE_KIND, { movementId, pilgrimId, type });
         setQueuedLocal((current) => [...current, { movementId, pilgrimId, type }]);
-        setNotice("No connection — check-in queued, will sync automatically.");
+        setNotice("Tidak ada koneksi — check-in disimpan, akan tersinkron otomatis.");
       } else {
-        setNotice("Already checked in.");
+        setNotice("Sudah check-in sebelumnya.");
       }
     } finally {
       setWorking("");
@@ -95,9 +95,9 @@ export default function LeaderCheckInPage() {
   return (
     <main style={page}>
       <p style={eyebrow}>CHECK-IN</p>
-      {fromCache && <p style={offlineBanner}><IconWifiOff size={16} />Working from saved roster — you're offline</p>}
+      {fromCache && <p style={offlineBanner}><IconWifiOff size={16} />Menggunakan data tersimpan — Anda sedang offline</p>}
       <select value={movementId} onChange={(event) => setMovementId(event.target.value)} style={select}>
-        {!movements.length && <option value="">No scheduled movements</option>}
+        {!movements.length && <option value="">Belum ada jadwal perjalanan</option>}
         {movements.map((m) => <option key={m.id} value={m.id}>{m.name} — {m.scheduledAt?.toDate().toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}</option>)}
       </select>
       {notice && <p style={noticeStyle}>{notice}</p>}
@@ -109,10 +109,10 @@ export default function LeaderCheckInPage() {
               <strong style={{ display: "block", marginBottom: 8 }}>{pilgrim.fullName}</strong>
               <div style={buttonRow}>
                 <button disabled={!movementId || state.departed || working === pilgrim.id + "DEPARTURE"} onClick={() => checkIn(pilgrim.id, "DEPARTURE")} style={state.departed ? doneButton : actionButton}>
-                  {state.departed && <IconCheck size={16} />}Departure
+                  {state.departed && <IconCheck size={16} />}Keberangkatan
                 </button>
                 <button disabled={!movementId || state.arrived || working === pilgrim.id + "ARRIVAL"} onClick={() => checkIn(pilgrim.id, "ARRIVAL")} style={state.arrived ? doneButton : actionButton}>
-                  {state.arrived && <IconCheck size={16} />}Arrival
+                  {state.arrived && <IconCheck size={16} />}Kedatangan
                 </button>
               </div>
             </article>

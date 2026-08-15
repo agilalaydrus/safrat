@@ -26,29 +26,29 @@ export default function VehicleFormDialog({ open, movementId, onClose, onSaved }
       onSaved();
       onClose();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to add vehicle.");
+      setError(caught instanceof Error ? caught.message : "Gagal menambahkan kendaraan.");
     }
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Add vehicle" style={overlay}>
+    <div role="dialog" aria-modal="true" aria-label="Tambah kendaraan" style={overlay}>
       <aside style={sheet}>
         <div style={stickyHeader}>
-          <div><p style={eyebrow}>TRANSPORT</p><h2 style={{ margin: 0 }}>Add vehicle</h2></div>
-          <button type="button" className="btn-close-sheet" onClick={onClose} style={closeBtn} aria-label="Close"><IconX size={18} /></button>
+          <div><p style={eyebrow}>TRANSPORTASI</p><h2 style={{ margin: 0 }}>Tambah kendaraan</h2></div>
+          <button type="button" className="btn-close-sheet" onClick={onClose} style={closeBtn} aria-label="Tutup"><IconX size={18} /></button>
         </div>
         <div style={formBody}>
           <form id="vehicle-form" onSubmit={submit} style={{ display: "grid", gap: 20 }}>
-            <Section title="Vehicle details">
-              <Field label="Plate number"><input className="safrat-input" required value={form.plateNumber} onChange={(event) => update("plateNumber", event.target.value.toUpperCase())} placeholder="e.g. B 1234 XYZ" style={input} /></Field>
-              <Field label="Capacity"><input className="safrat-input" required type="number" min="1" value={form.capacity} onChange={(event) => update("capacity", event.target.value)} placeholder="Number of seats" style={input} /></Field>
-              <Field label="Driver name"><input className="safrat-input" value={form.driverName} onChange={(event) => update("driverName", event.target.value)} style={input} /></Field>
-              <Field label="Driver phone"><input className="safrat-input" value={form.driverPhone} onChange={(event) => update("driverPhone", event.target.value)} style={input} /></Field>
+            <Section title="Detail kendaraan">
+              <Field label="Nomor plat"><input className="safrat-input" required value={form.plateNumber} onChange={(event) => update("plateNumber", event.target.value.toUpperCase())} placeholder="contoh: B 1234 XYZ" style={input} /></Field>
+              <Field label="Kapasitas"><input className="safrat-input" required type="number" min="1" value={form.capacity} onChange={(event) => update("capacity", event.target.value)} placeholder="Jumlah kursi" style={input} /></Field>
+              <Field label="Nama sopir"><input className="safrat-input" value={form.driverName} onChange={(event) => update("driverName", event.target.value)} style={input} /></Field>
+              <Field label="Telepon sopir"><input className="safrat-input" value={form.driverPhone} onChange={(event) => update("driverPhone", event.target.value)} style={input} /></Field>
             </Section>
             {error && <p role="alert" style={formError}>{error}</p>}
           </form>
         </div>
-        <div style={stickyFooter}><button form="vehicle-form" style={primary}>Add vehicle</button></div>
+        <div style={stickyFooter}><button form="vehicle-form" style={primary}>Tambah kendaraan</button></div>
       </aside>
     </div>
   );

@@ -132,7 +132,7 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
 
   function requestClose(force = false) {
     if (!force && saving) return;
-    if (!force && isDirty && !window.confirm("Discard unsaved changes?")) return;
+    if (!force && isDirty && !window.confirm("Buang perubahan yang belum disimpan?")) return;
     onClose();
   }
 
@@ -147,31 +147,31 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
 
   function validate(): Record<string, string> {
     const errs: Record<string, string> = {};
-    if (!seasonId) errs._form = "Select an active season before adding a pilgrim.";
-    if (!form.fullName.trim()) errs.fullName = "Full name is required.";
-    if (!form.passportNumber.trim()) errs.passportNumber = "Passport number is required.";
-    if (!form.nationality) errs.nationality = "Nationality is required.";
-    else if (!/^[A-Z]{2}$/.test(form.nationality)) errs.nationality = "Select a valid nationality.";
-    if (!form.dateOfBirth) errs.dateOfBirth = "Date of birth is required.";
-    if (!form.gender) errs.gender = "Gender is required.";
+    if (!seasonId) errs._form = "Pilih musim aktif sebelum menambahkan jamaah.";
+    if (!form.fullName.trim()) errs.fullName = "Nama lengkap wajib diisi.";
+    if (!form.passportNumber.trim()) errs.passportNumber = "Nomor paspor wajib diisi.";
+    if (!form.nationality) errs.nationality = "Kewarganegaraan wajib diisi.";
+    else if (!/^[A-Z]{2}$/.test(form.nationality)) errs.nationality = "Pilih kewarganegaraan yang valid.";
+    if (!form.dateOfBirth) errs.dateOfBirth = "Tanggal lahir wajib diisi.";
+    if (!form.gender) errs.gender = "Jenis kelamin wajib diisi.";
     if (form.passportNumber && !/^[A-Z0-9]{5,20}$/.test(form.passportNumber.toUpperCase())) {
-      errs.passportNumber = "Passport number must be 5-20 alphanumeric characters.";
+      errs.passportNumber = "Nomor paspor harus 5-20 karakter alfanumerik.";
     }
     if (form.dateOfBirth) {
       const dob = new Date(form.dateOfBirth);
       const today = new Date();
       const minAge = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
-      if (Number.isNaN(dob.getTime()) || dob >= today) errs.dateOfBirth = "Date of birth must be in the past.";
-      else if (dob > minAge) errs.dateOfBirth = "Pilgrim must be at least 1 year old.";
+      if (Number.isNaN(dob.getTime()) || dob >= today) errs.dateOfBirth = "Tanggal lahir harus di masa lalu.";
+      else if (dob > minAge) errs.dateOfBirth = "Jamaah harus berusia minimal 1 tahun.";
     }
     if (form.phone && !/^\+?[\d\s\-()]{7,20}$/.test(form.phone)) {
-      errs.phone = "Enter a valid phone number.";
+      errs.phone = "Masukkan nomor telepon yang valid.";
     }
     if (form.emergencyContact && !/^\+?[\d\s\-()]{7,20}$/.test(form.emergencyContact)) {
-      errs.emergencyContact = "Enter a valid phone number.";
+      errs.emergencyContact = "Masukkan nomor telepon yang valid.";
     }
     if (form.mahramId && !UUID_PATTERN.test(form.mahramId)) {
-      errs.mahramId = "Select a valid mahram.";
+      errs.mahramId = "Pilih mahram yang valid.";
     }
     return errs;
   }
@@ -210,11 +210,11 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
       onSaved(payload.fullName);
       requestClose(true);
     } catch (caught) {
-      const message = caught instanceof Error ? caught.message : "Unable to save pilgrim.";
+      const message = caught instanceof Error ? caught.message : "Gagal menyimpan data jamaah.";
       if (/already|duplicate|exists/i.test(message)) {
-        setFieldErrors({ passportNumber: "This passport is already registered for this season." });
+        setFieldErrors({ passportNumber: "Paspor ini sudah terdaftar untuk musim ini." });
       } else if (/unauthenticated/i.test(message)) {
-        setFieldErrors({ _form: "Your session expired. Please sign in again." });
+        setFieldErrors({ _form: "Sesi Anda telah berakhir. Silakan masuk kembali." });
       } else if (/invalid_argument|validation failed/i.test(message)) {
         setFieldErrors({ _form: "Data jamaah belum lengkap atau belum sesuai. Periksa kembali isian Anda." });
       } else {
@@ -228,40 +228,40 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
   if (!open) return null;
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={initial ? "Edit pilgrim" : "Add pilgrim"} style={overlay}>
+    <div role="dialog" aria-modal="true" aria-label={initial ? "Ubah data jamaah" : "Tambah jamaah"} style={overlay}>
       <aside style={sheet}>
         <div style={stickyHeader}>
           <div>
-            <p style={eyebrow}>PILGRIM RECORD</p>
-            <h2 style={{ margin: 0 }}>{initial ? "Edit pilgrim" : "Add pilgrim"}</h2>
+            <p style={eyebrow}>DATA JAMAAH</p>
+            <h2 style={{ margin: 0 }}>{initial ? "Ubah data jamaah" : "Tambah jamaah"}</h2>
           </div>
-          <button type="button" className="btn-close-sheet" onClick={() => requestClose()} style={closeBtn} aria-label="Close"><IconX size={18} /></button>
+          <button type="button" className="btn-close-sheet" onClick={() => requestClose()} style={closeBtn} aria-label="Tutup"><IconX size={18} /></button>
         </div>
         <div style={formBody}>
         <form id="pilgrim-form" onSubmit={submit} style={{ display: "grid", gap: 24 }}>
-          <Section title="Identity">
-            <Field fieldKey="fullName" label="Full name" required error={fieldErrors.fullName}>
+          <Section title="Identitas">
+            <Field fieldKey="fullName" label="Nama lengkap" required error={fieldErrors.fullName}>
               <input className="safrat-input" required value={form.fullName} onChange={(event) => update("fullName", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.fullName)} />
             </Field>
-            <Field fieldKey="passportNumber" label="Passport number" required error={fieldErrors.passportNumber}>
+            <Field fieldKey="passportNumber" label="Nomor paspor" required error={fieldErrors.passportNumber}>
               <input className="safrat-input" required value={form.passportNumber} onChange={(event) => update("passportNumber", event.target.value.toUpperCase())} style={input} aria-invalid={Boolean(fieldErrors.passportNumber)} />
             </Field>
-            <Field fieldKey="nationality" label="Nationality" required error={fieldErrors.nationality}>
+            <Field fieldKey="nationality" label="Kewarganegaraan" required error={fieldErrors.nationality}>
               <select className="safrat-input" required value={form.nationality} onChange={(event) => update("nationality", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.nationality)}>
-                <option value="">Choose nationality</option>
+                <option value="">Pilih kewarganegaraan</option>
                 {NATIONALITIES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
               </select>
             </Field>
-            <Field fieldKey="dateOfBirth" label="Date of birth" required error={fieldErrors.dateOfBirth}>
+            <Field fieldKey="dateOfBirth" label="Tanggal lahir" required error={fieldErrors.dateOfBirth}>
               <input className="safrat-input" required type="date" value={form.dateOfBirth} onChange={(event) => update("dateOfBirth", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.dateOfBirth)} />
             </Field>
-            <Field fieldKey="gender" label="Gender" required error={fieldErrors.gender}>
+            <Field fieldKey="gender" label="Jenis kelamin" required error={fieldErrors.gender}>
               <div className="safrat-radio-group">
                 {(["MALE", "FEMALE"] as const).map((value) => (
                   <label key={value} className={`safrat-radio-label${form.gender === value ? " selected" : ""}`} onClick={() => update("gender", value)}>
                     <input type="radio" name="gender" checked={form.gender === value} onChange={() => update("gender", value)} />
                     <span className="safrat-radio-dot"><span className="safrat-radio-dot-inner" /></span>
-                    {value === "MALE" ? "Male" : "Female"}
+                    {value === "MALE" ? "Pria" : "Wanita"}
                   </label>
                 ))}
               </div>
@@ -269,50 +269,50 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
           </Section>
 
           <div style={sectionDivider}>
-            <Section title="Contact">
-              <Field fieldKey="phone" label="Phone" error={fieldErrors.phone}>
+            <Section title="Kontak">
+              <Field fieldKey="phone" label="Telepon" error={fieldErrors.phone}>
                 <input className="safrat-input" value={form.phone} onChange={(event) => update("phone", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.phone)} />
               </Field>
-              <Field fieldKey="emergencyContact" label="Emergency contact" error={fieldErrors.emergencyContact}>
+              <Field fieldKey="emergencyContact" label="Kontak darurat" error={fieldErrors.emergencyContact}>
                 <input className="safrat-input" value={form.emergencyContact} onChange={(event) => update("emergencyContact", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.emergencyContact)} />
               </Field>
             </Section>
           </div>
 
           <div style={sectionDivider}>
-            <Section title="Preferences">
-              <Field fieldKey="preferredLang" label="Preferred language">
+            <Section title="Preferensi">
+              <Field fieldKey="preferredLang" label="Bahasa yang disukai">
                 <select className="safrat-input" value={form.preferredLang} onChange={(event) => update("preferredLang", event.target.value)} style={input}>
-                  <option value="ar">Arabic</option><option value="en">English</option><option value="id">Bahasa Indonesia</option>
+                  <option value="ar">Arab</option><option value="en">Inggris</option><option value="id">Bahasa Indonesia</option>
                 </select>
               </Field>
-              <Field fieldKey="medicalNotes" label="Medical notes">
+              <Field fieldKey="medicalNotes" label="Catatan medis">
                 <textarea className="safrat-input" value={form.medicalNotes} maxLength={500} onChange={(event) => update("medicalNotes", event.target.value)} style={{ ...input, minHeight: 90, padding: "10px 14px" }} />
                 <span style={characterCount}>{form.medicalNotes.length}/500</span>
               </Field>
               <div>
                 <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
                   <input className="safrat-input" type="checkbox" checked={form.requiresWheelchair} onChange={(event) => update("requiresWheelchair", event.target.checked)} />
-                  Requires wheelchair
+                  Membutuhkan kursi roda
                 </label>
                 {form.requiresWheelchair && form.gender === "FEMALE" && !form.mahramId && (
-                  <p style={advisory}>Advisory: Wheelchair pilgrims typically require a mahram. Consider assigning one.</p>
+                  <p style={advisory}>Perhatian: Jamaah pengguna kursi roda umumnya membutuhkan mahram. Pertimbangkan untuk menetapkan satu.</p>
                 )}
               </div>
             </Section>
           </div>
 
           <div style={sectionDivider}>
-            <Section title="Group & Mahram">
-              <Field fieldKey="groupId" label="Group" hint="Leave unassigned to assign later from the Groups page.">
+            <Section title="Rombongan & Mahram">
+              <Field fieldKey="groupId" label="Rombongan" hint="Biarkan kosong untuk ditentukan nanti dari halaman Rombongan.">
                 <select className="safrat-input" value={form.groupId} onChange={(event) => update("groupId", event.target.value)} style={input}>
-                  <option value="">Not assigned</option>
+                  <option value="">Belum ditentukan</option>
                   {groups.map((group) => <option key={group.id} value={group.id}>{group.name} ({group.pilgrimCount}/{group.capacity})</option>)}
                 </select>
               </Field>
-              <Field fieldKey="mahramId" label="Mahram" hint="For female pilgrims: select male guardian (wali/mahram)" error={fieldErrors.mahramId}>
+              <Field fieldKey="mahramId" label="Mahram" hint="Untuk jamaah wanita: pilih wali/mahram laki-laki" error={fieldErrors.mahramId}>
                 <select className="safrat-input" value={form.mahramId} onChange={(event) => update("mahramId", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.mahramId)}>
-                  {loadingMahrams ? <option value="">Loading eligible pilgrims...</option> : eligibleMahrams.length === 0 ? <option value="">No eligible pilgrims found</option> : <option value="">No mahram selected</option>}
+                  {loadingMahrams ? <option value="">Memuat jamaah yang memenuhi syarat...</option> : eligibleMahrams.length === 0 ? <option value="">Tidak ada jamaah yang memenuhi syarat</option> : <option value="">Tidak ada mahram dipilih</option>}
                   {eligibleMahrams.map((pilgrim) => <option key={pilgrim.id} value={pilgrim.id}>{pilgrim.fullName} — {pilgrim.passportNumber}</option>)}
                 </select>
               </Field>
@@ -323,7 +323,7 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
         </form>
         </div>
         <div style={stickyFooter}>
-          <button form="pilgrim-form" disabled={saving || !seasonId} style={primary}>{saving ? "Saving…" : initial ? "Save changes" : "Add pilgrim"}</button>
+          <button form="pilgrim-form" disabled={saving || !seasonId} style={primary}>{saving ? "Menyimpan…" : initial ? "Simpan perubahan" : "Tambah jamaah"}</button>
         </div>
       </aside>
     </div>

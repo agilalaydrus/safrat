@@ -65,38 +65,38 @@ export default function PilgrimSOSPage() {
         <button onClick={() => setConfirming(true)} style={bigButton}>
           <IconSos size={64} />
           <span style={{ fontSize: 20, fontWeight: 700 }}>SOS</span>
-          <span style={{ fontSize: 13, opacity: 0.85 }}>Tap for emergency help</span>
+          <span style={{ fontSize: 13, opacity: 0.85 }}>Tekan untuk minta bantuan darurat</span>
         </button>
       )}
       {confirming && (
         <div style={confirmBox}>
-          <p style={{ fontSize: 18, fontWeight: 700, margin: "0 0 4px" }}>Send SOS alert?</p>
-          <p style={{ color: "var(--color-warm-500)", margin: "0 0 20px" }}>Your group leader and coordinators will be notified immediately.</p>
-          <button onClick={send} style={confirmButton}>Yes, send SOS now</button>
-          <button onClick={() => setConfirming(false)} style={cancelButton}>Cancel</button>
+          <p style={{ fontSize: 18, fontWeight: 700, margin: "0 0 4px" }}>Kirim sinyal SOS?</p>
+          <p style={{ color: "var(--color-warm-500)", margin: "0 0 20px" }}>Ketua rombongan dan petugas akan segera diberi tahu.</p>
+          <button onClick={send} style={confirmButton}>Ya, kirim SOS sekarang</button>
+          <button onClick={() => setConfirming(false)} style={cancelButton}>Batal</button>
         </div>
       )}
       {status === "sent" && (
         <div style={resultBox}>
           <IconCheck size={48} color="var(--color-emerald-800)" />
-          <p style={{ fontWeight: 700, fontSize: 18 }}>Alert sent</p>
-          <p style={{ color: "var(--color-warm-500)" }}>Help is on the way. Stay where you are if it's safe to do so.</p>
-          <button onClick={() => setStatus("idle")} style={cancelButton}>Back</button>
+          <p style={{ fontWeight: 700, fontSize: 18 }}>Sinyal SOS terkirim</p>
+          <p style={{ color: "var(--color-warm-500)" }}>Bantuan sedang menuju lokasi Anda. Tetap di tempat jika aman untuk melakukannya.</p>
+          <button onClick={() => setStatus("idle")} style={cancelButton}>Kembali</button>
         </div>
       )}
       {status === "queued" && (
         <div style={resultBox}>
           <IconWifiOff size={48} color="var(--color-gold-800)" />
-          <p style={{ fontWeight: 700, fontSize: 18 }}>Alert queued — no connection</p>
-          <p style={{ color: "var(--color-warm-500)" }}>It will send automatically the moment you're back online.</p>
-          <button onClick={() => setStatus("idle")} style={cancelButton}>Back</button>
+          <p style={{ fontWeight: 700, fontSize: 18 }}>SOS tersimpan — tidak ada koneksi</p>
+          <p style={{ color: "var(--color-warm-500)" }}>Akan otomatis terkirim begitu Anda kembali online.</p>
+          <button onClick={() => setStatus("idle")} style={cancelButton}>Kembali</button>
         </div>
       )}
       {history.length > 0 && status === "idle" && !confirming && (
         <section style={historySection}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: "var(--color-warm-400)", letterSpacing: ".05em" }}>YOUR ALERTS</p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: "var(--color-warm-400)", letterSpacing: ".05em" }}>RIWAYAT SOS ANDA</p>
           {history.slice(-5).reverse().map((entry) => (
-            <p key={entry.at} style={historyRow}>{new Date(entry.at).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })} — {entry.delivered ? "Delivered" : "Pending"}</p>
+            <p key={entry.at} style={historyRow}>{new Date(entry.at).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })} — {entry.delivered ? "Terkirim" : "Menunggu"}</p>
           ))}
         </section>
       )}

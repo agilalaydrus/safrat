@@ -26,10 +26,10 @@ export default function HotelFormDialog({ open, seasonId, onClose, onSaved }: Pr
 
   function validate(): Record<string, string> {
     const errs: Record<string, string> = {};
-    if (!form.name.trim()) errs.name = "Hotel name is required.";
-    if (!form.city) errs.city = "City is required.";
+    if (!form.name.trim()) errs.name = "Nama hotel wajib diisi.";
+    if (!form.city) errs.city = "Kota wajib diisi.";
     if (form.checkInDate && form.checkOutDate && form.checkOutDate < form.checkInDate) {
-      errs.checkOutDate = "Check-out must be on or after check-in date.";
+      errs.checkOutDate = "Tanggal check-out harus sama atau setelah tanggal check-in.";
     }
     return errs;
   }
@@ -56,51 +56,51 @@ export default function HotelFormDialog({ open, seasonId, onClose, onSaved }: Pr
       onSaved();
       onClose();
     } catch (caught) {
-      setFieldErrors({ _form: caught instanceof Error ? caught.message : "Unable to add hotel." });
+      setFieldErrors({ _form: caught instanceof Error ? caught.message : "Gagal menambahkan hotel." });
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Add hotel" style={overlay}>
+    <div role="dialog" aria-modal="true" aria-label="Tambah hotel" style={overlay}>
       <aside style={sheet}>
         <div style={stickyHeader}>
-          <div><p style={eyebrow}>ACCOMMODATION</p><h2 style={{ margin: 0 }}>Add hotel</h2></div>
-          <button type="button" className="btn-close-sheet" onClick={onClose} style={closeBtn} aria-label="Close"><IconX size={18} /></button>
+          <div><p style={eyebrow}>AKOMODASI</p><h2 style={{ margin: 0 }}>Tambah hotel</h2></div>
+          <button type="button" className="btn-close-sheet" onClick={onClose} style={closeBtn} aria-label="Tutup"><IconX size={18} /></button>
         </div>
         <div style={formBody}>
           <form id="hotel-form" onSubmit={submit} style={{ display: "grid", gap: 20 }}>
-            <Section title="Hotel details">
-              <Field label="Hotel name" required error={fieldErrors.name}>
+            <Section title="Detail hotel">
+              <Field label="Nama hotel" required error={fieldErrors.name}>
                 <input className="safrat-input" required value={form.name} onChange={(event) => update("name", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.name)} />
               </Field>
-              <Field label="City" required error={fieldErrors.city}>
+              <Field label="Kota" required error={fieldErrors.city}>
                 <select className="safrat-input" required value={form.city} onChange={(event) => update("city", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.city)}>
-                  <option value="">Select city</option>
+                  <option value="">Pilih kota</option>
                   {["makkah", "madinah", "jeddah", "mina", "arafah"].map((city) => <option key={city} value={city}>{city.charAt(0).toUpperCase() + city.slice(1)}</option>)}
                 </select>
               </Field>
-              <Field label="Star rating">
+              <Field label="Rating bintang">
                 <select className="safrat-input" value={form.starRating} onChange={(event) => update("starRating", event.target.value)} style={input}>
-                  <option value="">Not rated</option>
-                  {[1, 2, 3, 4, 5].map((rating) => <option key={rating} value={rating}>{rating} star{rating === 1 ? "" : "s"}</option>)}
+                  <option value="">Belum dinilai</option>
+                  {[1, 2, 3, 4, 5].map((rating) => <option key={rating} value={rating}>Bintang {rating}</option>)}
                 </select>
               </Field>
-              <Field label="Address"><textarea className="safrat-input" value={form.address} onChange={(event) => update("address", event.target.value)} style={{ ...input, minHeight: 88, padding: "10px 14px" }} /></Field>
+              <Field label="Alamat"><textarea className="safrat-input" value={form.address} onChange={(event) => update("address", event.target.value)} style={{ ...input, minHeight: 88, padding: "10px 14px" }} /></Field>
             </Section>
             <div style={sectionDivider}>
-              <Section title="Stay dates">
+              <Section title="Tanggal menginap">
                 <div style={twoCols}>
-                  <Field label="Check-in date"><input className="safrat-input" type="date" value={form.checkInDate} onChange={(event) => update("checkInDate", event.target.value)} style={input} /></Field>
-                  <Field label="Check-out date" error={fieldErrors.checkOutDate}><input className="safrat-input" type="date" min={form.checkInDate || undefined} value={form.checkOutDate} onChange={(event) => update("checkOutDate", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.checkOutDate)} /></Field>
+                  <Field label="Tanggal check-in"><input className="safrat-input" type="date" value={form.checkInDate} onChange={(event) => update("checkInDate", event.target.value)} style={input} /></Field>
+                  <Field label="Tanggal check-out" error={fieldErrors.checkOutDate}><input className="safrat-input" type="date" min={form.checkInDate || undefined} value={form.checkOutDate} onChange={(event) => update("checkOutDate", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.checkOutDate)} /></Field>
                 </div>
               </Section>
             </div>
             {fieldErrors._form && <p role="alert" style={formError}>{fieldErrors._form}</p>}
           </form>
         </div>
-        <div style={stickyFooter}><button form="hotel-form" disabled={saving} style={primary}>{saving ? "Adding..." : "Add hotel"}</button></div>
+        <div style={stickyFooter}><button form="hotel-form" disabled={saving} style={primary}>{saving ? "Menambahkan..." : "Tambah hotel"}</button></div>
       </aside>
     </div>
   );

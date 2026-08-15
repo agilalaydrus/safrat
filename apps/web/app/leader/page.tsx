@@ -22,19 +22,19 @@ export default function LeaderGroupsPage() {
         setFromCache(result.fromCache);
         setLoaded(true);
       })
-      .catch(() => setError("Unable to load your groups."));
+      .catch(() => setError("Gagal memuat data rombongan Anda."));
   }, []);
 
   return (
     <main style={page}>
-      <p style={eyebrow}>GROUP LEADER</p>
-      <h1 style={title}>My Groups</h1>
-      {fromCache && <p style={offlineBanner}><IconWifiOff size={16} />Showing saved groups — you're offline</p>}
+      <p style={eyebrow}>KETUA ROMBONGAN</p>
+      <h1 style={title}>Rombongan Saya</h1>
+      {fromCache && <p style={offlineBanner}><IconWifiOff size={16} />Menampilkan data tersimpan — Anda sedang offline</p>}
       {error && <p style={{ color: "var(--color-danger-600)" }}>{error}</p>}
       {loaded && !groups.length && !error && (
         <section style={empty}>
           <IconUsersGroup size={44} color="var(--color-warm-400)" />
-          <p style={{ color: "var(--color-warm-500)" }}>You're not assigned as a leader for any group yet. Ask your operator to assign you.</p>
+          <p style={{ color: "var(--color-warm-500)" }}>Anda belum ditugaskan sebagai ketua rombongan mana pun. Hubungi operator Anda untuk penugasan.</p>
         </section>
       )}
       <div style={list}>
@@ -42,7 +42,7 @@ export default function LeaderGroupsPage() {
           <Link key={group.id} href={`/leader/${group.id}`} style={card}>
             <div>
               <h2 style={{ margin: 0, fontSize: 18 }}>{group.name}</h2>
-              <p style={{ margin: "4px 0 0", color: "var(--color-warm-500)", fontSize: 13 }}>{group.pilgrimCount}/{group.capacity} pilgrims</p>
+              <p style={{ margin: "4px 0 0", color: "var(--color-warm-500)", fontSize: 13 }}>{group.pilgrimCount}/{group.capacity} jamaah</p>
             </div>
             <div style={barTrack}><div style={{ ...barFill, width: `${group.capacity ? Math.min(100, (group.pilgrimCount / group.capacity) * 100) : 0}%` }} /></div>
           </Link>

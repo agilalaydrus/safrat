@@ -12,34 +12,34 @@ export default function ApplyAsAgentForm({ operatorId, referredByCode }: { opera
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    if (!form.name.trim()) { setError("Name is required."); return; }
+    if (!form.name.trim()) { setError("Nama wajib diisi."); return; }
     setSubmitting(true);
     try {
       await agentClient.applyAsAgent({ operatorId, name: form.name.trim(), phone: form.phone.trim(), email: form.email.trim(), referredByCode });
       setSubmitted(true);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to submit your application.");
+      setError(caught instanceof Error ? caught.message : "Gagal mengirim pendaftaran Anda.");
     } finally {
       setSubmitting(false);
     }
   }
 
   if (submitted) {
-    return <main style={page}><div style={card}><IconCheck size={40} color="var(--color-emerald-900)" /><h1 style={title}>Application received</h1><p style={{ color: "var(--color-warm-500)" }}>The operator will review your application and activate your agent account.</p></div></main>;
+    return <main style={page}><div style={card}><IconCheck size={40} color="var(--color-emerald-900)" /><h1 style={title}>Pendaftaran diterima</h1><p style={{ color: "var(--color-warm-500)" }}>Operator akan meninjau pendaftaran Anda dan mengaktifkan akun agen Anda.</p></div></main>;
   }
 
   return (
     <main style={page}>
       <div style={card}>
-        <p style={eyebrow}>BECOME A REFERRAL AGENT</p>
-        <h1 style={title}>Apply as an agent</h1>
-        {referredByCode && <p style={{ color: "var(--color-warm-500)" }}>Referred by code <b>{referredByCode}</b></p>}
+        <p style={eyebrow}>DAFTAR SEBAGAI AGEN RUJUKAN</p>
+        <h1 style={title}>Daftar sebagai agen</h1>
+        {referredByCode && <p style={{ color: "var(--color-warm-500)" }}>Dirujuk dengan kode <b>{referredByCode}</b></p>}
         <form onSubmit={submit} style={{ display: "grid", gap: 16, marginTop: 16 }}>
-          <label style={{ display: "grid", gap: 6 }}><span style={label}>Full name</span><input required className="safrat-input" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} style={input} /></label>
-          <label style={{ display: "grid", gap: 6 }}><span style={label}>Phone</span><input className="safrat-input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={input} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Nama lengkap</span><input required className="safrat-input" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} style={input} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Telepon</span><input className="safrat-input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={input} /></label>
           <label style={{ display: "grid", gap: 6 }}><span style={label}>Email</span><input type="email" className="safrat-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} style={input} /></label>
           {error && <p style={errStyle}>{error}</p>}
-          <button disabled={submitting} style={primary}>{submitting ? "Submitting..." : "Submit application"}</button>
+          <button disabled={submitting} style={primary}>{submitting ? "Mengirim..." : "Kirim pendaftaran"}</button>
         </form>
       </div>
     </main>

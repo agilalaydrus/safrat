@@ -25,17 +25,17 @@ export default function PilgrimProductsPage() {
 
   return (
     <main style={page}>
-      <p style={eyebrow}>AVAILABLE PACKAGES</p>
-      <h1 style={title}>Products</h1>
-      {fromCache && <p style={offlineBanner}><IconWifiOff size={16} />Showing saved products — you're offline</p>}
-      {loaded && !products.length && <p style={{ color: "var(--color-warm-400)" }}>No products available for your season yet.</p>}
+      <p style={eyebrow}>PRODUK TERSEDIA</p>
+      <h1 style={title}>Produk</h1>
+      {fromCache && <p style={offlineBanner}><IconWifiOff size={16} />Menampilkan produk tersimpan — Anda sedang offline</p>}
+      {loaded && !products.length && <p style={{ color: "var(--color-warm-400)" }}>Belum ada produk tersedia untuk musim Anda.</p>}
       <div style={list}>
         {products.map((product) => (
           <article key={product.id} style={card}>
             <div style={row}><h2 style={{ margin: 0, fontSize: 18 }}>{product.name}</h2><span style={badge}>{product.type}</span></div>
             {product.description && <p style={desc}>{product.description}</p>}
             {product.inclusions.length > 0 && <ul style={inclusions}>{product.inclusions.map((item) => <li key={item}>{item}</li>)}</ul>}
-            <p style={price}>{money(product.priceIdr)}{product.durationDays > 0 && <span style={duration}> · {product.durationDays} days</span>}</p>
+            <p style={price}>{money(product.priceIdr)}{product.durationDays > 0 && <span style={duration}> · {product.durationDays} hari</span>}</p>
           </article>
         ))}
       </div>

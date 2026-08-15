@@ -34,6 +34,24 @@ func (r *GroupRepository) ListForOperator(ctx context.Context, operatorID, seaso
 	return result, nil
 }
 
+// EnsureGroupBelongsToOperator is the multi-tenant boundary for
+// operator-wide group access (e.g. admin chat monitoring) — weaker than
+// GroupLeaderRepository.EnsureLeaderOwnsGroup (any operator member passes,
+// not just the assigned leader), but still required: without it, a caller
+// could pass another operator's group_id and write/read across tenants.
+func (r *GroupRepository) EnsureGroupBelongsToOperator(ctx context.Context, operatorID, groupID string) error {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return err
+	}
+	groupUUID, err := pgUUID(groupID)
+	if err != nil {
+		return err
+	}
+	_, err = r.queries.GetGroupForOperator(ctx, db.GetGroupForOperatorParams{ID: groupUUID, OperatorID: opUUID})
+	return err
+}
+
 func (r *GroupRepository) Create(ctx context.Context, operatorID, seasonID, name string, capacity int32) (*domain.Group, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {

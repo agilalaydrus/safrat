@@ -38,7 +38,7 @@ export default function TransportDashboard() {
     if (!season) return;
     transportClient.listMovements({ seasonId: season })
       .then((response) => setMoves(response.movements))
-      .catch(() => setNotice("Unable to load movements."));
+      .catch(() => setNotice("Gagal memuat data jadwal perjalanan."));
   };
 
   useEffect(refresh, [season]);
@@ -57,17 +57,17 @@ export default function TransportDashboard() {
         await transportClient.createMovement({ seasonId: season, name: step.name, origin: step.origin, destination: step.destination, scheduledAt: Timestamp.fromDate(scheduledAt) });
         i += 1;
       }
-      setNotice("Hajj movement template created (8 movements).");
+      setNotice("Templat jadwal Haji berhasil dibuat (8 jadwal).");
       refresh();
     } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : "Unable to create the movement template.");
+      setNotice(caught instanceof Error ? caught.message : "Gagal membuat templat jadwal.");
     } finally {
       setWorking(false);
     }
   }
 
   const groups = useMemo(() => Object.entries(moves.reduce<Record<string, Movement[]>>((result, movement) => {
-    const date = movement.scheduledAt?.toDate().toLocaleDateString() ?? "Unscheduled";
+    const date = movement.scheduledAt?.toDate().toLocaleDateString("id-ID") ?? "Belum dijadwalkan";
     (result[date] ??= []).push(movement);
     return result;
   }, {})), [moves]);
@@ -76,16 +76,16 @@ export default function TransportDashboard() {
     <main style={page}>
       <header style={header}>
         <div>
-          <p style={eyebrow}>OPERATIONS / TRANSPORT</p>
-          <h1 style={title}>Transport</h1>
-          <p style={subtitle}>Coordinate movements, vehicles, and passenger manifests.</p>
+          <p style={eyebrow}>OPERASIONAL / TRANSPORTASI</p>
+          <h1 style={title}>Transportasi</h1>
+          <p style={subtitle}>Koordinasikan jadwal perjalanan, kendaraan, dan manifest penumpang.</p>
         </div>
         <div style={actions}>
           <select value={season} onChange={(event) => setSeason(event.target.value)} style={input}>
             {seasons.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-          <button disabled={!season || working} onClick={() => void useTemplate()} style={ghost}><IconTemplate size={18} />Use Hajj template</button>
-          <button disabled={!season} onClick={() => setOpen(true)} style={emerald}><IconPlus size={18} />Add Movement</button>
+          <button disabled={!season || working} onClick={() => void useTemplate()} style={ghost}><IconTemplate size={18} />Gunakan templat Haji</button>
+          <button disabled={!season} onClick={() => setOpen(true)} style={emerald}><IconPlus size={18} />Tambah Jadwal</button>
         </div>
       </header>
       <div className="gold-divider" />
@@ -101,17 +101,17 @@ export default function TransportDashboard() {
                   <p>{movement.origin} → {movement.destination}</p>
                   <small>{movement.scheduledAt?.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small>
                 </div>
-                <span style={badge(movement.status)}>{movement.status}</span>
+                <span style={badge(movement.status)}>{statusLabel(movement.status)}</span>
                 <div style={bar}><div style={{ ...fill, width: `${movement.totalCapacity ? (movement.assignedCount / movement.totalCapacity) * 100 : 0}%` }} /></div>
-                <small>{movement.assignedCount}/{movement.totalCapacity} seats · {movement.vehicleCount} vehicles</small>
+                <small>{movement.assignedCount}/{movement.totalCapacity} kursi · {movement.vehicleCount} kendaraan</small>
               </Link>
             ))}
           </div>
         </section>
       )) : (
-        <section style={empty}><IconBus size={48} /><h2>No movements scheduled</h2><button onClick={() => setOpen(true)} style={gold}>Add Movement</button></section>
+        <section style={empty}><IconBus size={48} /><h2>Belum ada jadwal perjalanan</h2><button onClick={() => setOpen(true)} style={gold}>Tambah Jadwal</button></section>
       )}
-      <MovementFormDialog open={open} seasonId={season} onClose={() => setOpen(false)} onSaved={() => { setNotice("Movement added"); refresh(); }} />
+      <MovementFormDialog open={open} seasonId={season} onClose={() => setOpen(false)} onSaved={() => { setNotice("Jadwal berhasil ditambahkan"); refresh(); }} />
     </main>
   );
 }
@@ -124,6 +124,11 @@ function badge(status: string): React.CSSProperties {
   };
   const [bg, color] = map[status] ?? ["var(--color-cream-300)", "var(--color-warm-500)"];
   return { justifySelf: "start", padding: "5px 10px", borderRadius: 99, background: bg, color, textTransform: "capitalize", fontSize: 12 };
+}
+
+function statusLabel(status: string): string {
+  const map: Record<string, string> = { scheduled: "Terjadwal", arrived: "Tiba", departed: "Berangkat", cancelled: "Dibatalkan" };
+  return map[status] ?? status;
 }
 
 const page: React.CSSProperties = { maxWidth: 1400, margin: "0 auto", padding: "32px 24px" };

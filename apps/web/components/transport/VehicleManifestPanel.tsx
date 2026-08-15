@@ -19,14 +19,14 @@ export default function VehicleManifestPanel({ vehicleId, seasonId, movementStat
 
   const refresh = async () => {
     try { setManifest(await transportClient.getVehicleManifest({ vehicleId })); }
-    catch { setNotice("Unable to load this vehicle manifest."); }
+    catch { setNotice("Gagal memuat manifest kendaraan ini."); }
   };
 
   useEffect(() => {
     if (!open || !vehicleId) return;
     setNotice(""); setQuery(""); setTerm(""); setSeatNumbers({});
     void refresh();
-    if (seasonId) pilgrimClient.listPilgrims({ seasonId, limit: 20, offset: 0 }).then((response) => setPilgrims(response.pilgrims)).catch(() => setNotice("Unable to load pilgrims."));
+    if (seasonId) pilgrimClient.listPilgrims({ seasonId, limit: 20, offset: 0 }).then((response) => setPilgrims(response.pilgrims)).catch(() => setNotice("Gagal memuat data jamaah."));
   }, [open, vehicleId, seasonId]);
   useEffect(() => { const timeout = window.setTimeout(() => setTerm(query), 300); return () => window.clearTimeout(timeout); }, [query]);
 
@@ -46,16 +46,16 @@ export default function VehicleManifestPanel({ vehicleId, seasonId, movementStat
     setNotice("");
     const remainingCapacity = (vehicle?.capacity ?? 0) - occupants.length;
     const toAssign = members.slice(0, Math.max(remainingCapacity, 0));
-    if (!toAssign.length) { setNotice("Vehicle is full"); return; }
+    if (!toAssign.length) { setNotice("Kendaraan sudah penuh"); return; }
     setWorkingId("group");
     try {
       let nextSeat = occupants.reduce((max, p) => Math.max(max, p.seatNumber), 0) + 1;
       for (const pilgrim of toAssign) { await transportClient.assignSeat({ vehicleId, pilgrimId: pilgrim.id, seatNumber: nextSeat }); nextSeat += 1; }
       await refresh();
       onChanged();
-      if (toAssign.length < members.length) setNotice(`Vehicle filled — assigned ${toAssign.length} of ${members.length} in this group.`);
+      if (toAssign.length < members.length) setNotice(`Kendaraan penuh — ${toAssign.length} dari ${members.length} jamaah di rombongan ini ditempatkan.`);
     } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : "Unable to assign this group.");
+      setNotice(caught instanceof Error ? caught.message : "Gagal menempatkan rombongan ini.");
     } finally {
       setWorkingId("");
     }
@@ -64,13 +64,13 @@ export default function VehicleManifestPanel({ vehicleId, seasonId, movementStat
   async function updateStatus(status: string) {
     setWorkingId("status"); setNotice("");
     try { await transportClient.updateVehicleStatus({ vehicleId, status }); await refresh(); onChanged(); }
-    catch (caught) { setNotice(caught instanceof Error ? caught.message : "Unable to update vehicle status."); }
+    catch (caught) { setNotice(caught instanceof Error ? caught.message : "Gagal memperbarui status kendaraan."); }
     finally { setWorkingId(""); }
   }
   async function remove(pilgrimId: string) {
     setWorkingId(pilgrimId); setNotice("");
     try { await transportClient.unassignSeat({ vehicleId, pilgrimId }); await refresh(); onChanged(); }
-    catch (caught) { setNotice(caught instanceof Error ? caught.message : "Unable to remove pilgrim."); }
+    catch (caught) { setNotice(caught instanceof Error ? caught.message : "Gagal mengeluarkan jamaah."); }
     finally { setWorkingId(""); }
   }
   async function assign(pilgrimId: string) {
@@ -78,25 +78,30 @@ export default function VehicleManifestPanel({ vehicleId, seasonId, movementStat
     const seatNumber = Number(seatNumbers[pilgrimId]) || 0;
     try { await transportClient.assignSeat({ vehicleId, pilgrimId, seatNumber }); await refresh(); onChanged(); }
     catch (caught) {
-      const message = caught instanceof Error ? caught.message : "Unable to assign pilgrim.";
-      if (/resource_exhausted|full|capacity/i.test(message)) setNotice("Vehicle is full");
-      else if (/failed_precondition|seat .*taken/i.test(message)) setNotice(seatNumber ? `Seat ${seatNumber} is already taken` : message);
+      const message = caught instanceof Error ? caught.message : "Gagal menempatkan jamaah.";
+      if (/resource_exhausted|full|capacity/i.test(message)) setNotice("Kendaraan sudah penuh");
+      else if (/failed_precondition|seat .*taken/i.test(message)) setNotice(seatNumber ? `Kursi ${seatNumber} sudah terisi` : message);
       else setNotice(message);
     } finally { setWorkingId(""); }
   }
 
-  return <div role="dialog" aria-modal="true" aria-label="Vehicle manifest" style={overlay}><aside style={sheet}>
-    <header style={header}><div><p style={eyebrow}>VEHICLE MANIFEST</p><h2 style={{ margin: 0 }}>{vehicle?.plateNumber ?? "Vehicle"}</h2><p style={{ margin: "6px 0 0", color: "var(--color-warm-500)" }}>{vehicle?.driverName || "Driver not set"} · {occupants.length}/{vehicle?.capacity ?? 0} assigned</p></div><button onClick={onClose} style={secondary}>Close</button></header>
+  return <div role="dialog" aria-modal="true" aria-label="Manifest kendaraan" style={overlay}><aside style={sheet}>
+    <header style={header}><div><p style={eyebrow}>MANIFEST KENDARAAN</p><h2 style={{ margin: 0 }}>{vehicle?.plateNumber ?? "Kendaraan"}</h2><p style={{ margin: "6px 0 0", color: "var(--color-warm-500)" }}>{vehicle?.driverName || "Sopir belum ditentukan"} · {occupants.length}/{vehicle?.capacity ?? 0} ditempatkan</p></div><button onClick={onClose} style={secondary}>Tutup</button></header>
     <div className="gold-divider" />
-    {vehicle && <div style={statusRow}><span style={badge(vehicle.status)}>{vehicle.status}</span>{vehicle.status === "scheduled" && <><button disabled={workingId === "status"} onClick={() => void updateStatus("departed")} style={emerald}>Mark Departed</button><button disabled={workingId === "status"} onClick={() => void updateStatus("cancelled")} style={dangerOutline}>Cancel</button></>}{vehicle.status === "departed" && <button disabled={workingId === "status"} onClick={() => void updateStatus("arrived")} style={emerald}>Mark Arrived</button>}</div>}
-    <section style={section}><h3 style={sectionTitle}>Assigned pilgrims</h3>{occupants.length ? occupants.map((pilgrim) => <div key={pilgrim.id} style={person}><div><strong>{pilgrim.fullName}</strong><span style={meta}>{genderIcon(pilgrim.gender)} {pilgrim.passportNumber} · Seat {pilgrim.seatNumber || "-"}</span></div><button disabled={workingId === pilgrim.id} onClick={() => void remove(pilgrim.id)} style={dangerOutline}><IconUserMinus size={17} />Remove</button></div>) : <p style={emptyText}>No pilgrims assigned yet.</p>}</section>
-    {!full && canAssign && !!groupsWithCandidates.length && <section style={section}><h3 style={sectionTitle}>Assign whole group</h3>{groupsWithCandidates.map(([groupId, members]) => <div key={groupId} style={person}><div><strong><IconUsersGroup size={16} style={{ verticalAlign: "-3px", marginRight: 4 }} />Group {groupId.slice(0, 8)}</strong><span style={meta}>{members.length} unassigned pilgrims</span></div><button disabled={workingId === "group"} onClick={() => void assignGroup(members)} style={emerald}><IconUserPlus size={17} />Assign group</button></div>)}</section>}
-    {!full && canAssign && <section style={section}><h3 style={sectionTitle}>Assign pilgrim</h3><label style={{ position: "relative" }}><span style={sr}>Search unassigned pilgrims</span><IconSearch size={18} style={{ position: "absolute", insetInlineStart: 14, top: 15, color: "var(--color-warm-400)" }} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name or passport" style={{ ...input, paddingInlineStart: 42 }} /></label>{candidates.map((pilgrim) => <div key={pilgrim.id} style={person}><div><strong>{pilgrim.fullName}</strong><span style={meta}>{genderIcon(pilgrim.gender)} {pilgrim.passportNumber}</span></div><div style={{ display: "flex", gap: 8, alignItems: "center" }}><input aria-label={`Seat number for ${pilgrim.fullName}`} type="number" min="1" max={vehicle?.capacity} value={seatNumbers[pilgrim.id] ?? ""} onChange={(event) => setSeatNumbers((current) => ({ ...current, [pilgrim.id]: event.target.value }))} placeholder="Seat" style={seatInput} /><button disabled={workingId === pilgrim.id} onClick={() => void assign(pilgrim.id)} style={emerald}><IconUserPlus size={17} />Assign</button></div></div>)}{!candidates.length && <p style={emptyText}>No unassigned pilgrims match this search.</p>}</section>}
-    {full && canAssign && <p role="status" style={fullNotice}>Vehicle is full</p>}
-    {!canAssign && vehicle && vehicle.status !== "scheduled" && <p role="status" style={fullNotice}>This vehicle is {vehicle.status} — assignments are locked.</p>}
-    {!canAssign && vehicle?.status === "scheduled" && movementStatus !== "scheduled" && <p role="status" style={fullNotice}>This movement is {movementStatus} — assignments are locked.</p>}
+    {vehicle && <div style={statusRow}><span style={badge(vehicle.status)}>{statusLabel(vehicle.status)}</span>{vehicle.status === "scheduled" && <><button disabled={workingId === "status"} onClick={() => void updateStatus("departed")} style={emerald}>Tandai Berangkat</button><button disabled={workingId === "status"} onClick={() => void updateStatus("cancelled")} style={dangerOutline}>Batalkan</button></>}{vehicle.status === "departed" && <button disabled={workingId === "status"} onClick={() => void updateStatus("arrived")} style={emerald}>Tandai Tiba</button>}</div>}
+    <section style={section}><h3 style={sectionTitle}>Jamaah yang ditempatkan</h3>{occupants.length ? occupants.map((pilgrim) => <div key={pilgrim.id} style={person}><div><strong>{pilgrim.fullName}</strong><span style={meta}>{genderIcon(pilgrim.gender)} {pilgrim.passportNumber} · Kursi {pilgrim.seatNumber || "-"}</span></div><button disabled={workingId === pilgrim.id} onClick={() => void remove(pilgrim.id)} style={dangerOutline}><IconUserMinus size={17} />Keluarkan</button></div>) : <p style={emptyText}>Belum ada jamaah yang ditempatkan.</p>}</section>
+    {!full && canAssign && !!groupsWithCandidates.length && <section style={section}><h3 style={sectionTitle}>Tempatkan satu rombongan</h3>{groupsWithCandidates.map(([groupId, members]) => <div key={groupId} style={person}><div><strong><IconUsersGroup size={16} style={{ verticalAlign: "-3px", marginRight: 4 }} />Rombongan {groupId.slice(0, 8)}</strong><span style={meta}>{members.length} jamaah belum ditempatkan</span></div><button disabled={workingId === "group"} onClick={() => void assignGroup(members)} style={emerald}><IconUserPlus size={17} />Tempatkan rombongan</button></div>)}</section>}
+    {!full && canAssign && <section style={section}><h3 style={sectionTitle}>Tempatkan jamaah</h3><label style={{ position: "relative" }}><span style={sr}>Cari jamaah yang belum ditempatkan</span><IconSearch size={18} style={{ position: "absolute", insetInlineStart: 14, top: 15, color: "var(--color-warm-400)" }} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama atau paspor" style={{ ...input, paddingInlineStart: 42 }} /></label>{candidates.map((pilgrim) => <div key={pilgrim.id} style={person}><div><strong>{pilgrim.fullName}</strong><span style={meta}>{genderIcon(pilgrim.gender)} {pilgrim.passportNumber}</span></div><div style={{ display: "flex", gap: 8, alignItems: "center" }}><input aria-label={`Nomor kursi untuk ${pilgrim.fullName}`} type="number" min="1" max={vehicle?.capacity} value={seatNumbers[pilgrim.id] ?? ""} onChange={(event) => setSeatNumbers((current) => ({ ...current, [pilgrim.id]: event.target.value }))} placeholder="Kursi" style={seatInput} /><button disabled={workingId === pilgrim.id} onClick={() => void assign(pilgrim.id)} style={emerald}><IconUserPlus size={17} />Tempatkan</button></div></div>)}{!candidates.length && <p style={emptyText}>Tidak ada jamaah yang cocok dengan pencarian ini.</p>}</section>}
+    {full && canAssign && <p role="status" style={fullNotice}>Kendaraan sudah penuh</p>}
+    {!canAssign && vehicle && vehicle.status !== "scheduled" && <p role="status" style={fullNotice}>Kendaraan ini sudah {statusLabel(vehicle.status).toLowerCase()} — penempatan terkunci.</p>}
+    {!canAssign && vehicle?.status === "scheduled" && movementStatus !== "scheduled" && <p role="status" style={fullNotice}>Jadwal ini sudah {statusLabel(movementStatus).toLowerCase()} — penempatan terkunci.</p>}
     {notice && <p role="alert" style={noticeStyle}>{notice}</p>}
   </aside></div>;
+}
+
+function statusLabel(status: string): string {
+  const map: Record<string, string> = { scheduled: "Terjadwal", arrived: "Tiba", departed: "Berangkat", cancelled: "Dibatalkan" };
+  return map[status] ?? status;
 }
 
 function genderIcon(gender: Gender | string) { return gender === Gender.FEMALE || gender === "FEMALE" ? <IconGenderFemale size={15} /> : <IconGenderMale size={15} />; }

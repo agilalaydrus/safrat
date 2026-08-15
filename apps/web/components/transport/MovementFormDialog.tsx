@@ -20,7 +20,7 @@ export default function MovementFormDialog({ open, seasonId, onClose, onSaved }:
     setError("");
     const scheduledAt = new Date(form.scheduledAt);
     if (!form.name || !form.origin || !form.destination || Number.isNaN(scheduledAt.valueOf()) || scheduledAt <= new Date()) {
-      setError("Complete all fields and choose a future departure time.");
+      setError("Lengkapi semua kolom dan pilih waktu keberangkatan di masa depan.");
       return;
     }
     try {
@@ -28,29 +28,29 @@ export default function MovementFormDialog({ open, seasonId, onClose, onSaved }:
       onSaved();
       onClose();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to add movement.");
+      setError(caught instanceof Error ? caught.message : "Gagal menambahkan jadwal.");
     }
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Add movement" style={overlay}>
+    <div role="dialog" aria-modal="true" aria-label="Tambah jadwal" style={overlay}>
       <aside style={sheet}>
         <div style={stickyHeader}>
-          <div><p style={eyebrow}>TRANSPORT</p><h2 style={{ margin: 0 }}>Add movement</h2></div>
-          <button type="button" className="btn-close-sheet" onClick={onClose} style={closeBtn} aria-label="Close"><IconX size={18} /></button>
+          <div><p style={eyebrow}>TRANSPORTASI</p><h2 style={{ margin: 0 }}>Tambah jadwal</h2></div>
+          <button type="button" className="btn-close-sheet" onClick={onClose} style={closeBtn} aria-label="Tutup"><IconX size={18} /></button>
         </div>
         <div style={formBody}>
           <form id="movement-form" onSubmit={submit} style={{ display: "grid", gap: 20 }}>
-            <Section title="Movement details">
-              <Field label="Movement name"><input className="safrat-input" required value={form.name} onChange={(event) => update("name", event.target.value)} style={input} /></Field>
-              <Field label="Origin"><input className="safrat-input" required value={form.origin} onChange={(event) => update("origin", event.target.value)} style={input} /></Field>
-              <Field label="Destination"><input className="safrat-input" required value={form.destination} onChange={(event) => update("destination", event.target.value)} style={input} /></Field>
-              <Field label="Scheduled at"><input className="safrat-input" required type="datetime-local" value={form.scheduledAt} onChange={(event) => update("scheduledAt", event.target.value)} style={input} /></Field>
+            <Section title="Detail jadwal">
+              <Field label="Nama jadwal"><input className="safrat-input" required value={form.name} onChange={(event) => update("name", event.target.value)} style={input} /></Field>
+              <Field label="Asal"><input className="safrat-input" required value={form.origin} onChange={(event) => update("origin", event.target.value)} style={input} /></Field>
+              <Field label="Tujuan"><input className="safrat-input" required value={form.destination} onChange={(event) => update("destination", event.target.value)} style={input} /></Field>
+              <Field label="Dijadwalkan pada"><input className="safrat-input" required type="datetime-local" value={form.scheduledAt} onChange={(event) => update("scheduledAt", event.target.value)} style={input} /></Field>
             </Section>
             {error && <p role="alert" style={formError}>{error}</p>}
           </form>
         </div>
-        <div style={stickyFooter}><button form="movement-form" style={primary}>Add movement</button></div>
+        <div style={stickyFooter}><button form="movement-form" style={primary}>Tambah jadwal</button></div>
       </aside>
     </div>
   );

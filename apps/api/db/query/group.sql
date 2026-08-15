@@ -6,6 +6,10 @@ WHERE g.operator_id = $1 AND g.leader_id = $2
 GROUP BY g.id
 ORDER BY g.name ASC;
 
+-- name: GetGroupForOperator :one
+SELECT * FROM groups
+WHERE id = $1 AND operator_id = $2;
+
 -- name: GetGroupForLeader :one
 SELECT * FROM groups
 WHERE id = $1 AND operator_id = $2 AND leader_id = $3;

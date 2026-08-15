@@ -23,7 +23,7 @@ export default function OnboardingPage() {
     event.preventDefault();
     setError(null);
     if (isPending) {
-      setError("Please wait while we load your session.");
+      setError("Mohon tunggu, sesi Anda sedang dimuat.");
       return;
     }
     if (!session?.user) {
@@ -34,7 +34,7 @@ export default function OnboardingPage() {
     try {
       if (step === 1) {
         const result = await authClient.organization.create({ name: values.name, slug: organizationSlug(values.name) });
-        if (result.error || !result.data) throw new Error(result.error?.message ?? "Could not create organization.");
+        if (result.error || !result.data) throw new Error(result.error?.message ?? "Gagal membuat organisasi.");
         await authClient.organization.setActive({ organizationId: result.data.id });
         await authClient.getSession();
         await operatorClient.createOperator({ betterAuthOrgId: result.data.id, name: values.name, country: values.country.toUpperCase(), email: session.user.email, licenseNumber: "" });
@@ -43,22 +43,22 @@ export default function OnboardingPage() {
         await seasonClient.createSeason({ name: values.seasonName, type: values.seasonType === "HAJJ" ? SeasonType.HAJJ : SeasonType.UMRAH, startDate: Timestamp.fromDate(new Date(`${values.startDate}T00:00:00.000Z`)), endDate: Timestamp.fromDate(new Date(`${values.endDate}T00:00:00.000Z`)) });
         router.push("/dashboard");
       }
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "We could not create your workspace. Please try again."); }
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Gagal membuat ruang kerja Anda. Silakan coba lagi."); }
     finally { setIsSubmitting(false); }
   }
 
   if (isPending) {
-    return <main style={{ maxWidth: 760, margin: "0 auto", padding: "10vh 24px" }}><p style={{ color: "var(--color-warm-400)" }}>Loading session...</p></main>;
+    return <main style={{ maxWidth: 760, margin: "0 auto", padding: "10vh 24px" }}><p style={{ color: "var(--color-warm-400)" }}>Memuat sesi...</p></main>;
   }
 
   return <main style={{ maxWidth: 760, margin: "0 auto", padding: "10vh 24px" }}>
-    <p style={{ color: "var(--gold)", fontWeight: 700 }}>STEP {step} OF 2</p>
-    <h1 style={{ fontSize: "clamp(2.5rem, 8vw, 4.5rem)", margin: "8px 0 32px" }}>{step === 1 ? "Your operation" : "First season"}</h1>
+    <p style={{ color: "var(--gold)", fontWeight: 700 }}>LANGKAH {step} DARI 2</p>
+    <h1 style={{ fontSize: "clamp(2.5rem, 8vw, 4.5rem)", margin: "8px 0 32px" }}>{step === 1 ? "Data operator Anda" : "Musim pertama"}</h1>
     <form onSubmit={submit} style={{ display: "grid", gap: 16 }}>
-      {step === 1 && <><Field label="Company name" value={values.name} onChange={(value) => update("name", value)} /><Field label="Country (ISO-2, optional)" value={values.country} onChange={(value) => update("country", value)} maxLength={2} required={false} /></>}
-      {step === 2 && <><Field label="Season name" value={values.seasonName} onChange={(value) => update("seasonName", value)} placeholder="Hajj 2027" /><label>Journey type<select value={values.seasonType} onChange={(event) => update("seasonType", event.target.value as FormValues["seasonType"])} style={inputStyle}><option value="HAJJ">Hajj</option><option value="UMRAH">Umrah</option></select></label><Field label="Start date" value={values.startDate} onChange={(value) => update("startDate", value)} type="date" /><Field label="End date" value={values.endDate} onChange={(value) => update("endDate", value)} type="date" /></>}
+      {step === 1 && <><Field label="Nama perusahaan" value={values.name} onChange={(value) => update("name", value)} /><Field label="Negara (ISO-2, opsional)" value={values.country} onChange={(value) => update("country", value)} maxLength={2} required={false} /></>}
+      {step === 2 && <><Field label="Nama musim" value={values.seasonName} onChange={(value) => update("seasonName", value)} placeholder="Haji 2027" /><label>Jenis perjalanan<select value={values.seasonType} onChange={(event) => update("seasonType", event.target.value as FormValues["seasonType"])} style={inputStyle}><option value="HAJJ">Haji</option><option value="UMRAH">Umrah</option></select></label><Field label="Tanggal mulai" value={values.startDate} onChange={(value) => update("startDate", value)} type="date" /><Field label="Tanggal selesai" value={values.endDate} onChange={(value) => update("endDate", value)} type="date" /></>}
       {error && <p role="alert" style={{ color: "#b91c1c" }}>{error}</p>}
-      <button type="submit" disabled={isSubmitting || isPending} style={{ ...inputStyle, border: 0, background: "var(--teal)", color: "white", fontWeight: 700, cursor: "pointer" }}>{isPending ? "Loading..." : isSubmitting ? "Creating workspace..." : step === 1 ? "Continue" : "Create workspace"}</button>
+      <button type="submit" disabled={isSubmitting || isPending} style={{ ...inputStyle, border: 0, background: "var(--teal)", color: "white", fontWeight: 700, cursor: "pointer" }}>{isPending ? "Memuat..." : isSubmitting ? "Membuat ruang kerja..." : step === 1 ? "Lanjutkan" : "Buat ruang kerja"}</button>
     </form>
   </main>;
 }

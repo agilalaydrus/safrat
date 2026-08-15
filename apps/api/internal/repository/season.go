@@ -90,6 +90,17 @@ func pgText(value string) pgtype.Text {
 	return pgtype.Text{String: value, Valid: true}
 }
 
+// nonNilStrings guards a NOT NULL text[] column against pgx sending a nil Go
+// slice as SQL NULL — an absent repeated proto field decodes to nil, not an
+// empty slice, and that difference matters here even though the two are
+// interchangeable everywhere else in Go.
+func nonNilStrings(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return values
+}
+
 func pgTimestamp(value time.Time) pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: value, Valid: true}
 }

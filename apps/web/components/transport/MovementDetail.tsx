@@ -29,7 +29,7 @@ export default function MovementDetail({ movementId }: { movementId: string }) {
       setMovement(nextMovement);
       setVehicles(response.vehicles);
     } catch {
-      setNotice("Unable to load this movement.");
+      setNotice("Gagal memuat data jadwal ini.");
     }
   }, [movementId]);
 
@@ -57,7 +57,7 @@ export default function MovementDetail({ movementId }: { movementId: string }) {
       await transportClient.deleteMovement({ movementId });
       router.push("/dashboard/transport");
     } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : "Unable to delete movement.");
+      setNotice(caught instanceof Error ? caught.message : "Gagal menghapus jadwal.");
       setWorking(false);
     }
   }
@@ -70,59 +70,59 @@ export default function MovementDetail({ movementId }: { movementId: string }) {
       const scheduled = movement?.scheduledAt?.toDate().toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) ?? "";
       const pilgrimsResponse = movement?.seasonId ? await pilgrimClient.listPilgrims({ seasonId: movement.seasonId, limit: 1000, offset: 0 }) : undefined;
       const pilgrimById = new Map((pilgrimsResponse?.pilgrims ?? []).map((p) => [p.id, p]));
-      const headers = ["Movement", "Origin", "Destination", "Scheduled", "Vehicle Plate", "Driver", "Driver Phone", "Seat No.", "Full Name", "Passport No.", "Nationality", "Gender", "Date of Birth", "Phone", "Group Code", "Wheelchair", "Emergency Contact"];
+      const headers = ["Jadwal", "Asal", "Tujuan", "Terjadwal", "Plat Kendaraan", "Sopir", "Telepon Sopir", "No. Kursi", "Nama Lengkap", "No. Paspor", "Kewarganegaraan", "Jenis Kelamin", "Tanggal Lahir", "Telepon", "Kode Rombongan", "Kursi Roda", "Kontak Darurat"];
       const rows: string[][] = [];
       for (const vehicle of vehicles) {
         const manifest = await transportClient.getVehicleManifest({ vehicleId: vehicle.id });
         rows.push(...manifest.pilgrims.map((p) => {
           const full = pilgrimById.get(p.id);
-          return [movement?.name ?? "", movement?.origin ?? "", movement?.destination ?? "", scheduled, vehicle.plateNumber, vehicle.driverName || "-", vehicle.driverPhone || "-", String(p.seatNumber), p.fullName, p.passportNumber, full?.nationality ?? "", p.gender, full?.dateOfBirth?.toDate().toLocaleDateString("id-ID") ?? "", full?.phone ?? "", full?.groupId || "-", p.requiresWheelchair ? "Yes" : "No", full?.emergencyContact ?? ""];
+          return [movement?.name ?? "", movement?.origin ?? "", movement?.destination ?? "", scheduled, vehicle.plateNumber, vehicle.driverName || "-", vehicle.driverPhone || "-", String(p.seatNumber), p.fullName, p.passportNumber, full?.nationality ?? "", p.gender, full?.dateOfBirth?.toDate().toLocaleDateString("id-ID") ?? "", full?.phone ?? "", full?.groupId || "-", p.requiresWheelchair ? "Ya" : "Tidak", full?.emergencyContact ?? ""];
         }));
       }
       exportCSV(`${movement?.name ?? "movement"}-manifest.csv`, headers, rows);
     } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : "Unable to export manifest.");
+      setNotice(caught instanceof Error ? caught.message : "Gagal mengekspor manifest.");
     }
   }
 
   return (
     <main style={page}>
-      <Link href="/dashboard/transport" style={backLink}>Back to transport</Link>
+      <Link href="/dashboard/transport" style={backLink}>Kembali ke transportasi</Link>
       <header style={header}>
         <div>
-          <p style={eyebrow}>TRANSPORT / MOVEMENT</p>
-          <h1 style={title}>{movement?.name ?? "Movement vehicles"}</h1>
+          <p style={eyebrow}>TRANSPORTASI / JADWAL</p>
+          <h1 style={title}>{movement?.name ?? "Kendaraan jadwal"}</h1>
           <p style={{ color: "var(--color-warm-500)" }}>{movement?.origin} → {movement?.destination}</p>
           {movement && <div style={statusRow}>
-            <span style={badge(movement.status)}>{movement.status}</span>
+            <span style={badge(movement.status)}>{statusLabel(movement.status)}</span>
             {movement.status === "scheduled" && <>
-              <button disabled={working} onClick={() => void updateStatus("departed")} style={emerald}>Mark Departed</button>
-              <button disabled={working} onClick={() => void updateStatus("cancelled")} style={dangerOutline}>Cancel</button>
+              <button disabled={working} onClick={() => void updateStatus("departed")} style={emerald}>Tandai Berangkat</button>
+              <button disabled={working} onClick={() => void updateStatus("cancelled")} style={dangerOutline}>Batalkan</button>
             </>}
-            {movement.status === "departed" && <button disabled={working} onClick={() => void updateStatus("arrived")} style={emerald}>Mark Arrived</button>}
+            {movement.status === "departed" && <button disabled={working} onClick={() => void updateStatus("arrived")} style={emerald}>Tandai Tiba</button>}
           </div>}
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-          {!!vehicles.length && <button onClick={() => void exportManifest()} style={secondary}><IconDownload size={18} />Export CSV</button>}
-          <button disabled={!isScheduled} onClick={() => setVehicleFormOpen(true)} style={emerald}><IconPlus size={18} />Add Vehicle</button>
+          {!!vehicles.length && <button onClick={() => void exportManifest()} style={secondary}><IconDownload size={18} />Ekspor CSV</button>}
+          <button disabled={!isScheduled} onClick={() => setVehicleFormOpen(true)} style={emerald}><IconPlus size={18} />Tambah Kendaraan</button>
         </div>
       </header>
       <div className="gold-divider" />
       {notice && <p role="alert" style={noticeStyle}>{notice}</p>}
-      <section style={grid} aria-label="Vehicles">
+      <section style={grid} aria-label="Kendaraan">
         {vehicles.map((vehicle) => <button key={vehicle.id} type="button" onClick={() => setSelectedVehicleId(vehicle.id)} style={card}>
           <strong>{vehicle.plateNumber}</strong>
-          <span style={{ color: "var(--color-warm-500)" }}>{vehicle.driverName || "Driver not set"}</span>
-          <span style={{ color: "var(--color-warm-400)", fontSize: 13 }}>{vehicle.assignedCount}/{vehicle.capacity} seats · {vehicle.status}</span>
+          <span style={{ color: "var(--color-warm-500)" }}>{vehicle.driverName || "Sopir belum ditentukan"}</span>
+          <span style={{ color: "var(--color-warm-400)", fontSize: 13 }}>{vehicle.assignedCount}/{vehicle.capacity} kursi · {statusLabel(vehicle.status)}</span>
           <span style={bar}><span style={{ ...fill, width: `${vehicle.capacity ? (vehicle.assignedCount / vehicle.capacity) * 100 : 0}%` }} /></span>
         </button>)}
       </section>
       {isScheduled && <section style={deleteSection}>
         {confirmDelete ? <>
-          <p style={{ margin: 0 }}>Delete this movement? This cannot be undone.</p>
-          <button disabled={working} onClick={() => void deleteMovement()} style={dangerSolid}>Delete movement</button>
-          <button disabled={working} onClick={() => setConfirmDelete(false)} style={secondary}>Keep movement</button>
-        </> : <button onClick={() => setConfirmDelete(true)} style={dangerOutline}>Delete movement</button>}
+          <p style={{ margin: 0 }}>Hapus jadwal ini? Tindakan ini tidak dapat dibatalkan.</p>
+          <button disabled={working} onClick={() => void deleteMovement()} style={dangerSolid}>Hapus jadwal</button>
+          <button disabled={working} onClick={() => setConfirmDelete(false)} style={secondary}>Batalkan penghapusan</button>
+        </> : <button onClick={() => setConfirmDelete(true)} style={dangerOutline}>Hapus jadwal</button>}
       </section>}
       <VehicleFormDialog open={vehicleFormOpen} movementId={movementId} onClose={() => setVehicleFormOpen(false)} onSaved={() => void refresh()} />
       <VehicleManifestPanel open={Boolean(selectedVehicleId)} vehicleId={selectedVehicleId} seasonId={movement?.seasonId ?? ""} movementStatus={movement?.status ?? ""} onClose={() => setSelectedVehicleId("")} onChanged={() => void refresh()} />
@@ -131,8 +131,13 @@ export default function MovementDetail({ movementId }: { movementId: string }) {
 }
 
 function messageForStatusError(caught: unknown) {
-  const message = caught instanceof Error ? caught.message : "Unable to update status.";
+  const message = caught instanceof Error ? caught.message : "Gagal memperbarui status.";
   return /failed_precondition|cannot transition/i.test(message) ? message : message;
+}
+
+function statusLabel(status: string): string {
+  const map: Record<string, string> = { scheduled: "Terjadwal", arrived: "Tiba", departed: "Berangkat", cancelled: "Dibatalkan" };
+  return map[status] ?? status;
 }
 
 const page: React.CSSProperties = { maxWidth: 1200, margin: "0 auto", padding: "32px 24px" };

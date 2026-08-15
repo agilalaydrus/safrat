@@ -13,14 +13,14 @@ import (
 )
 
 type ChatService struct {
-	operatorRepository    *repository.OperatorRepository
-	pilgrimRepository     *repository.PilgrimRepository
-	chatRepository        *repository.ChatRepository
-	groupLeaderRepository *repository.GroupLeaderRepository
+	operatorRepository *repository.OperatorRepository
+	pilgrimRepository  *repository.PilgrimRepository
+	chatRepository     *repository.ChatRepository
+	groupRepository    *repository.GroupRepository
 }
 
-func NewChatService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, chat *repository.ChatRepository, groupLeaders *repository.GroupLeaderRepository) *ChatService {
-	return &ChatService{operatorRepository: operators, pilgrimRepository: pilgrims, chatRepository: chat, groupLeaderRepository: groupLeaders}
+func NewChatService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, chat *repository.ChatRepository, groups *repository.GroupRepository) *ChatService {
+	return &ChatService{operatorRepository: operators, pilgrimRepository: pilgrims, chatRepository: chat, groupRepository: groups}
 }
 
 // ListMyMessages / SendMyMessage are public (app_access_code) — the pilgrim
@@ -61,14 +61,17 @@ func (s *ChatService) SendMyMessage(ctx context.Context, req *hajjv1.SendMyMessa
 	return chatMessage(message), nil
 }
 
-// ListGroupMessages / SendGroupMessage are authenticated — the leader resolves
-// their own identity from the session, the group_id in the request is only
-// checked against groups they actually lead.
+// ListGroupMessages / SendGroupMessage are authenticated — any member of the
+// operator's org can read and post in any of the operator's groups (not just
+// a group's assigned leader). That's deliberate: coordinators need to be able
+// to monitor every group's chat, not only groups they personally lead.
+// group_id is still checked against EnsureGroupBelongsToOperator, since
+// without that a caller could pass another operator's group_id.
 func (s *ChatService) ListGroupMessages(ctx context.Context, orgID string, req *hajjv1.ListGroupMessagesRequest) (*hajjv1.ListChatMessagesResponse, error) {
 	if req == nil || strings.TrimSpace(req.GroupId) == "" {
 		return nil, serviceError("ChatService.ListGroupMessages", apperror.ErrValidation)
 	}
-	op, _, err := s.resolveLeader(ctx, orgID, req.GroupId)
+	op, err := s.resolveOperatorGroup(ctx, orgID, req.GroupId)
 	if err != nil {
 		return nil, err
 	}
@@ -83,28 +86,28 @@ func (s *ChatService) SendGroupMessage(ctx context.Context, orgID string, req *h
 	if req == nil || strings.TrimSpace(req.GroupId) == "" || strings.TrimSpace(req.Body) == "" {
 		return nil, serviceError("ChatService.SendGroupMessage", apperror.ErrValidation)
 	}
-	op, leaderID, err := s.resolveLeader(ctx, orgID, req.GroupId)
+	op, err := s.resolveOperatorGroup(ctx, orgID, req.GroupId)
 	if err != nil {
 		return nil, err
 	}
-	leaderName := middleware.UserNameFromCtx(ctx)
-	message, err := s.chatRepository.CreateFromUser(ctx, op.ID, req.GroupId, leaderID, leaderName, req.Body)
+	senderID := middleware.UserIDFromCtx(ctx)
+	senderName := middleware.UserNameFromCtx(ctx)
+	message, err := s.chatRepository.CreateFromUser(ctx, op.ID, req.GroupId, senderID, senderName, req.Body)
 	if err != nil {
 		return nil, serviceError("ChatService.SendGroupMessage", err)
 	}
 	return chatMessage(message), nil
 }
 
-func (s *ChatService) resolveLeader(ctx context.Context, orgID, groupID string) (*domain.Operator, string, error) {
+func (s *ChatService) resolveOperatorGroup(ctx context.Context, orgID, groupID string) (*domain.Operator, error) {
 	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
 	if err != nil {
-		return nil, "", serviceError("ChatService", err)
+		return nil, serviceError("ChatService", err)
 	}
-	leaderID := middleware.UserIDFromCtx(ctx)
-	if err := s.groupLeaderRepository.EnsureLeaderOwnsGroup(ctx, op.ID, groupID, leaderID); err != nil {
-		return nil, "", serviceError("ChatService", apperror.ErrForbidden)
+	if err := s.groupRepository.EnsureGroupBelongsToOperator(ctx, op.ID, groupID); err != nil {
+		return nil, serviceError("ChatService", apperror.ErrNotFound)
 	}
-	return op, leaderID, nil
+	return op, nil
 }
 
 func chatMessage(message *domain.ChatMessage) *hajjv1.ChatMessage {

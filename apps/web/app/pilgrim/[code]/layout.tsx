@@ -6,11 +6,11 @@ import { IconHome, IconSos, IconMessageCircle, IconCalendarEvent, IconShoppingBa
 import { useRegisterShellServiceWorker } from "@/lib/register-sw";
 
 const TABS = [
-  ["Home", "", IconHome],
+  ["Beranda", "", IconHome],
   ["SOS", "sos", IconSos],
   ["Chat", "chat", IconMessageCircle],
-  ["Schedule", "schedule", IconCalendarEvent],
-  ["Products", "products", IconShoppingBag],
+  ["Jadwal", "schedule", IconCalendarEvent],
+  ["Produk", "products", IconShoppingBag],
 ] as const;
 
 export default function PilgrimLayout({ children }: { children: React.ReactNode }) {
@@ -22,7 +22,7 @@ export default function PilgrimLayout({ children }: { children: React.ReactNode 
   return (
     <div style={shell}>
       <div style={content}>{children}</div>
-      <nav style={tabBar} aria-label="Pilgrim app navigation">
+      <nav style={tabBar} aria-label="Navigasi aplikasi Jamaah">
         {TABS.map(([label, segment, Icon]) => {
           const href = segment ? `${base}/${segment}` : base;
           const active = pathname === href;
