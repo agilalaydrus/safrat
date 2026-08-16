@@ -22,7 +22,10 @@ WHERE app_access_code = $1 AND is_substituted = false
 RETURNING id, operator_id, full_name;
 
 -- name: ListUpcomingMovementsForSeason :many
+-- scheduled_at >= NOW() matters even for well-maintained data: a movement
+-- whose time has simply passed without anyone flipping its status away from
+-- 'scheduled' must never keep surfacing as "next" on the pilgrim/leader apps.
 SELECT * FROM movements
-WHERE season_id = $1 AND operator_id = $2 AND status = 'scheduled'
+WHERE season_id = $1 AND operator_id = $2 AND status = 'scheduled' AND scheduled_at >= NOW()
 ORDER BY scheduled_at ASC
 LIMIT 10;

@@ -19,10 +19,24 @@ SELECT
   'PRO'
 ;
 
+-- Dates are anchored to NOW() rather than hardcoded — re-running this seed
+-- must always produce a current/upcoming season, never one that silently
+-- drifts into the past as real time moves on. The active season starts a
+-- few days out and runs ~16 days (matching a real Hajj season's length);
+-- hotels/movements below reference this row's start_date directly so they
+-- can never fall out of sync with it.
 INSERT INTO seasons (id, operator_id, name, type, start_date, end_date, is_active)
 VALUES
-  ('00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000001', 'Musim Haji 2025', 'HAJJ', '2025-06-15 00:00:00+07', '2025-07-01 23:59:59+03', true),
-  ('00000000-0000-4000-8000-000000000102', '00000000-0000-4000-8000-000000000001', 'Musim Haji 2024', 'HAJJ', '2024-06-01 00:00:00+07', '2024-06-20 23:59:59+03', false);
+  ('00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000001',
+    'Musim Haji ' || extract(year from NOW() + INTERVAL '5 days')::text, 'HAJJ',
+    date_trunc('day', NOW()) + INTERVAL '5 days',
+    date_trunc('day', NOW()) + INTERVAL '21 days' + INTERVAL '23 hours 59 minutes 59 seconds',
+    true),
+  ('00000000-0000-4000-8000-000000000102', '00000000-0000-4000-8000-000000000001',
+    'Musim Haji ' || (extract(year from NOW())::int - 1)::text, 'HAJJ',
+    date_trunc('day', NOW()) - INTERVAL '410 days',
+    date_trunc('day', NOW()) - INTERVAL '390 days',
+    false);
 
 -- GROUP-A's leader is whoever is currently logged in (the same session used to resolve
 -- the operator above), so the admin Groups page and the leader's /leader app agree on
@@ -58,10 +72,11 @@ VALUES
   ('00000000-0000-4000-8000-000000000320', '00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000001', NULL, 'Arif Setiawan',     'A1234586', 'ID', '1971-06-18', 'MALE',   '+628111000020', '+628111000020', 'id', false, NULL, false);
 
 INSERT INTO hotels (id, operator_id, season_id, name, city, star_rating, address, check_in_date, check_out_date)
-VALUES
-  ('00000000-0000-4000-8000-000000000401', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000101', 'Hotel Al Safwa Royal Orchid', 'Makkah', 5, 'Ajyad Street, Makkah', '2025-06-15', '2025-06-25'),
-  ('00000000-0000-4000-8000-000000000402', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000101', 'Hotel Movenpick Anabat', 'Madinah', 4, 'Central Area, Madinah', '2025-06-25', '2025-07-01'),
-  ('00000000-0000-4000-8000-000000000403', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000101', 'Hotel Meridien Jeddah', 'Jeddah', 4, 'Al Hamra District, Jeddah', '2025-06-15', '2025-06-16');
+SELECT '00000000-0000-4000-8000-000000000401'::uuid, '00000000-0000-4000-8000-000000000001'::uuid, '00000000-0000-4000-8000-000000000101'::uuid, 'Hotel Al Safwa Royal Orchid', 'Makkah', 5, 'Ajyad Street, Makkah', start_date::date, (start_date + INTERVAL '10 days')::date FROM seasons WHERE id = '00000000-0000-4000-8000-000000000101'
+UNION ALL
+SELECT '00000000-0000-4000-8000-000000000402'::uuid, '00000000-0000-4000-8000-000000000001'::uuid, '00000000-0000-4000-8000-000000000101'::uuid, 'Hotel Movenpick Anabat', 'Madinah', 4, 'Central Area, Madinah', (start_date + INTERVAL '10 days')::date, (start_date + INTERVAL '16 days')::date FROM seasons WHERE id = '00000000-0000-4000-8000-000000000101'
+UNION ALL
+SELECT '00000000-0000-4000-8000-000000000403'::uuid, '00000000-0000-4000-8000-000000000001'::uuid, '00000000-0000-4000-8000-000000000101'::uuid, 'Hotel Meridien Jeddah', 'Jeddah', 4, 'Al Hamra District, Jeddah', start_date::date, (start_date + INTERVAL '1 day')::date FROM seasons WHERE id = '00000000-0000-4000-8000-000000000101';
 
 -- Ten rooms per hotel: two single, three double, three triple, and two quad rooms.
 INSERT INTO rooms (id, hotel_id, operator_id, room_number, room_type, capacity, floor, gender)
@@ -106,12 +121,15 @@ VALUES
   ('00000000-0000-4000-8000-000000000612', '00000000-0000-4000-8000-000000000516', '00000000-0000-4000-8000-000000000312', '00000000-0000-4000-8000-000000000001', 'system');
 
 INSERT INTO movements (id, season_id, operator_id, name, origin, destination, scheduled_at)
-VALUES
-  ('00000000-0000-4000-8000-000000000701', '00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000001', 'Arrival flight CGK to JED', 'CGK', 'JED', '2025-06-15 08:00:00+07'),
-  ('00000000-0000-4000-8000-000000000702', '00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000001', 'Transfer Jeddah to Makkah', 'JED', 'Makkah', '2025-06-15 14:00:00+03'),
-  ('00000000-0000-4000-8000-000000000703', '00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000001', 'Transfer Makkah to Madinah', 'Makkah', 'Madinah', '2025-06-25 09:00:00+03'),
-  ('00000000-0000-4000-8000-000000000704', '00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000001', 'Transfer Madinah to Jeddah', 'Madinah', 'JED', '2025-07-01 10:00:00+03'),
-  ('00000000-0000-4000-8000-000000000705', '00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000001', 'Departure flight JED to CGK', 'JED', 'CGK', '2025-07-01 18:00:00+03');
+SELECT '00000000-0000-4000-8000-000000000701'::uuid, '00000000-0000-4000-8000-000000000101'::uuid, '00000000-0000-4000-8000-000000000001'::uuid, 'Arrival flight CGK to JED', 'CGK', 'JED', start_date + INTERVAL '8 hours' FROM seasons WHERE id = '00000000-0000-4000-8000-000000000101'
+UNION ALL
+SELECT '00000000-0000-4000-8000-000000000702'::uuid, '00000000-0000-4000-8000-000000000101'::uuid, '00000000-0000-4000-8000-000000000001'::uuid, 'Transfer Jeddah to Makkah', 'JED', 'Makkah', start_date + INTERVAL '14 hours' FROM seasons WHERE id = '00000000-0000-4000-8000-000000000101'
+UNION ALL
+SELECT '00000000-0000-4000-8000-000000000703'::uuid, '00000000-0000-4000-8000-000000000101'::uuid, '00000000-0000-4000-8000-000000000001'::uuid, 'Transfer Makkah to Madinah', 'Makkah', 'Madinah', start_date + INTERVAL '10 days 9 hours' FROM seasons WHERE id = '00000000-0000-4000-8000-000000000101'
+UNION ALL
+SELECT '00000000-0000-4000-8000-000000000704'::uuid, '00000000-0000-4000-8000-000000000101'::uuid, '00000000-0000-4000-8000-000000000001'::uuid, 'Transfer Madinah to Jeddah', 'Madinah', 'JED', start_date + INTERVAL '16 days 10 hours' FROM seasons WHERE id = '00000000-0000-4000-8000-000000000101'
+UNION ALL
+SELECT '00000000-0000-4000-8000-000000000705'::uuid, '00000000-0000-4000-8000-000000000101'::uuid, '00000000-0000-4000-8000-000000000001'::uuid, 'Departure flight JED to CGK', 'JED', 'CGK', start_date + INTERVAL '16 days 18 hours' FROM seasons WHERE id = '00000000-0000-4000-8000-000000000101';
 
 INSERT INTO vehicles (id, movement_id, operator_id, plate_number, capacity, driver_name, driver_phone)
 VALUES
