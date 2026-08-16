@@ -52,7 +52,7 @@ func (s *TransportService) CreateMovement(ctx context.Context, org string, r *ha
 	if e != nil {
 		return nil, serviceError("TransportService.CreateMovement", e)
 	}
-	v, e := s.transportRepo.CreateMovement(ctx, op, r.SeasonId, r.Name, r.Origin, r.Destination, mode, r.ScheduledAt.AsTime())
+	v, e := s.transportRepo.CreateMovement(ctx, op, r.SeasonId, r.Name, r.Origin, r.Destination, mode, r.KloterId, r.ScheduledAt.AsTime())
 	if e != nil {
 		return nil, serviceError("TransportService.CreateMovement", e)
 	}
@@ -256,7 +256,7 @@ func transitionAllowed(from, to string) bool {
 	return m[from][to]
 }
 func movementMessage(v *repository.Movement) *hajjv1.Movement {
-	return &hajjv1.Movement{Id: v.ID, OperatorId: v.OperatorID, SeasonId: v.SeasonID, Name: v.Name, Origin: v.Origin, Destination: v.Destination, ScheduledAt: timestamppb.New(v.ScheduledAt), Status: v.Status, Mode: v.Mode, VehicleCount: v.VehicleCount, TotalCapacity: v.TotalCapacity, AssignedCount: v.AssignedCount, CreatedAt: timestamppb.New(v.CreatedAt)}
+	return &hajjv1.Movement{Id: v.ID, OperatorId: v.OperatorID, SeasonId: v.SeasonID, Name: v.Name, Origin: v.Origin, Destination: v.Destination, ScheduledAt: timestamppb.New(v.ScheduledAt), Status: v.Status, Mode: v.Mode, KloterId: v.KloterID, VehicleCount: v.VehicleCount, TotalCapacity: v.TotalCapacity, AssignedCount: v.AssignedCount, CreatedAt: timestamppb.New(v.CreatedAt)}
 }
 func vehicleMessage(v *repository.Vehicle) *hajjv1.Vehicle {
 	return &hajjv1.Vehicle{Id: v.ID, MovementId: v.MovementID, OperatorId: v.OperatorID, PlateNumber: v.PlateNumber, Capacity: v.Capacity, DriverName: v.DriverName, DriverPhone: v.DriverPhone, Status: v.Status, AssignedCount: v.AssignedCount, DepartedAt: timeMessage(v.DepartedAt), ArrivedAt: timeMessage(v.ArrivedAt), CreatedAt: timestamppb.New(v.CreatedAt)}

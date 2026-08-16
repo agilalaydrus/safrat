@@ -29,11 +29,14 @@ func (s *PilgrimAppService) GetMyInfo(ctx context.Context, req *hajjv1.PilgrimAp
 	if err != nil {
 		return nil, serviceError("PilgrimAppService.GetMyInfo", apperror.ErrNotFound)
 	}
-	result := &hajjv1.PilgrimAppInfo{Id: info.ID, FullName: info.FullName, PassportNumber: info.PassportNumber, GroupName: info.GroupName, HotelName: info.HotelName, RoomNumber: info.RoomNumber, RequiresWheelchair: info.RequiresWheelchair}
-	movements, err := s.pilgrimRepository.ListUpcomingMovements(ctx, info.OperatorID, info.SeasonID)
+	result := &hajjv1.PilgrimAppInfo{Id: info.ID, FullName: info.FullName, PassportNumber: info.PassportNumber, GroupName: info.GroupName, HotelName: info.HotelName, RoomNumber: info.RoomNumber, RequiresWheelchair: info.RequiresWheelchair, KloterCode: info.KloterCode, KloterEmbarkation: info.KloterEmbarkation, KloterFlightNumber: info.KloterFlightNumber}
+	if info.KloterDepartureDate != nil {
+		result.KloterDepartureDate = timestamppb.New(*info.KloterDepartureDate)
+	}
+	movements, err := s.pilgrimRepository.ListUpcomingMovements(ctx, info.OperatorID, info.SeasonID, info.KloterID)
 	if err == nil && len(movements) > 0 {
 		m := movements[0]
-		result.NextMovement = &hajjv1.Movement{Id: m.ID, OperatorId: m.OperatorID, SeasonId: m.SeasonID, Name: m.Name, Origin: m.Origin, Destination: m.Destination, ScheduledAt: timestamppb.New(m.ScheduledAt), Status: m.Status, CreatedAt: timestamppb.New(m.CreatedAt)}
+		result.NextMovement = &hajjv1.Movement{Id: m.ID, OperatorId: m.OperatorID, SeasonId: m.SeasonID, Name: m.Name, Origin: m.Origin, Destination: m.Destination, ScheduledAt: timestamppb.New(m.ScheduledAt), Status: m.Status, Mode: m.Mode, KloterId: m.KloterID, CreatedAt: timestamppb.New(m.CreatedAt)}
 	}
 	return result, nil
 }
@@ -72,13 +75,13 @@ func (s *PilgrimAppService) ListMySchedule(ctx context.Context, req *hajjv1.Pilg
 	if err != nil {
 		return nil, serviceError("PilgrimAppService.ListMySchedule", apperror.ErrNotFound)
 	}
-	movements, err := s.pilgrimRepository.ListUpcomingMovements(ctx, info.OperatorID, info.SeasonID)
+	movements, err := s.pilgrimRepository.ListUpcomingMovements(ctx, info.OperatorID, info.SeasonID, info.KloterID)
 	if err != nil {
 		return nil, serviceError("PilgrimAppService.ListMySchedule", err)
 	}
 	result := &hajjv1.ListMyScheduleResponse{Movements: make([]*hajjv1.Movement, 0, len(movements))}
 	for _, m := range movements {
-		result.Movements = append(result.Movements, &hajjv1.Movement{Id: m.ID, OperatorId: m.OperatorID, SeasonId: m.SeasonID, Name: m.Name, Origin: m.Origin, Destination: m.Destination, ScheduledAt: timestamppb.New(m.ScheduledAt), Status: m.Status, CreatedAt: timestamppb.New(m.CreatedAt)})
+		result.Movements = append(result.Movements, &hajjv1.Movement{Id: m.ID, OperatorId: m.OperatorID, SeasonId: m.SeasonID, Name: m.Name, Origin: m.Origin, Destination: m.Destination, ScheduledAt: timestamppb.New(m.ScheduledAt), Status: m.Status, Mode: m.Mode, KloterId: m.KloterID, CreatedAt: timestamppb.New(m.CreatedAt)})
 	}
 	return result, nil
 }

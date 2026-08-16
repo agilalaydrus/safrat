@@ -38,6 +38,10 @@ message PilgrimAppInfo {
   string room_number = 6;
   bool requires_wheelchair = 7;
   Movement next_movement = 8;
+  string kloter_code = 9;
+  string kloter_embarkation = 10;
+  string kloter_flight_number = 11;
+  google.protobuf.Timestamp kloter_departure_date = 12;
 }
 
 message ListMyScheduleResponse {

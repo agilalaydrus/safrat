@@ -28,6 +28,7 @@ message LeaderGroup {
   string name = 2;
   int32 capacity = 3;
   int32 pilgrim_count = 4;
+  string season_id = 5;
 }
 
 message ListMyGroupsRequest {}

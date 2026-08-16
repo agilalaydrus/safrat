@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { IconGenderFemale, IconGenderMale, IconWheelchair, IconWifiOff } from "@tabler/icons-react";
+import { IconGenderFemale, IconGenderMale, IconPlane, IconWheelchair, IconWifiOff } from "@tabler/icons-react";
 import { Gender, Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
-import { groupLeaderClient } from "@/lib/rpc";
+import { groupLeaderClient, kloterClient } from "@/lib/rpc";
 import { cachedFetch } from "@/lib/offline";
 
 export default function LeaderRosterPage() {
   const { groupId } = useParams<{ groupId: string }>();
   const [pilgrims, setPilgrims] = useState<Pilgrim[]>([]);
+  const [kloterCodes, setKloterCodes] = useState<Record<string, string>>({});
   const [fromCache, setFromCache] = useState(false);
   const [error, setError] = useState("");
 
@@ -20,6 +21,14 @@ export default function LeaderRosterPage() {
         setFromCache(result.fromCache);
       })
       .catch(() => setError("Gagal memuat daftar jamaah rombongan ini."));
+  }, [groupId]);
+
+  useEffect(() => {
+    groupLeaderClient.listMyGroups({}).then((response) => {
+      const seasonId = response.groups.find((g) => g.id === groupId)?.seasonId;
+      if (!seasonId) return;
+      kloterClient.listKloters({ seasonId }).then((r) => setKloterCodes(Object.fromEntries(r.kloters.map((k) => [k.id, k.code])))).catch(() => {});
+    }).catch(() => {});
   }, [groupId]);
 
   return (
@@ -33,7 +42,7 @@ export default function LeaderRosterPage() {
           <article key={pilgrim.id} style={card}>
             <div>
               <strong>{pilgrim.fullName}</strong>
-              <p style={meta}>{pilgrim.gender === Gender.FEMALE ? <IconGenderFemale size={15} /> : <IconGenderMale size={15} />}{pilgrim.passportNumber}</p>
+              <p style={meta}>{pilgrim.gender === Gender.FEMALE ? <IconGenderFemale size={15} /> : <IconGenderMale size={15} />}{pilgrim.passportNumber}{pilgrim.kloterId && kloterCodes[pilgrim.kloterId] && <span style={kloterMeta}><IconPlane size={13} />{kloterCodes[pilgrim.kloterId]}</span>}</p>
             </div>
             {pilgrim.requiresWheelchair && <IconWheelchair size={20} color="var(--color-gold-800)" />}
           </article>
@@ -50,3 +59,4 @@ const offlineBanner: React.CSSProperties = { display: "flex", alignItems: "cente
 const list: React.CSSProperties = { display: "grid", gap: 10 };
 const card: React.CSSProperties = { background: "#fff", border: "1px solid var(--color-cream-400)", borderRadius: 12, padding: 14, display: "flex", justifyContent: "space-between", alignItems: "center" };
 const meta: React.CSSProperties = { display: "flex", alignItems: "center", gap: 6, margin: "4px 0 0", color: "var(--color-warm-500)", fontSize: 12, fontFamily: "ui-monospace, monospace" };
+const kloterMeta: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 3, marginInlineStart: 6, padding: "2px 6px", borderRadius: 99, background: "var(--color-gold-50)", color: "var(--color-gold-800)", fontFamily: "inherit", fontWeight: 700 };

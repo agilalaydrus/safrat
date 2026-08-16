@@ -50,7 +50,7 @@ func (s *GroupLeaderService) ListMyGroups(ctx context.Context, orgID string) (*h
 	}
 	result := &hajjv1.ListMyGroupsResponse{Groups: make([]*hajjv1.LeaderGroup, 0, len(groups))}
 	for _, group := range groups {
-		result.Groups = append(result.Groups, &hajjv1.LeaderGroup{Id: group.ID, Name: group.Name, Capacity: group.Capacity, PilgrimCount: group.PilgrimCount})
+		result.Groups = append(result.Groups, &hajjv1.LeaderGroup{Id: group.ID, Name: group.Name, Capacity: group.Capacity, PilgrimCount: group.PilgrimCount, SeasonId: group.SeasonID})
 	}
 	return result, nil
 }

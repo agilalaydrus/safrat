@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { IconBed, IconBuilding, IconBus, IconUsersGroup, IconWheelchair, IconWifiOff } from "@tabler/icons-react";
+import { IconBed, IconBuilding, IconBus, IconPlane, IconUsersGroup, IconWheelchair, IconWifiOff } from "@tabler/icons-react";
 import { PilgrimAppInfo } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_app_pb";
 import { pilgrimAppClient } from "@/lib/rpc";
 import { cachedFetch } from "@/lib/offline";
@@ -70,6 +70,11 @@ export default function PilgrimHomePage() {
 
       <div style={grid}>
         <div style={card}>
+          <IconPlane size={22} color="var(--color-emerald-800)" />
+          <p style={cardLabel}>Kloter</p>
+          <p style={cardValue}>{info.kloterCode || "Belum ditentukan"}</p>
+        </div>
+        <div style={card}>
           <IconUsersGroup size={22} color="var(--color-emerald-800)" />
           <p style={cardLabel}>Rombongan</p>
           <p style={cardValue}>{info.groupName || "Belum ditentukan"}</p>
@@ -85,6 +90,15 @@ export default function PilgrimHomePage() {
           <p style={cardValue}>{info.roomNumber || "Belum ditentukan"}</p>
         </div>
       </div>
+
+      {(info.kloterFlightNumber || info.kloterDepartureDate) && (
+        <section style={kloterCard}>
+          <p style={eyebrow}><IconPlane size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />DETAIL KLOTER {info.kloterCode}</p>
+          {info.kloterEmbarkation && <p style={{ margin: "4px 0 0", color: "var(--color-warm-500)" }}>Embarkasi: {info.kloterEmbarkation}</p>}
+          {info.kloterFlightNumber && <p style={{ margin: "4px 0 0", color: "var(--color-warm-500)" }}>Penerbangan: {info.kloterFlightNumber}</p>}
+          {info.kloterDepartureDate && <p style={{ margin: "6px 0 0", fontWeight: 700, color: "var(--color-gold-800)" }}>{info.kloterDepartureDate.toDate().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}</p>}
+        </section>
+      )}
 
       {movement && (
         <section style={nextCard}>
@@ -104,7 +118,8 @@ const title: React.CSSProperties = { fontSize: 30, margin: "0 0 16px" };
 const wheelchairCard: React.CSSProperties = { background: "#fff", border: "1px solid var(--color-cream-400)", borderRadius: 12, padding: 14, margin: "0 0 16px" };
 const wheelchairButton: React.CSSProperties = { width: "100%", minHeight: 44, marginTop: 12, border: "1px solid var(--color-emerald-800)", borderRadius: 8, background: "transparent", color: "var(--color-emerald-900)", fontWeight: 700 };
 const wheelchairActiveButton: React.CSSProperties = { ...wheelchairButton, background: "var(--color-gold-50)", borderColor: "var(--color-gold-500)", color: "var(--color-gold-800)" };
-const grid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 };
+const grid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 10 };
+const kloterCard: React.CSSProperties = { marginTop: 12, background: "var(--color-gold-50)", border: "1px solid var(--color-gold-200)", borderRadius: 14, padding: 16 };
 const card: React.CSSProperties = { background: "#fff", border: "1px solid var(--color-cream-400)", borderRadius: 12, padding: 14, display: "grid", gap: 4 };
 const cardLabel: React.CSSProperties = { margin: 0, fontSize: 11, color: "var(--color-warm-400)" };
 const cardValue: React.CSSProperties = { margin: 0, fontSize: 13, fontWeight: 700, color: "var(--color-warm-900)" };

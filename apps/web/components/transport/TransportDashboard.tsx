@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Timestamp } from "@bufbuild/protobuf";
 import { IconBus, IconPlane, IconPlus, IconTemplate, IconTrain } from "@tabler/icons-react";
 import { Movement } from "@hajj-saas/proto-gen/hajj/v1/transport_pb";
-import { seasonClient, transportClient } from "@/lib/rpc";
+import { Kloter } from "@hajj-saas/proto-gen/hajj/v1/kloter_pb";
+import { kloterClient, seasonClient, transportClient } from "@/lib/rpc";
 import MovementFormDialog from "./MovementFormDialog";
 
 type MovementStep = { name: string; origin: string; destination: string; mode: "BUS" | "FLIGHT" | "TRAIN"; dayOffset: number; hour: number };
@@ -75,6 +76,9 @@ const TEMPLATES: Record<string, { label: string; steps: MovementStep[] }> = {
 export default function TransportDashboard() {
   const [season, setSeason] = useState("");
   const [seasons, setSeasons] = useState<{ id: string; name: string; isActive: boolean }[]>([]);
+  const [kloters, setKloters] = useState<Kloter[]>([]);
+  const [filterKloterId, setFilterKloterId] = useState("");
+  const [templateKloterId, setTemplateKloterId] = useState("");
   const [moves, setMoves] = useState<Movement[]>([]);
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState("");
@@ -87,6 +91,12 @@ export default function TransportDashboard() {
       setSeason(response.seasons.find((item) => item.isActive)?.id ?? response.seasons[0]?.id ?? "");
     });
   }, []);
+
+  useEffect(() => {
+    setFilterKloterId(""); setTemplateKloterId("");
+    if (!season) { setKloters([]); return; }
+    kloterClient.listKloters({ seasonId: season }).then((response) => setKloters(response.kloters)).catch(() => setKloters([]));
+  }, [season]);
 
   const refresh = () => {
     if (!season) return;
@@ -110,9 +120,9 @@ export default function TransportDashboard() {
         const scheduledAt = new Date(start);
         scheduledAt.setDate(start.getDate() + step.dayOffset);
         scheduledAt.setHours(step.hour, 0, 0, 0);
-        await transportClient.createMovement({ seasonId: season, name: step.name, origin: step.origin, destination: step.destination, mode: step.mode, scheduledAt: Timestamp.fromDate(scheduledAt) });
+        await transportClient.createMovement({ seasonId: season, name: step.name, origin: step.origin, destination: step.destination, mode: step.mode, kloterId: templateKloterId, scheduledAt: Timestamp.fromDate(scheduledAt) });
       }
-      setNotice(`${template.label} berhasil dibuat.`);
+      setNotice(`${template.label} berhasil dibuat${templateKloterId ? ` untuk kloter ${kloters.find((k) => k.id === templateKloterId)?.code ?? ""}` : ""}.`);
       refresh();
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : "Gagal membuat templat jadwal.");
@@ -121,11 +131,22 @@ export default function TransportDashboard() {
     }
   }
 
-  const groups = useMemo(() => Object.entries(moves.reduce<Record<string, Movement[]>>((result, movement) => {
+  // Filtering by kloter matters precisely because movements aren't all the
+  // same batch's — mixing every kloter's flights and transfers into one feed
+  // is exactly the confusion an operator running several kloter at once hits.
+  const filteredMoves = useMemo(() => moves.filter((m) => {
+    if (!filterKloterId) return true;
+    if (filterKloterId === "unscoped") return !m.kloterId;
+    return m.kloterId === filterKloterId;
+  }), [moves, filterKloterId]);
+
+  const groups = useMemo(() => Object.entries(filteredMoves.reduce<Record<string, Movement[]>>((result, movement) => {
     const date = movement.scheduledAt?.toDate().toLocaleDateString("id-ID") ?? "Belum dijadwalkan";
     (result[date] ??= []).push(movement);
     return result;
-  }, {})), [moves]);
+  }, {})), [filteredMoves]);
+
+  const kloterCode = (id: string) => kloters.find((k) => k.id === id)?.code ?? "";
 
   return (
     <main style={page}>
@@ -142,11 +163,24 @@ export default function TransportDashboard() {
           <select value={templateKey} onChange={(event) => setTemplateKey(event.target.value)} style={{ ...input, maxWidth: 220 }}>
             {Object.entries(TEMPLATES).map(([key, tpl]) => <option key={key} value={key}>{tpl.label}</option>)}
           </select>
+          <select value={templateKloterId} onChange={(event) => setTemplateKloterId(event.target.value)} style={{ ...input, maxWidth: 180 }}>
+            <option value="">Tanpa kloter</option>
+            {kloters.map((k) => <option key={k.id} value={k.id}>Untuk {k.code}</option>)}
+          </select>
           <button disabled={!season || working} onClick={() => void useTemplate()} style={ghost}><IconTemplate size={18} />Gunakan Templat</button>
           <button disabled={!season} onClick={() => setOpen(true)} style={emerald}><IconPlus size={18} />Tambah Jadwal</button>
         </div>
       </header>
       <div className="gold-divider" />
+      <div style={filterRow}>
+        <span style={filterLabel}>Filter monitoring:</span>
+        <select value={filterKloterId} onChange={(event) => setFilterKloterId(event.target.value)} style={{ ...input, maxWidth: 200 }}>
+          <option value="">Semua Kloter</option>
+          <option value="unscoped">Tanpa Kloter</option>
+          {kloters.map((k) => <option key={k.id} value={k.id}>{k.code}</option>)}
+        </select>
+        {filterKloterId && <span style={{ color: "var(--color-warm-500)", fontSize: 13 }}>{filteredMoves.length} dari {moves.length} jadwal ditampilkan</span>}
+      </div>
       {notice && <p role="status" style={noticeStyle}>{notice}</p>}
       {groups.length ? groups.map(([day, items]) => (
         <section key={day}>
@@ -159,7 +193,10 @@ export default function TransportDashboard() {
                   <p>{movement.origin} → {movement.destination}</p>
                   <small>{movement.scheduledAt?.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small>
                 </div>
-                <span style={badge(movement.status)}>{statusLabel(movement.status)}</span>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <span style={badge(movement.status)}>{statusLabel(movement.status)}</span>
+                  {movement.kloterId && <span style={kloterBadge}>{kloterCode(movement.kloterId)}</span>}
+                </div>
                 <div style={bar}><div style={{ ...fill, width: `${movement.totalCapacity ? (movement.assignedCount / movement.totalCapacity) * 100 : 0}%` }} /></div>
                 <small>{movement.assignedCount}/{movement.totalCapacity} kursi · {movement.vehicleCount} kendaraan</small>
               </Link>
@@ -211,3 +248,6 @@ const bar: React.CSSProperties = { height: 8, borderRadius: 8, overflow: "hidden
 const fill: React.CSSProperties = { height: "100%", background: "var(--color-emerald-900)" };
 const empty: React.CSSProperties = { minHeight: 300, display: "grid", placeItems: "center", alignContent: "center", gap: 12, border: "1px dashed var(--color-cream-400)", borderRadius: 12, background: "var(--color-cream-100)" };
 const noticeStyle: React.CSSProperties = { color: "var(--color-gold-800)" };
+const filterRow: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, margin: "16px 0 20px", flexWrap: "wrap" };
+const filterLabel: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--color-warm-700)" };
+const kloterBadge: React.CSSProperties = { justifySelf: "start", padding: "5px 10px", borderRadius: 99, background: "var(--color-gold-50)", color: "var(--color-gold-800)", fontSize: 11, fontWeight: 700 };

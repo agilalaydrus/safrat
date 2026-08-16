@@ -1,17 +1,24 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Timestamp } from "@bufbuild/protobuf";
 import { IconX } from "@tabler/icons-react";
-import { transportClient } from "@/lib/rpc";
+import { Kloter } from "@hajj-saas/proto-gen/hajj/v1/kloter_pb";
+import { kloterClient, transportClient } from "@/lib/rpc";
 
 type Props = { open: boolean; seasonId: string; onClose: () => void; onSaved: () => void };
 
 const MODES = [["BUS", "Bus"], ["FLIGHT", "Pesawat"], ["TRAIN", "Kereta Cepat"]] as const;
 
 export default function MovementFormDialog({ open, seasonId, onClose, onSaved }: Props) {
-  const [form, setForm] = useState({ name: "", origin: "", destination: "", scheduledAt: "", mode: "BUS" });
+  const [form, setForm] = useState({ name: "", origin: "", destination: "", scheduledAt: "", mode: "BUS", kloterId: "" });
   const [error, setError] = useState("");
+  const [kloters, setKloters] = useState<Kloter[]>([]);
+
+  useEffect(() => {
+    if (!open || !seasonId) return;
+    kloterClient.listKloters({ seasonId }).then((response) => setKloters(response.kloters)).catch(() => setKloters([]));
+  }, [open, seasonId]);
 
   if (!open) return null;
 
@@ -26,7 +33,7 @@ export default function MovementFormDialog({ open, seasonId, onClose, onSaved }:
       return;
     }
     try {
-      await transportClient.createMovement({ seasonId, name: form.name, origin: form.origin, destination: form.destination, scheduledAt: Timestamp.fromDate(scheduledAt), mode: form.mode });
+      await transportClient.createMovement({ seasonId, name: form.name, origin: form.origin, destination: form.destination, scheduledAt: Timestamp.fromDate(scheduledAt), mode: form.mode, kloterId: form.kloterId });
       onSaved();
       onClose();
     } catch (caught) {
@@ -53,6 +60,12 @@ export default function MovementFormDialog({ open, seasonId, onClose, onSaved }:
               <Field label={form.mode === "FLIGHT" ? "Bandara Asal" : form.mode === "TRAIN" ? "Stasiun Asal" : "Asal"}><input className="safrat-input" required value={form.origin} onChange={(event) => update("origin", event.target.value)} style={input} /></Field>
               <Field label={form.mode === "FLIGHT" ? "Bandara Tujuan" : form.mode === "TRAIN" ? "Stasiun Tujuan" : "Tujuan"}><input className="safrat-input" required value={form.destination} onChange={(event) => update("destination", event.target.value)} style={input} /></Field>
               <Field label="Dijadwalkan pada"><input className="safrat-input" required type="datetime-local" value={form.scheduledAt} onChange={(event) => update("scheduledAt", event.target.value)} style={input} /></Field>
+              <Field label="Kloter" hint="Kosongkan jika jadwal ini berlaku untuk semua kloter (mis. shuttle bersama).">
+                <select className="safrat-input" value={form.kloterId} onChange={(event) => update("kloterId", event.target.value)} style={input}>
+                  <option value="">Tanpa kloter</option>
+                  {kloters.map((k) => <option key={k.id} value={k.id}>{k.code}</option>)}
+                </select>
+              </Field>
             </Section>
             {error && <p role="alert" style={formError}>{error}</p>}
           </form>
@@ -64,7 +77,7 @@ export default function MovementFormDialog({ open, seasonId, onClose, onSaved }:
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) { return <section style={{ display: "grid", gap: 16 }}><p style={sectionTitle}>{title}</p>{children}</section>; }
-function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label style={{ display: "grid", gap: 6 }}><span style={fieldLabel}>{label}</span>{children}</label>; }
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) { return <label style={{ display: "grid", gap: 6 }}><span style={fieldLabel}>{label}</span>{children}{hint && <span style={{ fontSize: 11, color: "var(--color-warm-400)" }}>{hint}</span>}</label>; }
 
 const overlay: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 30, display: "flex", justifyContent: "flex-end", background: "rgba(26,20,16,.48)", backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)" };
 const sheet: React.CSSProperties = { width: "min(560px,100%)", height: "100vh", display: "flex", flexDirection: "column", background: "#ffffff", boxShadow: "-6px 0 32px rgba(26,20,16,.12)", borderRadius: "16px 0 0 16px", animation: "sheet-in .22s cubic-bezier(0,0,.2,1)", overflow: "hidden" };

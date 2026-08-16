@@ -16,15 +16,20 @@ func (r *PilgrimRepository) GetAppInfo(ctx context.Context, appAccessCode string
 		return nil, err
 	}
 	return &domain.PilgrimAppInfo{
-		ID:                 uuidString(row.ID),
-		FullName:           row.FullName,
-		PassportNumber:     row.PassportNumber,
-		GroupName:          row.GroupName.String,
-		HotelName:          row.HotelName.String,
-		RoomNumber:         row.RoomNumber.String,
-		RequiresWheelchair: row.RequiresWheelchair,
-		SeasonID:           uuidString(row.SeasonID),
-		OperatorID:         uuidString(row.OperatorID),
+		ID:                  uuidString(row.ID),
+		FullName:            row.FullName,
+		PassportNumber:      row.PassportNumber,
+		GroupName:           row.GroupName.String,
+		HotelName:           row.HotelName.String,
+		RoomNumber:          row.RoomNumber.String,
+		RequiresWheelchair:  row.RequiresWheelchair,
+		SeasonID:            uuidString(row.SeasonID),
+		OperatorID:          uuidString(row.OperatorID),
+		KloterID:            nullableUUIDString(row.KloterID),
+		KloterCode:          row.KloterCode.String,
+		KloterEmbarkation:   row.KloterEmbarkation.String,
+		KloterFlightNumber:  row.KloterFlightNumber.String,
+		KloterDepartureDate: timestamptzPtr(row.KloterDepartureDate),
 	}, nil
 }
 
@@ -58,7 +63,10 @@ func (r *PilgrimRepository) SetWheelchairRequest(ctx context.Context, appAccessC
 	return uuidString(row.ID), uuidString(row.OperatorID), row.FullName, nil
 }
 
-func (r *PilgrimRepository) ListUpcomingMovements(ctx context.Context, operatorID, seasonID string) ([]*Movement, error) {
+// ListUpcomingMovements is called with the pilgrim's own kloterID (may be
+// empty if unassigned) so a pilgrim only ever sees movements scoped to
+// their own kloter, plus any unscoped/shared ones — never another kloter's.
+func (r *PilgrimRepository) ListUpcomingMovements(ctx context.Context, operatorID, seasonID, kloterID string) ([]*Movement, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -67,13 +75,20 @@ func (r *PilgrimRepository) ListUpcomingMovements(ctx context.Context, operatorI
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListUpcomingMovementsForSeason(ctx, db.ListUpcomingMovementsForSeasonParams{SeasonID: seasonUUID, OperatorID: opUUID})
+	var kloterUUID pgtype.UUID
+	if kloterID != "" {
+		kloterUUID, err = pgUUID(kloterID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	rows, err := r.queries.ListUpcomingMovementsForSeason(ctx, db.ListUpcomingMovementsForSeasonParams{SeasonID: seasonUUID, OperatorID: opUUID, KloterID: kloterUUID})
 	if err != nil {
 		return nil, err
 	}
 	result := make([]*Movement, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, &Movement{ID: uuidString(row.ID), SeasonID: uuidString(row.SeasonID), OperatorID: uuidString(row.OperatorID), Name: row.Name, Origin: row.Origin, Destination: row.Destination, ScheduledAt: row.ScheduledAt.Time, Status: row.Status, CreatedAt: row.CreatedAt.Time})
+		result = append(result, &Movement{ID: uuidString(row.ID), SeasonID: uuidString(row.SeasonID), OperatorID: uuidString(row.OperatorID), Name: row.Name, Origin: row.Origin, Destination: row.Destination, ScheduledAt: row.ScheduledAt.Time, Status: row.Status, Mode: row.Mode, KloterID: nullableUUIDString(row.KloterID), CreatedAt: row.CreatedAt.Time})
 	}
 	return result, nil
 }

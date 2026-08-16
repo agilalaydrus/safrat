@@ -4,6 +4,7 @@ import "time"
 
 type LeaderGroup struct {
 	ID           string
+	SeasonID     string
 	Name         string
 	Capacity     int32
 	PilgrimCount int32

@@ -6,12 +6,17 @@ SELECT DISTINCT ON (p.id)
   p.*,
   g.name AS group_name,
   h.name AS hotel_name,
-  r.room_number AS room_number
+  r.room_number AS room_number,
+  k.code AS kloter_code,
+  k.embarkation AS kloter_embarkation,
+  k.flight_number AS kloter_flight_number,
+  k.departure_date AS kloter_departure_date
 FROM pilgrims p
 LEFT JOIN groups g ON g.id = p.group_id
 LEFT JOIN room_allocations ra ON ra.pilgrim_id = p.id
 LEFT JOIN rooms r ON r.id = ra.room_id
 LEFT JOIN hotels h ON h.id = r.hotel_id
+LEFT JOIN kloters k ON k.id = p.kloter_id
 WHERE p.app_access_code = $1 AND p.is_substituted = false
 ORDER BY p.id, ra.allocated_at DESC NULLS LAST;
 
@@ -25,7 +30,11 @@ RETURNING id, operator_id, full_name;
 -- scheduled_at >= NOW() matters even for well-maintained data: a movement
 -- whose time has simply passed without anyone flipping its status away from
 -- 'scheduled' must never keep surfacing as "next" on the pilgrim/leader apps.
+-- kloter_id IS NULL matches movements that aren't scoped to one kloter
+-- (shared ground shuttles); otherwise only this pilgrim's own kloter's
+-- movements show — a pilgrim in SOC-01 must never see SOC-05's flight.
 SELECT * FROM movements
 WHERE season_id = $1 AND operator_id = $2 AND status = 'scheduled' AND scheduled_at >= NOW()
+  AND (kloter_id IS NULL OR kloter_id = $3)
 ORDER BY scheduled_at ASC
 LIMIT 10;
