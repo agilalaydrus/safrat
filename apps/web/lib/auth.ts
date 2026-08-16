@@ -1,13 +1,32 @@
 import { betterAuth } from "better-auth";
 import { organization } from "better-auth/plugins";
 import { Pool } from "pg";
+import { resetPasswordEmail, sendEmail, verifyEmailEmail } from "./email";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 export const auth = betterAuth({
   database: pool,
   plugins: [organization({ allowUserToCreateOrganization: true })],
-  emailAndPassword: { enabled: true },
+  emailAndPassword: {
+    enabled: true,
+    // No unverified account can sign in and use the app indefinitely —
+    // closes the gap flagged in the security audit (DEPLOY.md §13): this
+    // is also what makes account-linking's `requireLocalEmailVerified`
+    // guard (see socialProviders note below) mean anything for an
+    // organically-signed-up account, not just a Google-first one.
+    requireEmailVerification: true,
+    sendResetPassword: async ({ user, url }) => {
+      await sendEmail({ to: user.email, subject: "Atur Ulang Kata Sandi Safrat", html: resetPasswordEmail(user.name, url) });
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      await sendEmail({ to: user.email, subject: "Verifikasi Email Safrat", html: verifyEmailEmail(user.name, url) });
+    },
+  },
   // Google is additive, not a replacement — email/password keeps working.
   // No-op (button 401s) until GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET are set;
   // same "safe to leave unset locally" pattern as Firebase/Sentry in
