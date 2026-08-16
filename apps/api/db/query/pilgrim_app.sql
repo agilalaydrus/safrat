@@ -10,15 +10,34 @@ SELECT DISTINCT ON (p.id)
   k.code AS kloter_code,
   k.embarkation AS kloter_embarkation,
   k.flight_number AS kloter_flight_number,
-  k.departure_date AS kloter_departure_date
+  k.departure_date AS kloter_departure_date,
+  lu.email AS linked_google_email
 FROM pilgrims p
 LEFT JOIN groups g ON g.id = p.group_id
 LEFT JOIN room_allocations ra ON ra.pilgrim_id = p.id
 LEFT JOIN rooms r ON r.id = ra.room_id
 LEFT JOIN hotels h ON h.id = r.hotel_id
 LEFT JOIN kloters k ON k.id = p.kloter_id
+LEFT JOIN "user" lu ON lu.id = p.linked_user_id
 WHERE p.app_access_code = $1 AND p.is_substituted = false
 ORDER BY p.id, ra.allocated_at DESC NULLS LAST;
+
+-- name: LinkPilgrimGoogleAccount :one
+-- Only ever called from the session-authenticated (not org-scoped)
+-- PilgrimAppService.LinkGoogleAccount RPC — $2 comes from the caller's real,
+-- server-validated Better Auth session, never from the request body, so this
+-- can't be used to link an arbitrary user id to someone else's pilgrim row.
+UPDATE pilgrims
+SET linked_user_id = $2, updated_at = NOW()
+WHERE app_access_code = $1 AND is_substituted = false
+RETURNING id, operator_id, full_name;
+
+-- name: UserIsOrganizationMember :one
+-- Staff/leader accounts are org members; a pilgrim's Google identity never
+-- should be — guards LinkGoogleAccount against a signed-in staff member
+-- accidentally (or deliberately) linking a pilgrim record to their own
+-- admin account.
+SELECT EXISTS(SELECT 1 FROM member WHERE "userId" = $1) AS is_member;
 
 -- name: SetPilgrimWheelchairRequest :one
 UPDATE pilgrims

@@ -17,4 +17,5 @@ type PilgrimAppInfo struct {
 	KloterEmbarkation   string
 	KloterFlightNumber  string
 	KloterDepartureDate *time.Time
+	LinkedGoogleEmail   string
 }

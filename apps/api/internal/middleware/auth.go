@@ -16,6 +16,7 @@ const (
 	ctxKeyUserID     contextKey = "user_id"
 	ctxKeyOperatorID contextKey = "operator_id"
 	ctxKeyUserName   contextKey = "user_name"
+	ctxKeyUserEmail  contextKey = "user_email"
 )
 
 // publicProcedures lists RPCs that must be reachable without a Better Auth session —
@@ -35,6 +36,18 @@ var publicProcedures = map[string]bool{
 	"/hajj.v1.ChatService/SendMyMessage":           true,
 }
 
+// sessionOnlyProcedures lists RPCs that require a real, server-validated
+// Better Auth session (so identity can't be spoofed via the request body)
+// but must NOT require organization membership like every other
+// authenticated RPC does — a pilgrim's Google identity is never an org
+// member. Keep this list minimal for the same reason as publicProcedures:
+// every entry is a security decision, and its service method must derive
+// operator/tenant scoping from elsewhere (e.g. the pilgrim record looked up
+// by app_access_code), never from ctx's operator id, which is empty here.
+var sessionOnlyProcedures = map[string]bool{
+	"/hajj.v1.PilgrimAppService/LinkGoogleAccount": true,
+}
+
 // NewAuthInterceptor validates Better Auth's opaque database session token.
 // Better Auth does not issue JWTs for its default session strategy.
 func NewAuthInterceptor(pool *pgxpool.Pool) connect.Interceptor {
@@ -46,6 +59,24 @@ func NewAuthInterceptor(pool *pgxpool.Pool) connect.Interceptor {
 			token, err := bearerToken(request.Header().Get("Authorization"))
 			if err != nil {
 				return nil, connect.NewError(connect.CodeUnauthenticated, err)
+			}
+			if sessionOnlyProcedures[request.Spec().Procedure] {
+				var userID, userEmail string
+				const sessionQuery = `
+					SELECT s."userId", u.email
+					FROM session s
+					JOIN "user" u ON u.id = s."userId"
+					WHERE s.token = $1 AND s."expiresAt" > NOW()`
+				err = pool.QueryRow(ctx, sessionQuery, token).Scan(&userID, &userEmail)
+				if errors.Is(err, pgx.ErrNoRows) {
+					return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or expired Better Auth session"))
+				}
+				if err != nil {
+					return nil, connect.NewError(connect.CodeInternal, errors.New("validate Better Auth session"))
+				}
+				ctx = context.WithValue(ctx, ctxKeyUserID, userID)
+				ctx = context.WithValue(ctx, ctxKeyUserEmail, userEmail)
+				return next(ctx, request)
 			}
 			var userID, organizationID, userName string
 			const query = `
@@ -95,6 +126,11 @@ func OperatorIDFromCtx(ctx context.Context) string {
 func UserNameFromCtx(ctx context.Context) string {
 	userName, _ := ctx.Value(ctxKeyUserName).(string)
 	return userName
+}
+
+func UserEmailFromCtx(ctx context.Context) string {
+	userEmail, _ := ctx.Value(ctxKeyUserEmail).(string)
+	return userEmail
 }
 
 // ContextWithIdentity attaches authenticated values for in-process callers and tests.

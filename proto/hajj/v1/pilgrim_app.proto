@@ -9,9 +9,14 @@ import "hajj/v1/product.proto";
 
 option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 
-// PilgrimAppService is entirely public — every method authenticates via
+// PilgrimAppService is mostly public — most methods authenticate via
 // app_access_code instead of a Better Auth session. See publicProcedures in
-// internal/middleware/auth.go.
+// internal/middleware/auth.go. LinkGoogleAccount is the one exception: it
+// requires a real, server-validated Better Auth session (so a spoofed
+// user id in the request body can never link someone else's Google account
+// to a pilgrim) but — unlike the admin/leader surface — does NOT require
+// organization membership, since a pilgrim's Google identity is never an
+// org member. See sessionOnlyProcedures in internal/middleware/auth.go.
 service PilgrimAppService {
   rpc GetMyInfo(PilgrimAppRequest) returns (PilgrimAppInfo);
   rpc ListMySchedule(PilgrimAppRequest) returns (ListMyScheduleResponse);
@@ -23,6 +28,12 @@ service PilgrimAppService {
   // RequestWheelchair lets a pilgrim self-report a wheelchair need directly
   // from the app instead of requiring a coordinator to set it on their behalf.
   rpc RequestWheelchair(RequestWheelchairRequest) returns (RequestWheelchairResponse);
+  // LinkGoogleAccount ties the pilgrim record behind app_access_code to
+  // whichever Better Auth identity the caller is currently signed in as
+  // (via Google). Establishes a verified identity ahead of any future
+  // money-touching action (Module 7 orders/payments) — the access-code
+  // link alone keeps working for everything that exists today.
+  rpc LinkGoogleAccount(LinkGoogleAccountRequest) returns (LinkGoogleAccountResponse);
 }
 
 message PilgrimAppRequest {
@@ -42,6 +53,8 @@ message PilgrimAppInfo {
   string kloter_embarkation = 10;
   string kloter_flight_number = 11;
   google.protobuf.Timestamp kloter_departure_date = 12;
+  // Empty if this pilgrim has never linked a Google account.
+  string linked_google_email = 13;
 }
 
 message ListMyScheduleResponse {
@@ -67,4 +80,12 @@ message RequestWheelchairRequest {
 
 message RequestWheelchairResponse {
   bool requires_wheelchair = 1;
+}
+
+message LinkGoogleAccountRequest {
+  string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message LinkGoogleAccountResponse {
+  string linked_google_email = 1;
 }

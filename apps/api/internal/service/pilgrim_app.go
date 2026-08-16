@@ -7,6 +7,7 @@ import (
 
 	"github.com/hajj-saas/api/internal/apperror"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
+	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/repository"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -29,7 +30,7 @@ func (s *PilgrimAppService) GetMyInfo(ctx context.Context, req *hajjv1.PilgrimAp
 	if err != nil {
 		return nil, serviceError("PilgrimAppService.GetMyInfo", apperror.ErrNotFound)
 	}
-	result := &hajjv1.PilgrimAppInfo{Id: info.ID, FullName: info.FullName, PassportNumber: info.PassportNumber, GroupName: info.GroupName, HotelName: info.HotelName, RoomNumber: info.RoomNumber, RequiresWheelchair: info.RequiresWheelchair, KloterCode: info.KloterCode, KloterEmbarkation: info.KloterEmbarkation, KloterFlightNumber: info.KloterFlightNumber}
+	result := &hajjv1.PilgrimAppInfo{Id: info.ID, FullName: info.FullName, PassportNumber: info.PassportNumber, GroupName: info.GroupName, HotelName: info.HotelName, RoomNumber: info.RoomNumber, RequiresWheelchair: info.RequiresWheelchair, KloterCode: info.KloterCode, KloterEmbarkation: info.KloterEmbarkation, KloterFlightNumber: info.KloterFlightNumber, LinkedGoogleEmail: info.LinkedGoogleEmail}
 	if info.KloterDepartureDate != nil {
 		result.KloterDepartureDate = timestamppb.New(*info.KloterDepartureDate)
 	}
@@ -65,6 +66,30 @@ func (s *PilgrimAppService) RequestWheelchair(ctx context.Context, req *hajjv1.R
 	}
 	_ = s.auditRepository.Write(ctx, operatorID, "", action, "pilgrim", pilgrimID, message)
 	return &hajjv1.RequestWheelchairResponse{RequiresWheelchair: req.RequiresWheelchair}, nil
+}
+
+// LinkGoogleAccount runs through the session-only (not org-scoped) auth
+// lane — ctx carries a real, server-validated Better Auth user id, never a
+// client-supplied one. userID/userEmail come from middleware, not req.
+func (s *PilgrimAppService) LinkGoogleAccount(ctx context.Context, req *hajjv1.LinkGoogleAccountRequest) (*hajjv1.LinkGoogleAccountResponse, error) {
+	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" {
+		return nil, serviceError("PilgrimAppService.LinkGoogleAccount", apperror.ErrValidation)
+	}
+	userID, userEmail := middleware.UserIDFromCtx(ctx), middleware.UserEmailFromCtx(ctx)
+	if userID == "" {
+		return nil, serviceError("PilgrimAppService.LinkGoogleAccount", apperror.ErrUnauthorized)
+	}
+	isStaff, err := s.pilgrimRepository.UserIsOrganizationMember(ctx, userID)
+	if err != nil {
+		return nil, serviceError("PilgrimAppService.LinkGoogleAccount", err)
+	}
+	if isStaff {
+		return nil, serviceError("PilgrimAppService.LinkGoogleAccount", apperror.ErrForbidden)
+	}
+	if err := s.pilgrimRepository.LinkGoogleAccount(ctx, req.AppAccessCode, userID); err != nil {
+		return nil, serviceError("PilgrimAppService.LinkGoogleAccount", err)
+	}
+	return &hajjv1.LinkGoogleAccountResponse{LinkedGoogleEmail: userEmail}, nil
 }
 
 func (s *PilgrimAppService) ListMySchedule(ctx context.Context, req *hajjv1.PilgrimAppRequest) (*hajjv1.ListMyScheduleResponse, error) {

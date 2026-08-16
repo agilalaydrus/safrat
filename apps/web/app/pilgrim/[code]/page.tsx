@@ -1,19 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { IconBed, IconBuilding, IconBus, IconPlane, IconUsersGroup, IconWheelchair, IconWifiOff } from "@tabler/icons-react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { IconBed, IconBuilding, IconBus, IconCircleCheck, IconPlane, IconUsersGroup, IconWheelchair, IconWifiOff } from "@tabler/icons-react";
 import { PilgrimAppInfo } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_app_pb";
 import { pilgrimAppClient } from "@/lib/rpc";
-import { cachedFetch } from "@/lib/offline";
+import { cachedFetch, toDateSafe } from "@/lib/offline";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 export default function PilgrimHomePage() {
   const { code } = useParams<{ code: string }>();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [info, setInfo] = useState<PilgrimAppInfo>();
   const [fromCache, setFromCache] = useState(false);
   const [error, setError] = useState("");
   const [requesting, setRequesting] = useState(false);
   const [notice, setNotice] = useState("");
+  const [linkNotice, setLinkNotice] = useState("");
 
   useEffect(() => {
     cachedFetch(`pilgrim-info:${code}`, () => pilgrimAppClient.getMyInfo({ appAccessCode: code }))
@@ -23,6 +27,21 @@ export default function PilgrimHomePage() {
       })
       .catch(() => setError("Kode akses tidak ditemukan. Mohon periksa kembali tautan yang diberikan."));
   }, [code]);
+
+  // Landed back here right after Google's redirect (see GoogleSignInButton's
+  // callbackURL below) — a Better Auth session now exists in this browser,
+  // so complete the link once, then drop the marker from the URL.
+  useEffect(() => {
+    if (searchParams.get("google") !== "1") return;
+    router.replace(`/pilgrim/${code}`);
+    pilgrimAppClient.linkGoogleAccount({ appAccessCode: code })
+      .then((result) => {
+        setLinkNotice(`Akun Google ${result.linkedGoogleEmail} berhasil dihubungkan.`);
+        setInfo((current) => (current ? new PilgrimAppInfo({ ...current, linkedGoogleEmail: result.linkedGoogleEmail }) : current));
+      })
+      .catch(() => setLinkNotice("Gagal menghubungkan akun Google. Silakan coba lagi."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   async function toggleWheelchair() {
     if (!info) return;
@@ -68,6 +87,22 @@ export default function PilgrimHomePage() {
         {notice && <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--color-gold-800)" }}>{notice}</p>}
       </section>
 
+      <section style={wheelchairCard}>
+        {info.linkedGoogleEmail ? (
+          <p style={{ margin: 0, display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--color-emerald-900)" }}>
+            <IconCircleCheck size={18} color="var(--color-emerald-800)" />
+            Terhubung sebagai <strong>{info.linkedGoogleEmail}</strong>
+          </p>
+        ) : (
+          <>
+            <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 14 }}>Amankan Akun Anda</p>
+            <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--color-warm-500)" }}>Hubungkan akun Google untuk mengamankan akses Anda — diperlukan sebelum melakukan transaksi apa pun di kemudian hari.</p>
+            <GoogleSignInButton callbackURL={`/pilgrim/${code}?google=1`} label="Hubungkan dengan Google" />
+          </>
+        )}
+        {linkNotice && <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--color-gold-800)" }}>{linkNotice}</p>}
+      </section>
+
       <div style={grid}>
         <div style={card}>
           <IconPlane size={22} color="var(--color-emerald-800)" />
@@ -96,7 +131,7 @@ export default function PilgrimHomePage() {
           <p style={eyebrow}><IconPlane size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />DETAIL KLOTER {info.kloterCode}</p>
           {info.kloterEmbarkation && <p style={{ margin: "4px 0 0", color: "var(--color-warm-500)" }}>Embarkasi: {info.kloterEmbarkation}</p>}
           {info.kloterFlightNumber && <p style={{ margin: "4px 0 0", color: "var(--color-warm-500)" }}>Penerbangan: {info.kloterFlightNumber}</p>}
-          {info.kloterDepartureDate && <p style={{ margin: "6px 0 0", fontWeight: 700, color: "var(--color-gold-800)" }}>{info.kloterDepartureDate.toDate().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}</p>}
+          {info.kloterDepartureDate && <p style={{ margin: "6px 0 0", fontWeight: 700, color: "var(--color-gold-800)" }}>{toDateSafe(info.kloterDepartureDate)?.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}</p>}
         </section>
       )}
 
@@ -105,7 +140,7 @@ export default function PilgrimHomePage() {
           <p style={eyebrow}><IconBus size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />JADWAL BERIKUTNYA</p>
           <h2 style={{ margin: "4px 0 6px", fontSize: 22 }}>{movement.name}</h2>
           <p style={{ margin: 0, color: "var(--color-warm-500)" }}>{movement.origin} → {movement.destination}</p>
-          <p style={{ margin: "6px 0 0", fontWeight: 700, color: "var(--color-gold-800)" }}>{movement.scheduledAt?.toDate().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+          <p style={{ margin: "6px 0 0", fontWeight: 700, color: "var(--color-gold-800)" }}>{toDateSafe(movement.scheduledAt)?.toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
         </section>
       )}
     </main>

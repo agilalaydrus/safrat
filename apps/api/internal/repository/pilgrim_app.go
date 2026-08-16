@@ -30,7 +30,29 @@ func (r *PilgrimRepository) GetAppInfo(ctx context.Context, appAccessCode string
 		KloterEmbarkation:   row.KloterEmbarkation.String,
 		KloterFlightNumber:  row.KloterFlightNumber.String,
 		KloterDepartureDate: timestamptzPtr(row.KloterDepartureDate),
+		LinkedGoogleEmail:   row.LinkedGoogleEmail.String,
 	}, nil
+}
+
+// LinkGoogleAccount ties the pilgrim behind app_access_code to a real
+// Better Auth user id. userID must already be server-validated by the
+// caller (PilgrimAppService.LinkGoogleAccount, via the session-only —
+// not org-scoped — middleware lane) — never accept it from a request body.
+func (r *PilgrimRepository) LinkGoogleAccount(ctx context.Context, appAccessCode, userID string) error {
+	_, err := r.queries.LinkPilgrimGoogleAccount(ctx, db.LinkPilgrimGoogleAccountParams{
+		AppAccessCode: appAccessCode,
+		LinkedUserID:  pgtype.Text{String: userID, Valid: true},
+	})
+	if err != nil {
+		return databaseError(err)
+	}
+	return nil
+}
+
+// UserIsOrganizationMember guards LinkGoogleAccount against linking a
+// signed-in staff/leader account (an org member) to a pilgrim record.
+func (r *PilgrimRepository) UserIsOrganizationMember(ctx context.Context, userID string) (bool, error) {
+	return r.queries.UserIsOrganizationMember(ctx, userID)
 }
 
 func (r *PilgrimRepository) GetByAppAccessCode(ctx context.Context, appAccessCode string) (*domain.Pilgrim, error) {

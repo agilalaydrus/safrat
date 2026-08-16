@@ -41,6 +41,13 @@ func (h *PilgrimAppHandler) RequestWheelchair(ctx context.Context, req *connect.
 	}
 	return connect.NewResponse(result), nil
 }
+func (h *PilgrimAppHandler) LinkGoogleAccount(ctx context.Context, req *connect.Request[hajjv1.LinkGoogleAccountRequest]) (*connect.Response[hajjv1.LinkGoogleAccountResponse], error) {
+	result, err := h.pilgrimAppService.LinkGoogleAccount(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
 func (h *PilgrimAppHandler) ListMyProducts(ctx context.Context, req *connect.Request[hajjv1.PilgrimAppRequest]) (*connect.Response[hajjv1.ListMyProductsResponse], error) {
 	result, err := h.pilgrimAppService.ListMyProducts(ctx, req.Msg)
 	if err != nil {

@@ -7,7 +7,7 @@ import { Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { Movement } from "@hajj-saas/proto-gen/hajj/v1/transport_pb";
 import { CheckIn } from "@hajj-saas/proto-gen/hajj/v1/groupleader_pb";
 import { groupLeaderClient, seasonClient, transportClient } from "@/lib/rpc";
-import { cachedFetch, enqueueAction, useOfflineQueueFlush } from "@/lib/offline";
+import { cachedFetch, enqueueAction, toDateSafe, useOfflineQueueFlush } from "@/lib/offline";
 
 const QUEUE_KIND = "check-in";
 type QueuedCheckIn = { movementId: string; pilgrimId: string; type: "DEPARTURE" | "ARRIVAL" };
@@ -98,7 +98,7 @@ export default function LeaderCheckInPage() {
       {fromCache && <p style={offlineBanner}><IconWifiOff size={16} />Menggunakan data tersimpan — Anda sedang offline</p>}
       <select value={movementId} onChange={(event) => setMovementId(event.target.value)} style={select}>
         {!movements.length && <option value="">Belum ada jadwal perjalanan</option>}
-        {movements.map((m) => <option key={m.id} value={m.id}>{m.name} — {m.scheduledAt?.toDate().toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}</option>)}
+        {movements.map((m) => <option key={m.id} value={m.id}>{m.name} — {toDateSafe(m.scheduledAt)?.toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}</option>)}
       </select>
       {notice && <p style={noticeStyle}>{notice}</p>}
       <div style={list}>

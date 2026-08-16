@@ -29,6 +29,27 @@ export function writeCache<T>(key: string, value: T) {
   }
 }
 
+/**
+ * A cache round-trip goes through JSON.stringify/parse, which invokes a
+ * protobuf-es message's toJSON() and strips its prototype — a cached
+ * Timestamp field survives as a plain RFC3339 string, not a class instance
+ * with .toDate(). Call sites that render a Timestamp field sourced from
+ * cachedFetch must use this instead of a bare `?.toDate()`.
+ */
+export function toDateSafe(value: unknown): Date | undefined {
+  if (!value) return undefined;
+  if (value instanceof Date) return value;
+  if (typeof value === "string") return new Date(value);
+  if (typeof value === "object" && "toDate" in value && typeof (value as { toDate: unknown }).toDate === "function") {
+    return (value as { toDate: () => Date }).toDate();
+  }
+  if (typeof value === "object" && "seconds" in value) {
+    const v = value as { seconds: string | number; nanos?: number };
+    return new Date(Number(v.seconds) * 1000 + (v.nanos ?? 0) / 1e6);
+  }
+  return undefined;
+}
+
 /** Fetches fresh data, falling back to the last cached value on failure (e.g. offline). Caches successful results. */
 export async function cachedFetch<T>(key: string, fetcher: () => Promise<T>): Promise<{ data: T | undefined; fromCache: boolean }> {
   try {

@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { IconArrowRight, IconWifiOff } from "@tabler/icons-react";
 import { Movement } from "@hajj-saas/proto-gen/hajj/v1/transport_pb";
 import { pilgrimAppClient } from "@/lib/rpc";
-import { cachedFetch } from "@/lib/offline";
+import { cachedFetch, toDateSafe } from "@/lib/offline";
 
 export default function PilgrimSchedulePage() {
   const { code } = useParams<{ code: string }>();
@@ -30,10 +30,10 @@ export default function PilgrimSchedulePage() {
       <div style={list}>
         {movements.map((movement) => (
           <article key={movement.id} style={card}>
-            <p style={date}>{movement.scheduledAt?.toDate().toLocaleDateString("id-ID", { weekday: "short", day: "2-digit", month: "short" })}</p>
+            <p style={date}>{toDateSafe(movement.scheduledAt)?.toLocaleDateString("id-ID", { weekday: "short", day: "2-digit", month: "short" })}</p>
             <h2 style={{ margin: "4px 0 8px", fontSize: 18 }}>{movement.name}</h2>
             <p style={route}>{movement.origin}<IconArrowRight size={14} />{movement.destination}</p>
-            <p style={time}>{movement.scheduledAt?.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+            <p style={time}>{toDateSafe(movement.scheduledAt)?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
           </article>
         ))}
       </div>
