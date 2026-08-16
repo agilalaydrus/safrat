@@ -1,7 +1,7 @@
 "use client";
 
 import { authClient } from "./auth-client";
-import { identityClient } from "./rpc";
+import { getMyAccessCached } from "./access-cache";
 
 /**
  * Single resolver for "where should this identity land after signing in" —
@@ -13,7 +13,7 @@ import { identityClient } from "./rpc";
  * "create your operator").
  */
 export async function resolveLandingPath(): Promise<string> {
-  const access = await identityClient.getMyAccess({});
+  const access = await getMyAccessCached();
 
   if (access.isOrgMember) {
     // The org-activation dance predates this resolver — Better Auth session

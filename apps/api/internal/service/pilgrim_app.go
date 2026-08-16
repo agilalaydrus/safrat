@@ -13,13 +13,14 @@ import (
 )
 
 type PilgrimAppService struct {
-	pilgrimRepository *repository.PilgrimRepository
-	productRepository *repository.ProductRepository
-	auditRepository   *repository.AuditRepository
+	pilgrimRepository  *repository.PilgrimRepository
+	productRepository  *repository.ProductRepository
+	auditRepository    *repository.AuditRepository
+	identityRepository *repository.IdentityRepository
 }
 
-func NewPilgrimAppService(pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, audit *repository.AuditRepository) *PilgrimAppService {
-	return &PilgrimAppService{pilgrimRepository: pilgrims, productRepository: products, auditRepository: audit}
+func NewPilgrimAppService(pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, audit *repository.AuditRepository, identity *repository.IdentityRepository) *PilgrimAppService {
+	return &PilgrimAppService{pilgrimRepository: pilgrims, productRepository: products, auditRepository: audit, identityRepository: identity}
 }
 
 func (s *PilgrimAppService) GetMyInfo(ctx context.Context, req *hajjv1.PilgrimAppRequest) (*hajjv1.PilgrimAppInfo, error) {
@@ -89,6 +90,10 @@ func (s *PilgrimAppService) LinkGoogleAccount(ctx context.Context, req *hajjv1.L
 	if err := s.pilgrimRepository.LinkGoogleAccount(ctx, req.AppAccessCode, userID); err != nil {
 		return nil, serviceError("PilgrimAppService.LinkGoogleAccount", err)
 	}
+	// This just changed what GetMyAccess would return for this user (a new
+	// linked_pilgrim role appears) — drop the cached value instead of
+	// leaving them looking role-less for up to accessCacheTTL.
+	s.identityRepository.InvalidateAccessCache(userID)
 	return &hajjv1.LinkGoogleAccountResponse{LinkedGoogleEmail: userEmail}, nil
 }
 

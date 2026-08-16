@@ -6,6 +6,7 @@ import { IconBed, IconBuilding, IconBus, IconCircleCheck, IconPlane, IconUsersGr
 import { PilgrimAppInfo } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_app_pb";
 import { pilgrimAppClient } from "@/lib/rpc";
 import { cachedFetch, toDateSafe } from "@/lib/offline";
+import { invalidateMyAccessCache } from "@/lib/access-cache";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 export default function PilgrimHomePage() {
@@ -36,6 +37,7 @@ export default function PilgrimHomePage() {
     router.replace(`/pilgrim/${code}`);
     pilgrimAppClient.linkGoogleAccount({ appAccessCode: code })
       .then((result) => {
+        invalidateMyAccessCache();
         setLinkNotice(`Akun Google ${result.linkedGoogleEmail} berhasil dihubungkan.`);
         setInfo((current) => (current ? new PilgrimAppInfo({ ...current, linkedGoogleEmail: result.linkedGoogleEmail }) : current));
       })
