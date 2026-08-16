@@ -129,6 +129,7 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       RESEND_API_KEY: ${RESEND_API_KEY}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL}
       SENTRY_DSN: ${SENTRY_DSN}
     ports:
       - "127.0.0.1:9101:3000"   # nginx → localhost:9101 → container :3000
@@ -182,9 +183,13 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
 NEXT_PUBLIC_FIREBASE_APP_ID=...
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
 
-# Email — configured, not yet wired to any code path (no password reset or
-# email verification flow exists yet). Safe to set now; a no-op until then.
+# Email — password reset + email verification, both link-based
+# (apps/web/lib/email.ts). No-op (logged) when unset. RESEND_FROM_EMAIL
+# must belong to a domain verified in Resend, or falls back to
+# onboarding@resend.dev (sandbox — only deliverable to the Resend
+# account's own address).
 RESEND_API_KEY=re_...
+RESEND_FROM_EMAIL=noreply@safrat.com
 
 # Observability — optional, no-op on both api and web when unset
 SENTRY_DSN=...
@@ -746,17 +751,21 @@ leakage. **Already production-grade, verified live, no action needed:**
   (`gen_random_uuid()`), so this is about defense-in-depth, not a broken
   primitive.
 
+**Closed since the initial audit (2026-08-16):**
+
+- **Password reset + email verification** — both link-based, via Resend
+  (`lib/email.ts`, wired into `lib/auth.ts`). `requireEmailVerification: true`
+  means an unverified account can no longer sign in and use the app
+  indefinitely — this is also what gives account-linking's
+  `requireLocalEmailVerified` guard (below) real teeth for an organically
+  signed-up account, not just a Google-first one. `/forgot-password` and
+  `/reset-password` are the user-facing pages. Verified live against a
+  real Resend send (see commit) — RESEND_API_KEY must still be set per
+  environment (`.env.local` for dev, `.env.prod` for production) or these
+  are silent no-ops, same as Firebase/Sentry.
+
 **Not yet built — do before handling real payment data (Module 7):**
 
-- **No password-reset flow.** `RESEND_API_KEY` is in `.env.example` but
-  nothing in the codebase sends email yet — a user who forgets their
-  password today has no recovery path. Needs Better Auth's
-  `emailAndPassword.sendResetPassword` wired to Resend.
-- **No email verification.** Sign-up accepts any email without proving
-  ownership (`emailAndPassword.requireEmailVerification` is off). Low risk
-  today since the Google-linking flow already refuses to auto-link an
-  *unverified* local account (see `account_not_linked` above), but worth
-  closing before trust-sensitive actions (payments, payouts) ship.
 - **PII stored unencrypted at rest** — passport numbers, phone numbers,
   emergency contacts are plain columns in `pilgrims`. Column-level
   encryption is a real architecture decision (key management, and it

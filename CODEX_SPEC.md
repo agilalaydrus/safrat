@@ -111,7 +111,7 @@ Background jobs:  asynq  (Redis-backed, Go-native)
                   - Goroutine pool in same binary
                   - Real periodic tasks: agent tier recalc every 5min, SOS escalation every 1min — no asynqmon UI built
 Push notif:       Firebase Admin Go SDK — optional, no-op when `FIREBASE_SERVICE_ACCOUNT_JSON` is unset
-Email:            Resend — **configured (`RESEND_API_KEY`), not yet wired to any code path.** No password-reset or email-verification flow exists yet; see DEPLOY.md §13.
+Email:            Resend, via `apps/web/lib/email.ts` (raw HTTP API call, no SDK) — password reset + email verification, both link-based, wired into `lib/auth.ts`. No-op (logged) when `RESEND_API_KEY` is unset.
 WhatsApp/SMS:     ~~Twilio REST API~~ — never built, not in current `.env.example`
 File storage:     ~~Cloudflare R2~~ — never built, no code path reads `R2_*` vars yet; reserved for future product-image/PDF-export storage
 Observability:    Sentry Go SDK (`SENTRY_DSN`, optional/no-op when unset) + structured JSON logging via `slog` — Axiom vars exist in `.env.example` but log shipping isn't wired up
@@ -1272,9 +1272,10 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=""
 NEXT_PUBLIC_FIREBASE_APP_ID=""
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=""
 
-# Email — configured but not yet wired to any code path (no password
-# reset or email verification flow exists yet; see §13 for the gap)
+# Email — password reset + email verification, both link-based
+# (apps/web/lib/email.ts). No-op (logged, not thrown) when unset.
 RESEND_API_KEY=""
+RESEND_FROM_EMAIL=""
 
 # Observability
 SENTRY_DSN=""
@@ -1397,7 +1398,7 @@ alone can't verify roles since Edge middleware has no DB access.
 - [ ] Cloudflare R2 bucket created, CORS configured
 - [ ] VAPID keys generated, added to env
 - [ ] `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` set, redirect URI registered in Google Cloud Console (see §9)
-- [ ] `RESEND_API_KEY` set **and wired** — currently unset AND unused; password reset/email verification don't exist yet, see DEPLOY.md §13
+- [ ] `RESEND_API_KEY` set (password reset + email verification are wired — see DEPLOY.md §13 — but silently no-op without a real key)
 
 **PWA:**
 - [ ] PWA manifest: "Add to Home Screen" appears on Android
