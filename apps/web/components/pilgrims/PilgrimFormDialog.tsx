@@ -5,7 +5,8 @@ import { Timestamp } from "@bufbuild/protobuf";
 import { IconX } from "@tabler/icons-react";
 import { Gender, Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { Group } from "@hajj-saas/proto-gen/hajj/v1/group_pb";
-import { groupClient, pilgrimClient } from "@/lib/rpc";
+import { Kloter } from "@hajj-saas/proto-gen/hajj/v1/kloter_pb";
+import { groupClient, kloterClient, pilgrimClient } from "@/lib/rpc";
 
 type FormValues = {
   fullName: string;
@@ -20,6 +21,7 @@ type FormValues = {
   requiresWheelchair: boolean;
   groupId: string;
   mahramId: string;
+  kloterId: string;
 };
 
 type Props = {
@@ -49,7 +51,7 @@ const NATIONALITIES = [
 const EMPTY_FORM: FormValues = {
   fullName: "", passportNumber: "", nationality: "", dateOfBirth: "", gender: "",
   phone: "", emergencyContact: "", preferredLang: "ar", medicalNotes: "",
-  requiresWheelchair: false, groupId: "", mahramId: "",
+  requiresWheelchair: false, groupId: "", mahramId: "", kloterId: "",
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -69,6 +71,7 @@ function valuesFromPilgrim(pilgrim?: Pilgrim): FormValues {
     requiresWheelchair: pilgrim.requiresWheelchair,
     groupId: pilgrim.groupId,
     mahramId: pilgrim.mahramId,
+    kloterId: pilgrim.kloterId,
   };
 }
 
@@ -79,6 +82,7 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
   const [mahramPilgrims, setMahramPilgrims] = useState<Pilgrim[]>(pilgrims);
   const [loadingMahrams, setLoadingMahrams] = useState(false);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [kloters, setKloters] = useState<Kloter[]>([]);
   const initialFormValues = useRef<FormValues>(EMPTY_FORM);
 
   useEffect(() => {
@@ -115,6 +119,7 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
   useEffect(() => {
     if (!open || !seasonId) return;
     groupClient.listGroups({ seasonId }).then((response) => setGroups(response.groups)).catch(() => setGroups([]));
+    kloterClient.listKloters({ seasonId }).then((response) => setKloters(response.kloters)).catch(() => setKloters([]));
   }, [open, seasonId]);
 
   useEffect(() => {
@@ -207,6 +212,7 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
         medicalNotes: form.medicalNotes.trim(),
         requiresWheelchair: form.requiresWheelchair,
         mahramId: form.mahramId,
+        kloterId: form.kloterId,
       };
       if (initial) await pilgrimClient.updatePilgrim({ ...payload, pilgrimId: initial.id });
       else await pilgrimClient.createPilgrim(payload);
@@ -307,6 +313,12 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
 
           <div style={sectionDivider}>
             <Section title="Rombongan & Mahram">
+              <Field fieldKey="kloterId" label="Kloter Keberangkatan" hint="Biarkan kosong untuk ditentukan nanti dari halaman Kloter.">
+                <select className="safrat-input" value={form.kloterId} onChange={(event) => update("kloterId", event.target.value)} style={input}>
+                  <option value="">Belum ditentukan</option>
+                  {kloters.map((kloter) => <option key={kloter.id} value={kloter.id}>{kloter.code}{kloter.embarkation ? ` — ${kloter.embarkation}` : ""}</option>)}
+                </select>
+              </Field>
               <Field fieldKey="groupId" label="Rombongan" hint="Biarkan kosong untuk ditentukan nanti dari halaman Rombongan.">
                 <select className="safrat-input" value={form.groupId} onChange={(event) => update("groupId", event.target.value)} style={input}>
                   <option value="">Belum ditentukan</option>

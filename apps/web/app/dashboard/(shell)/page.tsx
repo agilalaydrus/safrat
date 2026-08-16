@@ -17,7 +17,9 @@ import {
 } from "@tabler/icons-react";
 import { PilgrimStats } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { AuditLog } from "@hajj-saas/proto-gen/hajj/v1/operator_pb";
+import { Kloter } from "@hajj-saas/proto-gen/hajj/v1/kloter_pb";
 import {
+  kloterClient,
   operatorClient,
   pilgrimClient,
   seasonClient,
@@ -52,22 +54,26 @@ function relativeTime(ts: Timestamp): string {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const [seasons, setSeasons] = useState<{ id: string; name: string; isActive: boolean }[]>([]);
   const [seasonId, setSeasonId] = useState("");
-  const [seasonName, setSeasonName] = useState("");
+  const [kloters, setKloters] = useState<Kloter[]>([]);
+  const [kloterId, setKloterId] = useState("");
   const [stats, setStats] = useState<PilgrimStats | null>(null);
   const [activity, setActivity] = useState<AuditLog[]>([]);
   const [error, setError] = useState("");
 
+  const seasonName = seasons.find((s) => s.id === seasonId)?.name ?? "";
+
   useEffect(() => {
     let cancelled = false;
 
-    async function loadSeason() {
+    async function loadSeasons() {
       try {
         const response = await seasonClient.listSeasons({});
         const season = response.seasons.find((item) => item.isActive) ?? response.seasons[0];
-        if (!cancelled && season) {
-          setSeasonId(season.id);
-          setSeasonName(season.name);
+        if (!cancelled) {
+          setSeasons(response.seasons);
+          if (season) setSeasonId(season.id);
         }
       } catch (caught) {
         if (cancelled) return;
@@ -75,13 +81,22 @@ export default function DashboardPage() {
           router.push("/sign-in");
           return;
         }
-        setError("Tidak dapat memuat data musim aktif.");
+        setError("Tidak dapat memuat data musim.");
       }
     }
 
-    void loadSeason();
+    void loadSeasons();
     return () => { cancelled = true; };
   }, [router]);
+
+  // Switching seasons invalidates whichever kloter was selected — kloter are
+  // scoped to one season, so a stale kloterId from the old season would
+  // either 404 or silently filter against the wrong season's data.
+  useEffect(() => {
+    setKloterId("");
+    if (!seasonId) { setKloters([]); return; }
+    kloterClient.listKloters({ seasonId }).then((response) => setKloters(response.kloters)).catch(() => setKloters([]));
+  }, [seasonId]);
 
   useEffect(() => {
     if (!seasonId) return;
@@ -92,7 +107,7 @@ export default function DashboardPage() {
       setError("");
       try {
         const [statsResponse, auditResponse] = await Promise.all([
-          pilgrimClient.getPilgrimStats({ seasonId }),
+          pilgrimClient.getPilgrimStats({ seasonId, kloterId }),
           operatorClient.listAuditLogs({ limit: 8 }),
         ]);
         if (!cancelled) {
@@ -111,14 +126,25 @@ export default function DashboardPage() {
 
     void loadDashboard();
     return () => { cancelled = true; };
-  }, [router, seasonId]);
+  }, [router, seasonId, kloterId]);
 
   return (
     <div>
       <PageHero
         eyebrow="Operator Dashboard"
         title="Selamat datang"
-        subtitle={seasonName ? `Musim aktif: ${seasonName}` : "Memuat data..."}
+        subtitle={seasonName ? `Musim: ${seasonName}` : "Memuat data..."}
+        actions={
+          <>
+            <select aria-label="Filter musim" value={seasonId} onChange={(e) => setSeasonId(e.target.value)} style={filterSelect}>
+              {seasons.map((s) => <option key={s.id} value={s.id}>{s.name}{s.isActive ? " · Aktif" : ""}</option>)}
+            </select>
+            <select aria-label="Filter kloter keberangkatan" value={kloterId} onChange={(e) => setKloterId(e.target.value)} style={filterSelect}>
+              <option value="">Semua Kloter</option>
+              {kloters.map((k) => <option key={k.id} value={k.id}>{k.code}</option>)}
+            </select>
+          </>
+        }
       />
 
       <div style={body}>
@@ -130,10 +156,11 @@ export default function DashboardPage() {
               <StatCard label="Total Jamaah" value={stats.total} accent="gold" />
               <StatCard label="Tersubstitusi" value={stats.substituted} accent="danger" />
               <StatCard label="Butuh Kursi Roda" value={stats.requiresWheelchair} accent="emerald" />
-              <StatCard label="Belum Ada Grup" value={stats.unassignedGroup} accent="gold" />
+              <StatCard label="Belum Ada Rombongan" value={stats.unassignedGroup} accent="gold" />
+              <StatCard label="Belum Ada Kloter" value={stats.unassignedKloter} accent="gold" />
             </>
           ) : (
-            Array.from({ length: 4 }, (_, index) => <div key={index} style={skeletonCard} />)
+            Array.from({ length: 5 }, (_, index) => <div key={index} style={skeletonCard} />)
           )}
         </div>
 
@@ -180,6 +207,7 @@ export default function DashboardPage() {
 const body: React.CSSProperties = { padding: "28px 32px" };
 const statsGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12, marginBottom: 32 };
 const skeletonCard: React.CSSProperties = { background: "var(--color-cream-200)", borderRadius: 10, height: 88, animation: "pulse 1.5s ease-in-out infinite" };
+const filterSelect: React.CSSProperties = { minHeight: 44, maxWidth: 200, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 12px", background: "#fff", font: "inherit" };
 const errorBanner: React.CSSProperties = { color: "var(--color-danger-600)", fontSize: 13, marginBottom: 16 };
 const sectionTitle: React.CSSProperties = { fontSize: 20, fontWeight: 500, margin: "4px 0 2px" };
 const sectionSub: React.CSSProperties = { fontSize: 12, color: "var(--color-warm-400)", marginBottom: 16 };

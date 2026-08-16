@@ -45,6 +45,7 @@ message Pilgrim {
   string app_access_code = 19;
   google.protobuf.Timestamp created_at = 20;
   google.protobuf.Timestamp updated_at = 21;
+  string kloter_id = 22;
 }
 
 message CreatePilgrimRequest {
@@ -62,6 +63,7 @@ message CreatePilgrimRequest {
   string medical_notes = 12;
   bool requires_wheelchair = 13;
   string mahram_id = 14;
+  string kloter_id = 15;
 }
 
 message ListPilgrimsRequest {
@@ -94,6 +96,7 @@ message UpdatePilgrimRequest {
   string medical_notes = 12;
   bool requires_wheelchair = 13;
   string mahram_id = 14;
+  string kloter_id = 15;
 }
 
 message MarkSubstitutedRequest {
@@ -112,6 +115,8 @@ message SubstitutePilgrimResult {
 
 message GetPilgrimStatsRequest {
   string season_id = 1 [(buf.validate.field).string.uuid = true];
+  // Optional — scopes the stats to one kloter instead of the whole season.
+  string kloter_id = 2;
 }
 
 message PilgrimStats {
@@ -119,4 +124,5 @@ message PilgrimStats {
   int32 substituted = 2;
   int32 requires_wheelchair = 3;
   int32 unassigned_group = 4;
+  int32 unassigned_kloter = 5;
 }

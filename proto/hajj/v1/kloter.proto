@@ -1,0 +1,58 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// KloterService manages kloter — the Kemenag-level departure batch (one
+// flight, one departure date) Indonesian Hajj/Umrah operators schedule
+// around. Distinct from GroupService's "rombongan": a kloter typically
+// contains several rombongan.
+service KloterService {
+  rpc ListKloters(ListKlotersRequest) returns (ListKlotersResponse);
+  rpc CreateKloter(CreateKloterRequest) returns (Kloter);
+  rpc UpdateKloter(UpdateKloterRequest) returns (Kloter);
+  rpc DeleteKloter(DeleteKloterRequest) returns (google.protobuf.Empty);
+}
+
+message Kloter {
+  string id = 1;
+  string season_id = 2;
+  string code = 3;
+  string embarkation = 4;
+  string flight_number = 5;
+  google.protobuf.Timestamp departure_date = 6;
+  int32 capacity = 7;
+  int32 pilgrim_count = 8;
+}
+
+message ListKlotersRequest {
+  string season_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+message ListKlotersResponse { repeated Kloter kloters = 1; }
+
+message CreateKloterRequest {
+  string season_id = 1 [(buf.validate.field).string.min_len = 1];
+  string code = 2 [(buf.validate.field).string.min_len = 1];
+  string embarkation = 3;
+  string flight_number = 4;
+  google.protobuf.Timestamp departure_date = 5;
+  int32 capacity = 6;
+}
+
+message UpdateKloterRequest {
+  string kloter_id = 1 [(buf.validate.field).string.min_len = 1];
+  string code = 2 [(buf.validate.field).string.min_len = 1];
+  string embarkation = 3;
+  string flight_number = 4;
+  google.protobuf.Timestamp departure_date = 5;
+  int32 capacity = 6;
+}
+
+message DeleteKloterRequest {
+  string kloter_id = 1 [(buf.validate.field).string.min_len = 1];
+}

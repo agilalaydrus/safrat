@@ -106,18 +106,23 @@ func (s *PilgrimService) List(ctx context.Context, authenticatedOrgID string, re
 }
 
 func (s *PilgrimService) Stats(ctx context.Context, authenticatedOrgID string, request *hajjv1.GetPilgrimStatsRequest) (*hajjv1.PilgrimStats, error) {
-	if request == nil || !isUUID(request.GetSeasonId()) {
+	if request == nil || !isUUID(request.GetSeasonId()) || !validOptionalUUID(request.GetKloterId()) {
 		return nil, serviceError("PilgrimService.Stats", apperror.ErrValidation)
 	}
 	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
 	if err != nil {
 		return nil, serviceError("PilgrimService.Stats", err)
 	}
-	stats, err := s.pilgrimRepository.GetStats(ctx, operator.ID, request.SeasonId)
+	var stats domain.PilgrimStats
+	if request.KloterId != "" {
+		stats, err = s.pilgrimRepository.GetStatsByKloter(ctx, operator.ID, request.SeasonId, request.KloterId)
+	} else {
+		stats, err = s.pilgrimRepository.GetStats(ctx, operator.ID, request.SeasonId)
+	}
 	if err != nil {
 		return nil, serviceError("PilgrimService.Stats", err)
 	}
-	return &hajjv1.PilgrimStats{Total: stats.Total, Substituted: stats.Substituted, RequiresWheelchair: stats.RequiresWheelchair, UnassignedGroup: stats.UnassignedGroup}, nil
+	return &hajjv1.PilgrimStats{Total: stats.Total, Substituted: stats.Substituted, RequiresWheelchair: stats.RequiresWheelchair, UnassignedGroup: stats.UnassignedGroup, UnassignedKloter: stats.UnassignedKloter}, nil
 }
 
 func (s *PilgrimService) Update(ctx context.Context, authenticatedOrgID string, request *hajjv1.UpdatePilgrimRequest) (*hajjv1.Pilgrim, error) {
@@ -149,6 +154,8 @@ func (s *PilgrimService) Update(ctx context.Context, authenticatedOrgID string, 
 	switch {
 	case input.GroupID != existing.GroupID:
 		s.logActivity(ctx, operator.ID, "pilgrim_group_changed", pilgrim.ID, fmt.Sprintf("Rombongan %s diperbarui", pilgrim.FullName))
+	case input.KloterID != existing.KloterID:
+		s.logActivity(ctx, operator.ID, "pilgrim_kloter_changed", pilgrim.ID, fmt.Sprintf("Kloter %s diperbarui", pilgrim.FullName))
 	case input.RequiresWheelchair != existing.RequiresWheelchair:
 		s.logActivity(ctx, operator.ID, "pilgrim_wheelchair_changed", pilgrim.ID, fmt.Sprintf("Kebutuhan kursi roda %s diperbarui", pilgrim.FullName))
 	default:
@@ -248,24 +255,24 @@ func preconditionError(message string) error {
 }
 
 func createInput(request *hajjv1.CreatePilgrimRequest) (domain.PilgrimInput, error) {
-	if request == nil || !isUUID(request.GetSeasonId()) || request.GetFullName() == "" || request.GetPassportNumber() == "" || request.GetNationality() == "" || request.GetDateOfBirth() == nil || !validGender(request.GetGender()) || !validOptionalUUID(request.GetGroupId()) || !validOptionalUUID(request.GetMahramId()) {
+	if request == nil || !isUUID(request.GetSeasonId()) || request.GetFullName() == "" || request.GetPassportNumber() == "" || request.GetNationality() == "" || request.GetDateOfBirth() == nil || !validGender(request.GetGender()) || !validOptionalUUID(request.GetGroupId()) || !validOptionalUUID(request.GetMahramId()) || !validOptionalUUID(request.GetKloterId()) {
 		return domain.PilgrimInput{}, apperror.ErrValidation
 	}
-	return pilgrimInput(request.SeasonId, request.GroupId, request.FullName, request.PassportNumber, request.Nationality, request.DateOfBirth.AsTime(), request.Gender, request.PhotoUrl, request.Phone, request.EmergencyContact, request.PreferredLang, request.MedicalNotes, request.RequiresWheelchair, request.MahramId), nil
+	return pilgrimInput(request.SeasonId, request.GroupId, request.FullName, request.PassportNumber, request.Nationality, request.DateOfBirth.AsTime(), request.Gender, request.PhotoUrl, request.Phone, request.EmergencyContact, request.PreferredLang, request.MedicalNotes, request.RequiresWheelchair, request.MahramId, request.KloterId), nil
 }
 
 func updateInput(request *hajjv1.UpdatePilgrimRequest) (domain.PilgrimInput, error) {
-	if request == nil || !isUUID(request.GetPilgrimId()) || request.GetFullName() == "" || request.GetPassportNumber() == "" || request.GetNationality() == "" || request.GetDateOfBirth() == nil || !validGender(request.GetGender()) || !validOptionalUUID(request.GetGroupId()) || !validOptionalUUID(request.GetMahramId()) {
+	if request == nil || !isUUID(request.GetPilgrimId()) || request.GetFullName() == "" || request.GetPassportNumber() == "" || request.GetNationality() == "" || request.GetDateOfBirth() == nil || !validGender(request.GetGender()) || !validOptionalUUID(request.GetGroupId()) || !validOptionalUUID(request.GetMahramId()) || !validOptionalUUID(request.GetKloterId()) {
 		return domain.PilgrimInput{}, apperror.ErrValidation
 	}
-	return pilgrimInput("", request.GroupId, request.FullName, request.PassportNumber, request.Nationality, request.DateOfBirth.AsTime(), request.Gender, request.PhotoUrl, request.Phone, request.EmergencyContact, request.PreferredLang, request.MedicalNotes, request.RequiresWheelchair, request.MahramId), nil
+	return pilgrimInput("", request.GroupId, request.FullName, request.PassportNumber, request.Nationality, request.DateOfBirth.AsTime(), request.Gender, request.PhotoUrl, request.Phone, request.EmergencyContact, request.PreferredLang, request.MedicalNotes, request.RequiresWheelchair, request.MahramId, request.KloterId), nil
 }
 
-func pilgrimInput(seasonID, groupID, fullName, passportNumber, nationality string, dateOfBirth time.Time, gender hajjv1.Gender, photoURL, phone, emergencyContact, preferredLang, medicalNotes string, requiresWheelchair bool, mahramID string) domain.PilgrimInput {
+func pilgrimInput(seasonID, groupID, fullName, passportNumber, nationality string, dateOfBirth time.Time, gender hajjv1.Gender, photoURL, phone, emergencyContact, preferredLang, medicalNotes string, requiresWheelchair bool, mahramID, kloterID string) domain.PilgrimInput {
 	if preferredLang == "" {
 		preferredLang = "ar"
 	}
-	return domain.PilgrimInput{SeasonID: seasonID, GroupID: groupID, FullName: fullName, PassportNumber: passportNumber, Nationality: nationality, DateOfBirth: dateOfBirth, Gender: gender.String()[7:], PhotoURL: photoURL, Phone: phone, EmergencyContact: emergencyContact, PreferredLang: preferredLang, MedicalNotes: medicalNotes, RequiresWheelchair: requiresWheelchair, MahramID: mahramID}
+	return domain.PilgrimInput{SeasonID: seasonID, GroupID: groupID, FullName: fullName, PassportNumber: passportNumber, Nationality: nationality, DateOfBirth: dateOfBirth, Gender: gender.String()[7:], PhotoURL: photoURL, Phone: phone, EmergencyContact: emergencyContact, PreferredLang: preferredLang, MedicalNotes: medicalNotes, RequiresWheelchair: requiresWheelchair, MahramID: mahramID, KloterID: kloterID}
 }
 
 func validGender(value hajjv1.Gender) bool {
@@ -286,5 +293,5 @@ func pilgrimMessage(value *domain.Pilgrim) *hajjv1.Pilgrim {
 	if value.Gender == "FEMALE" {
 		gender = hajjv1.Gender_GENDER_FEMALE
 	}
-	return &hajjv1.Pilgrim{Id: value.ID, SeasonId: value.SeasonID, OperatorId: value.OperatorID, GroupId: value.GroupID, FullName: value.FullName, PassportNumber: value.PassportNumber, Nationality: value.Nationality, DateOfBirth: timestamppb.New(value.DateOfBirth), Gender: gender, PhotoUrl: value.PhotoURL, Phone: value.Phone, EmergencyContact: value.EmergencyContact, PreferredLang: value.PreferredLang, MedicalNotes: value.MedicalNotes, RequiresWheelchair: value.RequiresWheelchair, MahramId: value.MahramID, IsSubstituted: value.IsSubstituted, SubstitutedById: value.SubstitutedByID, AppAccessCode: value.AppAccessCode, CreatedAt: timestamppb.New(value.CreatedAt), UpdatedAt: timestamppb.New(value.UpdatedAt)}
+	return &hajjv1.Pilgrim{Id: value.ID, SeasonId: value.SeasonID, OperatorId: value.OperatorID, GroupId: value.GroupID, FullName: value.FullName, PassportNumber: value.PassportNumber, Nationality: value.Nationality, DateOfBirth: timestamppb.New(value.DateOfBirth), Gender: gender, PhotoUrl: value.PhotoURL, Phone: value.Phone, EmergencyContact: value.EmergencyContact, PreferredLang: value.PreferredLang, MedicalNotes: value.MedicalNotes, RequiresWheelchair: value.RequiresWheelchair, MahramId: value.MahramID, IsSubstituted: value.IsSubstituted, SubstitutedById: value.SubstitutedByID, AppAccessCode: value.AppAccessCode, CreatedAt: timestamppb.New(value.CreatedAt), UpdatedAt: timestamppb.New(value.UpdatedAt), KloterId: value.KloterID}
 }

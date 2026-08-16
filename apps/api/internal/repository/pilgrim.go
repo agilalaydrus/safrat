@@ -47,6 +47,7 @@ func (r *PilgrimRepository) Create(ctx context.Context, operatorID string, input
 		Column13:           input.MedicalNotes,
 		RequiresWheelchair: input.RequiresWheelchair,
 		Column15:           input.MahramID,
+		Column16:           input.KloterID,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -131,6 +132,7 @@ func (r *PilgrimRepository) Update(ctx context.Context, operatorID, pilgrimID st
 		Column13:           input.MedicalNotes,
 		RequiresWheelchair: input.RequiresWheelchair,
 		Column15:           input.MahramID,
+		Column16:           input.KloterID,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -229,20 +231,40 @@ func (r *PilgrimRepository) CountBySeason(ctx context.Context, operatorID, seaso
 	return count, nil
 }
 
-func (r *PilgrimRepository) GetStats(ctx context.Context, operatorID, seasonID string) (db.GetPilgrimStatsRow, error) {
+func (r *PilgrimRepository) GetStats(ctx context.Context, operatorID, seasonID string) (domain.PilgrimStats, error) {
 	operatorUUID, err := pgUUID(operatorID)
 	if err != nil {
-		return db.GetPilgrimStatsRow{}, err
+		return domain.PilgrimStats{}, err
 	}
 	seasonUUID, err := pgUUID(seasonID)
 	if err != nil {
-		return db.GetPilgrimStatsRow{}, err
+		return domain.PilgrimStats{}, err
 	}
 	stats, err := r.queries.GetPilgrimStats(ctx, db.GetPilgrimStatsParams{OperatorID: operatorUUID, SeasonID: seasonUUID})
 	if err != nil {
-		return db.GetPilgrimStatsRow{}, databaseError(err)
+		return domain.PilgrimStats{}, databaseError(err)
 	}
-	return stats, nil
+	return domain.PilgrimStats{Total: stats.Total, Substituted: stats.Substituted, RequiresWheelchair: stats.RequiresWheelchair, UnassignedGroup: stats.UnassignedGroup, UnassignedKloter: stats.UnassignedKloter}, nil
+}
+
+func (r *PilgrimRepository) GetStatsByKloter(ctx context.Context, operatorID, seasonID, kloterID string) (domain.PilgrimStats, error) {
+	operatorUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return domain.PilgrimStats{}, err
+	}
+	seasonUUID, err := pgUUID(seasonID)
+	if err != nil {
+		return domain.PilgrimStats{}, err
+	}
+	kloterUUID, err := pgUUID(kloterID)
+	if err != nil {
+		return domain.PilgrimStats{}, err
+	}
+	stats, err := r.queries.GetPilgrimStatsByKloter(ctx, db.GetPilgrimStatsByKloterParams{OperatorID: operatorUUID, SeasonID: seasonUUID, KloterID: kloterUUID})
+	if err != nil {
+		return domain.PilgrimStats{}, databaseError(err)
+	}
+	return domain.PilgrimStats{Total: stats.Total, Substituted: stats.Substituted, RequiresWheelchair: stats.RequiresWheelchair, UnassignedGroup: stats.UnassignedGroup, UnassignedKloter: stats.UnassignedKloter}, nil
 }
 
 func databaseError(err error) error {
@@ -282,6 +304,7 @@ func toPilgrim(value db.Pilgrim) *domain.Pilgrim {
 		LastLat:            float8Ptr(value.LastLat),
 		LastLng:            float8Ptr(value.LastLng),
 		LastLocationAt:     timestamptzPtr(value.LastLocationAt),
+		KloterID:           nullableUUIDString(value.KloterID),
 	}
 }
 

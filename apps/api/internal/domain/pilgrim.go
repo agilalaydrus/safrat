@@ -27,6 +27,15 @@ type Pilgrim struct {
 	LastLat            *float64
 	LastLng            *float64
 	LastLocationAt     *time.Time
+	KloterID           string
+}
+
+type PilgrimStats struct {
+	Total              int32
+	Substituted        int32
+	RequiresWheelchair int32
+	UnassignedGroup    int32
+	UnassignedKloter   int32
 }
 
 type PilgrimInput struct {
@@ -44,4 +53,5 @@ type PilgrimInput struct {
 	MedicalNotes       string
 	RequiresWheelchair bool
 	MahramID           string
+	KloterID           string
 }

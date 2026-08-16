@@ -33,7 +33,7 @@ export default function PilgrimsDashboard() {
         fullName: pilgrim.fullName, passportNumber: pilgrim.passportNumber, nationality: pilgrim.nationality,
         dateOfBirth: pilgrim.dateOfBirth, gender: pilgrim.gender, photoUrl: pilgrim.photoUrl, phone: pilgrim.phone,
         emergencyContact: pilgrim.emergencyContact, preferredLang: pilgrim.preferredLang, medicalNotes: pilgrim.medicalNotes,
-        mahramId: pilgrim.mahramId,
+        mahramId: pilgrim.mahramId, kloterId: pilgrim.kloterId,
       });
       refresh();
       if (patch.groupId !== undefined) loadGroups();
