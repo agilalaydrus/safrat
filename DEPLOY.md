@@ -330,6 +330,11 @@ server {
     add_header X-Frame-Options SAMEORIGIN;
     add_header X-Content-Type-Options nosniff;
     add_header Referrer-Policy strict-origin-when-cross-origin;
+    # Pins the browser to HTTPS for a year (incl. subdomains) after the first
+    # successful HTTPS response — closes the window where a plain-HTTP
+    # request (e.g. a stale bookmark, a typed URL without https://) would
+    # otherwise carry the Bearer session token in the clear before the 301.
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
     location / {
         proxy_pass         http://127.0.0.1:9100;
@@ -360,6 +365,27 @@ server {
 
     add_header X-Frame-Options SAMEORIGIN;
     add_header X-Content-Type-Options nosniff;
+    add_header Referrer-Policy strict-origin-when-cross-origin;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # /pilgrim/[code] and /leader/[groupId] put a bearer-equivalent
+    # identifier (app_access_code / session-adjacent group id) directly in
+    # the URL path — a deliberate trade-off for a one-tap link a jamaah can
+    # open from WhatsApp without typing a password. nginx's default combined
+    # log format writes the full request path to disk, so those values land
+    # in plaintext in this server's access logs. Turn access logging off for
+    # those two paths (or route them to a log with restricted permissions)
+    # before this box holds real jamaah data — the identifiers themselves
+    # are unguessable UUIDs, but a leaked log file defeats that.
+    location ~ ^/(pilgrim|leader)/ {
+        access_log off;
+        proxy_pass         http://127.0.0.1:9101;
+        proxy_http_version 1.1;
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+    }
 
     # PWA service worker — never cache
     location = /sw.js {
@@ -603,6 +629,76 @@ cat /home/deploy/dev_dump.sql | \
 docker compose -f docker-compose.prod.yml exec postgres \
   psql -U safrat -d safrat -c "SELECT COUNT(*) FROM operators;"
 ```
+
+---
+
+## 13. Security Checklist Before Go-Live
+
+Full hashing/encryption audit run 2026-08-16, covering password storage,
+session tokens, transport, secrets handling, and API/callback response
+leakage. **Already production-grade, verified live, no action needed:**
+
+- **Password hashing** — Better Auth hashes with `scrypt` (Node's native
+  `crypto.scrypt`, salted per-password), not a weaker/faster hash. Minimum
+  length 8 is enforced server-side (`emailAndPassword.minPasswordLength`),
+  not just the frontend's `<input minLength>` — a direct API call can't
+  bypass it.
+- **Google OAuth** — uses PKCE (`code_challenge`/`S256`) and Better Auth's
+  built-in `state` param, confirmed live against a real Google consent
+  screen. `account_not_linked` correctly blocks an unverified local
+  account from being silently hijacked by a same-email Google sign-in.
+- **Brute-force protection** — Better Auth's built-in rate limiter on its
+  own endpoints (sign-in/sign-up) auto-enables when `NODE_ENV=production`
+  (already set in the Dockerfile, §6). The app's own Connect-RPC rate
+  limiter (`internal/middleware/ratelimit.go`) separately covers the
+  public pilgrim/agent endpoints.
+- **Session security** — single-session enforced (signing in anywhere
+  revokes every other session for that user, no grace period); session
+  tokens are Better Auth's own cryptographically random strings, never
+  logged (`logging()` in `main.go` only logs method/path/duration, never
+  headers or bodies).
+- **Secrets** — `.env.example` is a committed template; every real secret
+  (Google OAuth, `BETTER_AUTH_SECRET`, Sentry DSNs) lives only in
+  gitignored `.env.local`/`.env`. Nothing hardcoded in source (audited via
+  full-repo grep).
+- **CORS** — exact-origin allowlist (`cors()` in `main.go`), not a
+  wildcard or reflected-origin.
+- **API responses** — unmapped internal errors are reported to Sentry but
+  never returned to the client; the caller only ever sees a generic
+  "internal error" (`serviceError` in `internal/service/errors.go`), never
+  a raw Go/SQL error string.
+- **Transport** — nginx (§7) terminates TLS, redirects HTTP→HTTPS, and now
+  sends `Strict-Transport-Security` + `Referrer-Policy` on both server
+  blocks. Postgres/Redis are Docker-network-internal only, never
+  host-exposed (see port map at the top of this doc).
+
+**Known, accepted trade-off:**
+
+- `/pilgrim/[code]` and `/leader/[groupId]` carry an unguessable UUID
+  directly in the URL path — deliberate, for a one-tap link a jamaah opens
+  from WhatsApp without a password. §7's nginx config now disables access
+  logging on those paths so the identifier doesn't end up sitting in a log
+  file on disk; the UUID itself has 122 bits of entropy
+  (`gen_random_uuid()`), so this is about defense-in-depth, not a broken
+  primitive.
+
+**Not yet built — do before handling real payment data (Module 7):**
+
+- **No password-reset flow.** `RESEND_API_KEY` is in `.env.example` but
+  nothing in the codebase sends email yet — a user who forgets their
+  password today has no recovery path. Needs Better Auth's
+  `emailAndPassword.sendResetPassword` wired to Resend.
+- **No email verification.** Sign-up accepts any email without proving
+  ownership (`emailAndPassword.requireEmailVerification` is off). Low risk
+  today since the Google-linking flow already refuses to auto-link an
+  *unverified* local account (see `account_not_linked` above), but worth
+  closing before trust-sensitive actions (payments, payouts) ship.
+- **PII stored unencrypted at rest** — passport numbers, phone numbers,
+  emergency contacts are plain columns in `pilgrims`. Column-level
+  encryption is a real architecture decision (key management, and it
+  breaks plain `WHERE passport_number = ...` search/sort unless paired
+  with a blind index) — flagging for an explicit decision, not
+  implementing unprompted.
 
 ---
 
