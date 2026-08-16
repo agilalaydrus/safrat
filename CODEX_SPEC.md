@@ -14,12 +14,19 @@ Replaces WhatsApp + Excel with a purpose-built system across three products:
 | Product | Users | Platform |
 |---|---|---|
 | **Operator Dashboard** | Operations Manager, Coordinator | Web (Next.js) + PWA installable |
-| **Group Leader App** | Mutawwif / Group Leader | Mobile (React Native / Expo) — **offline-first, native only** |
-| **Pilgrim App** | Pilgrim | Mobile (React Native / Expo) — **offline-first** |
-| **Pilgrim PWA** | Pilgrim (no app install) | Web PWA — light version, same `appAccessCode` auth |
+| **Group Leader App** | Muttawwif / Group Leader | **Built as a PWA** (`/leader`) — see the STATUS note below |
+| **Pilgrim App** | Pilgrim | **Built as a PWA** (`/pilgrim/[code]`) — see the STATUS note below |
 
-> **PWA strategy:** Progressive enhancement only. Operator Dashboard and Pilgrim PWA are web-based.
-> Group Leader App must remain native — PWA cannot support PowerSync offline sync or reliable iOS push for SOS.
+> **PWA strategy — revised from the original plan.** All three surfaces
+> shipped as PWAs inside `apps/web`, not native. The original reasoning
+> ("Group Leader App must remain native — PWA cannot support PowerSync
+> offline sync or reliable iOS push") held only *if* PowerSync was the
+> offline mechanism; since there was no simulator/device available in this
+> environment to build and verify a real native app against anyway, both
+> apps used the hand-rolled cache-and-queue in §11 instead — genuinely
+> short-term (no 72h zero-network guarantee), not PowerSync-grade, but
+> real and verified live. `apps/mobile-leader`/`apps/mobile-pilgrim`
+> remain empty Expo scaffolds if native work resumes later.
 
 ### Revenue Streams
 1. SaaS subscription per operator per season (SAR 500–3,000)
@@ -58,10 +65,10 @@ Tables:           TanStack Table v8
 Charts:           Recharts
 PDF export:       @react-pdf/renderer  (background job — not inline)
 Excel export:     xlsx (SheetJS)
-PWA:              next-pwa (Workbox-based Service Worker)
-                  - Operator Dashboard: installable, full offline shell cache
-                  - Pilgrim PWA (/pilgrim/[code]): schedule + SOS cached at login
-                  - Web Push API for coordinator notifications (Android reliable, iOS 16.4+)
+PWA:              hand-rolled `public/sw.js` + `lib/offline.ts`, not next-pwa (see §11)
+                  - Pilgrim PWA (/pilgrim/[code]) AND Group Leader PWA (/leader) — both, not just pilgrim
+                  - `cachedFetch`/`enqueueAction` cache-and-queue, not a Workbox runtimeCaching config
+                  - Firebase Cloud Messaging for coordinator/leader push (independently optional)
 ```
 
 ### Backend API (Go — gRPC via Connect)
@@ -90,24 +97,24 @@ Database:         PostgreSQL 16  (self-hosted, Docker Compose on VPS)
                   - Managed via docker-compose.yml alongside the API container
                   - Single DATABASE_URL — no pooler bypass needed (pgx manages pool)
                   - Persistent volume: /var/lib/postgresql/data on VPS
-Auth:             Better Auth JWT validation
-                  - Better Auth (running in Next.js) issues signed JWT
-                  - Go validates JWT using BETTER_AUTH_SECRET (shared secret)
-                  - Library: github.com/golang-jwt/jwt/v5
-                  - Connect interceptor extracts operatorId + userId from claims
+Auth:             Better Auth — opaque DB session token, NOT a JWT (see §5)
+                  - Better Auth (running in Next.js) issues an opaque token, stored in its own `session` table
+                  - Go looks the token up directly via a DB join into `session`/`member`/`"user"` — no signature to validate, no shared-secret verification library needed
+                  - Connect interceptor derives operatorId + userId from the DB row, in three trust lanes (default/sessionOnly/public — see §5), not from decoded claims
                   - No external auth service — all data in your own PostgreSQL
+                  - Google Sign-In added as an additional `socialProviders` provider — still the same DB-session mechanism, not OAuth-issued JWTs either
 Validation:       protovalidate-go  (validate proto messages in Go — no separate validator)
-Cache + Queue:    Redis (Upstash — serverless Redis)
-                  - Rate limiting (sync, SOS)
-                  - asynq job queue broker
+Cache + Queue:    Redis — **self-hosted via Docker Compose** (see DEPLOY.md §4), not Upstash
+                  - asynq job queue broker only (agent tier recalc + SOS escalation, `cmd/worker`)
+                  - The app's own rate limiting is in-memory per-process (`internal/middleware/ratelimit.go`), not Redis-backed
 Background jobs:  asynq  (Redis-backed, Go-native)
                   - Goroutine pool in same binary
-                  - asynqmon web UI for monitoring + replay
-Push notif:       Firebase Admin Go SDK
-Email:            Resend (plain HTTP POST — no SDK)
-WhatsApp/SMS:     Twilio REST API
-File storage:     Cloudflare R2 (AWS S3-compat — aws-sdk-go-v2)
-Observability:    Sentry Go SDK + Axiom (structured logging via slog)
+                  - Real periodic tasks: agent tier recalc every 5min, SOS escalation every 1min — no asynqmon UI built
+Push notif:       Firebase Admin Go SDK — optional, no-op when `FIREBASE_SERVICE_ACCOUNT_JSON` is unset
+Email:            Resend — **configured (`RESEND_API_KEY`), not yet wired to any code path.** No password-reset or email-verification flow exists yet; see DEPLOY.md §13.
+WhatsApp/SMS:     ~~Twilio REST API~~ — never built, not in current `.env.example`
+File storage:     ~~Cloudflare R2~~ — never built, no code path reads `R2_*` vars yet; reserved for future product-image/PDF-export storage
+Observability:    Sentry Go SDK (`SENTRY_DSN`, optional/no-op when unset) + structured JSON logging via `slog` — Axiom vars exist in `.env.example` but log shipping isn't wired up
 ```
 
 ### Web + Mobile API Communication
@@ -127,6 +134,15 @@ Type safety flow:
 ```
 
 ### Mobile Apps (Group Leader App + Pilgrim App)
+
+> **STATUS: superseded for the MVP.** `apps/mobile-leader`/`apps/mobile-pilgrim`
+> below are still empty Expo scaffolds — there was no simulator/emulator/device
+> available to verify a real native build against, so both were built instead
+> as mobile-web PWAs inside `apps/web` (`/leader`, `/pilgrim/[code]`), using
+> the hand-rolled offline cache in §11, not PowerSync. This section is kept as
+> the original native-app intent in case that work resumes later; treat §11
+> (PWA Architecture) as the actual current implementation.
+
 ```
 Framework:        Expo SDK 52 + React Native 0.76
 Styling:          NativeWind 4.x
@@ -172,9 +188,9 @@ Ports (host):     127.0.0.1:9100 (API), 127.0.0.1:9101 (Web) — never exposed t
 | DB | **PostgreSQL 16 self-hosted** | Full control, zero hosting cost, no vendor dependency |
 | Hosting | **VPS + Docker Compose** | Own infrastructure, predictable cost, nginx handles SSL + routing |
 | Auth | **Better Auth** | Open source, multi-tenant orgs built-in, ALL data in your own PostgreSQL — zero external dependency |
-| Offline sync | **PowerSync** | Works with any PostgreSQL backend including Go, 10x less code than WatermelonDB |
+| Offline sync | ~~PowerSync~~ → **hand-rolled cache** | No device/simulator available to verify a real native+PowerSync build; short-term `localStorage` cache-and-queue instead (§11), not a 72h guarantee |
 | Type safety | **Protocol Buffers + Connect** | Single `.proto` → type-safe Go server + TS client. No tRPC (TS-only), no OpenAPI hand-sync |
-| Background jobs | **asynq + Redis** | Go-native, same binary, Redis-backed, asynqmon UI |
+| Background jobs | **asynq + Redis** | Go-native, same binary, self-hosted Redis via Docker Compose (not Upstash — see DEPLOY.md §4) |
 | Old: Prisma | **sqlc + pgx** | Prisma can't run in Go |
 | Old: Inngest | **asynq** | Go-native, no external service |
 | Old: Clerk | **Better Auth** | Clerk stores your user data on their servers. Better Auth = full ownership |
@@ -562,38 +578,91 @@ plugins:
     opt: target=ts
 ```
 
-### Authentication (Connect interceptor — Better Auth JWT)
+### Authentication (Connect interceptor — Better Auth DB session, not JWT)
+
+> **Correction vs. the original plan:** Better Auth's default session
+> strategy issues an **opaque, database-backed token**, not a JWT — there
+> are no claims to decode locally, so the interceptor below looks the
+> session up by joining straight into Better Auth's own `session`/`member`/
+> `"user"` tables on every request instead of verifying a signature. Real
+> implementation is `apps/api/internal/middleware/auth.go`; this is a
+> summary, not the literal file.
+
 ```go
-// middleware/auth.go
-func NewAuthInterceptor(secret string) connect.UnaryInterceptorFunc {
-    return func(next connect.UnaryFunc) connect.UnaryFunc {
+// Three trust lanes, not one:
+//
+// 1. Default (most RPCs) — requires a valid session AND organization
+//    membership. operatorID and userID come from the DB row, never from
+//    the request body.
+// 2. sessionOnlyProcedures — requires a valid session but explicitly NOT
+//    organization membership (e.g. IdentityService.GetMyAccess,
+//    PilgrimAppService.LinkGoogleAccount). A pilgrim who links a Google
+//    account is a real Better Auth user but never an org member.
+// 3. publicProcedures — no session at all; the pilgrim/agent-application
+//    surface, authenticated instead by an unguessable UUID
+//    (app_access_code) carried in the request body. Every addition to
+//    this list is a deliberate security decision, not routing plumbing.
+func NewAuthInterceptor(pool *pgxpool.Pool) connect.Interceptor {
+    return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
         return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {
-            token := req.Header().Get("Authorization") // "Bearer <better_auth_jwt>"
-            claims, err := validateBetterAuthJWT(token, secret)
+            if publicProcedures[req.Spec().Procedure] {
+                return next(ctx, req) // identity comes from the request body instead
+            }
+            token, err := bearerToken(req.Header().Get("Authorization"))
             if err != nil {
                 return nil, connect.NewError(connect.CodeUnauthenticated, err)
             }
-            ctx = context.WithValue(ctx, ctxKeyOperatorID, claims.OrgID)
-            ctx = context.WithValue(ctx, ctxKeyUserID, claims.Subject)
-            return next(ctx, req)
+            if sessionOnlyProcedures[req.Spec().Procedure] {
+                // session required, org membership NOT required
+                userID, userEmail, err := lookupSessionOnly(ctx, pool, token)
+                // ... inject userID/userEmail into ctx, call next(ctx, req)
+            }
+            // default lane: session AND org membership required
+            userID, operatorID, userName, err := lookupSessionWithOrg(ctx, pool, token)
+            // ... inject into ctx, call next(ctx, req)
         }
-    }
-}
-
-func validateBetterAuthJWT(token, secret string) (*Claims, error) {
-    t, err := jwt.ParseWithClaims(token, &Claims{}, func(t *jwt.Token) (interface{}, error) {
-        return []byte(secret), nil
     })
-    if err != nil || !t.Valid {
-        return nil, fmt.Errorf("invalid token")
-    }
-    return t.Claims.(*Claims), nil
 }
 
-// operatorID always comes from JWT — never trust client-provided operatorId
-func OperatorIDFromCtx(ctx context.Context) string { return ctx.Value(ctxKeyOperatorID).(string) }
-func UserIDFromCtx(ctx context.Context) string     { return ctx.Value(ctxKeyUserID).(string) }
+// operatorID always comes from the verified session — never trust a
+// client-provided operatorId in the request body.
+func OperatorIDFromCtx(ctx context.Context) string { /* ... */ }
+func UserIDFromCtx(ctx context.Context) string     { /* ... */ }
+func UserEmailFromCtx(ctx context.Context) string  { /* ... */ } // sessionOnly lane only
 ```
+
+### RBAC / single shared login (`IdentityService`)
+
+Operator staff (Better Auth org members), Group Leaders/Muttawwif
+(`groups.leader_id`), and Pilgrims (`pilgrims.linked_user_id`, set once a
+pilgrim optionally links a Google account from their `/pilgrim/[code]`
+link) all sign in through the **same** `/sign-in` page on one domain —
+there's no separate login per surface. `IdentityService.GetMyAccess`
+(session-only lane, see above) resolves which of those three role systems
+the calling identity participates in — an identity can be more than one
+at once — and the frontend's `resolveLandingPath()` picks where to land by
+Better Auth's own org-role tier, not a flat "is an org member" boolean:
+
+1. `owner`/`admin` org role → `/dashboard` (actual administrators)
+2. leads ≥1 group → `/leader` (their real job — a `member`-role Muttawwif
+   must still be an org member to be assignable from the admin Groups
+   page, but that's an implementation detail, not their function)
+3. `member`-role org member with no group → `/dashboard` (fallback)
+4. linked pilgrim → `/pilgrim/[code]`
+5. no role yet → `/onboarding` ("create your operator")
+
+`/dashboard` and `/leader` each mount a `RequireAccess` guard (real check
+against `GetMyAccess`, TTL-cached both server- and client-side — see
+`internal/repository/identity.go` and `lib/access-cache.ts`) — `middleware.ts`
+alone only proves a session *cookie* is present, not that the identity
+behind it belongs on that surface, so the guard is what actually enforces
+this, not routing convention.
+
+Sessions are **single-session, enforced server-side**: signing in anywhere
+immediately revokes every other active session for that user
+(`databaseHooks.session.create.after` in `lib/auth.ts`), no grace period —
+deliberate, since money will eventually flow through this login
+(Module 7).
 
 ### Proto Service Definitions
 
@@ -836,9 +905,14 @@ async function handleOnboardingComplete(data: OnboardingForm) {
 - `apps/api/internal/handler/operator.go`
 - `apps/api/internal/service/operator.go`
 - `apps/api/internal/repository/operator.go`
-- `apps/web/app/(auth)/sign-in/page.tsx` — Better Auth sign in form
-- `apps/web/app/(auth)/sign-up/page.tsx` — Better Auth sign up form
+- `apps/web/app/sign-in/page.tsx` — Better Auth sign in form (no `(auth)` route group in the actual tree)
+- `apps/web/app/sign-up/page.tsx` — Better Auth sign up form
 - `apps/web/app/onboarding/page.tsx`
+
+Both sign-in/sign-up also render a "Lanjutkan dengan Google" button
+(`components/auth/GoogleSignInButton.tsx`) — additive, email/password
+keeps working. See the RBAC section in §5 for how a signed-in identity
+gets routed after either flow.
 
 **Done when:** Operator can sign up, create org, create season, see dashboard.
 
@@ -846,12 +920,22 @@ async function handleOnboardingComplete(data: OnboardingForm) {
 
 ### MODULE 2: Pilgrim Management
 
-1. Pilgrim list with search + filter (group, gender, nationality, medical flag), pagination
-2. Create pilgrim form — all fields, mahram selector
+1. Pilgrim list with search + filter (group, **kloter**, gender, nationality, medical flag), pagination
+2. Create pilgrim form — all fields, mahram selector, kloter selector
 3. Bulk CSV import — column mapping wizard, row validation, batch insert
 4. Edit pilgrim
 5. Substitution — cascade transaction (room + seat + group)
 6. Pilgrim detail page
+
+**Kloter (added, not in the original plan):** the real Kemenag-level
+departure batch — a numbered batch (e.g. "SOC-01") tied to one flight and
+one departure date, distinct from **Rombongan/Group** (the pastoral
+subdivision a Ketua Rombongan leads; one kloter typically contains several
+rombongan). `KloterService` CRUD, `kloters` table
+(`operator_id`/`season_id`/`code`/`embarkation`/`flight_number`/
+`departure_date`/`capacity`), `pilgrims.kloter_id` nullable FK. Drives the
+Operator Dashboard's per-kloter/per-season filters and scopes what a
+pilgrim's PWA schedule shows (see Module 6).
 
 **Substitution logic (Go service layer):**
 ```go
@@ -890,35 +974,66 @@ func (s *SubstitutionService) Execute(ctx context.Context, originalID, replaceme
 
 ### MODULE 4: Transport Scheduler
 
-1. Movement CRUD + Hajj 8-movement template
+1. Movement CRUD + Hajj/Umrah templates (Gelombang I/II, Umrah 9/12/17 hari — real Kemenag-shaped itineraries, not a generic 8-step template)
 2. Vehicle CRUD per movement
 3. Seat assignment (same drag-or-select pattern)
 4. Group-based fill: one-click assign group to vehicle
 5. Status updates from mobile (DEPARTED / ARRIVED)
 6. Bus manifest PDF + WhatsApp text export
+7. **Kloter scoping**: `movements.kloter_id` (nullable — unscoped movements
+   like shared ground shuttles apply to every kloter). The monitoring
+   dashboard has a per-kloter filter so several kloter running in parallel
+   don't show as one mixed feed; a pilgrim only ever sees their own
+   kloter's movements plus unscoped ones (never another kloter's flight).
 
 ---
 
-### MODULE 5: Group Leader Mobile App (offline-first)
+### MODULE 5: Group Leader App — BUILT, as a PWA (`/leader`), not native
 
-**PowerSync setup:** (see full schema in previous section)
+Built inside `apps/web`, not `apps/mobile-leader` (see the STATUS note in
+§2) — authenticated via the same shared `/sign-in` as operator staff
+(every leader is also a Better Auth org member; see the RBAC section in
+§5), self-scoped to `groups.leader_id = current user` end-to-end
+(`GroupLeaderRepository.EnsureLeaderOwnsGroup` on every call that takes a
+`group_id`). Offline is the hand-rolled cache in §11, not PowerSync — a
+short-term cache-and-queue, explicitly not the "72h zero-network"
+guarantee originally scoped here.
 
-**Done when:** App works 72h with zero network. Sync resumes on reconnect.
+**Screens:** My Groups → Roster, Check-In (one-tap DEPARTURE/ARRIVAL,
+offline-queued), Group Chat, SOS (operator-wide alerts scoped to this
+leader's own groups).
 
 ---
 
-### MODULE 6: Pilgrim App
+### MODULE 6: Pilgrim App — BUILT, as a PWA (`/pilgrim/[code]`)
 
-**Design constraint: max 2 taps to any feature. No menus.**
+**Design constraint: max 2 taps to any feature. No menus.** (kept)
 
-**Onboarding:** QR scan or 6-digit code → `PilgrimAppService.GetMyInfo` → home screen.
+**Onboarding:** not QR/6-digit — a unique link
+(`/pilgrim/{app_access_code}`, an unguessable UUID) shared once, e.g. via
+WhatsApp. Opening it calls `PilgrimAppService.GetMyInfo` straight to the
+home screen, no login step required for the read-only surface.
 
-**Screens:** Home (group info), SOS (full screen), Chat, Schedule, Products.
+**Screens:** Home (group/kloter/hotel/room info, next movement), SOS (full
+screen), Chat, Schedule (kloter-scoped — a pilgrim in one Kemenag
+departure batch never sees another batch's flights/transfers), Products
+(read-only catalog, no checkout yet — Module 7).
 
-**Pilgrim PWA** (web fallback — `/pilgrim/[code]`):
-- No Better Auth session — auth is purely via `appAccessCode`
-- Service Worker caches schedule + group info for 72h
-- SOS queued offline, sent on reconnect
+**Optional Google account link:** a pilgrim can additionally link a real
+Google identity from their home screen (`PilgrimAppService.LinkGoogleAccount`,
+via the session-only auth lane in §5) — `pilgrims.linked_user_id`,
+one pilgrim per Google identity (DB-unique). The access-code link keeps
+working for everything above either way; this exists to have a verified
+identity ready ahead of Module 7 (a payment can require
+`linked_user_id IS NOT NULL`, the access code alone cannot).
+
+- Auth is still primarily the `appAccessCode` in the URL — Google linking
+  is additive, not a replacement.
+- Service Worker (`public/sw.js`) does runtime caching of `/pilgrim`,
+  `/leader`, and `/_next/static`, not a full precache manifest — see §11
+  for the actual (short-term, not 72h) offline guarantee.
+- SOS is queued offline via `localStorage`, sent on the browser's `online`
+  event.
 
 ---
 
@@ -1112,53 +1227,60 @@ Env vars:       SCREAMING_SNAKE_CASE
 
 ## 9. Environment Variables
 
+> **This section previously listed several integrations that were never
+> built** (Twilio/WhatsApp, Upstash-specific vars, a "Digital Product
+> Partner" API) **or got renamed along the way** (Firebase collapsed to
+> one `FIREBASE_SERVICE_ACCOUNT_JSON` var instead of three). The block
+> below is a direct copy of the real, current `.env.example` — treat that
+> file as the single source of truth going forward and this section as a
+> mirror of it, not the other way around.
+
 ```bash
-# .env — never commit. Use .env.example as template.
-
-# Database (self-hosted PostgreSQL in Docker)
+# Database
 DATABASE_URL="postgresql://safrat:password@localhost:5432/safrat"
-# No DIRECT_URL needed — pgx manages its own connection pool
 
-# Better Auth — shared secret between Next.js and Go API
-BETTER_AUTH_SECRET="generate_with: openssl rand -base64 32"
-BETTER_AUTH_URL="https://app.safrat.com"   # canonical URL of your web app
+# Redis (tier-recalculation worker — apps/api/cmd/worker)
+REDIS_URL="redis://localhost:6380"
 
-# Cloudflare R2
-R2_ACCOUNT_ID=""
-R2_ACCESS_KEY_ID=""
-R2_SECRET_ACCESS_KEY=""
-R2_BUCKET_NAME=""
-R2_PUBLIC_URL=""
+# Better Auth (generate: openssl rand -base64 32)
+BETTER_AUTH_SECRET=""
+BETTER_AUTH_URL="https://app.safrat.com"
 
-# Firebase (push notifications)
-FIREBASE_PROJECT_ID=""
-FIREBASE_CLIENT_EMAIL=""
-FIREBASE_PRIVATE_KEY=""
-
-# Upstash Redis (asynq + rate limiting)
-UPSTASH_REDIS_URL=""
-UPSTASH_REDIS_TOKEN=""
-
-# Twilio (WhatsApp)
-TWILIO_ACCOUNT_SID=""
-TWILIO_AUTH_TOKEN=""
-TWILIO_WHATSAPP_FROM=""
-
-# Resend (email)
-RESEND_API_KEY=""
-
-# Digital Product Partner
-ROAMING_PARTNER_API_URL=""
-ROAMING_PARTNER_API_KEY=""
-
-# Web Push / PWA
-NEXT_PUBLIC_VAPID_PUBLIC_KEY=""
-VAPID_PRIVATE_KEY=""
-VAPID_SUBJECT="mailto:admin@safrat.com"
+# Google Sign-In (Better Auth social provider) — Google Cloud Console >
+# APIs & Services > Credentials > OAuth client ID (Web application).
+# Authorized redirect URI: {BETTER_AUTH_URL}/api/auth/callback/google
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
 
 # App URLs
 NEXT_PUBLIC_APP_URL="https://app.safrat.com"
 NEXT_PUBLIC_API_URL="https://api.safrat.com"
+
+# Storage
+R2_ACCOUNT_ID=""
+R2_ACCESS_KEY_ID=""
+R2_SECRET_ACCESS_KEY=""
+R2_BUCKET_NAME=""
+
+# Notifications — Firebase Console: Project Settings
+# Service account JSON is server-only (apps/api) — Project Settings > Service Accounts > Generate new private key
+FIREBASE_SERVICE_ACCOUNT_JSON=""
+# Web config + Web Push certificate are client-safe (apps/web) — Project Settings > General / Cloud Messaging
+NEXT_PUBLIC_FIREBASE_API_KEY=""
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=""
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=""
+NEXT_PUBLIC_FIREBASE_APP_ID=""
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=""
+
+# Email — configured but not yet wired to any code path (no password
+# reset or email verification flow exists yet; see §13 for the gap)
+RESEND_API_KEY=""
+
+# Observability
+SENTRY_DSN=""
+NEXT_PUBLIC_SENTRY_DSN=""
+AXIOM_DATASET=""
+AXIOM_TOKEN=""
 ```
 
 ---
@@ -1196,55 +1318,50 @@ func (s *NotificationService) NotifyAllCoordinators(ctx context.Context, operato
 
 ---
 
-## 11. PWA Architecture
+## 11. PWA Architecture (as actually built — not `next-pwa`)
 
-| Feature | Pilgrim PWA | Pilgrim Native App |
-|---|---|---|
-| View schedule / group info | ✅ Service Worker cache | ✅ PowerSync |
-| SOS button | ✅ queued offline | ✅ |
-| Chat | ✅ polling fallback | ✅ streaming |
-| Push notification | ⚠️ iOS 16.4+ only | ✅ reliable |
-| Offline 72h | ❌ cache only | ✅ PowerSync |
+> The original plan below used the `next-pwa` package, a `next.config.ts`
+> `runtimeCaching` config, and an async server-component layout. None of
+> that is what got built — no "Native App" column exists to compare
+> against either, since Module 5/6 shipped as PWAs (§1, §6). This is the
+> real architecture, both apps (`/pilgrim/[code]` and `/leader`) share it.
 
-```typescript
-// next.config.ts
-import withPWA from "next-pwa"
-export default withPWA({
-  dest: "public", register: true, skipWaiting: true,
-  disable: process.env.NODE_ENV === "development",
-  runtimeCaching: [
-    { urlPattern: /^\/pilgrim\/.*/, handler: "NetworkFirst",
-      options: { cacheName: "pilgrim-pages", expiration: { maxAgeSeconds: 72 * 60 * 60 } } },
-    { urlPattern: /^\/api\/.*/, handler: "NetworkOnly" },
-  ],
-})
+| Feature | Pilgrim / Leader PWA (actual) |
+|---|---|
+| View schedule / group info | ✅ `cachedFetch` (`lib/offline.ts`) — reads through to `localStorage`, falls back to last-cached value on failure, shows an "offline" banner |
+| SOS / check-in (write actions) | ✅ `enqueueAction` + `useOfflineQueueFlush` — queued in `localStorage`, replayed on the browser's `online` event |
+| Chat | ✅ polling, no streaming |
+| Push notification | ✅ Firebase Cloud Messaging (`lib/firebase.ts`), independently optional/no-op when unconfigured — not tied to PWA install state |
+| Offline guarantee | ❌ short-term cache only, explicitly **not** 72h zero-network |
+
+```js
+// public/sw.js — hand-rolled, registered via useRegisterShellServiceWorker
+// (lib/register-sw.ts). Runtime-caches /pilgrim, /leader, and
+// /_next/static so an already-visited page still loads offline — not a
+// full precache manifest, not next-pwa.
 ```
 
-```json
-// public/manifest.json
-{
-  "name": "Safrat – Pilgrim",
-  "short_name": "Safrat",
-  "start_url": "/pilgrim",
-  "display": "standalone",
-  "background_color": "#fdf9f0",
-  "theme_color": "#0d3d27",
-  "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
-  ]
+**Pilgrim PWA auth — `appAccessCode` primary, optional Google link additive:**
+```typescript
+// app/pilgrim/[code]/page.tsx — "use client", fetches on mount, not an
+// async server layout
+export default function PilgrimHomePage() {
+  const { code } = useParams<{ code: string }>();
+  useEffect(() => {
+    cachedFetch(`pilgrim-info:${code}`, () => pilgrimAppClient.getMyInfo({ appAccessCode: code }))
+      .then((result) => { if (result.data) setInfo(result.data); })
+      .catch(() => setError("Kode akses tidak ditemukan..."));
+  }, [code]);
+  // ... optional "Hubungkan dengan Google" card if !info.linkedGoogleEmail — see §5
 }
 ```
 
-**Pilgrim PWA auth — appAccessCode only (no Better Auth session):**
-```typescript
-// app/pilgrim/[code]/layout.tsx — no auth session needed
-export default async function PilgrimLayout({ children, params }) {
-  const info = await pilgrimAppClient.getMyInfo({ appAccessCode: params.code })
-  if (!info) redirect("/pilgrim/not-found")
-  return <PilgrimProvider info={info}>{children}</PilgrimProvider>
-}
-```
+`/pilgrim/[code]` and `/leader` are both in `middleware.ts`'s public-path
+handling differently: `/pilgrim` is fully public (no session required at
+all — see §5's `publicProcedures`), while `/leader` requires a session
+(any signed-in identity gets past the Edge middleware) **and** a
+`RequireAccess` guard that does the real role check (§5) — middleware
+alone can't verify roles since Edge middleware has no DB access.
 
 **Test PWA (HTTPS required — use your VPS domain, not localhost):**
 1. Deploy to VPS with valid SSL
@@ -1274,20 +1391,26 @@ export default async function PilgrimLayout({ children, params }) {
 **Application:**
 - [ ] `BETTER_AUTH_SECRET` generated and set in both web and API env
 - [ ] `buf generate proto/` — clean output, no manual edits to proto-gen
-- [ ] Upstash Redis instance created, env vars set
+- [ ] Redis instance reachable, `REDIS_URL` set (self-hosted/Docker, not Upstash — see §9)
 - [ ] asynq workers start with Go binary
-- [ ] Firebase FCM enabled, service account key in env
+- [ ] Firebase FCM enabled, `FIREBASE_SERVICE_ACCOUNT_JSON` in env (optional — no-op when unset)
 - [ ] Cloudflare R2 bucket created, CORS configured
 - [ ] VAPID keys generated, added to env
-- [ ] PowerSync project created, sync rules scoped by `operator_id`
+- [ ] `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` set, redirect URI registered in Google Cloud Console (see §9)
+- [ ] `RESEND_API_KEY` set **and wired** — currently unset AND unused; password reset/email verification don't exist yet, see DEPLOY.md §13
 
 **PWA:**
 - [ ] PWA manifest: "Add to Home Screen" appears on Android
 - [ ] Offline test: disable WiFi → schedule visible
 - [ ] SOS offline queue test
 
+**Security (full checklist: `DEPLOY.md` §13):**
+- [ ] nginx sends `Strict-Transport-Security` + `Referrer-Policy` on both server blocks
+- [ ] Access logging disabled for `/pilgrim/*` and `/leader/*` (UUID-in-URL — see DEPLOY.md §13)
+- [ ] `NODE_ENV=production` set (enables Better Auth's own brute-force rate limiting)
+- [ ] Password reset + email verification built before any Module 7 payment work ships
+
 **End-to-end:**
-- [ ] Expo EAS build configured
 - [ ] SOS end-to-end: trigger → push → acknowledge within 10 min
 - [ ] Substitution: verify room + bus + group all cascade
 - [ ] CSV import: 10-row test
@@ -1302,16 +1425,20 @@ export default async function PilgrimLayout({ children, params }) {
 |---|---|---|
 | Backend | **Go + net/http + Connect** | 10x faster than Node, true concurrency, Connect requires net/http |
 | API protocol | **Connect (gRPC-compatible)** | Single `.proto` → type-safe Go + TS; streaming for SOS/chat; browser-native |
-| Auth | **Better Auth** | Open source, multi-tenant orgs built-in, ALL data in your PostgreSQL — zero external dependency. Replaces Clerk. |
+| Auth | **Better Auth** | Open source, multi-tenant orgs built-in, ALL data in your PostgreSQL — zero external dependency. Replaces Clerk. Session strategy is opaque DB tokens, not JWT — see §5. |
 | Database | **PostgreSQL 16 self-hosted** | Full control, no vendor cost, no cold starts |
 | Hosting | **VPS + Docker Compose** | Own infrastructure, predictable cost, nginx handles routing |
-| Mobile offline | **PowerSync** | PostgreSQL → mobile sync, works with Go backend, 10x less code than WatermelonDB |
-| Background jobs | **asynq** | Go-native, same binary, no external service |
-| Pilgrim auth | **appAccessCode** | Target: 45–65yo, first-time smartphone — no passwords |
-| PWA scope | **Pilgrim + Operator only** | Group Leader needs PowerSync + reliable iOS push — native only |
+| ~~Mobile offline: PowerSync~~ → **hand-rolled cache** | `lib/offline.ts`: `cachedFetch` (localStorage read-through) + `enqueueAction` (offline write queue, flushed on `online`) | No simulator/device available to build/verify a real PowerSync-backed native app against; short-term cache-and-queue instead, explicitly not a 72h zero-network guarantee — see §11 |
+| Background jobs | **asynq** | Go-native, same binary, no external service. Two periodic tasks: agent tier recalc (5min), SOS escalation (1min) |
+| Pilgrim auth | **appAccessCode**, + **optional Google link** | Target: 45–65yo, first-time smartphone — no password required for read-only use. Google linking (`pilgrims.linked_user_id`) added ahead of Module 7 so a verified identity exists before money changes hands — additive, not a replacement |
+| ~~PWA scope: Pilgrim + Operator only~~ → **all three are PWAs** | Group Leader also shipped as a PWA (`/leader`), not native | Same reason as the offline-cache row above — no device/simulator to verify a native build; `apps/mobile-leader`/`apps/mobile-pilgrim` remain empty scaffolds for if that work resumes |
 | Payout | **Monthly batch** | Simpler, industry standard, easier reconciliation |
+| Staff/Leader auth | **Google Sign-In (additive)** | Better Auth `socialProviders.google`; email/password unchanged. `account_not_linked` (Better Auth default) blocks a same-email account takeover unless the existing local row is already `emailVerified` |
+| Session policy | **Single-session, enforced server-side** | `databaseHooks.session.create.after` deletes every other session for that user on each new sign-in, no grace period — money will eventually flow through this login (Module 7) |
+| Login routing | **RBAC-based, one shared `/sign-in`** | `IdentityService.GetMyAccess` + `resolveLandingPath()`: routes by Better Auth org-role tier (owner/admin → dashboard, member-role leader → `/leader`, linked pilgrim → `/pilgrim/[code]`), not a flat "is an org member" boolean — see §5 |
+| Kloter | **New domain concept, added mid-build** | The real Kemenag departure-batch, distinct from Rombongan/Group — see Module 2/4 |
 
 ---
 
-*Last updated: August 2026 — v1.2 (Better Auth replaces Clerk)*
+*Last updated: August 2026 — v1.3 (Google Sign-In + RBAC-based single login, Kloter, security audit)*
 *Paired with: UI_SPEC.md · DEPLOY.md · Hajj_Umrah_SaaS_PRD.docx*

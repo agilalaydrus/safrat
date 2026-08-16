@@ -6,6 +6,10 @@
 > - `9100` → Go API (container internal: 8080)
 > - `9101` → Next.js Web (container internal: 3000)
 > - `5432` NOT exposed — PostgreSQL stays inside Docker network only
+> - `6379` NOT exposed — Redis stays inside Docker network only (§4);
+>   only `worker` reads it, the API server never touches Redis directly
+> - `worker` (§4, `cmd/worker`) has no host port at all — it's a
+>   background scheduler, not an HTTP service
 
 ---
 
@@ -82,25 +86,36 @@ services:
       DATABASE_URL: postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       CORS_ALLOWED_ORIGIN: https://app.safrat.com
-      UPSTASH_REDIS_URL: ${UPSTASH_REDIS_URL}
-      UPSTASH_REDIS_TOKEN: ${UPSTASH_REDIS_TOKEN}
-      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
-      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL}
-      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY}
-      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
-      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
-      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
-      R2_BUCKET_NAME: ${R2_BUCKET_NAME}
-      RESEND_API_KEY: ${RESEND_API_KEY}
-      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
-      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
-      TWILIO_WHATSAPP_FROM: ${TWILIO_WHATSAPP_FROM}
-      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY}
-      VAPID_SUBJECT: ${VAPID_SUBJECT}
+      SENTRY_DSN: ${SENTRY_DSN}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON}
     ports:
       - "127.0.0.1:9100:8080"   # nginx → localhost:9100 → container :8080
     depends_on:
       - postgres
+    networks:
+      - internal
+
+  # Same image as api, different entrypoint — see the note in §6. Without
+  # this service, SOS alerts never escalate past ACTIVE to a coordinator.
+  worker:
+    image: ghcr.io/YOUR_ORG/safrat-api:${IMAGE_TAG:-latest}
+    command: ["./worker"]
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat
+      REDIS_URL: redis://redis:6379
+      SENTRY_DSN: ${SENTRY_DSN}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - internal
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    # No ports exposed — internal network only, same as postgres
     networks:
       - internal
 
@@ -111,7 +126,10 @@ services:
       DATABASE_URL: postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: https://app.safrat.com
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       RESEND_API_KEY: ${RESEND_API_KEY}
+      SENTRY_DSN: ${SENTRY_DSN}
     ports:
       - "127.0.0.1:9101:3000"   # nginx → localhost:9101 → container :3000
     depends_on:
@@ -139,30 +157,45 @@ POSTGRES_PASSWORD=use_a_strong_random_password
 # Must be identical in both api and web services
 BETTER_AUTH_SECRET=your_secret_here
 
-# Upstash Redis
-UPSTASH_REDIS_URL=rediss://...
-UPSTASH_REDIS_TOKEN=...
+# Google Sign-In (Better Auth social provider) — web service only, never
+# reaches the Go API directly. Redirect URI: https://app.safrat.com/api/auth/callback/google
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
 
-# Firebase
-FIREBASE_PROJECT_ID=...
-FIREBASE_CLIENT_EMAIL=...
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n..."
+# Redis — self-hosted via the `redis` compose service above, not Upstash;
+# only cmd/worker reads REDIS_URL (the API server never touches Redis)
+# REDIS_URL is hardcoded to redis://redis:6379 in the worker service block
+# above since it's an internal-network hostname, not a secret — nothing
+# needed here.
 
-# Cloudflare R2
-R2_ACCOUNT_ID=...
-R2_ACCESS_KEY_ID=...
-R2_SECRET_ACCESS_KEY=...
-R2_BUCKET_NAME=safrat-uploads
+# Firebase (push notifications) — optional, no-op on both api and web when
+# unset. Server-only JSON, not the split PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY
+# vars an earlier version of this doc had — Project Settings > Service
+# Accounts > Generate new private key, paste the whole file as one line.
+FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account",...}'
+# Client-safe web config + Web Push key — Project Settings > General / Cloud Messaging.
+# Also passed as Docker build args (§6/§8) since they're baked into the
+# client bundle, not just read at runtime.
+NEXT_PUBLIC_FIREBASE_API_KEY=...
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=...
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
+NEXT_PUBLIC_FIREBASE_APP_ID=...
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
 
-# Communication
+# Email — configured, not yet wired to any code path (no password reset or
+# email verification flow exists yet). Safe to set now; a no-op until then.
 RESEND_API_KEY=re_...
-TWILIO_ACCOUNT_SID=AC...
-TWILIO_AUTH_TOKEN=...
-TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
 
-# Web Push
-VAPID_PRIVATE_KEY=...
-VAPID_SUBJECT=mailto:admin@safrat.com
+# Observability — optional, no-op on both api and web when unset
+SENTRY_DSN=...
+NEXT_PUBLIC_SENTRY_DSN=...
+
+# Cloudflare R2 — reserved for future file storage (product images, PDF
+# exports); not read by any code path yet, nothing consumes these today.
+# R2_ACCOUNT_ID=...
+# R2_ACCESS_KEY_ID=...
+# R2_SECRET_ACCESS_KEY=...
+# R2_BUCKET_NAME=safrat-uploads
 ```
 
 Start services:
@@ -221,17 +254,27 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /api ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -o /worker ./cmd/worker
 
 FROM alpine:3.19
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
 COPY --from=builder /api .
+COPY --from=builder /worker .
 USER appuser
 EXPOSE 8080
 CMD ["./api"]
 ```
 
 > Pin the Go version here to match `go.mod`. Check with `go version`.
+>
+> **Both binaries ship in one image** — `cmd/server` (the API) and
+> `cmd/worker` (the asynq scheduler: agent tier recalculation every 5min,
+> **SOS escalation every 1min** — see CLAUDE.md) are built together so the
+> `worker` compose service below can reuse this same image with
+> `command: ["./worker"]` instead of needing a second CI build/push step.
+> Skipping the worker service entirely means SOS alerts never escalate to
+> coordinators in production — this is not optional infrastructure.
 
 ### apps/web/Dockerfile
 
@@ -251,13 +294,26 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# NEXT_PUBLIC_* must be baked at build time
+# NEXT_PUBLIC_* must be baked at build time — anything read by a client
+# component (not just the server-side firebase-messaging-sw.js route
+# handler, which reads process.env live at request time instead) needs to
+# be listed here or it silently ends up undefined in the browser bundle.
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_APP_URL
 ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY
+ARG NEXT_PUBLIC_SENTRY_DSN
+ARG NEXT_PUBLIC_FIREBASE_API_KEY
+ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID
+ARG NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+ARG NEXT_PUBLIC_FIREBASE_APP_ID
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=$NEXT_PUBLIC_VAPID_PUBLIC_KEY
+ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
+ENV NEXT_PUBLIC_FIREBASE_API_KEY=$NEXT_PUBLIC_FIREBASE_API_KEY
+ENV NEXT_PUBLIC_FIREBASE_PROJECT_ID=$NEXT_PUBLIC_FIREBASE_PROJECT_ID
+ENV NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=$NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+ENV NEXT_PUBLIC_FIREBASE_APP_ID=$NEXT_PUBLIC_FIREBASE_APP_ID
 
 RUN pnpm --filter @hajj-saas/web build
 
@@ -415,7 +471,7 @@ sudo systemctl status certbot.timer
 
 ## 8. GitHub Actions CI/CD
 
-**Current state:** only the `test` job below is actually wired up, as `.github/workflows/ci.yml` — it runs on every push to `main` and every PR, with no secrets required. The `build-and-deploy` job is documented here but not yet created as a workflow file: it needs `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` (and `NEXT_PUBLIC_VAPID_PUBLIC_KEY`) configured as GitHub Secrets first, and a real VPS to deploy to. `ci.yml` also skips the `buf breaking` step below — resolving `proto/buf.lock` against the `main` branch's historical state currently fails for reasons unrelated to any real breaking change; fix that before adding the gate.
+**Current state:** only the `test` job below is actually wired up, as `.github/workflows/ci.yml` — it runs on every push to `main` and every PR, with no secrets required. The `build-and-deploy` job is documented here but not yet created as a workflow file: it needs `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `NEXT_PUBLIC_SENTRY_DSN`, and `NEXT_PUBLIC_FIREBASE_*` (API_KEY/PROJECT_ID/MESSAGING_SENDER_ID/APP_ID) configured as GitHub Secrets first, and a real VPS to deploy to. `ci.yml` also skips the `buf breaking` step below — resolving `proto/buf.lock` against the `main` branch's historical state currently fails for reasons unrelated to any real breaking change; fix that before adding the gate.
 
 `.github/workflows/deploy.yml` (reference — not yet created):
 
@@ -494,6 +550,11 @@ jobs:
             NEXT_PUBLIC_API_URL=https://api.safrat.com
             NEXT_PUBLIC_APP_URL=https://app.safrat.com
             NEXT_PUBLIC_VAPID_PUBLIC_KEY=${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+            NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+            NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1
@@ -588,6 +649,9 @@ docker compose -f docker-compose.prod.yml logs -f
 
 # API logs
 docker compose -f docker-compose.prod.yml logs api -f --tail=100
+
+# Worker logs — check this if SOS alerts aren't escalating past ACTIVE
+docker compose -f docker-compose.prod.yml logs worker -f --tail=100
 
 # Restart one service
 docker compose -f docker-compose.prod.yml restart api
