@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { IconGenderFemale, IconGenderMale, IconSearch, IconUsersGroup, IconUserMinus, IconUserPlus } from "@tabler/icons-react";
 import { Gender, Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { VehicleManifest } from "@hajj-saas/proto-gen/hajj/v1/transport_pb";
-import { pilgrimClient, transportClient } from "@/lib/rpc";
+import { groupClient, pilgrimClient, transportClient } from "@/lib/rpc";
 
 type Props = { vehicleId: string; seasonId: string; movementStatus: string; mode?: string; open: boolean; onClose: () => void; onChanged: () => void };
 
@@ -13,6 +13,7 @@ const MODE_NO_OPERATOR: Record<string, string> = { BUS: "Sopir belum ditentukan"
 export default function VehicleManifestPanel({ vehicleId, seasonId, movementStatus, mode = "BUS", open, onClose, onChanged }: Props) {
   const [manifest, setManifest] = useState<VehicleManifest>();
   const [pilgrims, setPilgrims] = useState<Pilgrim[]>([]);
+  const [groupNames, setGroupNames] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
   const [term, setTerm] = useState("");
   const [seatNumbers, setSeatNumbers] = useState<Record<string, string>>({});
@@ -28,7 +29,14 @@ export default function VehicleManifestPanel({ vehicleId, seasonId, movementStat
     if (!open || !vehicleId) return;
     setNotice(""); setQuery(""); setTerm(""); setSeatNumbers({});
     void refresh();
-    if (seasonId) pilgrimClient.listPilgrims({ seasonId, limit: 20, offset: 0 }).then((response) => setPilgrims(response.pilgrims)).catch(() => setNotice("Gagal memuat data jamaah."));
+    if (seasonId) {
+      // limit was 20 — the search box below silently couldn't find any
+      // pilgrim past the season's first 20, which looked like "no results"
+      // for a large manifest. This is a candidate list for assignment, not
+      // a paginated display, so it needs the whole season.
+      pilgrimClient.listPilgrims({ seasonId, limit: 1000, offset: 0 }).then((response) => setPilgrims(response.pilgrims)).catch(() => setNotice("Gagal memuat data jamaah."));
+      groupClient.listGroups({ seasonId }).then((response) => setGroupNames(Object.fromEntries(response.groups.map((g) => [g.id, g.name])))).catch(() => {});
+    }
   }, [open, vehicleId, seasonId]);
   useEffect(() => { const timeout = window.setTimeout(() => setTerm(query), 300); return () => window.clearTimeout(timeout); }, [query]);
 
@@ -92,7 +100,7 @@ export default function VehicleManifestPanel({ vehicleId, seasonId, movementStat
     <div className="gold-divider" />
     {vehicle && <div style={statusRow}><span style={badge(vehicle.status)}>{statusLabel(vehicle.status)}</span>{vehicle.status === "scheduled" && <><button disabled={workingId === "status"} onClick={() => void updateStatus("departed")} style={emerald}>Tandai Berangkat</button><button disabled={workingId === "status"} onClick={() => void updateStatus("cancelled")} style={dangerOutline}>Batalkan</button></>}{vehicle.status === "departed" && <button disabled={workingId === "status"} onClick={() => void updateStatus("arrived")} style={emerald}>Tandai Tiba</button>}</div>}
     <section style={section}><h3 style={sectionTitle}>Jamaah yang ditempatkan</h3>{occupants.length ? occupants.map((pilgrim) => <div key={pilgrim.id} style={person}><div><strong>{pilgrim.fullName}</strong><span style={meta}>{genderIcon(pilgrim.gender)} {pilgrim.passportNumber} · Kursi {pilgrim.seatNumber || "-"}</span></div><button disabled={workingId === pilgrim.id} onClick={() => void remove(pilgrim.id)} style={dangerOutline}><IconUserMinus size={17} />Keluarkan</button></div>) : <p style={emptyText}>Belum ada jamaah yang ditempatkan.</p>}</section>
-    {!full && canAssign && !!groupsWithCandidates.length && <section style={section}><h3 style={sectionTitle}>Tempatkan satu rombongan</h3>{groupsWithCandidates.map(([groupId, members]) => <div key={groupId} style={person}><div><strong><IconUsersGroup size={16} style={{ verticalAlign: "-3px", marginRight: 4 }} />Rombongan {groupId.slice(0, 8)}</strong><span style={meta}>{members.length} jamaah belum ditempatkan</span></div><button disabled={workingId === "group"} onClick={() => void assignGroup(members)} style={emerald}><IconUserPlus size={17} />Tempatkan rombongan</button></div>)}</section>}
+    {!full && canAssign && !!groupsWithCandidates.length && <section style={section}><h3 style={sectionTitle}>Tempatkan satu rombongan</h3>{groupsWithCandidates.map(([groupId, members]) => <div key={groupId} style={person}><div><strong><IconUsersGroup size={16} style={{ verticalAlign: "-3px", marginRight: 4 }} />{groupNames[groupId] ?? "Rombongan"}</strong><span style={meta}>{members.length} jamaah belum ditempatkan</span></div><button disabled={workingId === "group"} onClick={() => void assignGroup(members)} style={emerald}><IconUserPlus size={17} />Tempatkan rombongan</button></div>)}</section>}
     {!full && canAssign && <section style={section}><h3 style={sectionTitle}>Tempatkan jamaah</h3><label style={{ position: "relative" }}><span style={sr}>Cari jamaah yang belum ditempatkan</span><IconSearch size={18} style={{ position: "absolute", insetInlineStart: 14, top: 15, color: "var(--color-warm-400)" }} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama atau paspor" style={{ ...input, paddingInlineStart: 42 }} /></label>{candidates.map((pilgrim) => <div key={pilgrim.id} style={person}><div><strong>{pilgrim.fullName}</strong><span style={meta}>{genderIcon(pilgrim.gender)} {pilgrim.passportNumber}</span></div><div style={{ display: "flex", gap: 8, alignItems: "center" }}><input aria-label={`Nomor kursi untuk ${pilgrim.fullName}`} type="number" min="1" max={vehicle?.capacity} value={seatNumbers[pilgrim.id] ?? ""} onChange={(event) => setSeatNumbers((current) => ({ ...current, [pilgrim.id]: event.target.value }))} placeholder="Kursi" style={seatInput} /><button disabled={workingId === pilgrim.id} onClick={() => void assign(pilgrim.id)} style={emerald}><IconUserPlus size={17} />Tempatkan</button></div></div>)}{!candidates.length && <p style={emptyText}>Tidak ada jamaah yang cocok dengan pencarian ini.</p>}</section>}
     {full && canAssign && <p role="status" style={fullNotice}>Kendaraan sudah penuh</p>}
     {!canAssign && vehicle && vehicle.status !== "scheduled" && <p role="status" style={fullNotice}>Kendaraan ini sudah {statusLabel(vehicle.status).toLowerCase()} — penempatan terkunci.</p>}
