@@ -10,34 +10,63 @@ import MovementFormDialog from "./MovementFormDialog";
 
 type MovementStep = { name: string; origin: string; destination: string; mode: "BUS" | "FLIGHT" | "TRAIN"; dayOffset: number; hour: number };
 
-const HAJJ_TEMPLATE: MovementStep[] = [
-  { name: "Jeddah Airport → Makkah", origin: "Jeddah", destination: "Makkah", mode: "BUS", dayOffset: 0, hour: 10 },
-  { name: "Makkah → Mina (Tarwiyah)", origin: "Makkah", destination: "Mina", mode: "BUS", dayOffset: 1, hour: 8 },
-  { name: "Mina → Arafah", origin: "Mina", destination: "Arafah", mode: "BUS", dayOffset: 2, hour: 6 },
-  { name: "Arafah → Muzdalifah", origin: "Arafah", destination: "Muzdalifah", mode: "BUS", dayOffset: 3, hour: 18 },
-  { name: "Muzdalifah → Mina", origin: "Muzdalifah", destination: "Mina", mode: "BUS", dayOffset: 4, hour: 7 },
-  { name: "Mina → Makkah", origin: "Mina", destination: "Makkah", mode: "BUS", dayOffset: 5, hour: 10 },
-  { name: "Makkah → Madinah", origin: "Makkah", destination: "Madinah", mode: "BUS", dayOffset: 6, hour: 9 },
-  { name: "Madinah → Jeddah Airport", origin: "Madinah", destination: "Jeddah", mode: "BUS", dayOffset: 7, hour: 10 },
+// Indonesian Hajj quotas are split into two gelombang (waves) by Kemenag, and
+// which city a jamaah lands in first depends entirely on which wave they're
+// in — this isn't a minor detail, it changes the whole itinerary shape:
+// Gelombang I flies straight into Madinah and does ziarah there BEFORE the
+// Arafah–Muzdalifah–Mina (Armuzna) rituals, then departs from Jeddah after
+// Armuzna. Gelombang II flies into Jeddah/Makkah, does Armuzna first, then
+// does Madinah ziarah AFTER and departs from Madinah's own airport — not
+// Jeddah. Day offsets are compressed but ordered to match how Kemenag's 2025
+// published schedule actually spaced these legs (~9 days Madinah ziarah
+// before the Makkah transfer for gelombang I; ~2 weeks between the Mina
+// return and the Makkah→Madinah move for gelombang II; ~41 days average
+// total stay either way).
+const HAJJ_GELOMBANG_1: MovementStep[] = [
+  { name: "Kedatangan CGK → Madinah (AMM)", origin: "CGK", destination: "AMM", mode: "FLIGHT", dayOffset: 0, hour: 8 },
+  { name: "Transfer Bandara Madinah → Hotel Madinah", origin: "Bandara AMM", destination: "Hotel Madinah", mode: "BUS", dayOffset: 0, hour: 12 },
+  { name: "Transfer Madinah → Makkah", origin: "Madinah", destination: "Makkah", mode: "BUS", dayOffset: 9, hour: 9 },
+  { name: "Makkah → Mina (Tarwiyah)", origin: "Makkah", destination: "Mina", mode: "BUS", dayOffset: 30, hour: 8 },
+  { name: "Mina → Arafah (Wukuf)", origin: "Mina", destination: "Arafah", mode: "BUS", dayOffset: 31, hour: 6 },
+  { name: "Arafah → Muzdalifah (Mabit)", origin: "Arafah", destination: "Muzdalifah", mode: "BUS", dayOffset: 31, hour: 18 },
+  { name: "Muzdalifah → Mina (Tasyrik)", origin: "Muzdalifah", destination: "Mina", mode: "BUS", dayOffset: 32, hour: 7 },
+  { name: "Mina → Makkah", origin: "Mina", destination: "Makkah", mode: "BUS", dayOffset: 35, hour: 10 },
+  { name: "Transfer Hotel Makkah → Bandara Jeddah", origin: "Makkah", destination: "Bandara JED", mode: "BUS", dayOffset: 40, hour: 6 },
+  { name: "Keberangkatan Jeddah (JED) → CGK", origin: "JED", destination: "CGK", mode: "FLIGHT", dayOffset: 40, hour: 10 },
 ];
 
-// A real Umrah itinerary's shape doesn't change with trip length — arrive in
-// Madinah, ziarah, bus transfer to Makkah, depart from Jeddah — only how many
-// nights are spent in each city before the transfer does. madinahNights is
-// where the Madinah→Makkah leg falls; the rest of the days are spent in Makkah.
+const HAJJ_GELOMBANG_2: MovementStep[] = [
+  { name: "Kedatangan CGK → Jeddah (JED)", origin: "CGK", destination: "JED", mode: "FLIGHT", dayOffset: 0, hour: 8 },
+  { name: "Transfer Bandara Jeddah → Hotel Makkah", origin: "Bandara JED", destination: "Hotel Makkah", mode: "BUS", dayOffset: 0, hour: 12 },
+  { name: "Makkah → Mina (Tarwiyah)", origin: "Makkah", destination: "Mina", mode: "BUS", dayOffset: 20, hour: 8 },
+  { name: "Mina → Arafah (Wukuf)", origin: "Mina", destination: "Arafah", mode: "BUS", dayOffset: 21, hour: 6 },
+  { name: "Arafah → Muzdalifah (Mabit)", origin: "Arafah", destination: "Muzdalifah", mode: "BUS", dayOffset: 21, hour: 18 },
+  { name: "Muzdalifah → Mina (Tasyrik)", origin: "Muzdalifah", destination: "Mina", mode: "BUS", dayOffset: 22, hour: 7 },
+  { name: "Mina → Makkah", origin: "Mina", destination: "Makkah", mode: "BUS", dayOffset: 25, hour: 10 },
+  { name: "Transfer Makkah → Madinah", origin: "Makkah", destination: "Madinah", mode: "BUS", dayOffset: 39, hour: 9 },
+  { name: "Keberangkatan Madinah (AMM) → CGK", origin: "AMM", destination: "CGK", mode: "FLIGHT", dayOffset: 47, hour: 10 },
+];
+
+// A real Umrah itinerary's shape doesn't change with trip length — fly into
+// Jeddah, bus to Madinah for ziarah, take the Haramain high-speed train to
+// Makkah (2h45m — the real, modern way most operators now move pilgrims
+// between the two cities, not an all-day bus ride), then bus back to Jeddah
+// airport to fly home. madinahNights is the only thing that shifts: where
+// the Madinah→Makkah leg falls.
 function umrahTemplate(totalDays: number, madinahNights: number): MovementStep[] {
   const lastDay = totalDays - 1;
   return [
-    { name: "Kedatangan CGK → Madinah (AMM)", origin: "CGK", destination: "AMM", mode: "FLIGHT", dayOffset: 0, hour: 8 },
-    { name: "Transfer Bandara Madinah → Hotel Madinah", origin: "Bandara AMM", destination: "Hotel Madinah", mode: "BUS", dayOffset: 0, hour: 12 },
-    { name: "Transfer Madinah → Makkah", origin: "Madinah", destination: "Makkah", mode: "BUS", dayOffset: madinahNights, hour: 8 },
+    { name: "Kedatangan CGK → Jeddah (JED)", origin: "CGK", destination: "JED", mode: "FLIGHT", dayOffset: 0, hour: 8 },
+    { name: "Transfer Bandara Jeddah → Hotel Madinah", origin: "Bandara JED", destination: "Hotel Madinah", mode: "BUS", dayOffset: 0, hour: 12 },
+    { name: "Kereta Cepat Haramain Madinah → Makkah", origin: "Stasiun Madinah", destination: "Stasiun Makkah", mode: "TRAIN", dayOffset: madinahNights, hour: 9 },
     { name: "Transfer Hotel Makkah → Bandara Jeddah", origin: "Makkah", destination: "Bandara JED", mode: "BUS", dayOffset: lastDay, hour: 6 },
     { name: "Keberangkatan Jeddah (JED) → CGK", origin: "JED", destination: "CGK", mode: "FLIGHT", dayOffset: lastDay, hour: 10 },
   ];
 }
 
 const TEMPLATES: Record<string, { label: string; steps: MovementStep[] }> = {
-  hajj: { label: "Template Perjalanan (8 jadwal)", steps: HAJJ_TEMPLATE },
+  hajj1: { label: "Haji Gelombang I – Madinah Dulu (10 jadwal)", steps: HAJJ_GELOMBANG_1 },
+  hajj2: { label: "Haji Gelombang II – Makkah Dulu (9 jadwal)", steps: HAJJ_GELOMBANG_2 },
   umrah9: { label: "Umroh 9 Hari (5 jadwal)", steps: umrahTemplate(9, 3) },
   umrah12: { label: "Umroh 12 Hari (5 jadwal)", steps: umrahTemplate(12, 4) },
   umrah17: { label: "Umroh 17 Hari (5 jadwal)", steps: umrahTemplate(17, 6) },
@@ -50,7 +79,7 @@ export default function TransportDashboard() {
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [working, setWorking] = useState(false);
-  const [templateKey, setTemplateKey] = useState("hajj");
+  const [templateKey, setTemplateKey] = useState("hajj1");
 
   useEffect(() => {
     seasonClient.listSeasons({}).then((response) => {
