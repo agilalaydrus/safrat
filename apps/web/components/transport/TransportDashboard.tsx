@@ -3,21 +3,45 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Timestamp } from "@bufbuild/protobuf";
-import { IconBus, IconPlus, IconTemplate } from "@tabler/icons-react";
+import { IconBus, IconPlane, IconPlus, IconTemplate, IconTrain } from "@tabler/icons-react";
 import { Movement } from "@hajj-saas/proto-gen/hajj/v1/transport_pb";
 import { seasonClient, transportClient } from "@/lib/rpc";
 import MovementFormDialog from "./MovementFormDialog";
 
-const HAJJ_MOVEMENT_TEMPLATE = [
-  { name: "Jeddah Airport → Makkah", origin: "Jeddah", destination: "Makkah" },
-  { name: "Makkah → Mina (Tarwiyah)", origin: "Makkah", destination: "Mina" },
-  { name: "Mina → Arafah", origin: "Mina", destination: "Arafah" },
-  { name: "Arafah → Muzdalifah", origin: "Arafah", destination: "Muzdalifah" },
-  { name: "Muzdalifah → Mina", origin: "Muzdalifah", destination: "Mina" },
-  { name: "Mina → Makkah", origin: "Mina", destination: "Makkah" },
-  { name: "Makkah → Madinah", origin: "Makkah", destination: "Madinah" },
-  { name: "Madinah → Jeddah Airport", origin: "Madinah", destination: "Jeddah" },
+type MovementStep = { name: string; origin: string; destination: string; mode: "BUS" | "FLIGHT" | "TRAIN"; dayOffset: number; hour: number };
+
+const HAJJ_TEMPLATE: MovementStep[] = [
+  { name: "Jeddah Airport → Makkah", origin: "Jeddah", destination: "Makkah", mode: "BUS", dayOffset: 0, hour: 10 },
+  { name: "Makkah → Mina (Tarwiyah)", origin: "Makkah", destination: "Mina", mode: "BUS", dayOffset: 1, hour: 8 },
+  { name: "Mina → Arafah", origin: "Mina", destination: "Arafah", mode: "BUS", dayOffset: 2, hour: 6 },
+  { name: "Arafah → Muzdalifah", origin: "Arafah", destination: "Muzdalifah", mode: "BUS", dayOffset: 3, hour: 18 },
+  { name: "Muzdalifah → Mina", origin: "Muzdalifah", destination: "Mina", mode: "BUS", dayOffset: 4, hour: 7 },
+  { name: "Mina → Makkah", origin: "Mina", destination: "Makkah", mode: "BUS", dayOffset: 5, hour: 10 },
+  { name: "Makkah → Madinah", origin: "Makkah", destination: "Madinah", mode: "BUS", dayOffset: 6, hour: 9 },
+  { name: "Madinah → Jeddah Airport", origin: "Madinah", destination: "Jeddah", mode: "BUS", dayOffset: 7, hour: 10 },
 ];
+
+// A real Umrah itinerary's shape doesn't change with trip length — arrive in
+// Madinah, ziarah, bus transfer to Makkah, depart from Jeddah — only how many
+// nights are spent in each city before the transfer does. madinahNights is
+// where the Madinah→Makkah leg falls; the rest of the days are spent in Makkah.
+function umrahTemplate(totalDays: number, madinahNights: number): MovementStep[] {
+  const lastDay = totalDays - 1;
+  return [
+    { name: "Kedatangan CGK → Madinah (AMM)", origin: "CGK", destination: "AMM", mode: "FLIGHT", dayOffset: 0, hour: 8 },
+    { name: "Transfer Bandara Madinah → Hotel Madinah", origin: "Bandara AMM", destination: "Hotel Madinah", mode: "BUS", dayOffset: 0, hour: 12 },
+    { name: "Transfer Madinah → Makkah", origin: "Madinah", destination: "Makkah", mode: "BUS", dayOffset: madinahNights, hour: 8 },
+    { name: "Transfer Hotel Makkah → Bandara Jeddah", origin: "Makkah", destination: "Bandara JED", mode: "BUS", dayOffset: lastDay, hour: 6 },
+    { name: "Keberangkatan Jeddah (JED) → CGK", origin: "JED", destination: "CGK", mode: "FLIGHT", dayOffset: lastDay, hour: 10 },
+  ];
+}
+
+const TEMPLATES: Record<string, { label: string; steps: MovementStep[] }> = {
+  hajj: { label: "Templat Haji (8 jadwal)", steps: HAJJ_TEMPLATE },
+  umrah9: { label: "Umroh 9 Hari (5 jadwal)", steps: umrahTemplate(9, 3) },
+  umrah12: { label: "Umroh 12 Hari (5 jadwal)", steps: umrahTemplate(12, 4) },
+  umrah17: { label: "Umroh 17 Hari (5 jadwal)", steps: umrahTemplate(17, 6) },
+};
 
 export default function TransportDashboard() {
   const [season, setSeason] = useState("");
@@ -26,6 +50,7 @@ export default function TransportDashboard() {
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [working, setWorking] = useState(false);
+  const [templateKey, setTemplateKey] = useState("hajj");
 
   useEffect(() => {
     seasonClient.listSeasons({}).then((response) => {
@@ -45,19 +70,20 @@ export default function TransportDashboard() {
 
   async function useTemplate() {
     if (!season || working) return;
+    const template = TEMPLATES[templateKey];
+    if (!template) return;
     setWorking(true);
     setNotice("");
     try {
       const start = new Date();
       start.setDate(start.getDate() + 1);
-      let i = 0;
-      for (const step of HAJJ_MOVEMENT_TEMPLATE) {
+      for (const step of template.steps) {
         const scheduledAt = new Date(start);
-        scheduledAt.setDate(start.getDate() + i);
-        await transportClient.createMovement({ seasonId: season, name: step.name, origin: step.origin, destination: step.destination, scheduledAt: Timestamp.fromDate(scheduledAt) });
-        i += 1;
+        scheduledAt.setDate(start.getDate() + step.dayOffset);
+        scheduledAt.setHours(step.hour, 0, 0, 0);
+        await transportClient.createMovement({ seasonId: season, name: step.name, origin: step.origin, destination: step.destination, mode: step.mode, scheduledAt: Timestamp.fromDate(scheduledAt) });
       }
-      setNotice("Templat jadwal Haji berhasil dibuat (8 jadwal).");
+      setNotice(`${template.label} berhasil dibuat.`);
       refresh();
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : "Gagal membuat templat jadwal.");
@@ -84,7 +110,10 @@ export default function TransportDashboard() {
           <select value={season} onChange={(event) => setSeason(event.target.value)} style={input}>
             {seasons.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-          <button disabled={!season || working} onClick={() => void useTemplate()} style={ghost}><IconTemplate size={18} />Gunakan templat Haji</button>
+          <select value={templateKey} onChange={(event) => setTemplateKey(event.target.value)} style={{ ...input, maxWidth: 220 }}>
+            {Object.entries(TEMPLATES).map(([key, tpl]) => <option key={key} value={key}>{tpl.label}</option>)}
+          </select>
+          <button disabled={!season || working} onClick={() => void useTemplate()} style={ghost}><IconTemplate size={18} />Gunakan Templat</button>
           <button disabled={!season} onClick={() => setOpen(true)} style={emerald}><IconPlus size={18} />Tambah Jadwal</button>
         </div>
       </header>
@@ -97,7 +126,7 @@ export default function TransportDashboard() {
             {items.map((movement) => (
               <Link key={movement.id} href={`/dashboard/transport/${movement.id}`} style={card}>
                 <div>
-                  <strong>{movement.name}</strong>
+                  <strong style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{modeIcon(movement.mode)}{movement.name}</strong>
                   <p>{movement.origin} → {movement.destination}</p>
                   <small>{movement.scheduledAt?.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small>
                 </div>
@@ -124,6 +153,12 @@ function badge(status: string): React.CSSProperties {
   };
   const [bg, color] = map[status] ?? ["var(--color-cream-300)", "var(--color-warm-500)"];
   return { justifySelf: "start", padding: "5px 10px", borderRadius: 99, background: bg, color, textTransform: "capitalize", fontSize: 12 };
+}
+
+function modeIcon(mode: string) {
+  if (mode === "FLIGHT") return <IconPlane size={16} color="var(--color-emerald-800)" />;
+  if (mode === "TRAIN") return <IconTrain size={16} color="var(--color-emerald-800)" />;
+  return <IconBus size={16} color="var(--color-emerald-800)" />;
 }
 
 function statusLabel(status: string): string {

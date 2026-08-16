@@ -6,9 +6,11 @@ import { Gender, Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { VehicleManifest } from "@hajj-saas/proto-gen/hajj/v1/transport_pb";
 import { pilgrimClient, transportClient } from "@/lib/rpc";
 
-type Props = { vehicleId: string; seasonId: string; movementStatus: string; open: boolean; onClose: () => void; onChanged: () => void };
+type Props = { vehicleId: string; seasonId: string; movementStatus: string; mode?: string; open: boolean; onClose: () => void; onChanged: () => void };
 
-export default function VehicleManifestPanel({ vehicleId, seasonId, movementStatus, open, onClose, onChanged }: Props) {
+const MODE_NO_OPERATOR: Record<string, string> = { BUS: "Sopir belum ditentukan", FLIGHT: "Maskapai belum ditentukan", TRAIN: "Operator belum ditentukan" };
+
+export default function VehicleManifestPanel({ vehicleId, seasonId, movementStatus, mode = "BUS", open, onClose, onChanged }: Props) {
   const [manifest, setManifest] = useState<VehicleManifest>();
   const [pilgrims, setPilgrims] = useState<Pilgrim[]>([]);
   const [query, setQuery] = useState("");
@@ -86,7 +88,7 @@ export default function VehicleManifestPanel({ vehicleId, seasonId, movementStat
   }
 
   return <div role="dialog" aria-modal="true" aria-label="Manifest kendaraan" style={overlay}><aside style={sheet}>
-    <header style={header}><div><p style={eyebrow}>MANIFEST KENDARAAN</p><h2 style={{ margin: 0 }}>{vehicle?.plateNumber ?? "Kendaraan"}</h2><p style={{ margin: "6px 0 0", color: "var(--color-warm-500)" }}>{vehicle?.driverName || "Sopir belum ditentukan"} · {occupants.length}/{vehicle?.capacity ?? 0} ditempatkan</p></div><button onClick={onClose} style={secondary}>Tutup</button></header>
+    <header style={header}><div><p style={eyebrow}>MANIFEST KENDARAAN</p><h2 style={{ margin: 0 }}>{vehicle?.plateNumber ?? "Kendaraan"}</h2><p style={{ margin: "6px 0 0", color: "var(--color-warm-500)" }}>{vehicle?.driverName || (MODE_NO_OPERATOR[mode] ?? MODE_NO_OPERATOR.BUS!)} · {occupants.length}/{vehicle?.capacity ?? 0} ditempatkan</p></div><button onClick={onClose} style={secondary}>Tutup</button></header>
     <div className="gold-divider" />
     {vehicle && <div style={statusRow}><span style={badge(vehicle.status)}>{statusLabel(vehicle.status)}</span>{vehicle.status === "scheduled" && <><button disabled={workingId === "status"} onClick={() => void updateStatus("departed")} style={emerald}>Tandai Berangkat</button><button disabled={workingId === "status"} onClick={() => void updateStatus("cancelled")} style={dangerOutline}>Batalkan</button></>}{vehicle.status === "departed" && <button disabled={workingId === "status"} onClick={() => void updateStatus("arrived")} style={emerald}>Tandai Tiba</button>}</div>}
     <section style={section}><h3 style={sectionTitle}>Jamaah yang ditempatkan</h3>{occupants.length ? occupants.map((pilgrim) => <div key={pilgrim.id} style={person}><div><strong>{pilgrim.fullName}</strong><span style={meta}>{genderIcon(pilgrim.gender)} {pilgrim.passportNumber} · Kursi {pilgrim.seatNumber || "-"}</span></div><button disabled={workingId === pilgrim.id} onClick={() => void remove(pilgrim.id)} style={dangerOutline}><IconUserMinus size={17} />Keluarkan</button></div>) : <p style={emptyText}>Belum ada jamaah yang ditempatkan.</p>}</section>

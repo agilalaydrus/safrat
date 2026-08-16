@@ -1,5 +1,5 @@
 -- name: CreateMovement :one
-INSERT INTO movements (season_id, operator_id, name, origin, destination, scheduled_at) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *;
+INSERT INTO movements (season_id, operator_id, name, origin, destination, scheduled_at, mode) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *;
 -- name: GetMovement :one
 SELECT * FROM movements WHERE id=$1 AND operator_id=$2;
 -- name: ListMovementsWithStats :many

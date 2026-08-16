@@ -7,8 +7,10 @@ import { transportClient } from "@/lib/rpc";
 
 type Props = { open: boolean; seasonId: string; onClose: () => void; onSaved: () => void };
 
+const MODES = [["BUS", "Bus"], ["FLIGHT", "Pesawat"], ["TRAIN", "Kereta Cepat"]] as const;
+
 export default function MovementFormDialog({ open, seasonId, onClose, onSaved }: Props) {
-  const [form, setForm] = useState({ name: "", origin: "", destination: "", scheduledAt: "" });
+  const [form, setForm] = useState({ name: "", origin: "", destination: "", scheduledAt: "", mode: "BUS" });
   const [error, setError] = useState("");
 
   if (!open) return null;
@@ -24,7 +26,7 @@ export default function MovementFormDialog({ open, seasonId, onClose, onSaved }:
       return;
     }
     try {
-      await transportClient.createMovement({ seasonId, name: form.name, origin: form.origin, destination: form.destination, scheduledAt: Timestamp.fromDate(scheduledAt) });
+      await transportClient.createMovement({ seasonId, name: form.name, origin: form.origin, destination: form.destination, scheduledAt: Timestamp.fromDate(scheduledAt), mode: form.mode });
       onSaved();
       onClose();
     } catch (caught) {
@@ -42,9 +44,14 @@ export default function MovementFormDialog({ open, seasonId, onClose, onSaved }:
         <div style={formBody}>
           <form id="movement-form" onSubmit={submit} style={{ display: "grid", gap: 20 }}>
             <Section title="Detail jadwal">
+              <Field label="Moda transportasi">
+                <select className="safrat-input" value={form.mode} onChange={(event) => update("mode", event.target.value)} style={input}>
+                  {MODES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </Field>
               <Field label="Nama jadwal"><input className="safrat-input" required value={form.name} onChange={(event) => update("name", event.target.value)} style={input} /></Field>
-              <Field label="Asal"><input className="safrat-input" required value={form.origin} onChange={(event) => update("origin", event.target.value)} style={input} /></Field>
-              <Field label="Tujuan"><input className="safrat-input" required value={form.destination} onChange={(event) => update("destination", event.target.value)} style={input} /></Field>
+              <Field label={form.mode === "FLIGHT" ? "Bandara Asal" : form.mode === "TRAIN" ? "Stasiun Asal" : "Asal"}><input className="safrat-input" required value={form.origin} onChange={(event) => update("origin", event.target.value)} style={input} /></Field>
+              <Field label={form.mode === "FLIGHT" ? "Bandara Tujuan" : form.mode === "TRAIN" ? "Stasiun Tujuan" : "Tujuan"}><input className="safrat-input" required value={form.destination} onChange={(event) => update("destination", event.target.value)} style={input} /></Field>
               <Field label="Dijadwalkan pada"><input className="safrat-input" required type="datetime-local" value={form.scheduledAt} onChange={(event) => update("scheduledAt", event.target.value)} style={input} /></Field>
             </Section>
             {error && <p role="alert" style={formError}>{error}</p>}

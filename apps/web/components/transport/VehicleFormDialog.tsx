@@ -4,13 +4,24 @@ import { FormEvent, useEffect, useState } from "react";
 import { IconX } from "@tabler/icons-react";
 import { transportClient } from "@/lib/rpc";
 
-type Props = { open: boolean; movementId: string; onClose: () => void; onSaved: () => void };
+type Props = { open: boolean; movementId: string; mode?: string; onClose: () => void; onSaved: () => void };
 
 const emptyForm = { plateNumber: "", capacity: "", driverName: "", driverPhone: "" };
 
-export default function VehicleFormDialog({ open, movementId, onClose, onSaved }: Props) {
+// Vehicle rows stay generic (plate_number/driver_name/driver_phone) regardless
+// of movement mode — only the labels shown to the operator change, so a
+// flight's crew/airline info and a train's operator info fit the same fields
+// a bus's plate/driver already use.
+const MODE_COPY: Record<string, { title: string; number: string; numberPlaceholder: string; capacity: string; operator: string; contact: string }> = {
+  BUS: { title: "Tambah kendaraan", number: "Nomor plat", numberPlaceholder: "contoh: B 1234 XYZ", capacity: "Kapasitas", operator: "Nama sopir", contact: "Telepon sopir" },
+  FLIGHT: { title: "Tambah penerbangan", number: "Nomor penerbangan", numberPlaceholder: "contoh: SV 815", capacity: "Kapasitas", operator: "Maskapai", contact: "Telepon maskapai/CS" },
+  TRAIN: { title: "Tambah kereta", number: "Nomor kereta", numberPlaceholder: "contoh: HHR 102", capacity: "Kapasitas", operator: "Operator kereta", contact: "Telepon operator" },
+};
+
+export default function VehicleFormDialog({ open, movementId, mode = "BUS", onClose, onSaved }: Props) {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
+  const copy = MODE_COPY[mode] ?? MODE_COPY.BUS!;
 
   useEffect(() => { if (open) { setForm(emptyForm); setError(""); } }, [open]);
 
@@ -31,24 +42,24 @@ export default function VehicleFormDialog({ open, movementId, onClose, onSaved }
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Tambah kendaraan" style={overlay}>
+    <div role="dialog" aria-modal="true" aria-label={copy.title} style={overlay}>
       <aside style={sheet}>
         <div style={stickyHeader}>
-          <div><p style={eyebrow}>TRANSPORTASI</p><h2 style={{ margin: 0 }}>Tambah kendaraan</h2></div>
+          <div><p style={eyebrow}>TRANSPORTASI</p><h2 style={{ margin: 0 }}>{copy.title}</h2></div>
           <button type="button" className="btn-close-sheet" onClick={onClose} style={closeBtn} aria-label="Tutup"><IconX size={18} /></button>
         </div>
         <div style={formBody}>
           <form id="vehicle-form" onSubmit={submit} style={{ display: "grid", gap: 20 }}>
-            <Section title="Detail kendaraan">
-              <Field label="Nomor plat"><input className="safrat-input" required value={form.plateNumber} onChange={(event) => update("plateNumber", event.target.value.toUpperCase())} placeholder="contoh: B 1234 XYZ" style={input} /></Field>
-              <Field label="Kapasitas"><input className="safrat-input" required type="number" min="1" value={form.capacity} onChange={(event) => update("capacity", event.target.value)} placeholder="Jumlah kursi" style={input} /></Field>
-              <Field label="Nama sopir"><input className="safrat-input" value={form.driverName} onChange={(event) => update("driverName", event.target.value)} style={input} /></Field>
-              <Field label="Telepon sopir"><input className="safrat-input" value={form.driverPhone} onChange={(event) => update("driverPhone", event.target.value)} style={input} /></Field>
+            <Section title={copy.title}>
+              <Field label={copy.number}><input className="safrat-input" required value={form.plateNumber} onChange={(event) => update("plateNumber", event.target.value.toUpperCase())} placeholder={copy.numberPlaceholder} style={input} /></Field>
+              <Field label={copy.capacity}><input className="safrat-input" required type="number" min="1" value={form.capacity} onChange={(event) => update("capacity", event.target.value)} placeholder="Jumlah kursi" style={input} /></Field>
+              <Field label={copy.operator}><input className="safrat-input" value={form.driverName} onChange={(event) => update("driverName", event.target.value)} style={input} /></Field>
+              <Field label={copy.contact}><input className="safrat-input" value={form.driverPhone} onChange={(event) => update("driverPhone", event.target.value)} style={input} /></Field>
             </Section>
             {error && <p role="alert" style={formError}>{error}</p>}
           </form>
         </div>
-        <div style={stickyFooter}><button form="vehicle-form" style={primary}>Tambah kendaraan</button></div>
+        <div style={stickyFooter}><button form="vehicle-form" style={primary}>{copy.title}</button></div>
       </aside>
     </div>
   );
