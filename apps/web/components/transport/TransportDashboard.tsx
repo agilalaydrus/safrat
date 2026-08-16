@@ -37,7 +37,7 @@ function umrahTemplate(totalDays: number, madinahNights: number): MovementStep[]
 }
 
 const TEMPLATES: Record<string, { label: string; steps: MovementStep[] }> = {
-  hajj: { label: "Templat Haji (8 jadwal)", steps: HAJJ_TEMPLATE },
+  hajj: { label: "Template Perjalanan (8 jadwal)", steps: HAJJ_TEMPLATE },
   umrah9: { label: "Umroh 9 Hari (5 jadwal)", steps: umrahTemplate(9, 3) },
   umrah12: { label: "Umroh 12 Hari (5 jadwal)", steps: umrahTemplate(12, 4) },
   umrah17: { label: "Umroh 17 Hari (5 jadwal)", steps: umrahTemplate(17, 6) },
