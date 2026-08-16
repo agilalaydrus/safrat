@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// IdentityService is the single entry point every surface (operator
+// dashboard, group leader app, pilgrim app) signs in through on one shared
+// domain. GetMyAccess answers "who is this Better Auth identity, across
+// every role system in this app" so the frontend can land the caller on the
+// right place without hardcoding which surface they came from. Runs through
+// the session-only (not org-scoped) auth lane — see sessionOnlyProcedures in
+// internal/middleware/auth.go — because a pure leader or pilgrim identity is
+// never an organization member.
+service IdentityService {
+  rpc GetMyAccess(GetMyAccessRequest) returns (MyAccess);
+}
+
+message GetMyAccessRequest {}
+
+message MyAccess {
+  // Operator staff — a Better Auth organization member. org_role is
+  // Better Auth's own organization-plugin role: "owner" | "admin" |
+  // "member" (owner: full control incl. billing/staff management; admin:
+  // full operational control; member: operational access, no staff/billing
+  // management). Not yet enforced per-RPC beyond org membership itself —
+  // routing only for now.
+  bool is_org_member = 1;
+  string org_role = 2;
+  string operator_id = 3;
+  string operator_name = 4;
+
+  // Group Leader — every group this identity leads (groups.leader_id).
+  // Usually one, but a person can lead more than one group.
+  repeated LeaderGroupSummary leader_groups = 5;
+
+  // Pilgrim — set only if this identity has linked a pilgrim record via
+  // PilgrimAppService.LinkGoogleAccount. A Better Auth identity can be
+  // linked to at most one pilgrim (pilgrims.linked_user_id is unique).
+  PilgrimSummary linked_pilgrim = 6;
+}
+
+message LeaderGroupSummary {
+  string id = 1;
+  string name = 2;
+}
+
+message PilgrimSummary {
+  string id = 1;
+  string app_access_code = 2;
+  string full_name = 3;
+}

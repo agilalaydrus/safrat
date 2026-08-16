@@ -72,6 +72,7 @@ func main() {
 		notificationRepository := repository.NewNotificationRepository(queries)
 		auditRepository := repository.NewAuditRepository(queries)
 		kloterRepository := repository.NewKloterRepository(queries)
+		identityRepository := repository.NewIdentityRepository(queries)
 
 		firebasePusher, err := notification.NewFirebasePusher(ctx, logger, config.FirebaseServiceAccountJSON, notificationRepository)
 		if err != nil {
@@ -93,6 +94,7 @@ func main() {
 		groupLeaderService := service.NewGroupLeaderService(operatorRepository, groupLeaderRepository, sosRepository)
 		notificationService := service.NewNotificationService(operatorRepository, notificationRepository)
 		kloterService := service.NewKloterService(operatorRepository, kloterRepository, auditRepository)
+		identityService := service.NewIdentityService(identityRepository)
 		operatorHandler := handler.NewOperatorHandler(operatorService)
 		pilgrimHandler := handler.NewPilgrimHandler(pilgrimService)
 		seasonHandler := handler.NewSeasonHandler(seasonService)
@@ -107,6 +109,7 @@ func main() {
 		groupLeaderHandler := handler.NewGroupLeaderHandler(groupLeaderService)
 		notificationHandler := handler.NewNotificationHandler(notificationService)
 		kloterHandler := handler.NewKloterHandler(kloterService)
+		identityHandler := handler.NewIdentityHandler(identityService)
 		handlerOptions := []connect.HandlerOption{connect.WithInterceptors(
 			middleware.NewRateLimitInterceptor(),
 			middleware.NewAuthInterceptor(pool),
@@ -125,6 +128,7 @@ func main() {
 		groupLeaderPath, groupLeaderServiceHandler := hajjv1connect.NewGroupLeaderServiceHandler(groupLeaderHandler, handlerOptions...)
 		notificationPath, notificationServiceHandler := hajjv1connect.NewNotificationServiceHandler(notificationHandler, handlerOptions...)
 		kloterPath, kloterServiceHandler := hajjv1connect.NewKloterServiceHandler(kloterHandler, handlerOptions...)
+		identityPath, identityServiceHandler := hajjv1connect.NewIdentityServiceHandler(identityHandler, handlerOptions...)
 		mux.Handle(operatorPath, operatorServiceHandler)
 		mux.Handle(pilgrimPath, pilgrimServiceHandler)
 		mux.Handle(seasonPath, seasonServiceHandler)
@@ -139,6 +143,7 @@ func main() {
 		mux.Handle(groupLeaderPath, groupLeaderServiceHandler)
 		mux.Handle(notificationPath, notificationServiceHandler)
 		mux.Handle(kloterPath, kloterServiceHandler)
+		mux.Handle(identityPath, identityServiceHandler)
 		mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, request *http.Request) {
 			if err := pool.Ping(request.Context()); err != nil {
 				http.Error(w, `{"status":"database_unavailable"}`, http.StatusServiceUnavailable)

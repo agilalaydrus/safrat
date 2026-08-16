@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { resolveLandingPath } from "@/lib/post-login";
 
 export function PublicOnly({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -19,24 +20,8 @@ export function PublicOnly({ children }: { children: React.ReactNode }) {
         const session = await authClient.getSession({ fetchOptions: { cache: "no-store" } });
         if (!session.data?.user || cancelled) return;
 
-        const organizations = await authClient.organization.list();
-        if (cancelled) return;
-
-        const firstOrganization = organizations.data?.[0];
-        if (!firstOrganization) {
-          router.replace("/onboarding");
-          return;
-        }
-
-        // Session rotation can drop the active organization while preserving the user session.
-        if (!session.data.session?.activeOrganizationId) {
-          await authClient.organization.setActive({ organizationId: firstOrganization.id });
-          await authClient.getSession({ fetchOptions: { cache: "no-store" } });
-        }
-
-        if (!cancelled) {
-          router.replace("/dashboard");
-        }
+        const path = await resolveLandingPath();
+        if (!cancelled) router.replace(path);
       } catch {
         // A failed refresh must not lock a genuine signed-out user out of the form.
       } finally {

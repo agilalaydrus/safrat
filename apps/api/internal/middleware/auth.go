@@ -46,6 +46,7 @@ var publicProcedures = map[string]bool{
 // by app_access_code), never from ctx's operator id, which is empty here.
 var sessionOnlyProcedures = map[string]bool{
 	"/hajj.v1.PilgrimAppService/LinkGoogleAccount": true,
+	"/hajj.v1.IdentityService/GetMyAccess":         true,
 }
 
 // NewAuthInterceptor validates Better Auth's opaque database session token.
