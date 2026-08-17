@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 
+	"buf.build/go/protovalidate"
 	"connectrpc.com/connect"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/middleware"
@@ -16,6 +17,9 @@ func NewOrderHandler(orderService *service.OrderService) *OrderHandler {
 }
 
 func (h *OrderHandler) CreateOrder(ctx context.Context, req *connect.Request[hajjv1.CreateOrderRequest]) (*connect.Response[hajjv1.CreateOrderResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
 	result, err := h.orderService.CreateOrder(ctx, req.Msg)
 	if err != nil {
 		return nil, connectError(err)
@@ -23,7 +27,21 @@ func (h *OrderHandler) CreateOrder(ctx context.Context, req *connect.Request[haj
 	return connect.NewResponse(result), nil
 }
 
+func (h *OrderHandler) CreateManualOrder(ctx context.Context, req *connect.Request[hajjv1.CreateManualOrderRequest]) (*connect.Response[hajjv1.CreateOrderResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.orderService.CreateManualOrder(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *OrderHandler) ListOrders(ctx context.Context, req *connect.Request[hajjv1.ListOrdersRequest]) (*connect.Response[hajjv1.ListOrdersResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
 	result, err := h.orderService.ListOrders(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
 	if err != nil {
 		return nil, connectError(err)
@@ -32,6 +50,9 @@ func (h *OrderHandler) ListOrders(ctx context.Context, req *connect.Request[hajj
 }
 
 func (h *OrderHandler) GetOrder(ctx context.Context, req *connect.Request[hajjv1.GetOrderRequest]) (*connect.Response[hajjv1.Order], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
 	result, err := h.orderService.GetOrder(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
 	if err != nil {
 		return nil, connectError(err)

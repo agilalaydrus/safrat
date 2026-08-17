@@ -8,6 +8,7 @@ import (
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
+	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/payment"
 	"github.com/hajj-saas/api/internal/repository"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -18,6 +19,7 @@ type OrderService struct {
 	pilgrimRepository  *repository.PilgrimRepository
 	productRepository  *repository.ProductRepository
 	orderRepository    *repository.OrderRepository
+	auditRepository    *repository.AuditRepository
 	xenditClient       *payment.Client
 	// appBaseURL is where Xendit redirects the pilgrim's browser back to
 	// after payment — CORS_ALLOWED_ORIGIN doubles as this app's canonical
@@ -25,8 +27,22 @@ type OrderService struct {
 	appBaseURL string
 }
 
-func NewOrderService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, orders *repository.OrderRepository, xendit *payment.Client, appBaseURL string) *OrderService {
-	return &OrderService{operatorRepository: operators, pilgrimRepository: pilgrims, productRepository: products, orderRepository: orders, xenditClient: xendit, appBaseURL: appBaseURL}
+func NewOrderService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, orders *repository.OrderRepository, audit *repository.AuditRepository, xendit *payment.Client, appBaseURL string) *OrderService {
+	return &OrderService{operatorRepository: operators, pilgrimRepository: pilgrims, productRepository: products, orderRepository: orders, auditRepository: audit, xenditClient: xendit, appBaseURL: appBaseURL}
+}
+
+// computeSplit derives the platform/operator/agent commission split for a
+// quantity of a product — shared by CreateOrder (pilgrim self-checkout) and
+// CreateManualOrder (admin-side), so the two lanes can never diverge on how
+// money gets split.
+func computeSplit(product *domain.Product, quantity int32) (totalPrice, platformAmount, operatorAmount int64) {
+	totalPrice = product.PriceIDR * int64(quantity)
+	// Rounds down — a fraction of a rupiah has nowhere to go, and
+	// under-crediting by a fraction is the safe direction for a split
+	// that must sum to <= total, never over.
+	platformAmount = int64(float64(totalPrice) * product.PlatformMarginPct)
+	operatorAmount = int64(float64(totalPrice) * product.OperatorMarginPct)
+	return totalPrice, platformAmount, operatorAmount
 }
 
 // CreateOrder runs through the public (app_access_code) lane, same as the
@@ -57,12 +73,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *hajjv1.CreateOrderR
 		return nil, serviceError("OrderService.CreateOrder", fmt.Errorf("%w: %w", apperror.ErrFailedPrecondition, payment.ErrNotConfigured))
 	}
 
-	totalPrice := product.PriceIDR * int64(req.Quantity)
-	// Rounds down — a fraction of a rupiah has nowhere to go, and
-	// under-crediting by a fraction is the safe direction for a split
-	// that must sum to <= total, never over.
-	platformAmount := int64(float64(totalPrice) * product.PlatformMarginPct)
-	operatorAmount := int64(float64(totalPrice) * product.OperatorMarginPct)
+	totalPrice, platformAmount, operatorAmount := computeSplit(product, req.Quantity)
 	// No agent attribution for a pilgrim's own self-checkout in this
 	// pass — agentCommission = 0 whenever there's no agent, per §7.
 	agentCommission := int64(0)
@@ -91,6 +102,105 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *hajjv1.CreateOrderR
 	order.ProductName = product.Name
 	order.PilgrimName = info.FullName
 	return &hajjv1.CreateOrderResponse{Order: orderMessage(order), CheckoutUrl: invoice.InvoiceURL}, nil
+}
+
+// CreateManualOrder is the authenticated, operator-staff lane — every
+// identifier (pilgrim, product) is re-derived and ownership-checked against
+// this operator server-side, exactly like the public CreateOrder never
+// trusts a client-supplied price. The XENDIT_LINK path is identical to a
+// pilgrim's own checkout, just initiated by staff. The CASH/BANK_TRANSFER
+// paths skip the gateway entirely and mark the order PAID immediately on
+// the operator's word — there's no independent confirmation backing that,
+// so it's unconditionally audit-logged with who did it and their note.
+func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req *hajjv1.CreateManualOrderRequest) (*hajjv1.CreateOrderResponse, error) {
+	if req == nil || !isUUID(req.PilgrimId) || !isUUID(req.ProductId) || req.Quantity < 1 || req.Quantity > 20 {
+		return nil, serviceError("OrderService.CreateManualOrder", apperror.ErrValidation)
+	}
+	method := manualOrderMethodToDB(req.PaymentMethod)
+	if method == "" {
+		return nil, serviceError("OrderService.CreateManualOrder", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("OrderService.CreateManualOrder", err)
+	}
+	pilgrim, err := s.pilgrimRepository.Get(ctx, op.ID, req.PilgrimId)
+	if err != nil {
+		return nil, serviceError("OrderService.CreateManualOrder", err)
+	}
+	product, err := s.productRepository.GetByID(ctx, op.ID, req.ProductId)
+	if err != nil {
+		return nil, serviceError("OrderService.CreateManualOrder", apperror.ErrNotFound)
+	}
+	if !product.IsActive {
+		return nil, serviceError("OrderService.CreateManualOrder", apperror.ErrFailedPrecondition)
+	}
+	if method == "XENDIT_LINK" && !s.xenditClient.Configured() {
+		return nil, serviceError("OrderService.CreateManualOrder", fmt.Errorf("%w: %w", apperror.ErrFailedPrecondition, payment.ErrNotConfigured))
+	}
+
+	totalPrice, platformAmount, operatorAmount := computeSplit(product, req.Quantity)
+	// No agent attribution here either — see CreateOrder. A future "sold by
+	// this agent" concept can thread an agent_id through this same request
+	// without touching the split logic.
+	order, err := s.orderRepository.Create(ctx, op.ID, pilgrim.SeasonID, pilgrim.ID, req.ProductId, "", req.Quantity, product.PriceIDR, totalPrice, platformAmount, operatorAmount, 0)
+	if err != nil {
+		return nil, serviceError("OrderService.CreateManualOrder", err)
+	}
+	order.ProductName = product.Name
+	order.PilgrimName = pilgrim.FullName
+
+	userID := middleware.UserIDFromCtx(ctx)
+	checkoutURL := ""
+	if method == "XENDIT_LINK" {
+		invoice, err := s.xenditClient.CreateInvoice(ctx, payment.CreateInvoiceRequest{
+			ExternalID:         order.ID,
+			Amount:             totalPrice,
+			Description:        fmt.Sprintf("%s — %s", product.Name, pilgrim.FullName),
+			SuccessRedirectURL: s.appBaseURL + "/dashboard/orders?order=success",
+			FailureRedirectURL: s.appBaseURL + "/dashboard/orders?order=failed",
+		})
+		if err != nil {
+			return nil, serviceError("OrderService.CreateManualOrder", fmt.Errorf("create xendit invoice: %w", err))
+		}
+		if err := s.orderRepository.SetXenditInvoice(ctx, order.ID, invoice.ID, invoice.InvoiceURL); err != nil {
+			return nil, serviceError("OrderService.CreateManualOrder", err)
+		}
+		order.XenditInvoiceID = invoice.ID
+		order.XenditInvoiceURL = invoice.InvoiceURL
+		checkoutURL = invoice.InvoiceURL
+	} else {
+		paid, err := s.orderRepository.MarkPaidManually(ctx, op.ID, order.ID)
+		if err != nil {
+			return nil, serviceError("OrderService.CreateManualOrder", err)
+		}
+		order.Status = paid.Status
+		order.PaidAt = paid.PaidAt
+	}
+	_ = s.auditRepository.Write(ctx, op.ID, userID, "manual_order_created", "order", order.ID,
+		fmt.Sprintf("%s x%d — Rp%d via %s%s", product.Name, req.Quantity, totalPrice, method, noteSuffix(req.Note)))
+	return &hajjv1.CreateOrderResponse{Order: orderMessage(order), CheckoutUrl: checkoutURL}, nil
+}
+
+func manualOrderMethodToDB(m hajjv1.ManualOrderPaymentMethod) string {
+	switch m {
+	case hajjv1.ManualOrderPaymentMethod_MANUAL_ORDER_PAYMENT_METHOD_XENDIT_LINK:
+		return "XENDIT_LINK"
+	case hajjv1.ManualOrderPaymentMethod_MANUAL_ORDER_PAYMENT_METHOD_CASH:
+		return "CASH"
+	case hajjv1.ManualOrderPaymentMethod_MANUAL_ORDER_PAYMENT_METHOD_BANK_TRANSFER:
+		return "BANK_TRANSFER"
+	default:
+		return ""
+	}
+}
+
+func noteSuffix(note string) string {
+	note = strings.TrimSpace(note)
+	if note == "" {
+		return ""
+	}
+	return " — " + note
 }
 
 func (s *OrderService) ListOrders(ctx context.Context, orgID string, req *hajjv1.ListOrdersRequest) (*hajjv1.ListOrdersResponse, error) {

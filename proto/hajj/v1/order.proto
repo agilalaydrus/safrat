@@ -14,6 +14,11 @@ option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 // the normal authenticated/org-scoped lane, for the admin dashboard.
 service OrderService {
   rpc CreateOrder(CreateOrderRequest) returns (CreateOrderResponse);
+  // CreateManualOrder is the admin-side counterpart — operator staff
+  // selling a digital product in person or over the phone/WhatsApp, on
+  // behalf of a pilgrim who isn't checking out themselves. Authenticated
+  // (Better Auth session + org membership), unlike CreateOrder.
+  rpc CreateManualOrder(CreateManualOrderRequest) returns (CreateOrderResponse);
   rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
   rpc GetOrder(GetOrderRequest) returns (Order);
 }
@@ -51,8 +56,31 @@ message CreateOrderResponse {
   Order order = 1;
   // Xendit's hosted invoice page — the frontend redirects here to
   // complete payment. Empty if Xendit isn't configured (XENDIT_SECRET_KEY
-  // unset); see internal/payment/xendit.go.
+  // unset), or if the order was created already-PAID (CreateManualOrder
+  // with a CASH/BANK_TRANSFER method); see internal/payment/xendit.go.
   string checkout_url = 2;
+}
+
+enum ManualOrderPaymentMethod {
+  MANUAL_ORDER_PAYMENT_METHOD_UNSPECIFIED = 0;
+  // Generates a Xendit invoice link the operator shares with the pilgrim
+  // (WhatsApp, etc.) — order stays PENDING until the webhook confirms it,
+  // exactly like the pilgrim's own self-checkout.
+  MANUAL_ORDER_PAYMENT_METHOD_XENDIT_LINK = 1;
+  // Operator attests payment was already received outside Xendit — the
+  // order is created already PAID. Always audit-logged (see
+  // OrderService.CreateManualOrder); there is no gateway confirmation
+  // backing these two, so the log is the only accountability trail.
+  MANUAL_ORDER_PAYMENT_METHOD_CASH = 2;
+  MANUAL_ORDER_PAYMENT_METHOD_BANK_TRANSFER = 3;
+}
+
+message CreateManualOrderRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+  string product_id = 2 [(buf.validate.field).string.uuid = true];
+  int32 quantity = 3 [(buf.validate.field).int32 = {gte: 1, lte: 20}];
+  ManualOrderPaymentMethod payment_method = 4 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3]}];
+  string note = 5 [(buf.validate.field).string.max_len = 500];
 }
 
 message ListOrdersRequest {

@@ -98,7 +98,7 @@ func main() {
 		kloterService := service.NewKloterService(operatorRepository, kloterRepository, auditRepository)
 		identityService := service.NewIdentityService(identityRepository)
 		xenditClient := payment.NewClient(config.XenditSecretKey)
-		orderService := service.NewOrderService(operatorRepository, pilgrimRepository, productRepository, orderRepository, xenditClient, config.AllowedOrigin)
+		orderService := service.NewOrderService(operatorRepository, pilgrimRepository, productRepository, orderRepository, auditRepository, xenditClient, config.AllowedOrigin)
 		operatorHandler := handler.NewOperatorHandler(operatorService)
 		pilgrimHandler := handler.NewPilgrimHandler(pilgrimService)
 		seasonHandler := handler.NewSeasonHandler(seasonService)

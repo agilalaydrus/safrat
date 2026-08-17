@@ -49,6 +49,25 @@ func (r *OrderRepository) Create(ctx context.Context, operatorID, seasonID, pilg
 	return toOrder(order), nil
 }
 
+// MarkPaidManually is the admin cash/bank-transfer counterpart to
+// MarkPaidByInvoiceID — same PENDING->PAID guard, just triggered by an
+// operator's attestation instead of a Xendit webhook.
+func (r *OrderRepository) MarkPaidManually(ctx context.Context, operatorID, orderID string) (*domain.Order, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	orderUUID, err := pgUUID(orderID)
+	if err != nil {
+		return nil, err
+	}
+	order, err := r.queries.MarkOrderPaidManually(ctx, db.MarkOrderPaidManuallyParams{ID: orderUUID, OperatorID: opUUID})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toOrder(order), nil
+}
+
 func (r *OrderRepository) SetXenditInvoice(ctx context.Context, orderID, invoiceID, invoiceURL string) error {
 	orderUUID, err := pgUUID(orderID)
 	if err != nil {

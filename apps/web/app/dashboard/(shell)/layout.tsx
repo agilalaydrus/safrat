@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { IconBuildingHospital, IconBus, IconFileAnalytics, IconLayoutDashboard, IconLogout, IconMenu2, IconPlane, IconSettings, IconShoppingCart, IconSos, IconUserDollar, IconUsers, IconUsersGroup } from "@tabler/icons-react";
+import { IconBuildingHospital, IconBus, IconFileAnalytics, IconLayoutDashboard, IconLogout, IconMenu2, IconPlane, IconReceipt2, IconSettings, IconShoppingCart, IconSos, IconUserDollar, IconUsers, IconUsersGroup } from "@tabler/icons-react";
 import { authClient } from "@/lib/auth-client";
 import { operatorClient, seasonClient } from "@/lib/rpc";
 import { RequireAccess } from "@/components/auth/RequireAccess";
 import { invalidateMyAccessCache } from "@/lib/access-cache";
 
-const nav = [["Ringkasan", "/dashboard", IconLayoutDashboard], ["Jamaah", "/dashboard/pilgrims", IconUsers], ["Rombongan", "/dashboard/groups", IconUsersGroup], ["Kloter", "/dashboard/kloter", IconPlane], ["Akomodasi", "/dashboard/accommodation", IconBuildingHospital], ["Transportasi", "/dashboard/transport", IconBus], ["SOS", "/dashboard/sos", IconSos], ["Produk", "/dashboard/products", IconShoppingCart], ["Agen", "/dashboard/agents", IconUserDollar], ["Laporan", "/dashboard/reports", IconFileAnalytics]] as const;
+const nav = [["Ringkasan", "/dashboard", IconLayoutDashboard], ["Jamaah", "/dashboard/pilgrims", IconUsers], ["Rombongan", "/dashboard/groups", IconUsersGroup], ["Kloter", "/dashboard/kloter", IconPlane], ["Akomodasi", "/dashboard/accommodation", IconBuildingHospital], ["Transportasi", "/dashboard/transport", IconBus], ["SOS", "/dashboard/sos", IconSos], ["Produk", "/dashboard/products", IconShoppingCart], ["Pesanan", "/dashboard/orders", IconReceipt2], ["Agen", "/dashboard/agents", IconUserDollar], ["Laporan", "/dashboard/reports", IconFileAnalytics]] as const;
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname(); const router = useRouter(); const { data: session } = authClient.useSession(); const [open, setOpen] = useState(false); const [operator, setOperator] = useState(""); const [season, setSeason] = useState("");

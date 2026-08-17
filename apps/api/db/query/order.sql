@@ -16,6 +16,14 @@ SET status = 'PAID', paid_at = NOW(), updated_at = NOW()
 WHERE xendit_invoice_id = $1 AND status = 'PENDING'
 RETURNING *;
 
+-- name: MarkOrderPaidManually :one
+-- Only PENDING -> PAID, same guard as MarkOrderPaidByInvoiceID — an
+-- operator retrying a slow click can't double-count a cash sale.
+UPDATE orders
+SET status = 'PAID', paid_at = NOW(), updated_at = NOW()
+WHERE id = $1 AND operator_id = $2 AND status = 'PENDING'
+RETURNING *;
+
 -- name: MarkOrderStatusByInvoiceID :one
 UPDATE orders
 SET status = $2, updated_at = NOW()
