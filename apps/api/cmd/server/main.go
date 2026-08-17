@@ -17,6 +17,7 @@ import (
 	"github.com/hajj-saas/api/internal/handler"
 	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/notification"
+	"github.com/hajj-saas/api/internal/payment"
 	"github.com/hajj-saas/api/internal/repository"
 	"github.com/hajj-saas/api/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -73,6 +74,7 @@ func main() {
 		auditRepository := repository.NewAuditRepository(queries)
 		kloterRepository := repository.NewKloterRepository(queries)
 		identityRepository := repository.NewIdentityRepository(queries)
+		orderRepository := repository.NewOrderRepository(queries)
 
 		firebasePusher, err := notification.NewFirebasePusher(ctx, logger, config.FirebaseServiceAccountJSON, notificationRepository)
 		if err != nil {
@@ -95,6 +97,8 @@ func main() {
 		notificationService := service.NewNotificationService(operatorRepository, notificationRepository)
 		kloterService := service.NewKloterService(operatorRepository, kloterRepository, auditRepository)
 		identityService := service.NewIdentityService(identityRepository)
+		xenditClient := payment.NewClient(config.XenditSecretKey)
+		orderService := service.NewOrderService(operatorRepository, pilgrimRepository, productRepository, orderRepository, xenditClient, config.AllowedOrigin)
 		operatorHandler := handler.NewOperatorHandler(operatorService)
 		pilgrimHandler := handler.NewPilgrimHandler(pilgrimService)
 		seasonHandler := handler.NewSeasonHandler(seasonService)
@@ -110,6 +114,7 @@ func main() {
 		notificationHandler := handler.NewNotificationHandler(notificationService)
 		kloterHandler := handler.NewKloterHandler(kloterService)
 		identityHandler := handler.NewIdentityHandler(identityService)
+		orderHandler := handler.NewOrderHandler(orderService)
 		handlerOptions := []connect.HandlerOption{connect.WithInterceptors(
 			middleware.NewRateLimitInterceptor(),
 			middleware.NewAuthInterceptor(pool),
@@ -129,6 +134,7 @@ func main() {
 		notificationPath, notificationServiceHandler := hajjv1connect.NewNotificationServiceHandler(notificationHandler, handlerOptions...)
 		kloterPath, kloterServiceHandler := hajjv1connect.NewKloterServiceHandler(kloterHandler, handlerOptions...)
 		identityPath, identityServiceHandler := hajjv1connect.NewIdentityServiceHandler(identityHandler, handlerOptions...)
+		orderPath, orderServiceHandler := hajjv1connect.NewOrderServiceHandler(orderHandler, handlerOptions...)
 		mux.Handle(operatorPath, operatorServiceHandler)
 		mux.Handle(pilgrimPath, pilgrimServiceHandler)
 		mux.Handle(seasonPath, seasonServiceHandler)
@@ -144,6 +150,8 @@ func main() {
 		mux.Handle(notificationPath, notificationServiceHandler)
 		mux.Handle(kloterPath, kloterServiceHandler)
 		mux.Handle(identityPath, identityServiceHandler)
+		mux.Handle(orderPath, orderServiceHandler)
+		mux.HandleFunc("POST /webhooks/xendit", handler.NewXenditWebhookHandler(logger, orderRepository, config.XenditWebhookToken))
 		mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, request *http.Request) {
 			if err := pool.Ping(request.Context()); err != nil {
 				http.Error(w, `{"status":"database_unavailable"}`, http.StatusServiceUnavailable)

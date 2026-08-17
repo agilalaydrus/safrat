@@ -34,6 +34,13 @@ var publicProcedures = map[string]bool{
 	"/hajj.v1.SOSService/CreateSOSAlert":           true,
 	"/hajj.v1.ChatService/ListMyMessages":          true,
 	"/hajj.v1.ChatService/SendMyMessage":           true,
+	// CreateOrder touches money — see internal/service/order.go. Public for
+	// the same reason as the rest of PilgrimAppService (a pilgrim checking
+	// out has no Better Auth session, only app_access_code), rate-limited
+	// like every other entry here (see ratelimit.go), and never trusts a
+	// client-supplied operator/season/price — every value is re-derived
+	// server-side from the pilgrim record and the product row.
+	"/hajj.v1.OrderService/CreateOrder": true,
 }
 
 // sessionOnlyProcedures lists RPCs that require a real, server-validated
@@ -46,8 +53,8 @@ var publicProcedures = map[string]bool{
 // by app_access_code), never from ctx's operator id, which is empty here.
 var sessionOnlyProcedures = map[string]bool{
 	"/hajj.v1.PilgrimAppService/LinkGoogleAccount": true,
-	"/hajj.v1.IdentityService/GetMyAccess":          true,
-	"/hajj.v1.IdentityService/InvalidateMyAccess":   true,
+	"/hajj.v1.IdentityService/GetMyAccess":         true,
+	"/hajj.v1.IdentityService/InvalidateMyAccess":  true,
 }
 
 // NewAuthInterceptor validates Better Auth's opaque database session token.

@@ -88,6 +88,8 @@ services:
       CORS_ALLOWED_ORIGIN: https://app.safrat.com
       SENTRY_DSN: ${SENTRY_DSN}
       FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON}
+      XENDIT_SECRET_KEY: ${XENDIT_SECRET_KEY}
+      XENDIT_WEBHOOK_TOKEN: ${XENDIT_WEBHOOK_TOKEN}
     ports:
       - "127.0.0.1:9100:8080"   # nginx → localhost:9100 → container :8080
     depends_on:
@@ -190,6 +192,15 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
 # account's own address).
 RESEND_API_KEY=re_...
 RESEND_FROM_EMAIL=noreply@safrat.com
+
+# Xendit (Module 7 — Orders & Payments) — apps/api only, unrelated to
+# email/web. Without XENDIT_SECRET_KEY, checkout fails fast with a clear
+# error (internal/payment/xendit.go) rather than creating an unpayable
+# order. Register the webhook URL in the Xendit Dashboard > Settings >
+# Webhooks: https://api.safrat.com/webhooks/xendit — XENDIT_WEBHOOK_TOKEN
+# must match the "Verification Token" shown on that same page.
+XENDIT_SECRET_KEY=xnd_production_...
+XENDIT_WEBHOOK_TOKEN=...
 
 # Observability — optional, no-op on both api and web when unset
 SENTRY_DSN=...

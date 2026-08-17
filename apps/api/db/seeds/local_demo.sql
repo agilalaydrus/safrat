@@ -155,4 +155,12 @@ INSERT INTO chat_messages (id, operator_id, group_id, sender_user_id, body, crea
 VALUES
   ('00000000-0000-4000-8000-000000000902', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000201', 'D862T2c4awEabjAJRNY2Cr1DC2MTfyLI', 'Wa alaikumsalam, jam 05.00 pagi ya setelah subuh.', NOW() - INTERVAL '1 hour 50 minutes');
 
+-- One Module 7 demo product — margins take the column defaults
+-- (15% platform / 70% operator / 15% agent). Lets the pilgrim PWA's
+-- Products tab and the checkout flow be tested end-to-end once
+-- XENDIT_SECRET_KEY is set; CreateOrder fails fast (no dangling order)
+-- until then.
+INSERT INTO products (id, operator_id, season_id, name, category, type, price_idr, duration_days, description, is_active)
+VALUES ('00000000-0000-4000-8000-000000001101', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000101', 'eSIM Roaming Saudi 7 Hari', 'ROAMING_DATA', '', 150000, 7, 'Paket data roaming untuk jamaah selama di Arab Saudi', true);
+
 COMMIT;

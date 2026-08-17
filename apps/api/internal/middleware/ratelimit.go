@@ -32,6 +32,9 @@ var rateLimitedProcedures = map[string]rate.Limit{
 	"/hajj.v1.PilgrimAppService/RequestWheelchair": rate.Every(time.Minute / 4),
 	"/hajj.v1.ChatService/ListMyMessages":          rate.Every(time.Second * 3), // supports ~3s polling
 	"/hajj.v1.ChatService/SendMyMessage":           rate.Every(time.Minute / 10),
+	// A real checkout is a one-shot action, not a poll — tight ceiling,
+	// closer to ApplyAsAgent than to the read endpoints above.
+	"/hajj.v1.OrderService/CreateOrder": rate.Every(time.Hour / rateLimitBurst), // 5 per hour per IP
 }
 
 type ipLimiter struct {

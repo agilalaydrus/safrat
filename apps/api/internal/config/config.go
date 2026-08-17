@@ -14,6 +14,8 @@ type Config struct {
 	AllowedOrigin              string
 	SentryDSN                  string
 	FirebaseServiceAccountJSON string
+	XenditSecretKey            string
+	XenditWebhookToken         string
 }
 
 func Load() (Config, error) {
@@ -27,6 +29,12 @@ func Load() (Config, error) {
 		// FirebaseServiceAccountJSON is optional — unset means SOS push notifications
 		// are a no-op (see internal/notification.NewFirebasePusher).
 		FirebaseServiceAccountJSON: strings.TrimSpace(os.Getenv("FIREBASE_SERVICE_ACCOUNT_JSON")),
+		// XenditSecretKey is optional at startup but not at checkout time —
+		// unlike Firebase/Sentry's silent no-op, OrderService.CreateOrder
+		// returns a clear FailedPrecondition instead of pretending a
+		// payment was created (see internal/payment/xendit.go).
+		XenditSecretKey:    strings.TrimSpace(os.Getenv("XENDIT_SECRET_KEY")),
+		XenditWebhookToken: strings.TrimSpace(os.Getenv("XENDIT_WEBHOOK_TOKEN")),
 	}
 	if config.DatabaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")

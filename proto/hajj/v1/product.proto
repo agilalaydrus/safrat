@@ -34,6 +34,12 @@ message Product {
   google.protobuf.Timestamp created_at = 11;
   google.protobuf.Timestamp updated_at = 12;
   string category = 13;
+  // Split of price_idr on every order of this product — see §7:
+  // platform_margin_pct + operator_margin_pct + agent_margin_pct <= 1.0,
+  // validated on save (service/product.go), not just documented.
+  double platform_margin_pct = 14;
+  double operator_margin_pct = 15;
+  double agent_margin_pct = 16;
 }
 
 message CreateProductRequest {
@@ -45,6 +51,9 @@ message CreateProductRequest {
   string description = 6;
   repeated string inclusions = 7;
   string category = 8 [(buf.validate.field).string.min_len = 1];
+  double platform_margin_pct = 9;
+  double operator_margin_pct = 10;
+  double agent_margin_pct = 11;
 }
 
 message GetProductRequest { string product_id = 1 [(buf.validate.field).string.min_len = 1]; }
@@ -61,6 +70,9 @@ message UpdateProductRequest {
   repeated string inclusions = 7;
   bool is_active = 8;
   string category = 9 [(buf.validate.field).string.min_len = 1];
+  double platform_margin_pct = 10;
+  double operator_margin_pct = 11;
+  double agent_margin_pct = 12;
 }
 
 message DeleteProductRequest { string product_id = 1 [(buf.validate.field).string.min_len = 1]; }
