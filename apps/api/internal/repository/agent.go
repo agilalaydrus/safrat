@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/domain"
@@ -138,7 +139,18 @@ func (r *AgentRepository) GetPayoutSummary(ctx context.Context, operatorID, agen
 // RecordPayout appends a disbursement to the ledger. Callers are expected to
 // have already validated amount against the current outstanding balance
 // (see AgentService.RecordPayout) — this just persists the entry.
-func (r *AgentRepository) RecordPayout(ctx context.Context, operatorID, agentID string, amountIDR int64, note, method, paidByUserID string) error {
+func (r *AgentRepository) RecordPayout(ctx context.Context, operatorID, agentID string, amountIDR int64, note, method, paidByUserID, requestID string) error {
+	return r.recordPayout(ctx, r.queries, operatorID, agentID, amountIDR, note, method, paidByUserID, requestID)
+}
+
+// RecordPayoutTx is the same write, scoped to a caller-managed transaction —
+// used when settling a withdrawal request, where the ledger insert and the
+// request's APPROVED transition must commit together or not at all.
+func (r *AgentRepository) RecordPayoutTx(ctx context.Context, tx pgx.Tx, operatorID, agentID string, amountIDR int64, note, method, paidByUserID, requestID string) error {
+	return r.recordPayout(ctx, r.queries.WithTx(tx), operatorID, agentID, amountIDR, note, method, paidByUserID, requestID)
+}
+
+func (r *AgentRepository) recordPayout(ctx context.Context, q *db.Queries, operatorID, agentID string, amountIDR int64, note, method, paidByUserID, requestID string) error {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return err
@@ -147,15 +159,176 @@ func (r *AgentRepository) RecordPayout(ctx context.Context, operatorID, agentID 
 	if err != nil {
 		return err
 	}
-	_, err = r.queries.RecordAgentPayout(ctx, db.RecordAgentPayoutParams{
+	_, err = q.RecordAgentPayout(ctx, db.RecordAgentPayoutParams{
 		OperatorID:   opUUID,
 		AgentID:      agentUUID,
 		AmountIdr:    amountIDR,
 		Note:         note,
 		Method:       method,
 		PaidByUserID: paidByUserID,
+		Column7:      requestID,
 	})
 	return err
+}
+
+// GetByLinkedUser resolves the agent record for a Better Auth identity —
+// every Group Leader is also an agent (EnsureAgentForLeader), so this is how
+// self-service wallet RPCs figure out "which agent is the caller" without
+// trusting an agent_id from the request.
+func (r *AgentRepository) GetByLinkedUser(ctx context.Context, operatorID, userID string) (*domain.Agent, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	agent, err := r.queries.GetAgentByLinkedUser(ctx, db.GetAgentByLinkedUserParams{OperatorID: opUUID, LinkedUserID: pgtype.Text{String: userID, Valid: true}})
+	if err != nil {
+		return nil, err
+	}
+	return toAgent(agent, 0), nil
+}
+
+func (r *AgentRepository) ListOrderCredits(ctx context.Context, agentID string) ([]*domain.OrderCredit, error) {
+	agentUUID, err := pgUUID(agentID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListOrderCreditsForAgent(ctx, agentUUID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*domain.OrderCredit, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &domain.OrderCredit{
+			OrderID:     uuid.UUID(row.ID.Bytes).String(),
+			AmountIDR:   row.AgentCommissionIdr,
+			ProductName: row.ProductName,
+			PaidAt:      row.PaidAt.Time,
+		})
+	}
+	return result, nil
+}
+
+func (r *AgentRepository) SumPendingRequests(ctx context.Context, agentID string) (int64, error) {
+	agentUUID, err := pgUUID(agentID)
+	if err != nil {
+		return 0, err
+	}
+	return r.queries.SumPendingPayoutRequests(ctx, agentUUID)
+}
+
+func (r *AgentRepository) CreatePayoutRequest(ctx context.Context, operatorID, agentID string, amountIDR int64, note string) (*domain.PayoutRequest, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	agentUUID, err := pgUUID(agentID)
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.queries.CreatePayoutRequest(ctx, db.CreatePayoutRequestParams{OperatorID: opUUID, AgentID: agentUUID, AmountIdr: amountIDR, Note: note})
+	if err != nil {
+		return nil, err
+	}
+	return toPayoutRequest(row, ""), nil
+}
+
+func (r *AgentRepository) GetPayoutRequest(ctx context.Context, operatorID, requestID string) (*domain.PayoutRequest, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	reqUUID, err := pgUUID(requestID)
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.queries.GetPayoutRequest(ctx, db.GetPayoutRequestParams{ID: reqUUID, OperatorID: opUUID})
+	if err != nil {
+		return nil, err
+	}
+	return &domain.PayoutRequest{
+		ID: uuid.UUID(row.ID.Bytes).String(), AgentID: uuid.UUID(row.AgentID.Bytes).String(), AgentName: row.AgentName,
+		AmountIDR: row.AmountIdr, Note: row.Note, Status: row.Status, ResolutionNote: row.ResolutionNote,
+		RequestedAt: row.RequestedAt.Time, ResolvedAt: pgTimeToPtr(row.ResolvedAt),
+	}, nil
+}
+
+// ListPayoutRequests returns PENDING requests only — approved/rejected ones
+// are done, not something an operator or agent needs surfaced as a queue
+// item. agentID empty lists every pending request across the operator (the
+// requests inbox); set to scope to one agent (e.g. inside the payout
+// dialog, or an agent's own wallet).
+func (r *AgentRepository) ListPayoutRequests(ctx context.Context, operatorID, agentID string) ([]*domain.PayoutRequest, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	var agentFilter pgtype.UUID
+	if agentID != "" {
+		agentFilter, err = pgUUID(agentID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	rows, err := r.queries.ListPayoutRequests(ctx, db.ListPayoutRequestsParams{OperatorID: opUUID, AgentID: agentFilter})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*domain.PayoutRequest, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &domain.PayoutRequest{
+			ID: uuid.UUID(row.ID.Bytes).String(), AgentID: uuid.UUID(row.AgentID.Bytes).String(), AgentName: row.AgentName,
+			AmountIDR: row.AmountIdr, Note: row.Note, Status: row.Status, ResolutionNote: row.ResolutionNote,
+			RequestedAt: row.RequestedAt.Time, ResolvedAt: pgTimeToPtr(row.ResolvedAt),
+		})
+	}
+	return result, nil
+}
+
+// ApprovePayoutRequestTx is only ever called alongside RecordPayoutTx, in
+// the same transaction — a request must never end up APPROVED without a
+// matching ledger entry, or vice versa.
+func (r *AgentRepository) ApprovePayoutRequestTx(ctx context.Context, tx pgx.Tx, operatorID, requestID, resolvedByUserID string) error {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return err
+	}
+	reqUUID, err := pgUUID(requestID)
+	if err != nil {
+		return err
+	}
+	_, err = r.queries.WithTx(tx).ApprovePayoutRequestTx(ctx, db.ApprovePayoutRequestTxParams{ID: reqUUID, OperatorID: opUUID, ResolvedByUserID: pgtype.Text{String: resolvedByUserID, Valid: true}})
+	return err
+}
+
+func (r *AgentRepository) RejectPayoutRequest(ctx context.Context, operatorID, requestID, resolvedByUserID, note string) (*domain.PayoutRequest, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	reqUUID, err := pgUUID(requestID)
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.queries.RejectPayoutRequest(ctx, db.RejectPayoutRequestParams{ID: reqUUID, OperatorID: opUUID, ResolvedByUserID: pgtype.Text{String: resolvedByUserID, Valid: true}, ResolutionNote: note})
+	if err != nil {
+		return nil, err
+	}
+	return toPayoutRequest(row, ""), nil
+}
+
+func toPayoutRequest(row db.AgentPayoutRequest, agentName string) *domain.PayoutRequest {
+	return &domain.PayoutRequest{
+		ID: uuid.UUID(row.ID.Bytes).String(), AgentID: uuid.UUID(row.AgentID.Bytes).String(), AgentName: agentName,
+		AmountIDR: row.AmountIdr, Note: row.Note, Status: row.Status, ResolutionNote: row.ResolutionNote,
+		RequestedAt: row.RequestedAt.Time, ResolvedAt: pgTimeToPtr(row.ResolvedAt),
+	}
+}
+
+func pgTimeToPtr(t pgtype.Timestamptz) *time.Time {
+	if !t.Valid {
+		return nil
+	}
+	return &t.Time
 }
 
 func (r *AgentRepository) ListPayoutHistory(ctx context.Context, operatorID, agentID string) ([]*domain.AgentPayoutEntry, error) {

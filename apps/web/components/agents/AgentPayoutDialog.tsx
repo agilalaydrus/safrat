@@ -1,7 +1,7 @@
 "use client";
 import { FormEvent, useEffect, useState } from "react";
-import { IconBuildingBank, IconCash, IconDeviceMobile, IconX } from "@tabler/icons-react";
-import { Agent, AgentPayout, AgentPayoutEntry, PayoutMethod } from "@hajj-saas/proto-gen/hajj/v1/agent_pb";
+import { IconBuildingBank, IconCash, IconCheck, IconDeviceMobile, IconX } from "@tabler/icons-react";
+import { Agent, AgentPayout, AgentPayoutEntry, PayoutMethod, PayoutRequest } from "@hajj-saas/proto-gen/hajj/v1/agent_pb";
 import { agentClient } from "@/lib/rpc";
 
 const rupiah = (n: number) => `Rp${n.toLocaleString("id-ID")}`;
@@ -13,27 +13,38 @@ const METHODS: { value: PayoutMethod; label: string; icon: typeof IconBuildingBa
   { value: PayoutMethod.EWALLET, label: "E-Wallet", icon: IconDeviceMobile },
 ];
 
-type Props = { open: boolean; agent?: Agent; summary?: AgentPayout; onClose: () => void; onPaid: (amount: number) => void };
+type Props = { open: boolean; agent?: Agent; summary?: AgentPayout; onClose: () => void; onPaid: (amount: number) => void; onRequestsChanged: () => void };
 
-export default function AgentPayoutDialog({ open, agent, summary, onClose, onPaid }: Props) {
+export default function AgentPayoutDialog({ open, agent, summary, onClose, onPaid, onRequestsChanged }: Props) {
   const [amountText, setAmountText] = useState("");
   const [method, setMethod] = useState<PayoutMethod>(PayoutMethod.TRANSFER);
   const [reference, setReference] = useState("");
+  const [activeRequestId, setActiveRequestId] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [history, setHistory] = useState<AgentPayoutEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [requests, setRequests] = useState<PayoutRequest[]>([]);
+  const [rejectingId, setRejectingId] = useState("");
+  const [rejectNote, setRejectNote] = useState("");
+  const [rejecting, setRejecting] = useState(false);
 
   const outstanding = Number(summary?.outstandingIdr ?? 0);
+
+  const loadRequests = () => { if (agent) agentClient.listPayoutRequests({ agentId: agent.id }).then((r) => setRequests(r.requests)).catch(() => {}); };
 
   useEffect(() => {
     if (!open || !agent) return;
     setAmountText(outstanding > 0 ? String(outstanding) : "");
     setMethod(PayoutMethod.TRANSFER);
     setReference("");
+    setActiveRequestId("");
     setErrors({});
+    setRejectingId("");
+    setRejectNote("");
     setLoadingHistory(true);
     agentClient.listAgentPayoutHistory({ agentId: agent.id }).then((r) => setHistory(r.entries)).catch(() => setHistory([])).finally(() => setLoadingHistory(false));
+    loadRequests();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, agent?.id]);
 
@@ -47,6 +58,13 @@ export default function AgentPayoutDialog({ open, agent, summary, onClose, onPai
 
   const amount = parseDigits(amountText);
 
+  function useRequest(request: PayoutRequest) {
+    setAmountText(String(Number(request.amountIdr)));
+    setReference(request.note);
+    setActiveRequestId(request.id);
+    setErrors({});
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     const errs: Record<string, string> = {};
@@ -55,13 +73,30 @@ export default function AgentPayoutDialog({ open, agent, summary, onClose, onPai
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setSaving(true);
     try {
-      await agentClient.recordAgentPayout({ agentId: agent!.id, amountIdr: BigInt(amount), note: reference.trim(), method });
+      await agentClient.recordAgentPayout({ agentId: agent!.id, amountIdr: BigInt(amount), note: reference.trim(), method, requestId: activeRequestId });
       onPaid(amount);
+      if (activeRequestId) onRequestsChanged();
       onClose();
     } catch (err) {
       setErrors({ _form: err instanceof Error ? err.message : "Gagal mencatat pembayaran." });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function reject(requestId: string) {
+    if (!rejectNote.trim()) return;
+    setRejecting(true);
+    try {
+      await agentClient.rejectPayoutRequest({ requestId, note: rejectNote.trim() });
+      setRejectingId("");
+      setRejectNote("");
+      loadRequests();
+      onRequestsChanged();
+    } catch {
+      // surfaced inline via the requests list not refreshing; operator can retry
+    } finally {
+      setRejecting(false);
     }
   }
 
@@ -80,11 +115,48 @@ export default function AgentPayoutDialog({ open, agent, summary, onClose, onPai
             <SummaryRow label="Sisa tertunda" value={rupiah(outstanding)} emphasis />
           </div>
 
+          {!!requests.length && (
+            <div style={{ marginTop: 20 }}>
+              <p style={sec}>PERMINTAAN PENCAIRAN DARI AGEN</p>
+              <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                {requests.map((request) => (
+                  <div key={request.id} style={requestCard}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                      <div>
+                        <b>{rupiah(Number(request.amountIdr))}</b>
+                        {request.note && <span style={{ display: "block", color: "var(--color-warm-500)", fontSize: 12 }}>{request.note}</span>}
+                        <span style={{ display: "block", color: "var(--color-warm-400)", fontSize: 11 }}>Diajukan {request.requestedAt?.toDate().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                      </div>
+                      {rejectingId !== request.id && (
+                        <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                          <button type="button" onClick={() => useRequest(request)} style={approveBtn}><IconCheck size={14} />Setujui</button>
+                          <button type="button" onClick={() => { setRejectingId(request.id); setRejectNote(""); }} style={rejectBtn}>Tolak</button>
+                        </div>
+                      )}
+                    </div>
+                    {rejectingId === request.id && (
+                      <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                        <input className="safrat-input" placeholder="Alasan penolakan (wajib)" value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} style={i} />
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button type="button" disabled={rejecting || !rejectNote.trim()} onClick={() => void reject(request.id)} style={{ ...rejectBtn, flex: 1, justifyContent: "center" }}>{rejecting ? "Memproses..." : "Konfirmasi Tolak"}</button>
+                          <button type="button" onClick={() => setRejectingId("")} style={{ ...chip, flex: 1 }}>Batal</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {outstanding <= 0 ? (
             <p style={{ color: "var(--color-warm-500)", textAlign: "center", padding: "24px 0" }}>Tidak ada komisi tertunda untuk agen ini.</p>
           ) : (
             <form id="payout-form" onSubmit={submit} style={{ display: "grid", gap: 16, marginTop: 20 }}>
-              <p style={sec}>DETAIL PEMBAYARAN</p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                <p style={sec}>DETAIL PEMBAYARAN</p>
+                {activeRequestId && <button type="button" onClick={() => setActiveRequestId("")} style={{ ...chip, fontSize: 11 }}>Menyelesaikan permintaan — batal</button>}
+              </div>
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={lab}>Jumlah</span>
                 <div style={amountWrap}>
@@ -176,3 +248,6 @@ const chip: React.CSSProperties = { minHeight: 32, border: "1px solid var(--colo
 const methodBtn: React.CSSProperties = { minHeight: 64, display: "grid", justifyItems: "center", gap: 6, border: "1.5px solid var(--color-cream-400)", borderRadius: 10, background: "#fff", color: "var(--color-warm-500)" };
 const methodBtnActive: React.CSSProperties = { ...methodBtn, border: "1.5px solid var(--color-gold-500)", background: "var(--color-gold-50)", color: "var(--color-gold-800)", fontWeight: 700 };
 const historyRow: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 12, padding: "10px 12px", border: "1px solid var(--color-cream-300)", borderRadius: 10, background: "#fff" };
+const requestCard: React.CSSProperties = { padding: 12, border: "1px solid var(--color-gold-500)", borderRadius: 10, background: "var(--color-gold-50)" };
+const approveBtn: React.CSSProperties = { minHeight: 32, border: 0, borderRadius: 8, padding: "0 10px", background: "var(--color-emerald-900)", color: "#fff", fontSize: 12, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" };
+const rejectBtn: React.CSSProperties = { minHeight: 32, border: "1px solid var(--color-danger-600)", borderRadius: 8, padding: "0 10px", background: "transparent", color: "var(--color-danger-600)", fontSize: 12, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, whiteSpace: "nowrap" };

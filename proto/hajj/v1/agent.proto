@@ -28,6 +28,25 @@ service AgentService {
   // ApplyAsAgent is the one public, unauthenticated RPC on this service — see
   // middleware.NewAuthInterceptor's public-procedure allowlist.
   rpc ApplyAsAgent(ApplyAsAgentRequest) returns (Agent);
+
+  // --- Self-service wallet (Leader/Agent side) ---
+  // Every Group Leader is also an Agent (middleware.EnsureAgentForLeader),
+  // so these resolve "which agent" from the caller's own Better Auth
+  // identity, not a request param — an agent can only ever see/manage their
+  // own wallet. Authenticated like any other RPC (not public); no
+  // publicProcedures/rateLimitedProcedures entry needed.
+  rpc GetMyWallet(GetMyWalletRequest) returns (AgentWallet);
+  // RequestAgentPayout queues a withdrawal for operator review — it never
+  // moves money itself. This is deliberately the seam where a future
+  // payment-gateway disbursement (Xendit) would plug in: today an operator
+  // approves manually via RecordAgentPayout(request_id=...); later,
+  // approval could trigger an automatic disbursement call instead, without
+  // changing anything on the request side.
+  rpc RequestAgentPayout(RequestAgentPayoutRequest) returns (PayoutRequest);
+
+  // --- Withdrawal request queue (Operator side) ---
+  rpc ListPayoutRequests(ListPayoutRequestsRequest) returns (ListPayoutRequestsResponse);
+  rpc RejectPayoutRequest(RejectPayoutRequestRequest) returns (PayoutRequest);
 }
 
 message Agent {
@@ -95,6 +114,11 @@ message RecordAgentPayoutRequest {
   int64 amount_idr = 2 [(buf.validate.field).int64.gt = 0];
   string note = 3;
   PayoutMethod method = 4 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3]}];
+  // Set when this payout settles a leader-initiated withdrawal request
+  // (RequestAgentPayout) — closes the request as APPROVED and links it to
+  // the ledger entry this call creates. Empty for an ad-hoc payout the
+  // operator initiates without a prior request.
+  string request_id = 5;
 }
 
 message AgentPayoutEntry {
@@ -123,3 +147,79 @@ message UpdateAgentRequest {
 
 message DeleteAgentRequest { string agent_id = 1 [(buf.validate.field).string.min_len = 1]; }
 message DeleteAgentResponse {}
+
+enum WalletTransactionType {
+  WALLET_TRANSACTION_TYPE_UNSPECIFIED = 0;
+  // Commission earned from a PAID order.
+  WALLET_TRANSACTION_TYPE_CREDIT = 1;
+  // Commission actually disbursed (RecordAgentPayout).
+  WALLET_TRANSACTION_TYPE_DEBIT = 2;
+  // A withdrawal request awaiting operator review — shown so the agent
+  // knows that portion of their balance is already spoken for, not
+  // double-countable toward another request.
+  WALLET_TRANSACTION_TYPE_PENDING_REQUEST = 3;
+}
+
+message WalletTransaction {
+  string id = 1;
+  WalletTransactionType type = 2;
+  int64 amount_idr = 3;
+  string description = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+message AgentWallet {
+  string agent_id = 1;
+  string agent_name = 2;
+  // Lifetime commission from PAID orders.
+  int64 total_earned_idr = 3;
+  // Lifetime amount actually disbursed.
+  int64 total_withdrawn_idr = 4;
+  // total_earned_idr - total_withdrawn_idr — everything owed, including
+  // amounts already tied up in a pending request.
+  int64 balance_idr = 5;
+  // Sum of this agent's own PENDING requests.
+  int64 pending_requested_idr = 6;
+  // balance_idr - pending_requested_idr — the actual most a new request can
+  // ask for.
+  int64 available_idr = 7;
+  repeated WalletTransaction transactions = 8;
+}
+
+message GetMyWalletRequest {}
+
+enum PayoutRequestStatus {
+  PAYOUT_REQUEST_STATUS_UNSPECIFIED = 0;
+  PAYOUT_REQUEST_STATUS_PENDING = 1;
+  PAYOUT_REQUEST_STATUS_APPROVED = 2;
+  PAYOUT_REQUEST_STATUS_REJECTED = 3;
+}
+
+message PayoutRequest {
+  string id = 1;
+  string agent_id = 2;
+  string agent_name = 3;
+  int64 amount_idr = 4;
+  string note = 5;
+  PayoutRequestStatus status = 6;
+  google.protobuf.Timestamp requested_at = 7;
+  google.protobuf.Timestamp resolved_at = 8;
+  string resolution_note = 9;
+}
+
+message RequestAgentPayoutRequest {
+  int64 amount_idr = 1 [(buf.validate.field).int64.gt = 0];
+  string note = 2;
+}
+
+message ListPayoutRequestsRequest {
+  // Empty = every PENDING request across the operator, for a requests
+  // inbox. Set to scope to one agent (e.g. inside AgentPayoutDialog).
+  string agent_id = 1;
+}
+message ListPayoutRequestsResponse { repeated PayoutRequest requests = 1; }
+
+message RejectPayoutRequestRequest {
+  string request_id = 1 [(buf.validate.field).string.uuid = true];
+  string note = 2 [(buf.validate.field).string.min_len = 1];
+}

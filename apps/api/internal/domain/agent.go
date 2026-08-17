@@ -36,3 +36,22 @@ type AgentPayoutEntry struct {
 	PaidByName string
 	CreatedAt  time.Time
 }
+
+type OrderCredit struct {
+	OrderID     string
+	AmountIDR   int64
+	ProductName string
+	PaidAt      time.Time
+}
+
+type PayoutRequest struct {
+	ID             string
+	AgentID        string
+	AgentName      string
+	AmountIDR      int64
+	Note           string
+	Status         string
+	ResolutionNote string
+	RequestedAt    time.Time
+	ResolvedAt     *time.Time
+}

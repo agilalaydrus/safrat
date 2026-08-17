@@ -56,6 +56,34 @@ func (h *AgentHandler) ListAgentPayoutHistory(ctx context.Context, req *connect.
 	}
 	return connect.NewResponse(result), nil
 }
+func (h *AgentHandler) GetMyWallet(ctx context.Context, _ *connect.Request[hajjv1.GetMyWalletRequest]) (*connect.Response[hajjv1.AgentWallet], error) {
+	result, err := h.agentService.GetMyWallet(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx))
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+func (h *AgentHandler) RequestAgentPayout(ctx context.Context, req *connect.Request[hajjv1.RequestAgentPayoutRequest]) (*connect.Response[hajjv1.PayoutRequest], error) {
+	result, err := h.agentService.RequestPayout(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+func (h *AgentHandler) ListPayoutRequests(ctx context.Context, req *connect.Request[hajjv1.ListPayoutRequestsRequest]) (*connect.Response[hajjv1.ListPayoutRequestsResponse], error) {
+	result, err := h.agentService.ListPayoutRequests(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+func (h *AgentHandler) RejectPayoutRequest(ctx context.Context, req *connect.Request[hajjv1.RejectPayoutRequestRequest]) (*connect.Response[hajjv1.PayoutRequest], error) {
+	result, err := h.agentService.RejectPayoutRequest(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
 func (h *AgentHandler) UpdateAgent(ctx context.Context, req *connect.Request[hajjv1.UpdateAgentRequest]) (*connect.Response[hajjv1.Agent], error) {
 	result, err := h.agentService.Update(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
 	if err != nil {

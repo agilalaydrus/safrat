@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -10,6 +11,8 @@ import (
 	"github.com/hajj-saas/api/internal/domain"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/repository"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -17,10 +20,11 @@ type AgentService struct {
 	operatorRepository *repository.OperatorRepository
 	agentRepository    *repository.AgentRepository
 	auditRepository    *repository.AuditRepository
+	db                 *pgxpool.Pool
 }
 
-func NewAgentService(operators *repository.OperatorRepository, agents *repository.AgentRepository, audit *repository.AuditRepository) *AgentService {
-	return &AgentService{operatorRepository: operators, agentRepository: agents, auditRepository: audit}
+func NewAgentService(operators *repository.OperatorRepository, agents *repository.AgentRepository, audit *repository.AuditRepository, db *pgxpool.Pool) *AgentService {
+	return &AgentService{operatorRepository: operators, agentRepository: agents, auditRepository: audit, db: db}
 }
 func (s *AgentService) Create(ctx context.Context, orgID string, req *hajjv1.CreateAgentRequest) (*hajjv1.Agent, error) {
 	if req == nil || strings.TrimSpace(req.Name) == "" || req.CommissionRate < 0 || req.CommissionRate > 100 {
@@ -99,8 +103,37 @@ func (s *AgentService) RecordPayout(ctx context.Context, orgID, userID string, r
 	if method == "" {
 		return nil, serviceError("AgentService.RecordPayout", apperror.ErrValidation)
 	}
-	if err := s.agentRepository.RecordPayout(ctx, op.ID, req.AgentId, req.AmountIdr, req.Note, method, userID); err != nil {
-		return nil, serviceError("AgentService.RecordPayout", err)
+	requestID := strings.TrimSpace(req.RequestId)
+	if requestID == "" {
+		if err := s.agentRepository.RecordPayout(ctx, op.ID, req.AgentId, req.AmountIdr, req.Note, method, userID, ""); err != nil {
+			return nil, serviceError("AgentService.RecordPayout", err)
+		}
+	} else {
+		// Settling a leader-initiated request — the ledger insert and the
+		// request's PENDING->APPROVED transition must commit together, or a
+		// crash between the two either loses the money movement or leaves
+		// the request stuck open after it's already been paid.
+		pending, err := s.agentRepository.GetPayoutRequest(ctx, op.ID, requestID)
+		if err != nil {
+			return nil, serviceError("AgentService.RecordPayout", err)
+		}
+		if pending.AgentID != req.AgentId || pending.Status != "PENDING" {
+			return nil, serviceError("AgentService.RecordPayout", preconditionError("payout request is not a pending request for this agent"))
+		}
+		tx, err := s.db.BeginTx(ctx, pgx.TxOptions{})
+		if err != nil {
+			return nil, serviceError("AgentService.RecordPayout", err)
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		if err := s.agentRepository.RecordPayoutTx(ctx, tx, op.ID, req.AgentId, req.AmountIdr, req.Note, method, userID, requestID); err != nil {
+			return nil, serviceError("AgentService.RecordPayout", err)
+		}
+		if err := s.agentRepository.ApprovePayoutRequestTx(ctx, tx, op.ID, requestID, userID); err != nil {
+			return nil, serviceError("AgentService.RecordPayout", err)
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return nil, serviceError("AgentService.RecordPayout", err)
+		}
 	}
 	_ = s.auditRepository.Write(ctx, op.ID, userID, "agent_payout_recorded", "agent", req.AgentId, fmt.Sprintf("Rp%d via %s", req.AmountIdr, method))
 	updated, err := s.agentRepository.GetPayoutSummary(ctx, op.ID, req.AgentId)
@@ -108,6 +141,170 @@ func (s *AgentService) RecordPayout(ctx context.Context, orgID, userID string, r
 		return nil, serviceError("AgentService.RecordPayout", err)
 	}
 	return agentPayoutMessage(updated), nil
+}
+
+// GetMyWallet resolves the caller's own agent record (every Group Leader is
+// also an agent) and returns their balance plus a merged, chronological
+// transaction history — commission credits from PAID orders, disbursement
+// debits from the agent_payouts ledger, and their own pending withdrawal
+// requests (shown so they can see that money is already spoken for).
+func (s *AgentService) GetMyWallet(ctx context.Context, orgID, userID string) (*hajjv1.AgentWallet, error) {
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("AgentService.GetMyWallet", err)
+	}
+	agent, err := s.agentRepository.GetByLinkedUser(ctx, op.ID, userID)
+	if err != nil {
+		return nil, serviceError("AgentService.GetMyWallet", err)
+	}
+	summary, err := s.agentRepository.GetPayoutSummary(ctx, op.ID, agent.ID)
+	if err != nil {
+		return nil, serviceError("AgentService.GetMyWallet", err)
+	}
+	pendingRequested, err := s.agentRepository.SumPendingRequests(ctx, agent.ID)
+	if err != nil {
+		return nil, serviceError("AgentService.GetMyWallet", err)
+	}
+	credits, err := s.agentRepository.ListOrderCredits(ctx, agent.ID)
+	if err != nil {
+		return nil, serviceError("AgentService.GetMyWallet", err)
+	}
+	debits, err := s.agentRepository.ListPayoutHistory(ctx, op.ID, agent.ID)
+	if err != nil {
+		return nil, serviceError("AgentService.GetMyWallet", err)
+	}
+	pendingRequests, err := s.agentRepository.ListPayoutRequests(ctx, op.ID, agent.ID)
+	if err != nil {
+		return nil, serviceError("AgentService.GetMyWallet", err)
+	}
+	transactions := make([]*hajjv1.WalletTransaction, 0, len(credits)+len(debits)+len(pendingRequests))
+	for _, c := range credits {
+		transactions = append(transactions, &hajjv1.WalletTransaction{Id: c.OrderID, Type: hajjv1.WalletTransactionType_WALLET_TRANSACTION_TYPE_CREDIT, AmountIdr: c.AmountIDR, Description: c.ProductName, CreatedAt: timestamppb.New(c.PaidAt)})
+	}
+	for _, d := range debits {
+		transactions = append(transactions, &hajjv1.WalletTransaction{Id: d.ID, Type: hajjv1.WalletTransactionType_WALLET_TRANSACTION_TYPE_DEBIT, AmountIdr: d.AmountIDR, Description: payoutMethodLabel(d.Method), CreatedAt: timestamppb.New(d.CreatedAt)})
+	}
+	for _, r := range pendingRequests {
+		transactions = append(transactions, &hajjv1.WalletTransaction{Id: r.ID, Type: hajjv1.WalletTransactionType_WALLET_TRANSACTION_TYPE_PENDING_REQUEST, AmountIdr: r.AmountIDR, Description: "Menunggu persetujuan", CreatedAt: timestamppb.New(r.RequestedAt)})
+	}
+	sort.Slice(transactions, func(i, j int) bool {
+		return transactions[i].CreatedAt.AsTime().After(transactions[j].CreatedAt.AsTime())
+	})
+	return &hajjv1.AgentWallet{
+		AgentId: agent.ID, AgentName: agent.Name,
+		TotalEarnedIdr: summary.TotalCommissionIDR, TotalWithdrawnIdr: summary.TotalDisbursedIDR,
+		BalanceIdr: summary.OutstandingIDR, PendingRequestedIdr: pendingRequested,
+		AvailableIdr: summary.OutstandingIDR - pendingRequested, Transactions: transactions,
+	}, nil
+}
+
+func (s *AgentService) RequestPayout(ctx context.Context, orgID, userID string, req *hajjv1.RequestAgentPayoutRequest) (*hajjv1.PayoutRequest, error) {
+	if req == nil || req.AmountIdr <= 0 {
+		return nil, serviceError("AgentService.RequestPayout", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("AgentService.RequestPayout", err)
+	}
+	agent, err := s.agentRepository.GetByLinkedUser(ctx, op.ID, userID)
+	if err != nil {
+		return nil, serviceError("AgentService.RequestPayout", err)
+	}
+	summary, err := s.agentRepository.GetPayoutSummary(ctx, op.ID, agent.ID)
+	if err != nil {
+		return nil, serviceError("AgentService.RequestPayout", err)
+	}
+	pendingRequested, err := s.agentRepository.SumPendingRequests(ctx, agent.ID)
+	if err != nil {
+		return nil, serviceError("AgentService.RequestPayout", err)
+	}
+	available := summary.OutstandingIDR - pendingRequested
+	if req.AmountIdr > available {
+		return nil, serviceError("AgentService.RequestPayout", preconditionError("amount exceeds available balance"))
+	}
+	request, err := s.agentRepository.CreatePayoutRequest(ctx, op.ID, agent.ID, req.AmountIdr, req.Note)
+	if err != nil {
+		return nil, serviceError("AgentService.RequestPayout", err)
+	}
+	_ = s.auditRepository.Write(ctx, op.ID, userID, "agent_payout_requested", "agent", agent.ID, fmt.Sprintf("Rp%d", req.AmountIdr))
+	return payoutRequestMessage(request, agent.Name), nil
+}
+
+func (s *AgentService) ListPayoutRequests(ctx context.Context, orgID string, req *hajjv1.ListPayoutRequestsRequest) (*hajjv1.ListPayoutRequestsResponse, error) {
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("AgentService.ListPayoutRequests", err)
+	}
+	agentID := ""
+	if req != nil {
+		agentID = req.AgentId
+	}
+	requests, err := s.agentRepository.ListPayoutRequests(ctx, op.ID, agentID)
+	if err != nil {
+		return nil, serviceError("AgentService.ListPayoutRequests", err)
+	}
+	result := &hajjv1.ListPayoutRequestsResponse{Requests: make([]*hajjv1.PayoutRequest, 0, len(requests))}
+	for _, r := range requests {
+		result.Requests = append(result.Requests, payoutRequestMessage(r, r.AgentName))
+	}
+	return result, nil
+}
+
+func (s *AgentService) RejectPayoutRequest(ctx context.Context, orgID, userID string, req *hajjv1.RejectPayoutRequestRequest) (*hajjv1.PayoutRequest, error) {
+	if req == nil || !isUUID(req.RequestId) || strings.TrimSpace(req.Note) == "" {
+		return nil, serviceError("AgentService.RejectPayoutRequest", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("AgentService.RejectPayoutRequest", err)
+	}
+	request, err := s.agentRepository.RejectPayoutRequest(ctx, op.ID, req.RequestId, userID, req.Note)
+	if err != nil {
+		return nil, serviceError("AgentService.RejectPayoutRequest", err)
+	}
+	_ = s.auditRepository.Write(ctx, op.ID, userID, "agent_payout_rejected", "agent", request.AgentID, req.Note)
+	return payoutRequestMessage(request, ""), nil
+}
+
+func payoutRequestMessage(r *domain.PayoutRequest, agentName string) *hajjv1.PayoutRequest {
+	name := r.AgentName
+	if name == "" {
+		name = agentName
+	}
+	msg := &hajjv1.PayoutRequest{
+		Id: r.ID, AgentId: r.AgentID, AgentName: name, AmountIdr: r.AmountIDR, Note: r.Note,
+		Status: payoutRequestStatusFromDB(r.Status), RequestedAt: timestamppb.New(r.RequestedAt), ResolutionNote: r.ResolutionNote,
+	}
+	if r.ResolvedAt != nil {
+		msg.ResolvedAt = timestamppb.New(*r.ResolvedAt)
+	}
+	return msg
+}
+
+func payoutRequestStatusFromDB(s string) hajjv1.PayoutRequestStatus {
+	switch s {
+	case "PENDING":
+		return hajjv1.PayoutRequestStatus_PAYOUT_REQUEST_STATUS_PENDING
+	case "APPROVED":
+		return hajjv1.PayoutRequestStatus_PAYOUT_REQUEST_STATUS_APPROVED
+	case "REJECTED":
+		return hajjv1.PayoutRequestStatus_PAYOUT_REQUEST_STATUS_REJECTED
+	default:
+		return hajjv1.PayoutRequestStatus_PAYOUT_REQUEST_STATUS_UNSPECIFIED
+	}
+}
+
+func payoutMethodLabel(m string) string {
+	switch m {
+	case "TRANSFER":
+		return "Transfer Bank"
+	case "CASH":
+		return "Tunai"
+	case "EWALLET":
+		return "E-Wallet"
+	default:
+		return m
+	}
 }
 func (s *AgentService) ListPayoutHistory(ctx context.Context, orgID string, req *hajjv1.ListAgentPayoutHistoryRequest) (*hajjv1.ListAgentPayoutHistoryResponse, error) {
 	if req == nil || !isUUID(req.AgentId) {

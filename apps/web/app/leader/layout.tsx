@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { IconClipboardCheck, IconLogout, IconMessageCircle, IconSos, IconUsersGroup } from "@tabler/icons-react";
+import { IconClipboardCheck, IconLogout, IconMessageCircle, IconSos, IconUsersGroup, IconWallet } from "@tabler/icons-react";
 import { RequireAccess } from "@/components/auth/RequireAccess";
 import { LeaderGroupProvider, useLeaderGroup } from "@/lib/leader-context";
 import { authClient } from "@/lib/auth-client";
@@ -14,6 +14,7 @@ const TABS = [
   ["Check-In", "/leader/check-in", IconClipboardCheck],
   ["Chat", "/leader/chat", IconMessageCircle],
   ["SOS", "/leader/sos", IconSos],
+  ["Dompet", "/leader/wallet", IconWallet],
 ] as const;
 
 function LeaderShell({ children }: { children: React.ReactNode }) {

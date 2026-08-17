@@ -67,8 +67,8 @@ WHERE a.id = $2 AND a.operator_id = $1
 GROUP BY a.id, a.name, disb.total;
 
 -- name: RecordAgentPayout :one
-INSERT INTO agent_payouts (operator_id, agent_id, amount_idr, note, paid_by_user_id, method)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO agent_payouts (operator_id, agent_id, amount_idr, note, paid_by_user_id, method, request_id)
+VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7::text, '')::uuid)
 RETURNING *;
 
 -- name: ListAgentPayoutHistory :many
@@ -77,3 +77,46 @@ FROM agent_payouts p
 JOIN "user" u ON u.id = p.paid_by_user_id
 WHERE p.agent_id = $1 AND p.operator_id = $2
 ORDER BY p.created_at DESC;
+
+-- name: ListOrderCreditsForAgent :many
+SELECT o.id, o.agent_commission_idr, o.paid_at, pr.name AS product_name
+FROM orders o
+JOIN products pr ON pr.id = o.product_id
+WHERE o.agent_id = $1 AND o.status = 'PAID'
+ORDER BY o.paid_at DESC;
+
+-- name: SumPendingPayoutRequests :one
+SELECT COALESCE(SUM(amount_idr), 0)::bigint AS total
+FROM agent_payout_requests
+WHERE agent_id = $1 AND status = 'PENDING';
+
+-- name: CreatePayoutRequest :one
+INSERT INTO agent_payout_requests (operator_id, agent_id, amount_idr, note)
+VALUES ($1, $2, $3, $4)
+RETURNING *;
+
+-- name: GetPayoutRequest :one
+SELECT r.*, a.name AS agent_name
+FROM agent_payout_requests r
+JOIN agents a ON a.id = r.agent_id
+WHERE r.id = $1 AND r.operator_id = $2;
+
+-- name: ListPayoutRequests :many
+SELECT r.*, a.name AS agent_name
+FROM agent_payout_requests r
+JOIN agents a ON a.id = r.agent_id
+WHERE r.operator_id = $1 AND r.status = 'PENDING'
+  AND (sqlc.narg(agent_id)::uuid IS NULL OR r.agent_id = sqlc.narg(agent_id)::uuid)
+ORDER BY r.requested_at ASC;
+
+-- name: ApprovePayoutRequestTx :one
+UPDATE agent_payout_requests
+SET status = 'APPROVED', resolved_at = NOW(), resolved_by_user_id = $3
+WHERE id = $1 AND operator_id = $2 AND status = 'PENDING'
+RETURNING *;
+
+-- name: RejectPayoutRequest :one
+UPDATE agent_payout_requests
+SET status = 'REJECTED', resolution_note = $4, resolved_at = NOW(), resolved_by_user_id = $3
+WHERE id = $1 AND operator_id = $2 AND status = 'PENDING'
+RETURNING *;

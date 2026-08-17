@@ -88,7 +88,7 @@ func main() {
 		accommodationService := service.NewAccommodationService(operatorRepository, pilgrimRepository, accommodationRepository, auditRepository)
 		transportService := service.NewTransportService(operatorRepository, transportRepository, auditRepository)
 		productService := service.NewProductService(operatorRepository, productRepository)
-		agentService := service.NewAgentService(operatorRepository, agentRepository, auditRepository)
+		agentService := service.NewAgentService(operatorRepository, agentRepository, auditRepository, pool)
 		groupService := service.NewGroupService(operatorRepository, groupRepository, auditRepository, agentRepository)
 		pilgrimAppService := service.NewPilgrimAppService(pilgrimRepository, productRepository, auditRepository, identityRepository)
 		sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, auditRepository, firebasePusher)
