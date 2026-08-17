@@ -6,8 +6,30 @@ import { resolveLandingPath } from "@/lib/post-login";
 import { invalidateMyAccessCache } from "@/lib/access-cache";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 type Mode="sign-in"|"sign-up";
+// Better Auth's error.message is raw English straight from the library —
+// jamaah/leader users only ever see Indonesian elsewhere in this app, so an
+// unmapped code would read as a confusing, out-of-place error. Known codes
+// get a plain-language Indonesian message; anything unmapped falls back to
+// a generic message rather than leaking the raw English string.
+function friendlyAuthError(code:string|undefined,signUp:boolean):string{
+  switch(code){
+    case "INVALID_EMAIL_OR_PASSWORD":
+    case "INVALID_PASSWORD":
+      return "Email atau kata sandi salah. Silakan periksa kembali.";
+    case "USER_NOT_FOUND":
+      return "Akun dengan email ini tidak ditemukan.";
+    case "USER_ALREADY_EXISTS":
+      return "Email ini sudah terdaftar. Silakan masuk, atau gunakan email lain.";
+    case "PASSWORD_TOO_SHORT":
+      return "Kata sandi terlalu pendek — minimal 8 karakter.";
+    case "PASSWORD_TOO_LONG":
+      return "Kata sandi terlalu panjang.";
+    default:
+      return signUp?"Gagal membuat akun Anda. Silakan coba lagi.":"Gagal masuk. Silakan coba lagi.";
+  }
+}
 export function AuthForm({mode}:{mode:Mode}) { const router=useRouter(); const [error,setError]=useState<string|null>(null); const [isSubmitting,setSubmitting]=useState(false); const [focused,setFocused]=useState(""); const [checkEmail,setCheckEmail]=useState<string|null>(null); const [unverifiedEmail,setUnverifiedEmail]=useState<string|null>(null); const [resending,setResending]=useState(false); const signUp=mode==="sign-up";
- async function submit(event:FormEvent<HTMLFormElement>){event.preventDefault();setError(null);setUnverifiedEmail(null);setSubmitting(true);try{const form=new FormData(event.currentTarget);const email=String(form.get("email")??"");const result=signUp?await authClient.signUp.email({name:String(form.get("name")??""),email,password:String(form.get("password")??"")}):await authClient.signIn.email({email,password:String(form.get("password")??"")});if(result.error){if(result.error.code==="EMAIL_NOT_VERIFIED"){setUnverifiedEmail(email);setError("Email Anda belum diverifikasi. Periksa kotak masuk Anda, atau kirim ulang di bawah.");}else{setError(result.error.message??(signUp?"Gagal membuat akun Anda.":"Gagal masuk."));}return;}
+ async function submit(event:FormEvent<HTMLFormElement>){event.preventDefault();setError(null);setUnverifiedEmail(null);setSubmitting(true);try{const form=new FormData(event.currentTarget);const email=String(form.get("email")??"");const result=signUp?await authClient.signUp.email({name:String(form.get("name")??""),email,password:String(form.get("password")??"")}):await authClient.signIn.email({email,password:String(form.get("password")??"")});if(result.error){if(result.error.code==="EMAIL_NOT_VERIFIED"){setUnverifiedEmail(email);setError("Email Anda belum diverifikasi. Periksa kotak masuk Anda, atau kirim ulang di bawah.");}else{setError(friendlyAuthError(result.error.code,signUp));}return;}
   // requireEmailVerification means sign-up never establishes a session —
   // there's nothing to redirect to yet, just tell them to check their inbox.
   if(signUp){setCheckEmail(email);return;}

@@ -7,7 +7,14 @@ export const authClient = createAuthClient({
   fetchOptions: {
     cache: "no-store",
     onError: async (ctx) => {
-      if (ctx.response.status === 401) {
+      // A 401 on sign-in/sign-up itself means "wrong credentials", not "your
+      // session expired" — that case must stay on the page so AuthForm can
+      // show its own error message. A hard redirect here would reload the
+      // page before React ever renders that message, silently wiping the
+      // form with no explanation (the actual UX bug reported: login fails
+      // and the user sees nothing).
+      const path = new URL(ctx.request.url).pathname;
+      if (ctx.response.status === 401 && !path.includes("/sign-in") && !path.includes("/sign-up")) {
         window.location.href = "/sign-in";
       }
     },
