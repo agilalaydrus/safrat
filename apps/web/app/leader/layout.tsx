@@ -7,6 +7,7 @@ import { RequireAccess } from "@/components/auth/RequireAccess";
 import { LeaderGroupProvider, useLeaderGroup } from "@/lib/leader-context";
 import { authClient } from "@/lib/auth-client";
 import { invalidateMyAccessCache } from "@/lib/access-cache";
+import { useLeaderActiveSOSCount, useLeaderChatUnread } from "@/lib/leader-notifications";
 
 const TABS = [
   ["Daftar Jamaah", "/leader", IconUsersGroup],
@@ -19,6 +20,8 @@ function LeaderShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { groups, selectedGroupId, setSelectedGroupId } = useLeaderGroup();
+  const chatUnread = useLeaderChatUnread(selectedGroupId, pathname === "/leader/chat");
+  const sosActive = useLeaderActiveSOSCount();
 
   async function signOut() {
     await authClient.signOut();
@@ -45,9 +48,13 @@ function LeaderShell({ children }: { children: React.ReactNode }) {
       <nav style={tabBar} aria-label="Navigasi rombongan">
         {TABS.map(([label, href, Icon]) => {
           const active = pathname === href;
+          const badgeCount = label === "Chat" ? chatUnread : label === "SOS" ? sosActive : 0;
           return (
             <Link key={label} href={href} style={{ ...tab, ...(active ? activeTab : {}) }}>
-              <Icon size={22} stroke={active ? 2.2 : 1.8} />
+              <span style={iconWrap}>
+                <Icon size={22} stroke={active ? 2.2 : 1.8} />
+                {badgeCount > 0 && <span style={badge}>{badgeCount > 9 ? "9+" : badgeCount}</span>}
+              </span>
               <span style={tabLabel}>{label}</span>
             </Link>
           );
@@ -78,3 +85,5 @@ const tabBar: React.CSSProperties = { position: "fixed", bottom: 0, insetInline:
 const tab: React.CSSProperties = { flex: 1, minHeight: 64, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, color: "var(--color-warm-400)" };
 const activeTab: React.CSSProperties = { color: "var(--color-emerald-900)" };
 const tabLabel: React.CSSProperties = { fontSize: 11, fontWeight: 600 };
+const iconWrap: React.CSSProperties = { position: "relative", display: "inline-flex" };
+const badge: React.CSSProperties = { position: "absolute", top: -6, right: -10, minWidth: 16, height: 16, borderRadius: 8, background: "var(--color-danger-600)", color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px", lineHeight: 1 };
