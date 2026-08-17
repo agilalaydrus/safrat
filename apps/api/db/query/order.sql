@@ -67,6 +67,13 @@ WHERE a.id = $2 AND a.operator_id = $1
 GROUP BY a.id, a.name, disb.total;
 
 -- name: RecordAgentPayout :one
-INSERT INTO agent_payouts (operator_id, agent_id, amount_idr, note, paid_by_user_id)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO agent_payouts (operator_id, agent_id, amount_idr, note, paid_by_user_id, method)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
+
+-- name: ListAgentPayoutHistory :many
+SELECT p.id, p.amount_idr, p.note, p.method, p.created_at, u.name AS paid_by_name
+FROM agent_payouts p
+JOIN "user" u ON u.id = p.paid_by_user_id
+WHERE p.agent_id = $1 AND p.operator_id = $2
+ORDER BY p.created_at DESC;

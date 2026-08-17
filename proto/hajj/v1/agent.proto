@@ -19,6 +19,10 @@ service AgentService {
   // overwrites or "marks paid" in place, so a partial/installment payout
   // history stays intact and auditable.
   rpc RecordAgentPayout(RecordAgentPayoutRequest) returns (AgentPayout);
+  // ListAgentPayoutHistory is the ledger behind a single agent's numbers in
+  // ListAgentPayouts — every individual disbursement, for the operator to
+  // review before recording another one.
+  rpc ListAgentPayoutHistory(ListAgentPayoutHistoryRequest) returns (ListAgentPayoutHistoryResponse);
   rpc UpdateAgent(UpdateAgentRequest) returns (Agent);
   rpc DeleteAgent(DeleteAgentRequest) returns (DeleteAgentResponse);
   // ApplyAsAgent is the one public, unauthenticated RPC on this service — see
@@ -79,11 +83,33 @@ message AgentPayout {
 message ListAgentPayoutsRequest {}
 message ListAgentPayoutsResponse { repeated AgentPayout payouts = 1; }
 
+enum PayoutMethod {
+  PAYOUT_METHOD_UNSPECIFIED = 0;
+  PAYOUT_METHOD_TRANSFER = 1;
+  PAYOUT_METHOD_CASH = 2;
+  PAYOUT_METHOD_EWALLET = 3;
+}
+
 message RecordAgentPayoutRequest {
   string agent_id = 1 [(buf.validate.field).string.uuid = true];
   int64 amount_idr = 2 [(buf.validate.field).int64.gt = 0];
   string note = 3;
+  PayoutMethod method = 4 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3]}];
 }
+
+message AgentPayoutEntry {
+  string id = 1;
+  int64 amount_idr = 2;
+  string note = 3;
+  PayoutMethod method = 4;
+  string paid_by_name = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message ListAgentPayoutHistoryRequest {
+  string agent_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message ListAgentPayoutHistoryResponse { repeated AgentPayoutEntry entries = 1; }
 
 message UpdateAgentRequest {
   string agent_id = 1 [(buf.validate.field).string.min_len = 1];

@@ -27,3 +27,12 @@ type AgentPayout struct {
 	TotalDisbursedIDR  int64
 	OutstandingIDR     int64
 }
+
+type AgentPayoutEntry struct {
+	ID         string
+	AmountIDR  int64
+	Note       string
+	Method     string
+	PaidByName string
+	CreatedAt  time.Time
+}

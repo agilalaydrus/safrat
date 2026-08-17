@@ -49,6 +49,13 @@ func (h *AgentHandler) RecordAgentPayout(ctx context.Context, req *connect.Reque
 	}
 	return connect.NewResponse(result), nil
 }
+func (h *AgentHandler) ListAgentPayoutHistory(ctx context.Context, req *connect.Request[hajjv1.ListAgentPayoutHistoryRequest]) (*connect.Response[hajjv1.ListAgentPayoutHistoryResponse], error) {
+	result, err := h.agentService.ListPayoutHistory(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
 func (h *AgentHandler) UpdateAgent(ctx context.Context, req *connect.Request[hajjv1.UpdateAgentRequest]) (*connect.Response[hajjv1.Agent], error) {
 	result, err := h.agentService.Update(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
 	if err != nil {

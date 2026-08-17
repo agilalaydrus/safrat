@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -15,10 +16,11 @@ import (
 type AgentService struct {
 	operatorRepository *repository.OperatorRepository
 	agentRepository    *repository.AgentRepository
+	auditRepository    *repository.AuditRepository
 }
 
-func NewAgentService(operators *repository.OperatorRepository, agents *repository.AgentRepository) *AgentService {
-	return &AgentService{operatorRepository: operators, agentRepository: agents}
+func NewAgentService(operators *repository.OperatorRepository, agents *repository.AgentRepository, audit *repository.AuditRepository) *AgentService {
+	return &AgentService{operatorRepository: operators, agentRepository: agents, auditRepository: audit}
 }
 func (s *AgentService) Create(ctx context.Context, orgID string, req *hajjv1.CreateAgentRequest) (*hajjv1.Agent, error) {
 	if req == nil || strings.TrimSpace(req.Name) == "" || req.CommissionRate < 0 || req.CommissionRate > 100 {
@@ -93,14 +95,68 @@ func (s *AgentService) RecordPayout(ctx context.Context, orgID, userID string, r
 	if req.AmountIdr > current.OutstandingIDR {
 		return nil, serviceError("AgentService.RecordPayout", preconditionError("amount exceeds outstanding balance"))
 	}
-	if err := s.agentRepository.RecordPayout(ctx, op.ID, req.AgentId, req.AmountIdr, req.Note, userID); err != nil {
+	method := payoutMethodToDB(req.Method)
+	if method == "" {
+		return nil, serviceError("AgentService.RecordPayout", apperror.ErrValidation)
+	}
+	if err := s.agentRepository.RecordPayout(ctx, op.ID, req.AgentId, req.AmountIdr, req.Note, method, userID); err != nil {
 		return nil, serviceError("AgentService.RecordPayout", err)
 	}
+	_ = s.auditRepository.Write(ctx, op.ID, userID, "agent_payout_recorded", "agent", req.AgentId, fmt.Sprintf("Rp%d via %s", req.AmountIdr, method))
 	updated, err := s.agentRepository.GetPayoutSummary(ctx, op.ID, req.AgentId)
 	if err != nil {
 		return nil, serviceError("AgentService.RecordPayout", err)
 	}
 	return agentPayoutMessage(updated), nil
+}
+func (s *AgentService) ListPayoutHistory(ctx context.Context, orgID string, req *hajjv1.ListAgentPayoutHistoryRequest) (*hajjv1.ListAgentPayoutHistoryResponse, error) {
+	if req == nil || !isUUID(req.AgentId) {
+		return nil, serviceError("AgentService.ListPayoutHistory", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("AgentService.ListPayoutHistory", err)
+	}
+	entries, err := s.agentRepository.ListPayoutHistory(ctx, op.ID, req.AgentId)
+	if err != nil {
+		return nil, serviceError("AgentService.ListPayoutHistory", err)
+	}
+	result := &hajjv1.ListAgentPayoutHistoryResponse{Entries: make([]*hajjv1.AgentPayoutEntry, 0, len(entries))}
+	for _, entry := range entries {
+		result.Entries = append(result.Entries, &hajjv1.AgentPayoutEntry{
+			Id:         entry.ID,
+			AmountIdr:  entry.AmountIDR,
+			Note:       entry.Note,
+			Method:     payoutMethodFromDB(entry.Method),
+			PaidByName: entry.PaidByName,
+			CreatedAt:  timestamppb.New(entry.CreatedAt),
+		})
+	}
+	return result, nil
+}
+func payoutMethodToDB(m hajjv1.PayoutMethod) string {
+	switch m {
+	case hajjv1.PayoutMethod_PAYOUT_METHOD_TRANSFER:
+		return "TRANSFER"
+	case hajjv1.PayoutMethod_PAYOUT_METHOD_CASH:
+		return "CASH"
+	case hajjv1.PayoutMethod_PAYOUT_METHOD_EWALLET:
+		return "EWALLET"
+	default:
+		return ""
+	}
+}
+func payoutMethodFromDB(m string) hajjv1.PayoutMethod {
+	switch m {
+	case "TRANSFER":
+		return hajjv1.PayoutMethod_PAYOUT_METHOD_TRANSFER
+	case "CASH":
+		return hajjv1.PayoutMethod_PAYOUT_METHOD_CASH
+	case "EWALLET":
+		return hajjv1.PayoutMethod_PAYOUT_METHOD_EWALLET
+	default:
+		return hajjv1.PayoutMethod_PAYOUT_METHOD_UNSPECIFIED
+	}
 }
 func agentPayoutMessage(payout *domain.AgentPayout) *hajjv1.AgentPayout {
 	return &hajjv1.AgentPayout{

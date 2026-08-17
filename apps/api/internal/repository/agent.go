@@ -138,7 +138,7 @@ func (r *AgentRepository) GetPayoutSummary(ctx context.Context, operatorID, agen
 // RecordPayout appends a disbursement to the ledger. Callers are expected to
 // have already validated amount against the current outstanding balance
 // (see AgentService.RecordPayout) — this just persists the entry.
-func (r *AgentRepository) RecordPayout(ctx context.Context, operatorID, agentID string, amountIDR int64, note, paidByUserID string) error {
+func (r *AgentRepository) RecordPayout(ctx context.Context, operatorID, agentID string, amountIDR int64, note, method, paidByUserID string) error {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return err
@@ -152,9 +152,37 @@ func (r *AgentRepository) RecordPayout(ctx context.Context, operatorID, agentID 
 		AgentID:      agentUUID,
 		AmountIdr:    amountIDR,
 		Note:         note,
+		Method:       method,
 		PaidByUserID: paidByUserID,
 	})
 	return err
+}
+
+func (r *AgentRepository) ListPayoutHistory(ctx context.Context, operatorID, agentID string) ([]*domain.AgentPayoutEntry, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	agentUUID, err := pgUUID(agentID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListAgentPayoutHistory(ctx, db.ListAgentPayoutHistoryParams{AgentID: agentUUID, OperatorID: opUUID})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*domain.AgentPayoutEntry, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &domain.AgentPayoutEntry{
+			ID:         uuid.UUID(row.ID.Bytes).String(),
+			AmountIDR:  row.AmountIdr,
+			Note:       row.Note,
+			Method:     row.Method,
+			PaidByName: row.PaidByName,
+			CreatedAt:  row.CreatedAt.Time,
+		})
+	}
+	return result, nil
 }
 
 func (r *AgentRepository) Update(ctx context.Context, operatorID, agentID, name, phone, email, notes string, commissionRate float64, isActive bool) (*domain.Agent, error) {

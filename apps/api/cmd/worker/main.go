@@ -40,7 +40,7 @@ func main() {
 	sosRepository := repository.NewSOSRepository(queries)
 	notificationRepository := repository.NewNotificationRepository(queries)
 	auditRepository := repository.NewAuditRepository(queries)
-	agentService := service.NewAgentService(operatorRepository, agentRepository)
+	agentService := service.NewAgentService(operatorRepository, agentRepository, auditRepository)
 	tierHandler := worker.NewTierHandler(logger, operatorRepository, agentService)
 
 	firebasePusher, err := notification.NewFirebasePusher(context.Background(), logger, strings.TrimSpace(os.Getenv("FIREBASE_SERVICE_ACCOUNT_JSON")), notificationRepository)
