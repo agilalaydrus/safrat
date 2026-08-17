@@ -30,6 +30,11 @@ async function resolveToken(): Promise<string | undefined> {
   return pending;
 }
 
+/** Call whenever the underlying Better Auth session changes (sign-in, sign-out, role change) — otherwise an RPC fired in the TOKEN_TTL_MS window right before/after can still carry the previous session's token and get rejected as unauthenticated. */
+export function invalidateTokenCache() {
+  cachedToken = undefined;
+}
+
 export const transport = createConnectTransport({
   baseUrl: process.env.NEXT_PUBLIC_API_URL!,
   interceptors: [

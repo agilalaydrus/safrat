@@ -2,6 +2,7 @@
 
 import { MyAccess } from "@hajj-saas/proto-gen/hajj/v1/identity_pb";
 import { identityClient } from "./rpc";
+import { invalidateTokenCache } from "./transport";
 
 /**
  * Client-side twin of the backend's per-user TTL cache in
@@ -34,4 +35,9 @@ export async function getMyAccessCached(): Promise<MyAccess> {
 /** Call on sign-out and right after any action that changes roles (e.g. linking a Google account). */
 export function invalidateMyAccessCache() {
   cached = undefined;
+  // The RPC transport caches the session token separately (lib/transport.ts)
+  // — without dropping it here too, the next RPC (e.g. the GetMyAccess call
+  // right after sign-in) can still carry the previous session's token for
+  // up to its TTL and get rejected as unauthenticated.
+  invalidateTokenCache();
 }
