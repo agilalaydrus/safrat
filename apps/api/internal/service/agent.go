@@ -74,14 +74,43 @@ func (s *AgentService) ListPayouts(ctx context.Context, orgID string) (*hajjv1.L
 	}
 	result := &hajjv1.ListAgentPayoutsResponse{Payouts: make([]*hajjv1.AgentPayout, 0, len(payouts))}
 	for _, payout := range payouts {
-		result.Payouts = append(result.Payouts, &hajjv1.AgentPayout{
-			AgentId:            payout.AgentID,
-			AgentName:          payout.AgentName,
-			TotalCommissionIdr: payout.TotalCommissionIDR,
-			PaidOrderCount:     payout.PaidOrderCount,
-		})
+		result.Payouts = append(result.Payouts, agentPayoutMessage(payout))
 	}
 	return result, nil
+}
+func (s *AgentService) RecordPayout(ctx context.Context, orgID, userID string, req *hajjv1.RecordAgentPayoutRequest) (*hajjv1.AgentPayout, error) {
+	if req == nil || !isUUID(req.AgentId) || req.AmountIdr <= 0 {
+		return nil, serviceError("AgentService.RecordPayout", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("AgentService.RecordPayout", err)
+	}
+	current, err := s.agentRepository.GetPayoutSummary(ctx, op.ID, req.AgentId)
+	if err != nil {
+		return nil, serviceError("AgentService.RecordPayout", err)
+	}
+	if req.AmountIdr > current.OutstandingIDR {
+		return nil, serviceError("AgentService.RecordPayout", preconditionError("amount exceeds outstanding balance"))
+	}
+	if err := s.agentRepository.RecordPayout(ctx, op.ID, req.AgentId, req.AmountIdr, req.Note, userID); err != nil {
+		return nil, serviceError("AgentService.RecordPayout", err)
+	}
+	updated, err := s.agentRepository.GetPayoutSummary(ctx, op.ID, req.AgentId)
+	if err != nil {
+		return nil, serviceError("AgentService.RecordPayout", err)
+	}
+	return agentPayoutMessage(updated), nil
+}
+func agentPayoutMessage(payout *domain.AgentPayout) *hajjv1.AgentPayout {
+	return &hajjv1.AgentPayout{
+		AgentId:            payout.AgentID,
+		AgentName:          payout.AgentName,
+		TotalCommissionIdr: payout.TotalCommissionIDR,
+		PaidOrderCount:     payout.PaidOrderCount,
+		TotalDisbursedIdr:  payout.TotalDisbursedIDR,
+		OutstandingIdr:     payout.OutstandingIDR,
+	}
 }
 func (s *AgentService) Update(ctx context.Context, orgID string, req *hajjv1.UpdateAgentRequest) (*hajjv1.Agent, error) {
 	if req == nil || strings.TrimSpace(req.Name) == "" || req.CommissionRate < 0 || req.CommissionRate > 100 {

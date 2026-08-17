@@ -105,9 +105,56 @@ func (r *AgentRepository) ListPayouts(ctx context.Context, operatorID string) ([
 			AgentName:          row.AgentName,
 			TotalCommissionIDR: row.TotalCommissionIdr,
 			PaidOrderCount:     row.PaidOrderCount,
+			TotalDisbursedIDR:  row.TotalDisbursedIdr,
+			OutstandingIDR:     row.TotalCommissionIdr - row.TotalDisbursedIdr,
 		})
 	}
 	return result, nil
+}
+
+func (r *AgentRepository) GetPayoutSummary(ctx context.Context, operatorID, agentID string) (*domain.AgentPayout, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	agentUUID, err := pgUUID(agentID)
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.queries.GetAgentPayoutSummary(ctx, db.GetAgentPayoutSummaryParams{OperatorID: opUUID, ID: agentUUID})
+	if err != nil {
+		return nil, err
+	}
+	return &domain.AgentPayout{
+		AgentID:            uuid.UUID(row.AgentID.Bytes).String(),
+		AgentName:          row.AgentName,
+		TotalCommissionIDR: row.TotalCommissionIdr,
+		PaidOrderCount:     row.PaidOrderCount,
+		TotalDisbursedIDR:  row.TotalDisbursedIdr,
+		OutstandingIDR:     row.TotalCommissionIdr - row.TotalDisbursedIdr,
+	}, nil
+}
+
+// RecordPayout appends a disbursement to the ledger. Callers are expected to
+// have already validated amount against the current outstanding balance
+// (see AgentService.RecordPayout) — this just persists the entry.
+func (r *AgentRepository) RecordPayout(ctx context.Context, operatorID, agentID string, amountIDR int64, note, paidByUserID string) error {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return err
+	}
+	agentUUID, err := pgUUID(agentID)
+	if err != nil {
+		return err
+	}
+	_, err = r.queries.RecordAgentPayout(ctx, db.RecordAgentPayoutParams{
+		OperatorID:   opUUID,
+		AgentID:      agentUUID,
+		AmountIdr:    amountIDR,
+		Note:         note,
+		PaidByUserID: paidByUserID,
+	})
+	return err
 }
 
 func (r *AgentRepository) Update(ctx context.Context, operatorID, agentID, name, phone, email, notes string, commissionRate float64, isActive bool) (*domain.Agent, error) {

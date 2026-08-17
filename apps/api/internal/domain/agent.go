@@ -24,4 +24,6 @@ type AgentPayout struct {
 	AgentName          string
 	TotalCommissionIDR int64
 	PaidOrderCount     int32
+	TotalDisbursedIDR  int64
+	OutstandingIDR     int64
 }
