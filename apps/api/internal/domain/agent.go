@@ -18,3 +18,10 @@ type Agent struct {
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
+
+type AgentPayout struct {
+	AgentID            string
+	AgentName          string
+	TotalCommissionIDR int64
+	PaidOrderCount     int32
+}

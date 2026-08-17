@@ -11,6 +11,10 @@ service AgentService {
   rpc CreateAgent(CreateAgentRequest) returns (Agent);
   rpc GetAgent(GetAgentRequest) returns (Agent);
   rpc ListAgents(ListAgentsRequest) returns (ListAgentsResponse);
+  // ListAgentPayouts is the money-owed counterpart to ListAgents' referral
+  // count — how much commission each agent has actually earned from orders
+  // that have been paid, not just how many pilgrims they referred.
+  rpc ListAgentPayouts(ListAgentPayoutsRequest) returns (ListAgentPayoutsResponse);
   rpc UpdateAgent(UpdateAgentRequest) returns (Agent);
   rpc DeleteAgent(DeleteAgentRequest) returns (DeleteAgentResponse);
   // ApplyAsAgent is the one public, unauthenticated RPC on this service — see
@@ -54,6 +58,18 @@ message CreateAgentRequest {
 message GetAgentRequest { string agent_id = 1 [(buf.validate.field).string.min_len = 1]; }
 message ListAgentsRequest {}
 message ListAgentsResponse { repeated Agent agents = 1; }
+
+message AgentPayout {
+  string agent_id = 1;
+  string agent_name = 2;
+  // Sum of orders.agent_commission_idr across this agent's PAID orders —
+  // what's actually owed, not a projection off commission_rate.
+  int64 total_commission_idr = 3;
+  int32 paid_order_count = 4;
+}
+
+message ListAgentPayoutsRequest {}
+message ListAgentPayoutsResponse { repeated AgentPayout payouts = 1; }
 
 message UpdateAgentRequest {
   string agent_id = 1 [(buf.validate.field).string.min_len = 1];

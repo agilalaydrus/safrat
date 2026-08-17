@@ -89,6 +89,27 @@ func (r *AgentRepository) ListByOperatorID(ctx context.Context, operatorID strin
 	return result, nil
 }
 
+func (r *AgentRepository) ListPayouts(ctx context.Context, operatorID string) ([]*domain.AgentPayout, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListAgentPayouts(ctx, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*domain.AgentPayout, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &domain.AgentPayout{
+			AgentID:            uuid.UUID(row.AgentID.Bytes).String(),
+			AgentName:          row.AgentName,
+			TotalCommissionIDR: row.TotalCommissionIdr,
+			PaidOrderCount:     row.PaidOrderCount,
+		})
+	}
+	return result, nil
+}
+
 func (r *AgentRepository) Update(ctx context.Context, operatorID, agentID, name, phone, email, notes string, commissionRate float64, isActive bool) (*domain.Agent, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {

@@ -63,6 +63,26 @@ func (s *AgentService) List(ctx context.Context, orgID string) (*hajjv1.ListAgen
 	}
 	return result, nil
 }
+func (s *AgentService) ListPayouts(ctx context.Context, orgID string) (*hajjv1.ListAgentPayoutsResponse, error) {
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("AgentService.ListPayouts", err)
+	}
+	payouts, err := s.agentRepository.ListPayouts(ctx, op.ID)
+	if err != nil {
+		return nil, serviceError("AgentService.ListPayouts", err)
+	}
+	result := &hajjv1.ListAgentPayoutsResponse{Payouts: make([]*hajjv1.AgentPayout, 0, len(payouts))}
+	for _, payout := range payouts {
+		result.Payouts = append(result.Payouts, &hajjv1.AgentPayout{
+			AgentId:            payout.AgentID,
+			AgentName:          payout.AgentName,
+			TotalCommissionIdr: payout.TotalCommissionIDR,
+			PaidOrderCount:     payout.PaidOrderCount,
+		})
+	}
+	return result, nil
+}
 func (s *AgentService) Update(ctx context.Context, orgID string, req *hajjv1.UpdateAgentRequest) (*hajjv1.Agent, error) {
 	if req == nil || strings.TrimSpace(req.Name) == "" || req.CommissionRate < 0 || req.CommissionRate > 100 {
 		return nil, serviceError("AgentService.Update", apperror.ErrValidation)
@@ -105,10 +125,10 @@ func (s *AgentService) ApplyAsAgent(ctx context.Context, req *hajjv1.ApplyAsAgen
 }
 
 // RecalculateTiers is invoked by the tier-recalculation worker (cmd/worker), not by
-// any RPC.
-// TODO(payout): this only recomputes tier, not payout. Payout needs order/revenue
-// data to multiply commissionRate against, which doesn't exist without Module 7
-// (Orders) — deliberately out of scope for now, not a silent gap.
+// any RPC. Payout itself is a separate concern — see ListPayouts, which sums
+// each order's already-frozen agent_commission_idr rather than projecting
+// off commissionRate, so a later rate change never rewrites what's owed for
+// past orders.
 func (s *AgentService) RecalculateTiers(ctx context.Context, operatorID string) error {
 	rows, err := s.agentRepository.ListActiveForTiering(ctx, operatorID)
 	if err != nil {

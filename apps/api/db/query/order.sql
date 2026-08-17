@@ -38,3 +38,15 @@ JOIN products pr ON pr.id = o.product_id
 LEFT JOIN agents a ON a.id = o.agent_id
 WHERE o.operator_id = $1 AND o.season_id = $2
 ORDER BY o.created_at DESC;
+
+-- name: ListAgentPayouts :many
+-- Lifetime, not season-scoped — agents aren't a per-season concept (see
+-- AgentService), so neither is what's owed to them.
+SELECT a.id AS agent_id, a.name AS agent_name,
+       COALESCE(SUM(o.agent_commission_idr) FILTER (WHERE o.status = 'PAID'), 0)::bigint AS total_commission_idr,
+       COUNT(o.id) FILTER (WHERE o.status = 'PAID')::int AS paid_order_count
+FROM agents a
+LEFT JOIN orders o ON o.agent_id = a.id
+WHERE a.operator_id = $1
+GROUP BY a.id, a.name
+ORDER BY total_commission_idr DESC;
