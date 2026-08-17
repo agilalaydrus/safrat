@@ -58,7 +58,7 @@ export async function enableSosAlarm(): Promise<boolean> {
   }
 }
 
-function notifyBrowser(title: string, body: string) {
+export function notifyBrowser(title: string, body: string) {
   if (typeof window === "undefined" || !("Notification" in window) || Notification.permission !== "granted") return;
   try {
     const notification = new Notification(title, { body, tag: "safrat-sos", requireInteraction: true });
@@ -80,4 +80,25 @@ export function useSosAlarm(alerts: { id: string; status: string }[], title = "S
     playSosAlarm();
     notifyBrowser(title, fresh.length === 1 ? "Seorang jamaah membutuhkan bantuan segera." : `${fresh.length} jamaah membutuhkan bantuan segera.`);
   }, [alerts, title]);
+}
+
+/**
+ * The pilgrim-side counterpart: a reassuring (not alarming) Notification the
+ * moment one of THIS pilgrim's own alerts flips to ACKNOWLEDGED — "your
+ * Leader has confirmed and is on the way." No beep here, this is good news,
+ * not an emergency. Tracks previous status per alert id so it only fires
+ * once per transition, not on every poll tick.
+ */
+export function usePilgrimSOSAckNotify(alerts: { id: string; status: string }[]) {
+  const lastStatus = useRef<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    for (const alert of alerts) {
+      const previous = lastStatus.current.get(alert.id);
+      if (previous !== "ACKNOWLEDGED" && alert.status === "ACKNOWLEDGED") {
+        notifyBrowser("Bantuan Sedang Menuju Lokasi Anda", "Ketua rombongan Anda telah mengonfirmasi dan sedang menuju ke lokasi Anda.");
+      }
+      lastStatus.current.set(alert.id, alert.status);
+    }
+  }, [alerts]);
 }

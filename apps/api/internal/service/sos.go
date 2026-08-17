@@ -65,6 +65,28 @@ func (s *SOSService) CreateSOSAlert(ctx context.Context, req *hajjv1.CreateSOSAl
 	return sosAlertMessage(alert), nil
 }
 
+// ListMyPilgrimSOSAlerts is the public, unauthenticated entry point the
+// pilgrim app polls to notice a leader has acknowledged/resolved their
+// alert — see publicProcedures in internal/middleware/auth.go.
+func (s *SOSService) ListMyPilgrimSOSAlerts(ctx context.Context, req *hajjv1.ListMyPilgrimSOSAlertsRequest) (*hajjv1.ListSOSAlertsResponse, error) {
+	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" {
+		return nil, serviceError("SOSService.ListMyPilgrimSOSAlerts", apperror.ErrValidation)
+	}
+	pilgrim, err := s.pilgrimRepository.GetByAppAccessCode(ctx, req.AppAccessCode)
+	if err != nil {
+		return nil, serviceError("SOSService.ListMyPilgrimSOSAlerts", apperror.ErrNotFound)
+	}
+	alerts, err := s.sosRepository.ListPilgrimHistory(ctx, pilgrim.OperatorID, pilgrim.ID, pilgrim.FullName)
+	if err != nil {
+		return nil, serviceError("SOSService.ListMyPilgrimSOSAlerts", err)
+	}
+	result := &hajjv1.ListSOSAlertsResponse{Alerts: make([]*hajjv1.SOSAlert, 0, len(alerts))}
+	for _, alert := range alerts {
+		result.Alerts = append(result.Alerts, sosAlertMessage(alert))
+	}
+	return result, nil
+}
+
 // EscalateStaleAlerts is invoked by the worker's periodic sweep (cmd/worker),
 // not by any RPC — matches the business rule "unacknowledged after 10min ->
 // ESCALATED -> push to ALL coordinators."

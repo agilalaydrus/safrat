@@ -30,6 +30,7 @@ var rateLimitedProcedures = map[string]rate.Limit{
 	"/hajj.v1.PilgrimAppService/ListMyProducts":    rate.Every(time.Minute / 4),
 	"/hajj.v1.PilgrimAppService/UpdateMyLocation":  rate.Every(time.Minute / 4), // pings every 5min; allows retries
 	"/hajj.v1.PilgrimAppService/RequestWheelchair": rate.Every(time.Minute / 4),
+	"/hajj.v1.SOSService/ListMyPilgrimSOSAlerts":   rate.Every(time.Second * 3), // supports ~3s polling
 	"/hajj.v1.ChatService/ListMyMessages":          rate.Every(time.Second * 3), // supports ~3s polling
 	"/hajj.v1.ChatService/SendMyMessage":           rate.Every(time.Minute / 10),
 	// A real checkout is a one-shot action, not a poll — tight ceiling,

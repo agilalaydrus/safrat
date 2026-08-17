@@ -17,6 +17,13 @@ service SOSService {
   rpc ListActiveSOSAlerts(ListActiveSOSAlertsRequest) returns (ListSOSAlertsResponse);
   rpc AcknowledgeSOSAlert(AcknowledgeSOSAlertRequest) returns (SOSAlert);
   rpc ResolveSOSAlert(ResolveSOSAlertRequest) returns (SOSAlert);
+
+  // ListMyPilgrimSOSAlerts is public (app_access_code) — the pilgrim app
+  // polling its own alert history so it can show a live status change (e.g.
+  // "your Leader has confirmed and is on the way") once a leader
+  // acknowledges. Unlike CreateSOSAlert this is a plain read, so it IS
+  // rate-limited — see ratelimit.go.
+  rpc ListMyPilgrimSOSAlerts(ListMyPilgrimSOSAlertsRequest) returns (ListSOSAlertsResponse);
 }
 
 message SOSAlert {
@@ -56,4 +63,8 @@ message AcknowledgeSOSAlertRequest {
 message ResolveSOSAlertRequest {
   string sos_alert_id = 1 [(buf.validate.field).string.min_len = 1];
   string notes = 2;
+}
+
+message ListMyPilgrimSOSAlertsRequest {
+  string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
 }

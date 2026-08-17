@@ -32,6 +32,7 @@ var publicProcedures = map[string]bool{
 	"/hajj.v1.PilgrimAppService/UpdateMyLocation":  true,
 	"/hajj.v1.PilgrimAppService/RequestWheelchair": true,
 	"/hajj.v1.SOSService/CreateSOSAlert":           true,
+	"/hajj.v1.SOSService/ListMyPilgrimSOSAlerts":   true,
 	"/hajj.v1.ChatService/ListMyMessages":          true,
 	"/hajj.v1.ChatService/SendMyMessage":           true,
 	// CreateOrder touches money — see internal/service/order.go. Public for

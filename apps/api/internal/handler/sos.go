@@ -42,3 +42,10 @@ func (h *SOSHandler) ResolveSOSAlert(ctx context.Context, req *connect.Request[h
 	}
 	return connect.NewResponse(result), nil
 }
+func (h *SOSHandler) ListMyPilgrimSOSAlerts(ctx context.Context, req *connect.Request[hajjv1.ListMyPilgrimSOSAlertsRequest]) (*connect.Response[hajjv1.ListSOSAlertsResponse], error) {
+	result, err := h.sosService.ListMyPilgrimSOSAlerts(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

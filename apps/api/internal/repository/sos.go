@@ -87,6 +87,31 @@ func (r *SOSRepository) EscalateStale(ctx context.Context) ([]*domain.SOSAlert, 
 	return result, nil
 }
 
+// ListPilgrimHistory returns the pilgrim's own alerts, most recent first —
+// used by the pilgrim app to poll for a status change (e.g. a leader
+// acknowledging) rather than the coordinator/leader-side "active alerts"
+// views above. pilgrimName isn't stored per-row here since the caller
+// already knows which pilgrim this is (resolved from app_access_code).
+func (r *SOSRepository) ListPilgrimHistory(ctx context.Context, operatorID, pilgrimID, pilgrimName string) ([]*domain.SOSAlert, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrimUUID, err := pgUUID(pilgrimID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListSOSPilgrimHistory(ctx, db.ListSOSPilgrimHistoryParams{PilgrimID: pilgrimUUID, OperatorID: opUUID})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*domain.SOSAlert, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, toSOSAlert(row, pilgrimName))
+	}
+	return result, nil
+}
+
 func (r *SOSRepository) Acknowledge(ctx context.Context, operatorID, alertID, userID string) (*domain.SOSAlert, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
