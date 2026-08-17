@@ -185,6 +185,27 @@ func (s *PilgrimService) MarkSubstituted(ctx context.Context, authenticatedOrgID
 	return pilgrimMessage(pilgrim), nil
 }
 
+func (s *PilgrimService) RegenerateAccessCode(ctx context.Context, authenticatedOrgID, pilgrimID string) (*hajjv1.Pilgrim, error) {
+	if !isUUID(pilgrimID) {
+		return nil, serviceError("PilgrimService.RegenerateAccessCode", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("PilgrimService.RegenerateAccessCode", err)
+	}
+	if _, err := s.pilgrimRepository.Get(ctx, operator.ID, pilgrimID); err != nil {
+		return nil, serviceError("PilgrimService.RegenerateAccessCode", err)
+	}
+	if err := s.pilgrimRepository.RegenerateAccessCode(ctx, operator.ID, pilgrimID); err != nil {
+		return nil, serviceError("PilgrimService.RegenerateAccessCode", err)
+	}
+	pilgrim, err := s.pilgrimRepository.Get(ctx, operator.ID, pilgrimID)
+	if err != nil {
+		return nil, serviceError("PilgrimService.RegenerateAccessCode", err)
+	}
+	return pilgrimMessage(pilgrim), nil
+}
+
 func (s *PilgrimService) SubstitutePilgrim(ctx context.Context, authenticatedOrgID, originalID, replacementID string) (*hajjv1.SubstitutePilgrimResult, error) {
 	if !isUUID(originalID) || !isUUID(replacementID) {
 		return nil, serviceError("PilgrimService.SubstitutePilgrim", apperror.ErrValidation)

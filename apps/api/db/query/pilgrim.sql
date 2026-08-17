@@ -70,6 +70,12 @@ SET is_substituted = TRUE,
     updated_at = NOW()
 WHERE id = $1 AND operator_id = $3;
 
+-- name: RegenerateAccessCode :exec
+UPDATE pilgrims
+SET app_access_code = gen_random_uuid()::text,
+    updated_at = NOW()
+WHERE id = $1 AND operator_id = $2;
+
 -- name: TransferPilgrimGroup :exec
 UPDATE pilgrims
 SET group_id = $2,

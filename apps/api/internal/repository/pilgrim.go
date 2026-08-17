@@ -158,6 +158,21 @@ func (r *PilgrimRepository) MarkSubstituted(ctx context.Context, operatorID, pil
 	return nil
 }
 
+func (r *PilgrimRepository) RegenerateAccessCode(ctx context.Context, operatorID, pilgrimID string) error {
+	operatorUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return err
+	}
+	pilgrimUUID, err := pgUUID(pilgrimID)
+	if err != nil {
+		return err
+	}
+	if err := r.queries.RegenerateAccessCode(ctx, db.RegenerateAccessCodeParams{ID: pilgrimUUID, OperatorID: operatorUUID}); err != nil {
+		return databaseError(err)
+	}
+	return nil
+}
+
 func (r *PilgrimRepository) GetTx(ctx context.Context, tx pgx.Tx, operatorID, pilgrimID string) (*domain.Pilgrim, error) {
 	operatorUUID, err := pgUUID(operatorID)
 	if err != nil {

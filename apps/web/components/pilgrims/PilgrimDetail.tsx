@@ -17,6 +17,7 @@ export default function PilgrimDetail({ id }: { id: string }) {
   const [replacementPilgrims, setReplacementPilgrims] = useState<Pilgrim[]>([]);
   const [selectedReplacement, setSelectedReplacement] = useState<Pilgrim>();
   const [substituting, setSubstituting] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
@@ -44,6 +45,20 @@ export default function PilgrimDetail({ id }: { id: string }) {
   const copy = async () => {
     await navigator.clipboard.writeText(pilgrim.appAccessCode);
     setNotice("Kode akses disalin");
+  };
+
+  const regenerateCode = async () => {
+    if (!window.confirm("Buat ulang kode akses? Kode lama tidak akan berfungsi lagi.")) return;
+    setRegenerating(true);
+    try {
+      const result = await pilgrimClient.regenerateAccessCode({ pilgrimId: id });
+      setPilgrim(result);
+      setNotice("Kode akses baru dibuat");
+    } catch {
+      setNotice("Gagal membuat ulang kode akses.");
+    } finally {
+      setRegenerating(false);
+    }
   };
 
   const substitute = async () => {
@@ -85,8 +100,7 @@ export default function PilgrimDetail({ id }: { id: string }) {
         <code style={code}>{pilgrim.appAccessCode}</code>
         <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
           <button onClick={copy} style={gold}><IconCopy size={18} />Salin</button>
-          {/* TODO: wire when API exposes regenerateAccessCode RPC */}
-          <button disabled style={disabled}>Buat Ulang</button>
+          <button onClick={regenerateCode} disabled={regenerating} style={disabled}>{regenerating ? "Membuat..." : "Buat Ulang"}</button>
         </div>
         <div className="gold-divider" />
         <h2>Penggantian Jamaah</h2>

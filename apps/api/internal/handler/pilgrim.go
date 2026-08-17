@@ -84,6 +84,17 @@ func (h *PilgrimHandler) MarkSubstituted(ctx context.Context, req *connect.Reque
 	return connect.NewResponse(result), nil
 }
 
+func (h *PilgrimHandler) RegenerateAccessCode(ctx context.Context, req *connect.Request[hajjv1.RegenerateAccessCodeRequest]) (*connect.Response[hajjv1.Pilgrim], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimService.RegenerateAccessCode(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg.PilgrimId)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *PilgrimHandler) SubstitutePilgrim(ctx context.Context, req *connect.Request[hajjv1.SubstitutePilgrimRequest]) (*connect.Response[hajjv1.SubstitutePilgrimResult], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

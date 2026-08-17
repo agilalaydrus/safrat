@@ -13,6 +13,7 @@ service PilgrimService {
   rpc GetPilgrim(GetPilgrimRequest) returns (Pilgrim);
   rpc UpdatePilgrim(UpdatePilgrimRequest) returns (Pilgrim);
   rpc MarkSubstituted(MarkSubstitutedRequest) returns (Pilgrim);
+  rpc RegenerateAccessCode(RegenerateAccessCodeRequest) returns (Pilgrim);
   rpc SubstitutePilgrim(SubstitutePilgrimRequest) returns (SubstitutePilgrimResult);
   rpc GetPilgrimStats(GetPilgrimStatsRequest) returns (PilgrimStats);
 }
@@ -111,6 +112,10 @@ message UpdatePilgrimRequest {
 }
 
 message MarkSubstitutedRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message RegenerateAccessCodeRequest {
   string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
 }
 
