@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { IconClipboardCheck, IconMessageCircle, IconSos, IconUsersGroup } from "@tabler/icons-react";
+import { usePathname, useRouter } from "next/navigation";
+import { IconClipboardCheck, IconLogout, IconMessageCircle, IconSos, IconUsersGroup } from "@tabler/icons-react";
 import { RequireAccess } from "@/components/auth/RequireAccess";
 import { LeaderGroupProvider, useLeaderGroup } from "@/lib/leader-context";
+import { authClient } from "@/lib/auth-client";
+import { invalidateMyAccessCache } from "@/lib/access-cache";
 
 const TABS = [
   ["Daftar Jamaah", "/leader", IconUsersGroup],
@@ -15,17 +17,30 @@ const TABS = [
 
 function LeaderShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { groups, selectedGroupId, setSelectedGroupId } = useLeaderGroup();
+
+  async function signOut() {
+    await authClient.signOut();
+    invalidateMyAccessCache();
+    router.push("/sign-in");
+  }
 
   return (
     <div style={shell}>
-      {groups.length > 1 && (
-        <header style={header}>
+      <header style={header}>
+        <div style={headerTop}>
+          <span style={brand}>Safrat</span>
+          <button onClick={() => void signOut()} style={signOutButton} aria-label="Keluar">
+            <IconLogout size={18} />Keluar
+          </button>
+        </div>
+        {groups.length > 1 && (
           <select value={selectedGroupId} onChange={(event) => setSelectedGroupId(event.target.value)} style={groupSelect}>
             {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
           </select>
-        </header>
-      )}
+        )}
+      </header>
       <div style={content}>{children}</div>
       <nav style={tabBar} aria-label="Navigasi rombongan">
         {TABS.map(([label, href, Icon]) => {
@@ -53,7 +68,10 @@ export default function LeaderLayout({ children }: { children: React.ReactNode }
 }
 
 const shell: React.CSSProperties = { minHeight: "100dvh", display: "flex", flexDirection: "column", background: "var(--color-cream-100)" };
-const header: React.CSSProperties = { padding: "12px 20px 0" };
+const header: React.CSSProperties = { position: "sticky", top: 0, zIndex: 30, display: "grid", gap: 10, padding: "12px 20px", background: "#fff", borderBottom: "1px solid var(--color-cream-400)" };
+const headerTop: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center" };
+const brand: React.CSSProperties = { fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 18, color: "var(--color-emerald-900)" };
+const signOutButton: React.CSSProperties = { minHeight: 36, border: "1px solid var(--color-cream-500)", borderRadius: 8, padding: "0 12px", background: "transparent", color: "var(--color-warm-500)", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600 };
 const groupSelect: React.CSSProperties = { width: "100%", minHeight: 44, border: "1px solid var(--color-cream-400)", borderRadius: 10, padding: "0 12px", background: "#fff", font: "inherit" };
 const content: React.CSSProperties = { flex: 1, paddingBottom: 84, overflowY: "auto" };
 const tabBar: React.CSSProperties = { position: "fixed", bottom: 0, insetInline: 0, display: "flex", background: "#fff", borderTop: "1px solid var(--color-cream-400)", boxShadow: "0 -2px 12px rgba(26,20,16,.06)", paddingBottom: "env(safe-area-inset-bottom)", zIndex: 40 };
