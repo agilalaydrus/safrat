@@ -14,9 +14,19 @@ option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 // never an organization member.
 service IdentityService {
   rpc GetMyAccess(GetMyAccessRequest) returns (MyAccess);
+  // InvalidateMyAccess drops the caller's cached MyAccess (see the TTL
+  // cache in internal/repository/identity.go) immediately. For role
+  // changes the Go API has no visibility into on its own — e.g. accepting
+  // a Better Auth organization invitation happens entirely in Next.js
+  // (lib/auth.ts), so nothing here would otherwise know to invalidate
+  // before the cache's TTL naturally expires.
+  rpc InvalidateMyAccess(InvalidateMyAccessRequest) returns (InvalidateMyAccessResponse);
 }
 
 message GetMyAccessRequest {}
+
+message InvalidateMyAccessRequest {}
+message InvalidateMyAccessResponse {}
 
 message MyAccess {
   // Operator staff — a Better Auth organization member. org_role is

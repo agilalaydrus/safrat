@@ -69,3 +69,12 @@ export function verifyEmailEmail(name: string, url: string): string {
     url,
   );
 }
+
+export function invitationEmail(inviterName: string, organizationName: string, url: string): string {
+  return emailShell(
+    "Undangan Bergabung",
+    `<p>Assalamualaikum,</p><p><strong>${inviterName}</strong> mengundang Anda untuk bergabung dengan <strong>${organizationName}</strong> di Safrat sebagai Ketua Rombongan / Muttawwif. Klik tombol di bawah untuk membuat akun (atau masuk jika sudah punya) dan menerima undangan.</p>`,
+    "Terima Undangan",
+    url,
+  );
+}

@@ -1,9 +1,21 @@
 "use client";
-import { FormEvent,useEffect,useState } from "react"; import { IconX } from "@tabler/icons-react"; import { Group,OperatorMember } from "@hajj-saas/proto-gen/hajj/v1/group_pb"; import { groupClient } from "@/lib/rpc";
+import { FormEvent,useEffect,useState } from "react"; import { IconX } from "@tabler/icons-react"; import { Group,OperatorMember } from "@hajj-saas/proto-gen/hajj/v1/group_pb"; import { groupClient } from "@/lib/rpc"; import { authClient } from "@/lib/auth-client";
 type P={open:boolean;seasonId:string;initial?:Group;onClose:()=>void;onSaved:(n:string)=>void};
 export default function GroupFormDialog({open,seasonId,initial,onClose,onSaved}:P){
   const[name,setName]=useState(""),[capacity,setCapacity]=useState("40"),[leaderId,setLeaderId]=useState(""),[members,setMembers]=useState<OperatorMember[]>([]),[error,setError]=useState(""),[saving,setSaving]=useState(false);
-  useEffect(()=>{if(open){setName(initial?.name??"");setCapacity(String(initial?.capacity??40));setLeaderId(initial?.leaderId??"");setError("");groupClient.listOperatorMembers({}).then(r=>setMembers(r.members)).catch(()=>{})}},[open,initial]);
+  const[inviting,setInviting]=useState(false),[inviteEmail,setInviteEmail]=useState(""),[inviteNotice,setInviteNotice]=useState("");
+  useEffect(()=>{if(open){setName(initial?.name??"");setCapacity(String(initial?.capacity??40));setLeaderId(initial?.leaderId??"");setError("");setInviteEmail("");setInviteNotice("");groupClient.listOperatorMembers({}).then(r=>setMembers(r.members)).catch(()=>{})}},[open,initial]);
+  async function sendInvite(){
+    if(!inviteEmail.trim())return;
+    setInviting(true);setInviteNotice("");
+    try{
+      const result=await authClient.organization.inviteMember({email:inviteEmail.trim(),role:"member"});
+      if(result.error){setInviteNotice(result.error.message??"Gagal mengirim undangan.");return}
+      setInviteNotice(`Undangan terkirim ke ${inviteEmail.trim()}. Setelah diterima, mereka akan muncul di daftar Ketua Rombongan.`);
+      setInviteEmail("");
+    }catch{setInviteNotice("Gagal mengirim undangan.")}
+    finally{setInviting(false)}
+  }
   if(!open)return null;
   async function submit(event:FormEvent){
     event.preventDefault();
@@ -22,6 +34,14 @@ export default function GroupFormDialog({open,seasonId,initial,onClose,onSaved}:
       <label style={{display:"grid",gap:6}}><span style={lab}>Nama rombongan</span><input className="safrat-input" value={name} onChange={e=>setName(e.target.value)} placeholder="mis. GROUP-A" style={i}/></label>
       <label style={{display:"grid",gap:6}}><span style={lab}>Kapasitas</span><input className="safrat-input" type="number" min="1" value={capacity} onChange={e=>setCapacity(e.target.value)} style={i}/></label>
       {initial&&<label style={{display:"grid",gap:6}}><span style={lab}>Ketua rombongan</span><select className="safrat-input" value={leaderId} onChange={e=>setLeaderId(e.target.value)} style={i}><option value="">Belum ditentukan</option>{members.map(m=><option key={m.userId} value={m.userId}>{m.name} ({m.email})</option>)}</select></label>}
+      {initial&&<div style={{display:"grid",gap:6,padding:12,background:"var(--color-cream-100)",borderRadius:10}}>
+        <span style={{...lab,fontSize:12}}>Belum ada di daftar? Undang Ketua Rombongan/Muttawwif baru</span>
+        <div style={{display:"flex",gap:8}}>
+          <input className="safrat-input" type="email" placeholder="email@contoh.com" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} style={{...i,minHeight:40}}/>
+          <button type="button" onClick={()=>void sendInvite()} disabled={inviting||!inviteEmail.trim()} style={{...primary,width:"auto",minHeight:40,padding:"0 16px"}}>{inviting?"Mengirim...":"Undang"}</button>
+        </div>
+        {inviteNotice&&<span style={{fontSize:12,color:"var(--color-warm-500)"}}>{inviteNotice}</span>}
+      </div>}
       {!initial&&<p style={{margin:0,fontSize:12,color:"var(--color-warm-400)"}}>Anda dapat menetapkan ketua rombongan setelah rombongan dibuat.</p>}
       {error&&<p style={err}>{error}</p>}
     </form></div>

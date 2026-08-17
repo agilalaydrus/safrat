@@ -45,3 +45,14 @@ func (s *IdentityService) GetMyAccess(ctx context.Context, _ *hajjv1.GetMyAccess
 	}
 	return result, nil
 }
+
+// InvalidateMyAccess lets the caller drop their own cached MyAccess ahead
+// of the TTL — see the proto comment for why this is needed at all.
+func (s *IdentityService) InvalidateMyAccess(ctx context.Context, _ *hajjv1.InvalidateMyAccessRequest) (*hajjv1.InvalidateMyAccessResponse, error) {
+	userID := middleware.UserIDFromCtx(ctx)
+	if userID == "" {
+		return nil, serviceError("IdentityService.InvalidateMyAccess", apperror.ErrUnauthorized)
+	}
+	s.identityRepository.InvalidateAccessCache(userID)
+	return &hajjv1.InvalidateMyAccessResponse{}, nil
+}

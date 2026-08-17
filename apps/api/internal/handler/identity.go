@@ -21,3 +21,11 @@ func (h *IdentityHandler) GetMyAccess(ctx context.Context, req *connect.Request[
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *IdentityHandler) InvalidateMyAccess(ctx context.Context, req *connect.Request[hajjv1.InvalidateMyAccessRequest]) (*connect.Response[hajjv1.InvalidateMyAccessResponse], error) {
+	result, err := h.identityService.InvalidateMyAccess(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

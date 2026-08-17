@@ -1,13 +1,31 @@
 import { betterAuth } from "better-auth";
 import { organization } from "better-auth/plugins";
 import { Pool } from "pg";
-import { resetPasswordEmail, sendEmail, verifyEmailEmail } from "./email";
+import { invitationEmail, resetPasswordEmail, sendEmail, verifyEmailEmail } from "./email";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 export const auth = betterAuth({
   database: pool,
-  plugins: [organization({ allowUserToCreateOrganization: true })],
+  plugins: [
+    organization({
+      allowUserToCreateOrganization: true,
+      // Real leader/staff onboarding — admin enters an email
+      // (authClient.organization.inviteMember from GroupFormDialog), the
+      // invitee gets a real email with a link, accepts it, and becomes an
+      // org member (assignable as a group's leader from the same dropdown
+      // that already lists ListOperatorMembers). Replaces creating leader
+      // accounts by hand via SQL/curl.
+      sendInvitationEmail: async (data) => {
+        const url = `${process.env.NEXT_PUBLIC_APP_URL}/accept-invitation?id=${data.id}`;
+        await sendEmail({
+          to: data.email,
+          subject: `Undangan bergabung dengan ${data.organization.name} di Safrat`,
+          html: invitationEmail(data.inviter.user.name, data.organization.name, url),
+        });
+      },
+    }),
+  ],
   emailAndPassword: {
     enabled: true,
     // No unverified account can sign in and use the app indefinitely —
