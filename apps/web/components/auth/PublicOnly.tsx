@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { resolveLandingPath } from "@/lib/post-login";
+import { invalidateMyAccessCache } from "@/lib/access-cache";
 
 export function PublicOnly({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -27,6 +28,11 @@ export function PublicOnly({ children }: { children: React.ReactNode }) {
         const session = await authClient.getSession({ fetchOptions: { cache: "no-store" } });
         if (!session.data?.user || cancelled) return;
 
+        // Landing here right after Google's redirect (or any other
+        // fresh-session case this guard covers) — a stale MyAccess from a
+        // different account tested earlier in this tab must not decide
+        // where this identity lands. See the matching note in AuthForm.
+        invalidateMyAccessCache();
         const path = await resolveLandingPath();
         if (!cancelled) router.replace(path);
       } catch {

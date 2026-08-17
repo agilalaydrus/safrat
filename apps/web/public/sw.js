@@ -3,7 +3,7 @@
 // see the offline decision in CLAUDE.md. It makes an already-visited page
 // (and its static assets) load again while offline; it does not guarantee
 // every route works offline on a completely cold start.
-const CACHE_NAME = "safrat-shell-v1";
+const CACHE_NAME = "safrat-shell-v2";
 const CACHED_PREFIXES = ["/pilgrim", "/leader", "/_next/static"];
 
 function shouldCache(url) {

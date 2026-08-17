@@ -3,6 +3,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { resolveLandingPath } from "@/lib/post-login";
+import { invalidateMyAccessCache } from "@/lib/access-cache";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 type Mode="sign-in"|"sign-up";
 export function AuthForm({mode}:{mode:Mode}) { const router=useRouter(); const [error,setError]=useState<string|null>(null); const [isSubmitting,setSubmitting]=useState(false); const [focused,setFocused]=useState(""); const [checkEmail,setCheckEmail]=useState<string|null>(null); const [unverifiedEmail,setUnverifiedEmail]=useState<string|null>(null); const [resending,setResending]=useState(false); const signUp=mode==="sign-up";
@@ -10,7 +11,13 @@ export function AuthForm({mode}:{mode:Mode}) { const router=useRouter(); const [
   // requireEmailVerification means sign-up never establishes a session —
   // there's nothing to redirect to yet, just tell them to check their inbox.
   if(signUp){setCheckEmail(email);return;}
-  const session=await authClient.getSession({fetchOptions:{cache:"no-store"}});if(!session.data?.user){setError("Sesi Anda tidak dapat dikonfirmasi. Silakan coba lagi.");return;}const path=await resolveLandingPath();router.replace(path);}catch{setError("Gagal menyelesaikan proses masuk. Silakan coba lagi.");}finally{setSubmitting(false);}}
+  const session=await authClient.getSession({fetchOptions:{cache:"no-store"}});if(!session.data?.user){setError("Sesi Anda tidak dapat dikonfirmasi. Silakan coba lagi.");return;}
+  // A previous account's MyAccess may still be cached client-side (see
+  // access-cache.ts's TTL) — without this, signing in as a different
+  // identity right after another one (e.g. testing admin then leader in
+  // the same tab) reads the wrong account's role data and misroutes.
+  invalidateMyAccessCache();
+  const path=await resolveLandingPath();router.replace(path);}catch{setError("Gagal menyelesaikan proses masuk. Silakan coba lagi.");}finally{setSubmitting(false);}}
  async function resendVerification(){if(!unverifiedEmail||resending)return;setResending(true);try{await authClient.sendVerificationEmail({email:unverifiedEmail,callbackURL:"/sign-in"});setError("Email verifikasi baru telah dikirim.");}catch{setError("Gagal mengirim ulang email verifikasi.");}finally{setResending(false);}}
  const input=(name:string,type="text")=><input name={name} type={type} required minLength={name==="password"?8:undefined} style={{...inputStyle,borderWidth:1,borderStyle:"solid",borderColor:focused===name?"var(--color-emerald-800)":"var(--color-cream-500)"}} onFocus={()=>setFocused(name)} onBlur={()=>setFocused("")} />;
  if(checkEmail){return <div style={{display:"grid",gap:10,textAlign:"center",padding:"12px 0"}}><p style={{fontWeight:700,fontSize:15}}>Periksa email Anda</p><p style={{fontSize:13,color:"var(--color-warm-500)"}}>Kami mengirim tautan verifikasi ke <strong>{checkEmail}</strong>. Klik tautan tersebut untuk mengaktifkan akun Anda.</p></div>;}
