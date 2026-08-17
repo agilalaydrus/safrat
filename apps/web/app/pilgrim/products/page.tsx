@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { IconWifiOff } from "@tabler/icons-react";
 import { Product } from "@hajj-saas/proto-gen/hajj/v1/product_pb";
 import { pilgrimAppClient, orderClient } from "@/lib/rpc";
 import { cachedFetch } from "@/lib/offline";
+import { usePilgrimCode } from "@/lib/pilgrim-context";
 
 const money = (n: bigint) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(n));
 
 export default function PilgrimProductsPage() {
-  const { code } = useParams<{ code: string }>();
+  const code = usePilgrimCode();
   const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [fromCache, setFromCache] = useState(false);
@@ -19,6 +20,7 @@ export default function PilgrimProductsPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!code) return;
     cachedFetch(`pilgrim-products:${code}`, () => pilgrimAppClient.listMyProducts({ appAccessCode: code })).then((result) => {
       if (result.data) setProducts(result.data.products);
       setFromCache(result.fromCache);
@@ -29,6 +31,7 @@ export default function PilgrimProductsPage() {
   const orderStatus = searchParams.get("order");
 
   async function buy(product: Product) {
+    if (!code) return;
     setBuying(product.id);
     setError("");
     try {

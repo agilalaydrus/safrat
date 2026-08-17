@@ -1,16 +1,16 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
 import { IconSend, IconWifiOff } from "@tabler/icons-react";
 import { ChatMessage } from "@hajj-saas/proto-gen/hajj/v1/chat_pb";
 import { chatClient } from "@/lib/rpc";
 import { cachedFetch, enqueueAction, useOfflineQueueFlush } from "@/lib/offline";
+import { usePilgrimCode } from "@/lib/pilgrim-context";
 
-const QUEUE_KIND = "leader-chat-message";
+const CHAT_QUEUE_KIND = "chat-message";
 
-export default function LeaderChatPage() {
-  const { groupId } = useParams<{ groupId: string }>();
+export default function PilgrimChatPage() {
+  const code = usePilgrimCode();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [offline, setOffline] = useState(false);
@@ -18,7 +18,8 @@ export default function LeaderChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const refresh = () => {
-    cachedFetch(`leader-chat:${groupId}`, () => chatClient.listGroupMessages({ groupId })).then((result) => {
+    if (!code) return;
+    cachedFetch(`pilgrim-chat:${code}`, () => chatClient.listMyMessages({ appAccessCode: code })).then((result) => {
       if (result.data) setMessages(result.data.messages);
       setOffline(result.fromCache);
     });
@@ -29,11 +30,11 @@ export default function LeaderChatPage() {
     const interval = window.setInterval(refresh, 5000);
     return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupId]);
+  }, [code]);
 
-  useOfflineQueueFlush(QUEUE_KIND, async (payload) => {
+  useOfflineQueueFlush(CHAT_QUEUE_KIND, async (payload) => {
     const { body } = payload as { body: string };
-    await chatClient.sendGroupMessage({ groupId, body });
+    await chatClient.sendMyMessage({ appAccessCode: code, body });
     refresh();
   });
 
@@ -42,15 +43,15 @@ export default function LeaderChatPage() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const body = draft.trim();
-    if (!body) return;
+    if (!body || !code) return;
     setDraft("");
     setSending(true);
     try {
-      await chatClient.sendGroupMessage({ groupId, body });
+      await chatClient.sendMyMessage({ appAccessCode: code, body });
       refresh();
     } catch {
-      enqueueAction(QUEUE_KIND, { body });
-      setMessages((current) => [...current, new ChatMessage({ id: `local-${Date.now()}`, senderName: "You", fromPilgrim: false, body })]);
+      enqueueAction(CHAT_QUEUE_KIND, { body });
+      setMessages((current) => [...current, new ChatMessage({ id: `local-${Date.now()}`, senderName: "You", fromPilgrim: true, body })]);
     } finally {
       setSending(false);
     }
@@ -60,24 +61,24 @@ export default function LeaderChatPage() {
     <main style={page}>
       {offline && <p style={offlineBanner}><IconWifiOff size={16} />Menampilkan pesan tersimpan — Anda sedang offline</p>}
       <div style={list}>
-        {messages.length === 0 && <p style={{ color: "var(--color-warm-400)", textAlign: "center", marginTop: 40 }}>Belum ada pesan.</p>}
+        {messages.length === 0 && <p style={{ color: "var(--color-warm-400)", textAlign: "center", marginTop: 40 }}>Belum ada pesan. Sapa rombongan Anda.</p>}
         {messages.map((message) => (
-          <div key={message.id} style={{ ...bubble, ...(message.fromPilgrim ? theirs : mine) }}>
-            {message.fromPilgrim && <p style={sender}>{message.senderName}</p>}
+          <div key={message.id} style={{ ...bubble, ...(message.fromPilgrim ? mine : theirs) }}>
+            {!message.fromPilgrim && <p style={sender}>{message.senderName}</p>}
             <p style={{ margin: 0 }}>{message.body}</p>
           </div>
         ))}
         <div ref={bottomRef} />
       </div>
       <form onSubmit={submit} style={composer}>
-        <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Kirim pesan ke rombongan ini..." style={input} />
+        <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Kirim pesan ke rombongan Anda..." style={input} />
         <button disabled={sending || !draft.trim()} style={sendButton} aria-label="Send"><IconSend size={20} /></button>
       </form>
     </main>
   );
 }
 
-const page: React.CSSProperties = { display: "flex", flexDirection: "column", height: "calc(100dvh - 140px)" };
+const page: React.CSSProperties = { display: "flex", flexDirection: "column", height: "calc(100dvh - 84px)" };
 const offlineBanner: React.CSSProperties = { display: "flex", alignItems: "center", gap: 6, background: "var(--color-gold-50)", color: "var(--color-gold-800)", padding: "8px 16px", fontSize: 12 };
 const list: React.CSSProperties = { flex: 1, overflowY: "auto", padding: "16px 16px 8px", display: "flex", flexDirection: "column", gap: 8 };
 const bubble: React.CSSProperties = { maxWidth: "80%", padding: "10px 14px", borderRadius: 14, fontSize: 14 };

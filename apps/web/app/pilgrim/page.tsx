@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { IconBed, IconBuilding, IconBus, IconCircleCheck, IconPlane, IconUsersGroup, IconWheelchair, IconWifiOff } from "@tabler/icons-react";
 import { PilgrimAppInfo } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_app_pb";
 import { pilgrimAppClient } from "@/lib/rpc";
 import { cachedFetch, toDateSafe } from "@/lib/offline";
 import { invalidateMyAccessCache } from "@/lib/access-cache";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { usePilgrimCode } from "@/lib/pilgrim-context";
 
 export default function PilgrimHomePage() {
-  const { code } = useParams<{ code: string }>();
+  const code = usePilgrimCode();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [info, setInfo] = useState<PilgrimAppInfo>();
@@ -21,20 +22,21 @@ export default function PilgrimHomePage() {
   const [linkNotice, setLinkNotice] = useState("");
 
   useEffect(() => {
+    if (!code) return;
     cachedFetch(`pilgrim-info:${code}`, () => pilgrimAppClient.getMyInfo({ appAccessCode: code }))
       .then((result) => {
         if (result.data) setInfo(result.data);
         setFromCache(result.fromCache);
       })
-      .catch(() => setError("Kode akses tidak ditemukan. Mohon periksa kembali tautan yang diberikan."));
+      .catch(() => setError("Data jamaah tidak ditemukan. Silakan hubungi petugas Anda."));
   }, [code]);
 
   // Landed back here right after Google's redirect (see GoogleSignInButton's
   // callbackURL below) — a Better Auth session now exists in this browser,
   // so complete the link once, then drop the marker from the URL.
   useEffect(() => {
-    if (searchParams.get("google") !== "1") return;
-    router.replace(`/pilgrim/${code}`);
+    if (searchParams.get("google") !== "1" || !code) return;
+    router.replace("/pilgrim");
     pilgrimAppClient.linkGoogleAccount({ appAccessCode: code })
       .then((result) => {
         invalidateMyAccessCache();
@@ -43,7 +45,7 @@ export default function PilgrimHomePage() {
       })
       .catch(() => setLinkNotice("Gagal menghubungkan akun Google. Silakan coba lagi."));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams, code]);
 
   async function toggleWheelchair() {
     if (!info) return;
@@ -99,7 +101,7 @@ export default function PilgrimHomePage() {
           <>
             <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 14 }}>Amankan Akun Anda</p>
             <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--color-warm-500)" }}>Hubungkan akun Google untuk mengamankan akses Anda — diperlukan sebelum melakukan transaksi apa pun di kemudian hari.</p>
-            <GoogleSignInButton callbackURL={`/pilgrim/${code}?google=1`} label="Hubungkan dengan Google" />
+            <GoogleSignInButton callbackURL="/pilgrim?google=1" label="Hubungkan dengan Google" />
           </>
         )}
         {linkNotice && <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--color-gold-800)" }}>{linkNotice}</p>}

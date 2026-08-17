@@ -1,19 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
 import { IconCheck, IconWifiOff } from "@tabler/icons-react";
 import { Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { Movement } from "@hajj-saas/proto-gen/hajj/v1/transport_pb";
 import { CheckIn } from "@hajj-saas/proto-gen/hajj/v1/groupleader_pb";
 import { groupLeaderClient, seasonClient, transportClient } from "@/lib/rpc";
 import { cachedFetch, enqueueAction, toDateSafe, useOfflineQueueFlush } from "@/lib/offline";
+import { useLeaderGroup } from "@/lib/leader-context";
 
 const QUEUE_KIND = "check-in";
 type QueuedCheckIn = { movementId: string; pilgrimId: string; type: "DEPARTURE" | "ARRIVAL" };
 
 export default function LeaderCheckInPage() {
-  const { groupId } = useParams<{ groupId: string }>();
+  const { selectedGroupId: groupId } = useLeaderGroup();
   const [movements, setMovements] = useState<Movement[]>([]);
   const [movementId, setMovementId] = useState("");
   const [pilgrims, setPilgrims] = useState<Pilgrim[]>([]);
@@ -24,6 +24,7 @@ export default function LeaderCheckInPage() {
   const [queuedLocal, setQueuedLocal] = useState<QueuedCheckIn[]>([]);
 
   useEffect(() => {
+    if (!groupId) return;
     (async () => {
       const seasons = await seasonClient.listSeasons({});
       const season = seasons.seasons.find((s) => s.isActive) ?? seasons.seasons[0];

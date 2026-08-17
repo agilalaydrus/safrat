@@ -10,7 +10,6 @@ const PUBLIC_PATHS = [
   "/reset-password",
   "/accept-invitation",
   "/api/auth",
-  "/pilgrim",
   "/apply",
   "/firebase-messaging-sw.js",
 ];

@@ -6,18 +6,19 @@ import { authClient } from "@/lib/auth-client";
 import { getMyAccessCached } from "@/lib/access-cache";
 import { resolveLandingPath } from "@/lib/post-login";
 
-type Role = "staff" | "leader";
+type Role = "staff" | "leader" | "pilgrim";
 
 /**
- * Gate for /dashboard and /leader. middleware.ts only checks that a Better
- * Auth session cookie is present — it can't check *who* that session
- * belongs to (Edge middleware has no DB access), so without this, a
- * signed-in pilgrim or a leader-only identity could load the dashboard
- * shell and only find out they don't belong there when individual RPC
- * calls start 401ing underneath them. This does the real check — the same
- * UUID-backed MyAccess resolution every login redirect already uses — and
- * sends a wrong-role visitor to where they actually belong instead of
- * bouncing them to /sign-in (they ARE signed in, just not for this surface).
+ * Gate for /dashboard, /leader, and /pilgrim. middleware.ts only checks
+ * that a Better Auth session cookie is present — it can't check *who* that
+ * session belongs to (Edge middleware has no DB access), so without this,
+ * a signed-in pilgrim or a leader-only identity could load the wrong
+ * surface's shell and only find out they don't belong there when
+ * individual RPC calls start 401ing underneath them. This does the real
+ * check — the same UUID-backed MyAccess resolution every login redirect
+ * already uses — and sends a wrong-role visitor to where they actually
+ * belong instead of bouncing them to /sign-in (they ARE signed in, just
+ * not for this surface).
  */
 export function RequireAccess({ role, children }: { role: Role; children: React.ReactNode }) {
   const router = useRouter();
@@ -35,7 +36,7 @@ export function RequireAccess({ role, children }: { role: Role; children: React.
       try {
         const access = await getMyAccessCached();
         if (cancelled) return;
-        const allowed = role === "staff" ? access.isOrgMember : access.leaderGroups.length > 0;
+        const allowed = role === "staff" ? access.isOrgMember : role === "leader" ? access.leaderGroups.length > 0 : !!access.linkedPilgrim;
         if (allowed) {
           setChecking(false);
           return;

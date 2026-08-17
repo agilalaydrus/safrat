@@ -1,19 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
 import { IconArrowRight, IconWifiOff } from "@tabler/icons-react";
 import { Movement } from "@hajj-saas/proto-gen/hajj/v1/transport_pb";
 import { pilgrimAppClient } from "@/lib/rpc";
 import { cachedFetch, toDateSafe } from "@/lib/offline";
+import { usePilgrimCode } from "@/lib/pilgrim-context";
 
 export default function PilgrimSchedulePage() {
-  const { code } = useParams<{ code: string }>();
+  const code = usePilgrimCode();
   const [movements, setMovements] = useState<Movement[]>([]);
   const [fromCache, setFromCache] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    if (!code) return;
     cachedFetch(`pilgrim-schedule:${code}`, () => pilgrimAppClient.listMySchedule({ appAccessCode: code })).then((result) => {
       if (result.data) setMovements(result.data.movements);
       setFromCache(result.fromCache);

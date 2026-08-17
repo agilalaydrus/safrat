@@ -22,7 +22,7 @@ import { getMyAccessCached } from "./access-cache";
  *   2. leads >=1 group -> /leader (their real job)
  *   3. member-role org member with no group -> /dashboard (plain staff;
  *      it's the only surface they have anything to do on)
- *   4. linked pilgrim -> /pilgrim/[code]
+ *   4. linked pilgrim -> /pilgrim
  *   5. no role at all yet -> /onboarding ("create your operator")
  */
 export async function resolveLandingPath(): Promise<string> {
@@ -47,6 +47,6 @@ export async function resolveLandingPath(): Promise<string> {
   if (isAdmin) return "/dashboard";
   if (access.leaderGroups.length > 0) return "/leader";
   if (access.isOrgMember) return "/dashboard";
-  if (access.linkedPilgrim) return `/pilgrim/${access.linkedPilgrim.appAccessCode}`;
+  if (access.linkedPilgrim) return "/pilgrim";
   return "/onboarding";
 }

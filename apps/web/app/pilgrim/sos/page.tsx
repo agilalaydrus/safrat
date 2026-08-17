@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
 import { IconCheck, IconSos, IconWifiOff } from "@tabler/icons-react";
 import { sosClient } from "@/lib/rpc";
 import { enqueueAction, useOfflineQueueFlush } from "@/lib/offline";
 import { getFreshLocation } from "@/lib/geolocation";
+import { usePilgrimCode } from "@/lib/pilgrim-context";
 
 const SOS_QUEUE_KIND = "sos-alert";
 const HISTORY_KEY = "safrat:sos-sent-log";
@@ -13,7 +13,7 @@ const HISTORY_KEY = "safrat:sos-sent-log";
 type SentEntry = { at: string; delivered: boolean };
 
 export default function PilgrimSOSPage() {
-  const { code } = useParams<{ code: string }>();
+  const code = usePilgrimCode();
   const [confirming, setConfirming] = useState(false);
   const [status, setStatus] = useState<"idle" | "sent" | "queued">("idle");
   const [history, setHistory] = useState<SentEntry[]>([]);
@@ -47,6 +47,7 @@ export default function PilgrimSOSPage() {
   }
 
   async function send() {
+    if (!code) return;
     setConfirming(false);
     const entry: SentEntry = { at: new Date().toISOString(), delivered: false };
     saveHistory([...history, entry]);

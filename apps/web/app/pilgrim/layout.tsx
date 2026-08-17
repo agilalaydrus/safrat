@@ -1,32 +1,32 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { IconHome, IconSos, IconMessageCircle, IconCalendarEvent, IconShoppingBag } from "@tabler/icons-react";
 import { useRegisterShellServiceWorker } from "@/lib/register-sw";
 import { useLocationPing } from "@/lib/geolocation";
+import { RequireAccess } from "@/components/auth/RequireAccess";
+import { PilgrimCodeProvider, usePilgrimCode } from "@/lib/pilgrim-context";
 
 const TABS = [
-  ["Beranda", "", IconHome],
-  ["SOS", "sos", IconSos],
-  ["Chat", "chat", IconMessageCircle],
-  ["Jadwal", "schedule", IconCalendarEvent],
-  ["Produk", "products", IconShoppingBag],
+  ["Beranda", "/pilgrim", IconHome],
+  ["SOS", "/pilgrim/sos", IconSos],
+  ["Chat", "/pilgrim/chat", IconMessageCircle],
+  ["Jadwal", "/pilgrim/schedule", IconCalendarEvent],
+  ["Produk", "/pilgrim/products", IconShoppingBag],
 ] as const;
 
-export default function PilgrimLayout({ children }: { children: React.ReactNode }) {
+function PilgrimShell({ children }: { children: React.ReactNode }) {
   useRegisterShellServiceWorker();
   const pathname = usePathname();
-  const { code } = useParams<{ code: string }>();
-  const base = `/pilgrim/${code}`;
+  const code = usePilgrimCode();
   useLocationPing(code);
 
   return (
     <div style={shell}>
       <div style={content}>{children}</div>
       <nav style={tabBar} aria-label="Navigasi aplikasi Jamaah">
-        {TABS.map(([label, segment, Icon]) => {
-          const href = segment ? `${base}/${segment}` : base;
+        {TABS.map(([label, href, Icon]) => {
           const active = pathname === href;
           return (
             <Link key={label} href={href} style={{ ...tab, ...(active ? activeTab : {}) }}>
@@ -37,6 +37,16 @@ export default function PilgrimLayout({ children }: { children: React.ReactNode 
         })}
       </nav>
     </div>
+  );
+}
+
+export default function PilgrimLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <RequireAccess role="pilgrim">
+      <PilgrimCodeProvider>
+        <PilgrimShell>{children}</PilgrimShell>
+      </PilgrimCodeProvider>
+    </RequireAccess>
   );
 }
 
