@@ -33,6 +33,18 @@ export function usePilgrimChatUnread(code: string, viewingChat: boolean): number
         }
         const lastReadId = window.localStorage.getItem(key);
         const lastReadIndex = lastReadId ? messages.findIndex((m) => m.id === lastReadId) : -1;
+        if (lastReadIndex === -1) {
+          // No usable marker on this device — either never set (fresh
+          // browser storage, a different account signed in before, PWA
+          // reinstall) or it points at a message that's since aged out of
+          // the server's returned window. Either way, baseline to "caught
+          // up" instead of surfacing the pilgrim's whole message history
+          // as unread.
+          const last = messages[messages.length - 1];
+          if (last) window.localStorage.setItem(key, last.id);
+          setUnread(0);
+          return;
+        }
         setUnread(messages.slice(lastReadIndex + 1).filter((m) => !m.fromPilgrim).length);
       }).catch(() => {});
     }
