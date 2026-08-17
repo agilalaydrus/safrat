@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
@@ -17,10 +18,11 @@ type GroupService struct {
 	operatorRepository *repository.OperatorRepository
 	groupRepository    *repository.GroupRepository
 	auditRepository    *repository.AuditRepository
+	agentRepository    *repository.AgentRepository
 }
 
-func NewGroupService(operators *repository.OperatorRepository, groups *repository.GroupRepository, audit *repository.AuditRepository) *GroupService {
-	return &GroupService{operatorRepository: operators, groupRepository: groups, auditRepository: audit}
+func NewGroupService(operators *repository.OperatorRepository, groups *repository.GroupRepository, audit *repository.AuditRepository, agents *repository.AgentRepository) *GroupService {
+	return &GroupService{operatorRepository: operators, groupRepository: groups, auditRepository: audit, agentRepository: agents}
 }
 
 func (s *GroupService) logActivity(ctx context.Context, operatorID, action, entityID, message string) {
@@ -73,6 +75,16 @@ func (s *GroupService) UpdateGroup(ctx context.Context, orgID string, req *hajjv
 	group, err := s.groupRepository.Update(ctx, op.ID, req.GroupId, req.Name, req.Capacity, req.LeaderId)
 	if err != nil {
 		return nil, serviceError("GroupService.UpdateGroup", err)
+	}
+	// Leaders automatically become agents — they can sell any of the
+	// operator's products via the existing referral/commission system.
+	// Best-effort: a leader assignment must still succeed even if this
+	// fails (e.g. the transient state right after ListOperatorMembers
+	// but before the "user" row is fully visible in this transaction).
+	if strings.TrimSpace(req.LeaderId) != "" {
+		if err := s.agentRepository.EnsureAgentForLeader(ctx, op.ID, req.LeaderId); err != nil {
+			sentry.CaptureException(fmt.Errorf("GroupService.UpdateGroup: ensure agent for leader: %w", err))
+		}
 	}
 	s.logActivity(ctx, op.ID, "group_updated", group.ID, fmt.Sprintf("Rombongan %s diperbarui", group.Name))
 	return groupMessage(group), nil

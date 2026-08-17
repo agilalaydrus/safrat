@@ -2,10 +2,13 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type AgentRepository struct{ queries *db.Queries }
@@ -24,6 +27,33 @@ func (r *AgentRepository) Create(ctx context.Context, operatorID, name, phone, e
 		return nil, err
 	}
 	return toAgent(agent, 0), nil
+}
+
+// EnsureAgentForLeader creates an agent record for this Better Auth user if
+// one doesn't already exist for them at this operator — idempotent, so
+// reassigning the same person as a group's leader again (or as a second
+// group's leader) never creates a duplicate. Pre-fills name/email from
+// their real account instead of a blank form; commission_rate/tier/
+// referral_code all take the same column defaults CreateAgent relies on.
+func (r *AgentRepository) EnsureAgentForLeader(ctx context.Context, operatorID, userID string) error {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return err
+	}
+	userIDText := pgtype.Text{String: userID, Valid: true}
+	_, err = r.queries.GetAgentByLinkedUser(ctx, db.GetAgentByLinkedUserParams{OperatorID: opUUID, LinkedUserID: userIDText})
+	if err == nil {
+		return nil // already an agent
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	user, err := r.queries.GetUserForAgent(ctx, userID)
+	if err != nil {
+		return err
+	}
+	_, err = r.queries.CreateAgentForLeader(ctx, db.CreateAgentForLeaderParams{OperatorID: opUUID, Name: user.Name, Phone: "", Email: user.Email, LinkedUserID: userIDText})
+	return err
 }
 
 func (r *AgentRepository) GetByID(ctx context.Context, operatorID, agentID string) (*domain.Agent, error) {

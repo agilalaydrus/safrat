@@ -60,6 +60,16 @@ VALUES
   ('00000000-0000-4000-8000-000000000202', '00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000001', 'GROUP-B', 40, 'EomOhXSQ3HfcIMk5hOMKliraIcEaqQuo'),
   ('00000000-0000-4000-8000-000000000203', '00000000-0000-4000-8000-000000000101', '00000000-0000-4000-8000-000000000001', 'GROUP-C', 40, '5bv99BUnYfpzIcbtyC2vcSPzlD0fgV6x');
 
+-- Leaders automatically become agents (GroupService.UpdateGroup does this
+-- for real assignments made through the app) — this seed inserts groups
+-- directly, bypassing that service, so it's done explicitly here to keep
+-- demo data consistent with the rule.
+INSERT INTO agents (operator_id, name, phone, email, linked_user_id)
+SELECT '00000000-0000-4000-8000-000000000001'::uuid, u.name, '', u.email, u.id
+FROM "user" u
+WHERE u.id IN ('D862T2c4awEabjAJRNY2Cr1DC2MTfyLI', 'EomOhXSQ3HfcIMk5hOMKliraIcEaqQuo', '5bv99BUnYfpzIcbtyC2vcSPzlD0fgV6x')
+ON CONFLICT (linked_user_id) DO NOTHING;
+
 -- Five pilgrims: a mahram pair in GROUP-A (SOC-01), a wheelchair pilgrim in
 -- GROUP-B (SOC-01), and a mahram pair in GROUP-C (SOC-02) — enough to keep
 -- the wheelchair/mahram/kloter-filter demo states without the clutter of a

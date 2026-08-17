@@ -51,3 +51,17 @@ FROM agents a
 LEFT JOIN pilgrims p ON p.agent_id = a.id
 WHERE a.operator_id = $1 AND a.is_active = true
 GROUP BY a.id;
+
+-- name: GetAgentByLinkedUser :one
+SELECT * FROM agents WHERE operator_id = $1 AND linked_user_id = $2;
+
+-- name: CreateAgentForLeader :one
+-- referral_code/tier/commission_rate/notes all take their column DEFAULT —
+-- an auto-created leader-agent starts identical to a freshly hand-created
+-- one, just pre-filled from their real name/email instead of a form.
+INSERT INTO agents (operator_id, name, phone, email, linked_user_id)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING *;
+
+-- name: GetUserForAgent :one
+SELECT id, name, email FROM "user" WHERE id = $1;
