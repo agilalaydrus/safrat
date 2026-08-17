@@ -46,6 +46,15 @@ message Pilgrim {
   google.protobuf.Timestamp created_at = 20;
   google.protobuf.Timestamp updated_at = 21;
   string kloter_id = 22;
+  // Matched against a Better Auth session's email to auto-set
+  // linked_user_id (see lib/auth.ts) — lets a pilgrim sign up/in at the
+  // same shared /sign-in as admin/leader, no app_access_code link needed.
+  string email = 23;
+  // True once this pilgrim's email has been matched to a real Better Auth
+  // sign-up/sign-in (pilgrims.linked_user_id set) — lets the admin dashboard
+  // confirm the pilgrim has actually claimed access, not just that an email
+  // was entered for them.
+  bool has_account = 24;
 }
 
 message CreatePilgrimRequest {
@@ -64,6 +73,7 @@ message CreatePilgrimRequest {
   bool requires_wheelchair = 13;
   string mahram_id = 14;
   string kloter_id = 15;
+  string email = 16;
 }
 
 message ListPilgrimsRequest {
@@ -97,6 +107,7 @@ message UpdatePilgrimRequest {
   bool requires_wheelchair = 13;
   string mahram_id = 14;
   string kloter_id = 15;
+  string email = 16;
 }
 
 message MarkSubstitutedRequest {

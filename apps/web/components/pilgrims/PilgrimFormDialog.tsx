@@ -15,6 +15,7 @@ type FormValues = {
   dateOfBirth: string;
   gender: "" | "MALE" | "FEMALE";
   phone: string;
+  email: string;
   emergencyContact: string;
   preferredLang: string;
   medicalNotes: string;
@@ -50,7 +51,7 @@ const NATIONALITIES = [
 
 const EMPTY_FORM: FormValues = {
   fullName: "", passportNumber: "", nationality: "", dateOfBirth: "", gender: "",
-  phone: "", emergencyContact: "", preferredLang: "ar", medicalNotes: "",
+  phone: "", email: "", emergencyContact: "", preferredLang: "ar", medicalNotes: "",
   requiresWheelchair: false, groupId: "", mahramId: "", kloterId: "",
 };
 
@@ -65,6 +66,7 @@ function valuesFromPilgrim(pilgrim?: Pilgrim): FormValues {
     dateOfBirth: pilgrim.dateOfBirth?.toDate().toISOString().slice(0, 10) ?? "",
     gender: pilgrim.gender === Gender.FEMALE ? "FEMALE" : pilgrim.gender === Gender.MALE ? "MALE" : "",
     phone: pilgrim.phone,
+    email: pilgrim.email,
     emergencyContact: pilgrim.emergencyContact,
     preferredLang: pilgrim.preferredLang,
     medicalNotes: pilgrim.medicalNotes,
@@ -178,6 +180,9 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
     if (form.emergencyContact && !/^\+?[\d\s\-()]{7,20}$/.test(form.emergencyContact)) {
       errs.emergencyContact = "Masukkan nomor telepon yang valid.";
     }
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      errs.email = "Masukkan alamat email yang valid.";
+    }
     if (form.mahramId && !UUID_PATTERN.test(form.mahramId)) {
       errs.mahramId = "Pilih mahram yang valid.";
     }
@@ -207,6 +212,7 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
         dateOfBirth: Timestamp.fromDate(new Date(`${form.dateOfBirth}T00:00:00Z`)),
         gender: form.gender === "FEMALE" ? Gender.FEMALE : Gender.MALE,
         phone: form.phone.trim(),
+        email: form.email.trim().toLowerCase(),
         emergencyContact: form.emergencyContact.trim(),
         preferredLang: form.preferredLang,
         medicalNotes: form.medicalNotes.trim(),
@@ -220,7 +226,9 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
       requestClose(true);
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Gagal menyimpan data jamaah.";
-      if (/already|duplicate|exists/i.test(message)) {
+      if (/email/i.test(message) && /already|duplicate|exists/i.test(message)) {
+        setFieldErrors({ email: "Email ini sudah terhubung dengan jamaah lain." });
+      } else if (/already|duplicate|exists/i.test(message)) {
         setFieldErrors({ passportNumber: "Paspor ini sudah terdaftar untuk musim ini." });
       } else if (/unauthenticated/i.test(message)) {
         setFieldErrors({ _form: "Sesi Anda telah berakhir. Silakan masuk kembali." });
@@ -281,6 +289,9 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
             <Section title="Kontak">
               <Field fieldKey="phone" label="Telepon" error={fieldErrors.phone}>
                 <input className="safrat-input" value={form.phone} onChange={(event) => update("phone", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.phone)} />
+              </Field>
+              <Field fieldKey="email" label="Email" hint="Jamaah masuk dengan email ini di halaman Masuk yang sama seperti staf — tanpa link kode. Kosongkan jika belum ada." error={fieldErrors.email}>
+                <input className="safrat-input" type="email" value={form.email} onChange={(event) => update("email", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.email)} />
               </Field>
               <Field fieldKey="emergencyContact" label="Kontak darurat" error={fieldErrors.emergencyContact}>
                 <input className="safrat-input" value={form.emergencyContact} onChange={(event) => update("emergencyContact", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.emergencyContact)} />

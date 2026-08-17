@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,6 +49,7 @@ func (r *PilgrimRepository) Create(ctx context.Context, operatorID string, input
 		RequiresWheelchair: input.RequiresWheelchair,
 		Column15:           input.MahramID,
 		Column16:           input.KloterID,
+		Column17:           input.Email,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -133,6 +135,7 @@ func (r *PilgrimRepository) Update(ctx context.Context, operatorID, pilgrimID st
 		RequiresWheelchair: input.RequiresWheelchair,
 		Column15:           input.MahramID,
 		Column16:           input.KloterID,
+		Column17:           input.Email,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -273,6 +276,13 @@ func databaseError(err error) error {
 	}
 	var pgError *pgconn.PgError
 	if errors.As(err, &pgError) && pgError.Code == "23505" {
+		// ConstraintName lets the caller tell "this passport is already
+		// registered" apart from "this email is already registered" —
+		// %w keeps errors.Is(err, apperror.ErrAlreadyExists) working for
+		// every existing caller that doesn't care about the distinction.
+		if pgError.ConstraintName != "" {
+			return fmt.Errorf("%w: %s", apperror.ErrAlreadyExists, pgError.ConstraintName)
+		}
 		return apperror.ErrAlreadyExists
 	}
 	return err
@@ -305,6 +315,8 @@ func toPilgrim(value db.Pilgrim) *domain.Pilgrim {
 		LastLng:            float8Ptr(value.LastLng),
 		LastLocationAt:     timestamptzPtr(value.LastLocationAt),
 		KloterID:           nullableUUIDString(value.KloterID),
+		Email:              value.Email.String,
+		HasAccount:         value.LinkedUserID.Valid,
 	}
 }
 

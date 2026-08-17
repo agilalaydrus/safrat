@@ -28,6 +28,8 @@ type Pilgrim struct {
 	LastLng            *float64
 	LastLocationAt     *time.Time
 	KloterID           string
+	Email              string
+	HasAccount         bool
 }
 
 type PilgrimStats struct {
@@ -54,4 +56,5 @@ type PilgrimInput struct {
 	RequiresWheelchair bool
 	MahramID           string
 	KloterID           string
+	Email              string
 }

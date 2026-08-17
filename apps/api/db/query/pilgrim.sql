@@ -2,11 +2,11 @@
 INSERT INTO pilgrims (
   season_id, operator_id, group_id, full_name, passport_number, nationality,
   date_of_birth, gender, photo_url, phone, emergency_contact, preferred_lang,
-  medical_notes, requires_wheelchair, mahram_id, kloter_id
+  medical_notes, requires_wheelchair, mahram_id, kloter_id, email
 ) SELECT
   $1, $2, NULLIF($3::text, '')::uuid, $4, $5, $6,
   $7, $8, NULLIF($9, ''), NULLIF($10, ''), NULLIF($11, ''), $12,
-  NULLIF($13, ''), $14, NULLIF($15::text, '')::uuid, NULLIF($16::text, '')::uuid
+  NULLIF($13, ''), $14, NULLIF($15::text, '')::uuid, NULLIF($16::text, '')::uuid, NULLIF($17, '')
 WHERE EXISTS (
   SELECT 1 FROM seasons WHERE id = $1 AND operator_id = $2
 )
@@ -51,6 +51,7 @@ SET group_id = NULLIF($3::text, '')::uuid,
     requires_wheelchair = $14,
     mahram_id = NULLIF($15::text, '')::uuid,
     kloter_id = NULLIF($16::text, '')::uuid,
+    email = NULLIF($17, ''),
     updated_at = NOW()
 WHERE id = $1 AND operator_id = $2
 RETURNING *;

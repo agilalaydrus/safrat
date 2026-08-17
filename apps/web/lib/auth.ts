@@ -57,6 +57,21 @@ export const auth = betterAuth({
         // login eventually (Module 7 orders/payments).
         after: async (session) => {
           await pool.query('DELETE FROM session WHERE "userId" = $1 AND id <> $2', [session.userId, session.id]);
+          // Pilgrim account access — "the same as admin/leader": a pilgrim
+          // signs up/in at this same shared login, no app_access_code link
+          // required. If this identity's email matches a pilgrim record
+          // an operator already entered (pilgrims.email, set from the
+          // admin dashboard) and that record isn't linked to anyone yet,
+          // link it now. Idempotent (linked_user_id IS NULL guard) and
+          // safe to run on every session, not just first sign-in, so a
+          // pilgrim added *after* someone already has an account still
+          // gets linked on their next sign-in.
+          await pool.query(
+            `UPDATE pilgrims p SET linked_user_id = $1
+             FROM "user" u
+             WHERE u.id = $1 AND p.email = u.email AND p.linked_user_id IS NULL`,
+            [session.userId],
+          );
         },
       },
     },
