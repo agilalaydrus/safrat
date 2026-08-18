@@ -57,12 +57,19 @@ export const auth = betterAuth({
     },
   },
   secret: process.env.BETTER_AUTH_SECRET!,
-  // Without this, every /api/auth/get-session call — and the app makes one
-  // per RPC request via lib/transport.ts's interceptor — hits the database.
-  // A short signed cookie cache lets most of those resolve without a query.
-  session: {
-    cookieCache: { enabled: true, maxAge: 60 },
-  },
+  // No session.cookieCache here, deliberately — it previously cached
+  // get-session results in a signed cookie for up to 60s, served without
+  // ever touching the DB. That directly undermined the single-session
+  // enforcement below: signing in on a second device deletes the first
+  // device's session row immediately, but the first device's cached
+  // cookie kept authenticating RequireAccess/PublicOnly (both call
+  // authClient.getSession) for up to another 60 seconds — a real,
+  // observed "double login" window, not a theoretical one. Every
+  // get-session call now hits the DB, so a killed session is dead on its
+  // very next check, matching the "no grace period" this app promises
+  // (money flows through this login — see the hook below). The Go API's
+  // own session check (internal/middleware/auth.go) was never cached and
+  // was already correct; this makes the Next.js side match it.
   databaseHooks: {
     session: {
       create: {

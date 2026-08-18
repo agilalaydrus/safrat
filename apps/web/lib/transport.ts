@@ -7,8 +7,9 @@ import { authClient } from "./auth-client";
 // several in parallel (season, operator, groups, pilgrims, ...) — paid that
 // latency on its own, which is why navigation felt heavy. Cache the resolved
 // token in memory for a few seconds so a burst of RPC calls shares one
-// lookup instead of each doing its own; the server-side cookie cache
-// (lib/auth.ts) backs this up for calls that land just after it expires.
+// lookup instead of each doing its own. This is the only layer of caching
+// here — lib/auth.ts deliberately has no server-side session.cookieCache,
+// so every cache miss below is a real, current DB check, not a stale one.
 const TOKEN_TTL_MS = 10_000;
 let cachedToken: { value: string; expiresAt: number } | undefined;
 let pending: Promise<string | undefined> | undefined;
