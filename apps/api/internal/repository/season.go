@@ -148,22 +148,45 @@ func pgTimestamp(value time.Time) pgtype.Timestamptz {
 }
 
 func databaseSeasonType(value domain.SeasonType) db.SeasonType {
-	if value == domain.SeasonTypeUmrah {
-		return db.SeasonTypeUMRAH
+	switch value {
+	case domain.SeasonTypeUmrahReguler:
+		return db.SeasonTypeUMRAHREGULER
+	case domain.SeasonTypeUmrahRajab:
+		return db.SeasonTypeUMRAHRAJAB
+	case domain.SeasonTypeUmrahRamadhan:
+		return db.SeasonTypeUMRAHRAMADHAN
+	case domain.SeasonTypeUmrahSyawal:
+		return db.SeasonTypeUMRAHSYAWAL
+	case domain.SeasonTypeUmrahDzulqaidah:
+		return db.SeasonTypeUMRAHDZULQAIDAH
+	default:
+		return db.SeasonTypeHAJJ
 	}
-	return db.SeasonTypeHAJJ
+}
+
+func domainSeasonType(value db.SeasonType) domain.SeasonType {
+	switch value {
+	case db.SeasonTypeUMRAHREGULER:
+		return domain.SeasonTypeUmrahReguler
+	case db.SeasonTypeUMRAHRAJAB:
+		return domain.SeasonTypeUmrahRajab
+	case db.SeasonTypeUMRAHRAMADHAN:
+		return domain.SeasonTypeUmrahRamadhan
+	case db.SeasonTypeUMRAHSYAWAL:
+		return domain.SeasonTypeUmrahSyawal
+	case db.SeasonTypeUMRAHDZULQAIDAH:
+		return domain.SeasonTypeUmrahDzulqaidah
+	default:
+		return domain.SeasonTypeHajj
+	}
 }
 
 func toSeason(value db.Season) *domain.Season {
-	seasonType := domain.SeasonTypeHajj
-	if value.Type == db.SeasonTypeUMRAH {
-		seasonType = domain.SeasonTypeUmrah
-	}
 	return &domain.Season{
 		ID:         uuid.UUID(value.ID.Bytes).String(),
 		OperatorID: uuid.UUID(value.OperatorID.Bytes).String(),
 		Name:       value.Name,
-		Type:       seasonType,
+		Type:       domainSeasonType(value.Type),
 		StartDate:  value.StartDate.Time,
 		EndDate:    value.EndDate.Time,
 		IsActive:   value.IsActive,

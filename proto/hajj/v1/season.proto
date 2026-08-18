@@ -19,10 +19,18 @@ service SeasonService {
   rpc SetActiveSeason(SetActiveSeasonRequest) returns (Season);
 }
 
+// Musim dijual per periode kalender Hijriah, bukan cuma Haji/Umrah datar —
+// Rajab, Ramadhan, Syawal, dan Dzulqa'dah masing-masing demand dan harganya
+// beda. Sub-periode yang lebih halus (mis. "Ramadhan 10 hari terakhir")
+// dibedakan lewat nama musim + start_date/end_date, bukan nilai enum lagi.
 enum SeasonType {
   SEASON_TYPE_UNSPECIFIED = 0;
   SEASON_TYPE_HAJJ = 1;
-  SEASON_TYPE_UMRAH = 2;
+  SEASON_TYPE_UMRAH_REGULER = 2;
+  SEASON_TYPE_UMRAH_RAJAB = 3;
+  SEASON_TYPE_UMRAH_RAMADHAN = 4;
+  SEASON_TYPE_UMRAH_SYAWAL = 5;
+  SEASON_TYPE_UMRAH_DZULQAIDAH = 6;
 }
 
 message Season {
@@ -38,7 +46,7 @@ message Season {
 
 message CreateSeasonRequest {
   string name = 1 [(buf.validate.field).string.min_len = 1];
-  SeasonType type = 2 [(buf.validate.field).enum.defined_only = true];
+  SeasonType type = 2 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3, 4, 5, 6]}];
   google.protobuf.Timestamp start_date = 3 [(buf.validate.field).required = true];
   google.protobuf.Timestamp end_date = 4 [(buf.validate.field).required = true];
 }
@@ -50,7 +58,7 @@ message ListSeasonsResponse { repeated Season seasons = 1; }
 message UpdateSeasonRequest {
   string season_id = 1 [(buf.validate.field).string.uuid = true];
   string name = 2 [(buf.validate.field).string.min_len = 1];
-  SeasonType type = 3 [(buf.validate.field).enum.defined_only = true];
+  SeasonType type = 3 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3, 4, 5, 6]}];
   google.protobuf.Timestamp start_date = 4 [(buf.validate.field).required = true];
   google.protobuf.Timestamp end_date = 5 [(buf.validate.field).required = true];
 }

@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation";
 import { SeasonType } from "@hajj-saas/proto-gen/hajj/v1/season_pb";
 import { authClient } from "@/lib/auth-client";
 import { operatorClient, seasonClient } from "@/lib/rpc";
+import { SEASON_TYPE_OPTIONS } from "@/lib/season-types";
 
-type FormValues = { name: string; country: string; seasonName: string; seasonType: "HAJJ" | "UMRAH"; startDate: string; endDate: string };
-const initialValues: FormValues = { name: "", country: "", seasonName: "", seasonType: "HAJJ", startDate: "", endDate: "" };
+type FormValues = { name: string; country: string; seasonName: string; seasonType: SeasonType; startDate: string; endDate: string };
+const initialValues: FormValues = { name: "", country: "", seasonName: "", seasonType: SeasonType.UMRAH_REGULER, startDate: "", endDate: "" };
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -40,7 +41,7 @@ export default function OnboardingPage() {
         await operatorClient.createOperator({ betterAuthOrgId: result.data.id, name: values.name, country: values.country.toUpperCase(), email: session.user.email, licenseNumber: "" });
         setStep(2);
       } else {
-        await seasonClient.createSeason({ name: values.seasonName, type: values.seasonType === "HAJJ" ? SeasonType.HAJJ : SeasonType.UMRAH, startDate: Timestamp.fromDate(new Date(`${values.startDate}T00:00:00.000Z`)), endDate: Timestamp.fromDate(new Date(`${values.endDate}T00:00:00.000Z`)) });
+        await seasonClient.createSeason({ name: values.seasonName, type: values.seasonType, startDate: Timestamp.fromDate(new Date(`${values.startDate}T00:00:00.000Z`)), endDate: Timestamp.fromDate(new Date(`${values.endDate}T00:00:00.000Z`)) });
         router.push("/dashboard");
       }
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Gagal membuat ruang kerja Anda. Silakan coba lagi."); }
@@ -56,7 +57,7 @@ export default function OnboardingPage() {
     <h1 style={{ fontSize: "clamp(2.5rem, 8vw, 4.5rem)", margin: "8px 0 32px" }}>{step === 1 ? "Data operator Anda" : "Musim pertama"}</h1>
     <form onSubmit={submit} style={{ display: "grid", gap: 16 }}>
       {step === 1 && <><Field label="Nama perusahaan" value={values.name} onChange={(value) => update("name", value)} /><Field label="Negara (ISO-2, opsional)" value={values.country} onChange={(value) => update("country", value)} maxLength={2} required={false} /></>}
-      {step === 2 && <><Field label="Nama musim" value={values.seasonName} onChange={(value) => update("seasonName", value)} placeholder="Haji 2027" /><label>Jenis perjalanan<select value={values.seasonType} onChange={(event) => update("seasonType", event.target.value as FormValues["seasonType"])} style={inputStyle}><option value="HAJJ">Haji</option><option value="UMRAH">Umrah</option></select></label><Field label="Tanggal mulai" value={values.startDate} onChange={(value) => update("startDate", value)} type="date" /><Field label="Tanggal selesai" value={values.endDate} onChange={(value) => update("endDate", value)} type="date" /></>}
+      {step === 2 && <><Field label="Nama musim" value={values.seasonName} onChange={(value) => update("seasonName", value)} placeholder="Umrah Ramadhan 2027" /><label>Jenis musim<select value={values.seasonType} onChange={(event) => update("seasonType", Number(event.target.value) as SeasonType)} style={inputStyle}>{SEASON_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label><Field label="Tanggal mulai" value={values.startDate} onChange={(value) => update("startDate", value)} type="date" /><Field label="Tanggal selesai" value={values.endDate} onChange={(value) => update("endDate", value)} type="date" /></>}
       {error && <p role="alert" style={{ color: "#b91c1c" }}>{error}</p>}
       <button type="submit" disabled={isSubmitting || isPending} style={{ ...inputStyle, border: 0, background: "var(--teal)", color: "white", fontWeight: 700, cursor: "pointer" }}>{isPending ? "Memuat..." : isSubmitting ? "Membuat ruang kerja..." : step === 1 ? "Lanjutkan" : "Buat ruang kerja"}</button>
     </form>

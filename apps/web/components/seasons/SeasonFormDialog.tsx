@@ -4,6 +4,7 @@ import { Timestamp } from "@bufbuild/protobuf";
 import { IconX } from "@tabler/icons-react";
 import { Season, SeasonType } from "@hajj-saas/proto-gen/hajj/v1/season_pb";
 import { seasonClient } from "@/lib/rpc";
+import { SEASON_TYPE_OPTIONS } from "@/lib/season-types";
 
 const toDateInput = (d?: Date) => d ? d.toISOString().slice(0, 10) : "";
 
@@ -11,7 +12,7 @@ type Props = { open: boolean; initial?: Season; onClose: () => void; onSaved: (n
 
 export default function SeasonFormDialog({ open, initial, onClose, onSaved }: Props) {
   const [name, setName] = useState("");
-  const [type, setType] = useState<"HAJJ" | "UMRAH">("HAJJ");
+  const [type, setType] = useState<SeasonType>(SeasonType.HAJJ);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -20,7 +21,7 @@ export default function SeasonFormDialog({ open, initial, onClose, onSaved }: Pr
   useEffect(() => {
     if (!open) return;
     setName(initial?.name ?? "");
-    setType(initial?.type === SeasonType.UMRAH ? "UMRAH" : "HAJJ");
+    setType(initial?.type ?? SeasonType.HAJJ);
     setStartDate(toDateInput(initial?.startDate?.toDate()));
     setEndDate(toDateInput(initial?.endDate?.toDate()));
     setErrors({});
@@ -46,7 +47,7 @@ export default function SeasonFormDialog({ open, initial, onClose, onSaved }: Pr
     try {
       const payload = {
         name: name.trim(),
-        type: type === "HAJJ" ? SeasonType.HAJJ : SeasonType.UMRAH,
+        type,
         startDate: Timestamp.fromDate(new Date(`${startDate}T00:00:00.000Z`)),
         endDate: Timestamp.fromDate(new Date(`${endDate}T00:00:00.000Z`)),
       };
@@ -76,10 +77,9 @@ export default function SeasonFormDialog({ open, initial, onClose, onSaved }: Pr
               {errors.name && <small style={{ color: "var(--color-danger-600)" }}>{errors.name}</small>}
             </label>
             <label style={{ display: "grid", gap: 6 }}>
-              <span style={lab}>Jenis perjalanan</span>
-              <select className="safrat-input" value={type} onChange={(e) => setType(e.target.value as "HAJJ" | "UMRAH")} style={i}>
-                <option value="HAJJ">Haji</option>
-                <option value="UMRAH">Umrah</option>
+              <span style={lab}>Jenis musim</span>
+              <select className="safrat-input" value={type} onChange={(e) => setType(Number(e.target.value) as SeasonType)} style={i}>
+                {SEASON_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </label>
             <label style={{ display: "grid", gap: 6 }}>

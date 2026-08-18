@@ -3,9 +3,8 @@ import { useEffect, useState } from "react";
 import { IconCalendar, IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { Season } from "@hajj-saas/proto-gen/hajj/v1/season_pb";
 import { seasonClient } from "@/lib/rpc";
+import { SEASON_TYPE_LABEL } from "@/lib/season-types";
 import SeasonFormDialog from "./SeasonFormDialog";
-
-const TYPE_LABEL: Record<number, string> = { 1: "Haji", 2: "Umrah" };
 
 export default function SeasonsDashboard() {
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -65,7 +64,7 @@ export default function SeasonsDashboard() {
                 <h2 style={{ margin: 0, fontSize: 20 }}>{season.name}</h2>
                 {season.isActive && <span style={activeBadge}><IconCheck size={13} />Aktif</span>}
               </div>
-              <p style={typeLabel}>{TYPE_LABEL[season.type] ?? "-"}</p>
+              <p style={typeLabel}>{SEASON_TYPE_LABEL[season.type] ?? "-"}</p>
               <p style={dateRange}>
                 <IconCalendar size={15} />
                 {season.startDate?.toDate().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}

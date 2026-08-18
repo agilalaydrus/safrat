@@ -138,22 +138,45 @@ func (s *SeasonService) SetActive(ctx context.Context, authenticatedOrgID string
 }
 
 func seasonType(value hajjv1.SeasonType) domain.SeasonType {
-	if value == hajjv1.SeasonType_SEASON_TYPE_UMRAH {
-		return domain.SeasonTypeUmrah
+	switch value {
+	case hajjv1.SeasonType_SEASON_TYPE_UMRAH_REGULER:
+		return domain.SeasonTypeUmrahReguler
+	case hajjv1.SeasonType_SEASON_TYPE_UMRAH_RAJAB:
+		return domain.SeasonTypeUmrahRajab
+	case hajjv1.SeasonType_SEASON_TYPE_UMRAH_RAMADHAN:
+		return domain.SeasonTypeUmrahRamadhan
+	case hajjv1.SeasonType_SEASON_TYPE_UMRAH_SYAWAL:
+		return domain.SeasonTypeUmrahSyawal
+	case hajjv1.SeasonType_SEASON_TYPE_UMRAH_DZULQAIDAH:
+		return domain.SeasonTypeUmrahDzulqaidah
+	default:
+		return domain.SeasonTypeHajj
 	}
-	return domain.SeasonTypeHajj
+}
+
+func seasonTypeMessage(value domain.SeasonType) hajjv1.SeasonType {
+	switch value {
+	case domain.SeasonTypeUmrahReguler:
+		return hajjv1.SeasonType_SEASON_TYPE_UMRAH_REGULER
+	case domain.SeasonTypeUmrahRajab:
+		return hajjv1.SeasonType_SEASON_TYPE_UMRAH_RAJAB
+	case domain.SeasonTypeUmrahRamadhan:
+		return hajjv1.SeasonType_SEASON_TYPE_UMRAH_RAMADHAN
+	case domain.SeasonTypeUmrahSyawal:
+		return hajjv1.SeasonType_SEASON_TYPE_UMRAH_SYAWAL
+	case domain.SeasonTypeUmrahDzulqaidah:
+		return hajjv1.SeasonType_SEASON_TYPE_UMRAH_DZULQAIDAH
+	default:
+		return hajjv1.SeasonType_SEASON_TYPE_HAJJ
+	}
 }
 
 func seasonMessage(value *domain.Season) *hajjv1.Season {
-	seasonType := hajjv1.SeasonType_SEASON_TYPE_HAJJ
-	if value.Type == domain.SeasonTypeUmrah {
-		seasonType = hajjv1.SeasonType_SEASON_TYPE_UMRAH
-	}
 	return &hajjv1.Season{
 		Id:         value.ID,
 		OperatorId: value.OperatorID,
 		Name:       value.Name,
-		Type:       seasonType,
+		Type:       seasonTypeMessage(value.Type),
 		StartDate:  timestamppb.New(value.StartDate),
 		EndDate:    timestamppb.New(value.EndDate),
 		IsActive:   value.IsActive,

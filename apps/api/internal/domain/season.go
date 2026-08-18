@@ -5,8 +5,12 @@ import "time"
 type SeasonType string
 
 const (
-	SeasonTypeHajj  SeasonType = "HAJJ"
-	SeasonTypeUmrah SeasonType = "UMRAH"
+	SeasonTypeHajj            SeasonType = "HAJJ"
+	SeasonTypeUmrahReguler    SeasonType = "UMRAH_REGULER"
+	SeasonTypeUmrahRajab      SeasonType = "UMRAH_RAJAB"
+	SeasonTypeUmrahRamadhan   SeasonType = "UMRAH_RAMADHAN"
+	SeasonTypeUmrahSyawal     SeasonType = "UMRAH_SYAWAL"
+	SeasonTypeUmrahDzulqaidah SeasonType = "UMRAH_DZULQAIDAH"
 )
 
 type Season struct {
