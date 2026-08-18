@@ -1,4 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&display=swap');
+/* Fraunces: a warm, characterful editorial serif with real optical-size
+   personality — used for the marketing/landing page's display type only,
+   deliberately distinct from the generic geometric-sans look of most
+   AI/SaaS templates. App chrome (sidebar, dashboards) keeps Playfair
+   Display + Plus Jakarta Sans as-is. */
 
 :root {
   --color-emerald-950: #061f14; --color-emerald-900: #0d3d27; --color-emerald-800: #1a5c3a; --color-emerald-700: #246b47; --color-emerald-200: #a8c9b5; --color-emerald-100: #d4ede1; --color-emerald-50: #e8f4ee;
