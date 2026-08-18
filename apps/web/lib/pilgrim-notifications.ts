@@ -19,18 +19,27 @@ export function usePilgrimChatUnread(code: string, viewingChat: boolean): number
   useEffect(() => {
     if (!code) { setUnread(0); return; }
     let cancelled = false;
+    const key = READ_KEY_PREFIX + code;
+
+    function markCaughtUp() {
+      return chatClient.listMyMessages({ appAccessCode: code }).then((response) => {
+        const last = response.messages[response.messages.length - 1];
+        if (last) window.localStorage.setItem(key, last.id);
+      }).catch(() => {});
+    }
+
+    if (viewingChat) {
+      // /pilgrim/chat itself already polls this exact RPC every 5s while
+      // open — don't run a second independent poll alongside it.
+      setUnread(0);
+      void markCaughtUp();
+      return () => { void markCaughtUp(); };
+    }
 
     function poll() {
       chatClient.listMyMessages({ appAccessCode: code }).then((response) => {
         if (cancelled) return;
         const messages = response.messages;
-        const key = READ_KEY_PREFIX + code;
-        if (viewingChat) {
-          const last = messages[messages.length - 1];
-          if (last) window.localStorage.setItem(key, last.id);
-          setUnread(0);
-          return;
-        }
         const lastReadId = window.localStorage.getItem(key);
         const lastReadIndex = lastReadId ? messages.findIndex((m) => m.id === lastReadId) : -1;
         if (lastReadIndex === -1) {

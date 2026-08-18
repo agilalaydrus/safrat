@@ -45,7 +45,11 @@ JOIN pilgrims p ON p.id = o.pilgrim_id
 JOIN products pr ON pr.id = o.product_id
 LEFT JOIN agents a ON a.id = o.agent_id
 WHERE o.operator_id = $1 AND o.season_id = $2
-ORDER BY o.created_at DESC;
+ORDER BY o.created_at DESC
+LIMIT $3 OFFSET $4;
+
+-- name: CountOrdersBySeason :one
+SELECT COUNT(*) FROM orders WHERE operator_id = $1 AND season_id = $2;
 
 -- name: ListAgentPayouts :many
 -- Lifetime, not season-scoped — agents aren't a per-season concept (see

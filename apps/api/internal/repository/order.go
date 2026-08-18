@@ -112,7 +112,7 @@ func (r *OrderRepository) Get(ctx context.Context, operatorID, orderID string) (
 	return toOrderFromRow(order), nil
 }
 
-func (r *OrderRepository) ListBySeason(ctx context.Context, operatorID, seasonID string) ([]*domain.Order, error) {
+func (r *OrderRepository) ListBySeason(ctx context.Context, operatorID, seasonID string, limit, offset int32) ([]*domain.Order, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -121,7 +121,7 @@ func (r *OrderRepository) ListBySeason(ctx context.Context, operatorID, seasonID
 	if err != nil {
 		return nil, err
 	}
-	orders, err := r.queries.ListOrders(ctx, db.ListOrdersParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	orders, err := r.queries.ListOrders(ctx, db.ListOrdersParams{OperatorID: opUUID, SeasonID: seasonUUID, Limit: limit, Offset: offset})
 	if err != nil {
 		return nil, err
 	}
@@ -130,6 +130,18 @@ func (r *OrderRepository) ListBySeason(ctx context.Context, operatorID, seasonID
 		result = append(result, toOrderFromListRow(order))
 	}
 	return result, nil
+}
+
+func (r *OrderRepository) CountBySeason(ctx context.Context, operatorID, seasonID string) (int64, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return 0, err
+	}
+	seasonUUID, err := pgUUID(seasonID)
+	if err != nil {
+		return 0, err
+	}
+	return r.queries.CountOrdersBySeason(ctx, db.CountOrdersBySeasonParams{OperatorID: opUUID, SeasonID: seasonUUID})
 }
 
 func toOrder(o db.Order) *domain.Order {

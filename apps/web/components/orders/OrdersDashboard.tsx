@@ -15,10 +15,14 @@ const STATUS_STYLE: Record<string, React.CSSProperties> = {
   CANCELLED: { background: "var(--color-cream-200)", color: "var(--color-warm-500)" },
 };
 
+const pageSize = 20;
+
 export default function OrdersDashboard() {
   const [seasons, setSeasons] = useState<{ id: string; name: string; isActive: boolean }[]>([]);
   const [seasonId, setSeasonId] = useState("");
   const [orders, setOrders] = useState<Order[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState("");
@@ -26,18 +30,27 @@ export default function OrdersDashboard() {
   const load = async (id = seasonId) => {
     if (!id) return;
     setLoading(true);
-    try { setOrders((await orderClient.listOrders({ seasonId: id })).orders); }
-    catch { setNotice("Gagal memuat daftar pesanan."); }
+    try {
+      const response = await orderClient.listOrders({ seasonId: id, limit: pageSize, offset });
+      setOrders(response.orders);
+      setTotal(Number(response.totalCount));
+    } catch { setNotice("Gagal memuat daftar pesanan."); }
     finally { setLoading(false); }
   };
 
   useEffect(() => {
     seasonClient.listSeasons({}).then((r) => { setSeasons(r.seasons); setSeasonId(r.seasons.find((s) => s.isActive)?.id ?? r.seasons[0]?.id ?? ""); }).catch(() => setNotice("Gagal memuat daftar musim."));
   }, []);
-  useEffect(() => { void load(); }, [seasonId]);
+  useEffect(() => { setOffset(0); }, [seasonId]);
+  useEffect(() => { void load(); }, [seasonId, offset]);
 
+  // Only the current page is loaded — accurate as long as everything fits
+  // on one page (the common case today). Once a season has more than
+  // pageSize orders, these two reflect this page only, not the whole
+  // season; "Total Pesanan" always uses the real season-wide count.
   const paidOrders = orders.filter((o) => o.status === "PAID");
   const totalRevenue = paidOrders.reduce((sum, o) => sum + o.totalPriceIdr, 0n);
+  const pageScoped = total > pageSize;
 
   return (
     <main style={page}>
@@ -53,7 +66,7 @@ export default function OrdersDashboard() {
       <div className="gold-divider" />
       {notice && <p style={{ color: "var(--color-danger-600)" }}>{notice}</p>}
       <div style={stats}>
-        {[["Total Pesanan", orders.length], ["Lunas", paidOrders.length], ["Total Pendapatan", rupiah(totalRevenue)]].map(([l, v]) => (
+        {[["Total Pesanan", total], [pageScoped ? "Lunas (halaman ini)" : "Lunas", paidOrders.length], [pageScoped ? "Pendapatan (halaman ini)" : "Total Pendapatan", rupiah(totalRevenue)]].map(([l, v]) => (
           <div key={String(l)} style={stat}><small>{l}</small><strong>{v}</strong></div>
         ))}
       </div>
@@ -77,6 +90,13 @@ export default function OrdersDashboard() {
               ))}
             </tbody>
           </table>
+          <footer style={pagination}>
+            <span>{Math.min(offset + 1, total)}–{Math.min(offset + pageSize, total)} dari {total} pesanan</span>
+            <div>
+              <button onClick={() => setOffset(Math.max(0, offset - pageSize))} disabled={!offset} style={ghost}>Sebelumnya</button>
+              <button onClick={() => setOffset(offset + pageSize)} disabled={offset + pageSize >= total} style={ghost}>Berikutnya</button>
+            </div>
+          </footer>
         </div>
       ) : (
         <section style={empty}>
@@ -106,4 +126,5 @@ const tr: React.CSSProperties = { borderBottom: "1px solid var(--color-cream-300
 const td: React.CSSProperties = { padding: 14, color: "var(--color-warm-700)", whiteSpace: "nowrap" };
 const badge: React.CSSProperties = { padding: "4px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700 };
 const ghost: React.CSSProperties = { border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "4px 8px", background: "transparent", display: "inline-flex", alignItems: "center", gap: 4, color: "var(--color-emerald-900)", fontSize: 12 };
+const pagination: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, padding: 16, color: "var(--color-warm-500)", alignItems: "center", flexWrap: "wrap" };
 const empty: React.CSSProperties = { minHeight: 280, display: "grid", placeItems: "center", alignContent: "center", gap: 12, border: "1px dashed var(--color-cream-400)", borderRadius: 12 };

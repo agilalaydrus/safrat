@@ -22,7 +22,7 @@ function LeaderShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { groups, selectedGroupId, setSelectedGroupId } = useLeaderGroup();
   const chatUnread = useLeaderChatUnread(selectedGroupId, pathname === "/leader/chat");
-  const sosActive = useLeaderActiveSOSCount();
+  const sosActive = useLeaderActiveSOSCount(pathname === "/leader/sos");
 
   async function signOut() {
     await authClient.signOut();

@@ -207,15 +207,25 @@ func (s *OrderService) ListOrders(ctx context.Context, orgID string, req *hajjv1
 	if req == nil || strings.TrimSpace(req.SeasonId) == "" {
 		return nil, serviceError("OrderService.ListOrders", apperror.ErrValidation)
 	}
+	if req.Limit <= 0 || req.Limit > 100 {
+		req.Limit = 20
+	}
+	if req.Offset < 0 {
+		req.Offset = 0
+	}
 	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
 	if err != nil {
 		return nil, serviceError("OrderService.ListOrders", err)
 	}
-	orders, err := s.orderRepository.ListBySeason(ctx, op.ID, req.SeasonId)
+	orders, err := s.orderRepository.ListBySeason(ctx, op.ID, req.SeasonId, req.Limit, req.Offset)
 	if err != nil {
 		return nil, serviceError("OrderService.ListOrders", err)
 	}
-	result := &hajjv1.ListOrdersResponse{Orders: make([]*hajjv1.Order, 0, len(orders))}
+	count, err := s.orderRepository.CountBySeason(ctx, op.ID, req.SeasonId)
+	if err != nil {
+		return nil, serviceError("OrderService.ListOrders", err)
+	}
+	result := &hajjv1.ListOrdersResponse{Orders: make([]*hajjv1.Order, 0, len(orders)), TotalCount: count}
 	for _, order := range orders {
 		result.Orders = append(result.Orders, orderMessage(order))
 	}
