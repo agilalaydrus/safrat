@@ -53,6 +53,48 @@ func (r *SeasonRepository) ListByOperatorID(ctx context.Context, operatorID stri
 	return results, nil
 }
 
+func (r *SeasonRepository) Update(ctx context.Context, operatorID, seasonID, name string, seasonType domain.SeasonType, startDate, endDate time.Time) (*domain.Season, error) {
+	operatorUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	seasonUUID, err := pgUUID(seasonID)
+	if err != nil {
+		return nil, err
+	}
+	season, err := r.queries.UpdateSeason(ctx, db.UpdateSeasonParams{
+		ID: seasonUUID, OperatorID: operatorUUID, Name: name,
+		Type: databaseSeasonType(seasonType), StartDate: pgTimestamp(startDate), EndDate: pgTimestamp(endDate),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toSeason(season), nil
+}
+
+// HasData reports whether any pilgrim/group/kloter/hotel/movement/product/
+// order row still references this season — every one of those cascades on
+// the season FK, so Delete refuses when this is true (see season.sql).
+func (r *SeasonRepository) HasData(ctx context.Context, seasonID string) (bool, error) {
+	seasonUUID, err := pgUUID(seasonID)
+	if err != nil {
+		return false, err
+	}
+	return r.queries.SeasonHasData(ctx, seasonUUID)
+}
+
+func (r *SeasonRepository) Delete(ctx context.Context, operatorID, seasonID string) error {
+	operatorUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return err
+	}
+	seasonUUID, err := pgUUID(seasonID)
+	if err != nil {
+		return err
+	}
+	return r.queries.DeleteSeason(ctx, db.DeleteSeasonParams{ID: seasonUUID, OperatorID: operatorUUID})
+}
+
 func (r *SeasonRepository) SetActive(ctx context.Context, operatorID, seasonID string) ([]*domain.Season, error) {
 	operatorUUID, err := pgUUID(operatorID)
 	if err != nil {

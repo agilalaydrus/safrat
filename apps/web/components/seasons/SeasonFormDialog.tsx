@@ -2,12 +2,14 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Timestamp } from "@bufbuild/protobuf";
 import { IconX } from "@tabler/icons-react";
-import { SeasonType } from "@hajj-saas/proto-gen/hajj/v1/season_pb";
+import { Season, SeasonType } from "@hajj-saas/proto-gen/hajj/v1/season_pb";
 import { seasonClient } from "@/lib/rpc";
 
-type Props = { open: boolean; onClose: () => void; onSaved: (name: string) => void };
+const toDateInput = (d?: Date) => d ? d.toISOString().slice(0, 10) : "";
 
-export default function SeasonFormDialog({ open, onClose, onSaved }: Props) {
+type Props = { open: boolean; initial?: Season; onClose: () => void; onSaved: (name: string) => void };
+
+export default function SeasonFormDialog({ open, initial, onClose, onSaved }: Props) {
   const [name, setName] = useState("");
   const [type, setType] = useState<"HAJJ" | "UMRAH">("HAJJ");
   const [startDate, setStartDate] = useState("");
@@ -16,8 +18,13 @@ export default function SeasonFormDialog({ open, onClose, onSaved }: Props) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) { setName(""); setType("HAJJ"); setStartDate(""); setEndDate(""); setErrors({}); }
-  }, [open]);
+    if (!open) return;
+    setName(initial?.name ?? "");
+    setType(initial?.type === SeasonType.UMRAH ? "UMRAH" : "HAJJ");
+    setStartDate(toDateInput(initial?.startDate?.toDate()));
+    setEndDate(toDateInput(initial?.endDate?.toDate()));
+    setErrors({});
+  }, [open, initial]);
 
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => e.key === "Escape" && !saving && onClose();
@@ -37,16 +44,18 @@ export default function SeasonFormDialog({ open, onClose, onSaved }: Props) {
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setSaving(true);
     try {
-      await seasonClient.createSeason({
+      const payload = {
         name: name.trim(),
         type: type === "HAJJ" ? SeasonType.HAJJ : SeasonType.UMRAH,
         startDate: Timestamp.fromDate(new Date(`${startDate}T00:00:00.000Z`)),
         endDate: Timestamp.fromDate(new Date(`${endDate}T00:00:00.000Z`)),
-      });
+      };
+      if (initial) await seasonClient.updateSeason({ ...payload, seasonId: initial.id });
+      else await seasonClient.createSeason(payload);
       onSaved(name.trim());
       onClose();
     } catch (err) {
-      setErrors({ _form: err instanceof Error ? err.message : "Gagal membuat musim." });
+      setErrors({ _form: err instanceof Error ? err.message : "Gagal menyimpan musim." });
     } finally {
       setSaving(false);
     }
@@ -56,7 +65,7 @@ export default function SeasonFormDialog({ open, onClose, onSaved }: Props) {
     <div style={o}>
       <aside style={s}>
         <div style={h}>
-          <div><p style={ey}>MUSIM</p><h2 style={{ margin: 0 }}>Tambah Musim</h2></div>
+          <div><p style={ey}>MUSIM</p><h2 style={{ margin: 0 }}>{initial ? "Ubah Musim" : "Tambah Musim"}</h2></div>
           <button className="btn-close-sheet" onClick={() => !saving && onClose()} style={x}><IconX size={18} /></button>
         </div>
         <div style={b}>

@@ -84,7 +84,7 @@ func main() {
 
 		operatorService := service.NewOperatorService(operatorRepository)
 		pilgrimService := service.NewPilgrimService(operatorRepository, pilgrimRepository, accommodationRepository, transportRepository, auditRepository, pool)
-		seasonService := service.NewSeasonService(operatorRepository, seasonRepository)
+		seasonService := service.NewSeasonService(operatorRepository, seasonRepository, auditRepository)
 		accommodationService := service.NewAccommodationService(operatorRepository, pilgrimRepository, accommodationRepository, auditRepository)
 		transportService := service.NewTransportService(operatorRepository, transportRepository, auditRepository)
 		productService := service.NewProductService(operatorRepository, productRepository)

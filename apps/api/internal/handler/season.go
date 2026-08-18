@@ -39,6 +39,30 @@ func (h *SeasonHandler) ListSeasons(ctx context.Context, _ *connect.Request[hajj
 	return connect.NewResponse(result), nil
 }
 
+func (h *SeasonHandler) UpdateSeason(ctx context.Context, req *connect.Request[hajjv1.UpdateSeasonRequest]) (*connect.Response[hajjv1.Season], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	operatorID := middleware.OperatorIDFromCtx(ctx)
+	result, err := h.seasonService.Update(ctx, operatorID, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *SeasonHandler) DeleteSeason(ctx context.Context, req *connect.Request[hajjv1.DeleteSeasonRequest]) (*connect.Response[hajjv1.DeleteSeasonResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	operatorID := middleware.OperatorIDFromCtx(ctx)
+	result, err := h.seasonService.Delete(ctx, operatorID, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *SeasonHandler) SetActiveSeason(ctx context.Context, req *connect.Request[hajjv1.SetActiveSeasonRequest]) (*connect.Response[hajjv1.Season], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { IconCalendar, IconCheck, IconPlus } from "@tabler/icons-react";
+import { IconCalendar, IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { Season } from "@hajj-saas/proto-gen/hajj/v1/season_pb";
 import { seasonClient } from "@/lib/rpc";
 import SeasonFormDialog from "./SeasonFormDialog";
@@ -11,7 +11,9 @@ export default function SeasonsDashboard() {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [edit, setEdit] = useState<Season | undefined>();
   const [activating, setActivating] = useState("");
+  const [deleting, setDeleting] = useState("");
   const [notice, setNotice] = useState("");
 
   const load = () => { setLoading(true); seasonClient.listSeasons({}).then((r) => setSeasons(r.seasons)).catch(() => setNotice("Gagal memuat daftar musim.")).finally(() => setLoading(false)); };
@@ -31,11 +33,25 @@ export default function SeasonsDashboard() {
     }
   }
 
+  async function remove(season: Season) {
+    if (!window.confirm(`Hapus musim ${season.name}? Tindakan ini tidak dapat dibatalkan.`)) return;
+    setDeleting(season.id);
+    try {
+      await seasonClient.deleteSeason({ seasonId: season.id });
+      setNotice(`${season.name} berhasil dihapus.`);
+      void load();
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Gagal menghapus musim.");
+    } finally {
+      setDeleting("");
+    }
+  }
+
   return (
     <main style={page}>
       <header style={header}>
         <div><p style={eyebrow}>OPERASIONAL / MUSIM</p><h1 style={title}>Musim</h1></div>
-        <button style={gold} onClick={() => setOpen(true)}><IconPlus size={18} />Tambah Musim</button>
+        <button style={gold} onClick={() => { setEdit(undefined); setOpen(true); }}><IconPlus size={18} />Tambah Musim</button>
       </header>
       <div className="gold-divider" />
       {notice && <p style={{ color: "var(--color-warm-500)" }}>{notice}</p>}
@@ -61,6 +77,10 @@ export default function SeasonsDashboard() {
                   {activating === season.id ? "Mengaktifkan..." : "Jadikan Aktif"}
                 </button>
               )}
+              <div style={actionsRow}>
+                <button style={iconGhost} onClick={() => { setEdit(season); setOpen(true); }}><IconPencil size={15} />Ubah</button>
+                <button style={{ ...iconGhost, color: "var(--color-danger-600)" }} disabled={deleting === season.id} onClick={() => void remove(season)}><IconTrash size={15} />{deleting === season.id ? "Menghapus..." : "Hapus"}</button>
+              </div>
             </article>
           ))}
         </div>
@@ -72,7 +92,7 @@ export default function SeasonsDashboard() {
           <button style={gold} onClick={() => setOpen(true)}>Tambah Musim</button>
         </section>
       )}
-      <SeasonFormDialog open={open} onClose={() => setOpen(false)} onSaved={(name) => { setNotice(`${name} berhasil dibuat.`); void load(); }} />
+      <SeasonFormDialog open={open} initial={edit} onClose={() => setOpen(false)} onSaved={(name) => { setNotice(`${name} berhasil disimpan.`); void load(); }} />
     </main>
   );
 }
@@ -89,4 +109,6 @@ const typeLabel: React.CSSProperties = { margin: 0, color: "var(--color-gold-800
 const dateRange: React.CSSProperties = { margin: 0, display: "flex", alignItems: "center", gap: 6, color: "var(--color-warm-500)", fontSize: 13 };
 const activeBadge: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 99, background: "var(--color-emerald-50)", color: "var(--color-emerald-900)", fontSize: 12, fontWeight: 700 };
 const ghost: React.CSSProperties = { minHeight: 40, border: "1px solid var(--color-cream-400)", borderRadius: 8, background: "transparent", color: "var(--color-emerald-900)", fontWeight: 600, fontSize: 13, marginTop: 4 };
+const actionsRow: React.CSSProperties = { display: "flex", gap: 8, marginTop: 4, paddingTop: 10, borderTop: "1px solid var(--color-cream-300)" };
+const iconGhost: React.CSSProperties = { border: 0, background: "transparent", display: "inline-flex", alignItems: "center", gap: 4, color: "var(--color-warm-500)", fontSize: 13 };
 const empty: React.CSSProperties = { minHeight: 280, display: "grid", placeItems: "center", alignContent: "center", gap: 12, border: "1px dashed var(--color-cream-400)", borderRadius: 12, marginTop: 24 };
