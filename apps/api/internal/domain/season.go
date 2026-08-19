@@ -23,3 +23,14 @@ type Season struct {
 	IsActive   bool
 	CreatedAt  time.Time
 }
+
+type SeasonAnalytics struct {
+	TotalPilgrims  int64
+	PaidCount      int64
+	DPCount        int64
+	UnpaidCount    int64
+	DocsComplete   int64
+	CheckedInCount int64
+	RoomsAllocated int64
+	SeatsAssigned  int64
+}

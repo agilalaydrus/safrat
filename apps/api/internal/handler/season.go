@@ -74,3 +74,15 @@ func (h *SeasonHandler) SetActiveSeason(ctx context.Context, req *connect.Reques
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *SeasonHandler) GetSeasonAnalytics(ctx context.Context, req *connect.Request[hajjv1.GetSeasonAnalyticsRequest]) (*connect.Response[hajjv1.SeasonAnalytics], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	operatorID := middleware.OperatorIDFromCtx(ctx)
+	result, err := h.seasonService.GetAnalytics(ctx, operatorID, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

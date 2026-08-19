@@ -21,6 +21,8 @@ service PilgrimService {
   rpc UpdatePilgrimEmergencyContact(UpdatePilgrimEmergencyContactRequest) returns (Pilgrim);
   rpc CheckInPilgrimHotel(CheckInPilgrimHotelRequest) returns (Pilgrim);
   rpc ListPilgrimsWithExpiringPassports(ListPilgrimsWithExpiringPassportsRequest) returns (ListPilgrimsResponse);
+  rpc ListPilgrimDocuments(ListPilgrimDocumentsRequest) returns (ListPilgrimDocumentsResponse);
+  rpc DeletePilgrimDocument(DeletePilgrimDocumentRequest) returns (DeletePilgrimDocumentResponse);
 }
 
 enum Gender {
@@ -191,3 +193,27 @@ message ListPilgrimsWithExpiringPassportsRequest {
   // Days threshold, e.g. 180 means "expiring within 180 days".
   int32 days_threshold = 2 [(buf.validate.field).int32 = {gt: 0, lte: 3650}];
 }
+
+message PilgrimDocument {
+  string id = 1;
+  string pilgrim_id = 2;
+  string doc_type = 3;
+  string file_url = 4;
+  string file_name = 5;
+  string uploaded_by = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message ListPilgrimDocumentsRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message ListPilgrimDocumentsResponse {
+  repeated PilgrimDocument documents = 1;
+}
+
+message DeletePilgrimDocumentRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message DeletePilgrimDocumentResponse {}

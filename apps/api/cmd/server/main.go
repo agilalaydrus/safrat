@@ -162,6 +162,12 @@ func main() {
 		mux.Handle(broadcastPath, broadcastServiceHandler)
 		mux.Handle(registrationPath, registrationServiceHandler)
 		mux.HandleFunc("POST /webhooks/xendit", handler.NewXenditWebhookHandler(logger, orderRepository, config.XenditWebhookToken))
+		uploadDir := os.Getenv("UPLOAD_DIR")
+		if uploadDir == "" {
+			uploadDir = "./uploads/documents"
+		}
+		mux.HandleFunc("POST /upload/document", handler.NewDocumentUploadHandler(pool, pilgrimService, uploadDir))
+		mux.Handle("/uploads/documents/", http.StripPrefix("/uploads/documents/", http.FileServer(http.Dir(uploadDir))))
 		mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, request *http.Request) {
 			if err := pool.Ping(request.Context()); err != nil {
 				http.Error(w, `{"status":"database_unavailable"}`, http.StatusServiceUnavailable)

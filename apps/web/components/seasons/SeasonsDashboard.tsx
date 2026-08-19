@@ -5,6 +5,7 @@ import { Season } from "@hajj-saas/proto-gen/hajj/v1/season_pb";
 import { seasonClient } from "@/lib/rpc";
 import { SEASON_TYPE_LABEL } from "@/lib/season-types";
 import SeasonFormDialog from "./SeasonFormDialog";
+import { RoleGate } from "@/components/auth/RoleGate";
 
 export default function SeasonsDashboard() {
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -78,7 +79,9 @@ export default function SeasonsDashboard() {
               )}
               <div style={actionsRow}>
                 <button style={iconGhost} onClick={() => { setEdit(season); setOpen(true); }}><IconPencil size={15} />Ubah</button>
-                <button style={{ ...iconGhost, color: "var(--color-danger-600)" }} disabled={deleting === season.id} onClick={() => void remove(season)}><IconTrash size={15} />{deleting === season.id ? "Menghapus..." : "Hapus"}</button>
+                <RoleGate require={["owner", "admin"]}>
+                  <button style={{ ...iconGhost, color: "var(--color-danger-600)" }} disabled={deleting === season.id} onClick={() => void remove(season)}><IconTrash size={15} />{deleting === season.id ? "Menghapus..." : "Hapus"}</button>
+                </RoleGate>
               </div>
             </article>
           ))}

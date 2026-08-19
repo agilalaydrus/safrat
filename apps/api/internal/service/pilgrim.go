@@ -296,6 +296,73 @@ func (s *PilgrimService) ListWithExpiringPassports(ctx context.Context, authenti
 	return result, nil
 }
 
+var validDocTypes = map[string]bool{"PASSPORT": true, "PHOTO": true, "VACCINE": true, "OTHER": true}
+
+// CreateDocument is called from the plain HTTP multipart upload endpoint
+// (see main.go), not a Connect handler — it still goes through the service
+// layer so operator scoping and doc_type validation aren't duplicated.
+func (s *PilgrimService) CreateDocument(ctx context.Context, authenticatedOrgID, pilgrimID, docType, fileURL, fileName string) (*domain.PilgrimDocument, error) {
+	if !isUUID(pilgrimID) || !validDocTypes[docType] || fileURL == "" || fileName == "" {
+		return nil, serviceError("PilgrimService.CreateDocument", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("PilgrimService.CreateDocument", err)
+	}
+	if _, err := s.pilgrimRepository.Get(ctx, operator.ID, pilgrimID); err != nil {
+		return nil, serviceError("PilgrimService.CreateDocument", err)
+	}
+	document, err := s.pilgrimRepository.CreateDocument(ctx, operator.ID, pilgrimID, docType, fileURL, fileName, "operator")
+	if err != nil {
+		return nil, serviceError("PilgrimService.CreateDocument", err)
+	}
+	return document, nil
+}
+
+func (s *PilgrimService) ListDocuments(ctx context.Context, authenticatedOrgID string, req *hajjv1.ListPilgrimDocumentsRequest) (*hajjv1.ListPilgrimDocumentsResponse, error) {
+	if req == nil || !isUUID(req.PilgrimId) {
+		return nil, serviceError("PilgrimService.ListDocuments", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("PilgrimService.ListDocuments", err)
+	}
+	if _, err := s.pilgrimRepository.Get(ctx, operator.ID, req.PilgrimId); err != nil {
+		return nil, serviceError("PilgrimService.ListDocuments", err)
+	}
+	documents, err := s.pilgrimRepository.ListDocuments(ctx, req.PilgrimId)
+	if err != nil {
+		return nil, serviceError("PilgrimService.ListDocuments", err)
+	}
+	result := &hajjv1.ListPilgrimDocumentsResponse{Documents: make([]*hajjv1.PilgrimDocument, 0, len(documents))}
+	for _, document := range documents {
+		result.Documents = append(result.Documents, pilgrimDocumentMessage(document))
+	}
+	return result, nil
+}
+
+func (s *PilgrimService) DeleteDocument(ctx context.Context, authenticatedOrgID string, req *hajjv1.DeletePilgrimDocumentRequest) (*hajjv1.DeletePilgrimDocumentResponse, error) {
+	if req == nil || !isUUID(req.Id) {
+		return nil, serviceError("PilgrimService.DeleteDocument", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("PilgrimService.DeleteDocument", err)
+	}
+	if err := s.pilgrimRepository.DeleteDocument(ctx, operator.ID, req.Id); err != nil {
+		return nil, serviceError("PilgrimService.DeleteDocument", err)
+	}
+	return &hajjv1.DeletePilgrimDocumentResponse{}, nil
+}
+
+func pilgrimDocumentMessage(value *domain.PilgrimDocument) *hajjv1.PilgrimDocument {
+	return &hajjv1.PilgrimDocument{
+		Id: value.ID, PilgrimId: value.PilgrimID, DocType: value.DocType,
+		FileUrl: value.FileURL, FileName: value.FileName, UploadedBy: value.UploadedBy,
+		CreatedAt: timestamppb.New(value.CreatedAt),
+	}
+}
+
 func (s *PilgrimService) SubstitutePilgrim(ctx context.Context, authenticatedOrgID, originalID, replacementID string) (*hajjv1.SubstitutePilgrimResult, error) {
 	if !isUUID(originalID) || !isUUID(replacementID) {
 		return nil, serviceError("PilgrimService.SubstitutePilgrim", apperror.ErrValidation)

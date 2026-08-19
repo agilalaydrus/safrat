@@ -7,6 +7,7 @@ import { Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { pilgrimClient, groupClient } from "@/lib/rpc";
 import PilgrimFormDialog from "./PilgrimFormDialog";
 import PilgrimDocumentsPanel from "./PilgrimDocumentsPanel";
+import { RoleGate } from "@/components/auth/RoleGate";
 
 export default function PilgrimDetail({ id }: { id: string }) {
   const [pilgrim, setPilgrim] = useState<Pilgrim>();
@@ -86,9 +87,11 @@ export default function PilgrimDetail({ id }: { id: string }) {
         <Details values={[["Rombongan", pilgrim.groupId ? (group?.name ?? "Memuat...") : "Belum ditentukan"], ["Ketua Rombongan", pilgrim.groupId ? (group?.leaderName || "Belum ada ketua") : "-"], ["Kamar", "Belum ditentukan"], ["Kendaraan", "Belum ditentukan"]]} />
         <div className="gold-divider" />
         <h2>Penggantian Jamaah</h2>
-        {pilgrim.isSubstituted ? <p style={{ color: "var(--color-gold-800)" }}>Ditandai sebagai digantikan</p> : confirmSubstitution ? <div style={confirmation}>
-          {selectedReplacement ? <><p style={{ margin: 0 }}>Ganti {pilgrim.fullName} dengan {selectedReplacement.fullName}?</p><p style={{ margin: 0, color: "var(--color-warm-500)", fontSize: 13 }}>{selectedReplacement.passportNumber}</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button disabled={substituting} onClick={substitute} style={danger}>{substituting ? "Mengganti..." : "Konfirmasi penggantian"}</button><button onClick={() => setSelectedReplacement(undefined)} style={disabled}>Pilih yang lain</button></div></> : <><label style={{ display: "grid", gap: 6, color: "var(--color-warm-500)", fontSize: 14 }}>Cari pengganti<input value={replacementSearch} onChange={(event) => setReplacementSearch(event.target.value)} placeholder="Cari nama atau paspor" style={input} /></label><div style={{ display: "grid", gap: 8, maxHeight: 240, overflowY: "auto" }}>{candidates.map((candidate) => <button key={candidate.id} onClick={() => setSelectedReplacement(candidate)} style={candidateButton}><strong>{candidate.fullName}</strong><span>{candidate.passportNumber}</span></button>)}{!candidates.length && <p style={{ margin: 0, color: "var(--color-warm-500)" }}>Tidak ada calon pengganti yang memenuhi syarat.</p>}</div><button onClick={() => setConfirmSubstitution(false)} style={disabled}>Batal</button></>}
-        </div> : <button onClick={() => setConfirmSubstitution(true)} style={danger}>Tandai sebagai Digantikan</button>}
+        {pilgrim.isSubstituted ? <p style={{ color: "var(--color-gold-800)" }}>Ditandai sebagai digantikan</p> : <RoleGate require={["owner", "admin"]} fallback={<p style={{ margin: 0, color: "var(--color-warm-400)", fontSize: 13 }}>Hanya pemilik atau admin yang dapat melakukan substitusi.</p>}>
+          {confirmSubstitution ? <div style={confirmation}>
+            {selectedReplacement ? <><p style={{ margin: 0 }}>Ganti {pilgrim.fullName} dengan {selectedReplacement.fullName}?</p><p style={{ margin: 0, color: "var(--color-warm-500)", fontSize: 13 }}>{selectedReplacement.passportNumber}</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button disabled={substituting} onClick={substitute} style={danger}>{substituting ? "Mengganti..." : "Konfirmasi penggantian"}</button><button onClick={() => setSelectedReplacement(undefined)} style={disabled}>Pilih yang lain</button></div></> : <><label style={{ display: "grid", gap: 6, color: "var(--color-warm-500)", fontSize: 14 }}>Cari pengganti<input value={replacementSearch} onChange={(event) => setReplacementSearch(event.target.value)} placeholder="Cari nama atau paspor" style={input} /></label><div style={{ display: "grid", gap: 8, maxHeight: 240, overflowY: "auto" }}>{candidates.map((candidate) => <button key={candidate.id} onClick={() => setSelectedReplacement(candidate)} style={candidateButton}><strong>{candidate.fullName}</strong><span>{candidate.passportNumber}</span></button>)}{!candidates.length && <p style={{ margin: 0, color: "var(--color-warm-500)" }}>Tidak ada calon pengganti yang memenuhi syarat.</p>}</div><button onClick={() => setConfirmSubstitution(false)} style={disabled}>Batal</button></>}
+          </div> : <button onClick={() => setConfirmSubstitution(true)} style={danger}>Tandai sebagai Digantikan</button>}
+        </RoleGate>}
       </aside>
     </div> : <PilgrimDocumentsPanel pilgrim={pilgrim} onUpdated={setPilgrim} />}
     {notice && <p role="status">{notice}</p>}

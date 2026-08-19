@@ -17,6 +17,7 @@ service SeasonService {
   // season's whole operational history. See SeasonService.Delete.
   rpc DeleteSeason(DeleteSeasonRequest) returns (DeleteSeasonResponse);
   rpc SetActiveSeason(SetActiveSeasonRequest) returns (Season);
+  rpc GetSeasonAnalytics(GetSeasonAnalyticsRequest) returns (SeasonAnalytics);
 }
 
 // Musim dijual per periode kalender Hijriah, bukan cuma Haji/Umrah datar —
@@ -70,4 +71,19 @@ message DeleteSeasonResponse {}
 
 message SetActiveSeasonRequest {
   string season_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message GetSeasonAnalyticsRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message SeasonAnalytics {
+  int64 total_pilgrims = 1;
+  int64 paid_count = 2;
+  int64 dp_count = 3;
+  int64 unpaid_count = 4;
+  int64 docs_complete = 5;
+  int64 checked_in_count = 6;
+  int64 rooms_allocated = 7;
+  int64 seats_assigned = 8;
 }

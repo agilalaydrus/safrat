@@ -43,6 +43,16 @@ type Pilgrim struct {
 	DocumentsVaccine      bool
 }
 
+type PilgrimDocument struct {
+	ID         string
+	PilgrimID  string
+	DocType    string
+	FileURL    string
+	FileName   string
+	UploadedBy string
+	CreatedAt  time.Time
+}
+
 type PilgrimStats struct {
 	Total              int32
 	Substituted        int32

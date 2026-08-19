@@ -4,6 +4,7 @@ import { IconPencil, IconPlane, IconPlus, IconTrash } from "@tabler/icons-react"
 import { Kloter } from "@hajj-saas/proto-gen/hajj/v1/kloter_pb";
 import { kloterClient, seasonClient } from "@/lib/rpc";
 import KloterFormDialog from "./KloterFormDialog";
+import { RoleGate } from "@/components/auth/RoleGate";
 
 export default function KloterDashboard() {
   const [seasons, setSeasons] = useState<{ id: string; name: string; isActive: boolean }[]>([]);
@@ -53,7 +54,9 @@ export default function KloterDashboard() {
               {k.departureDate && <p style={meta}>{k.departureDate.toDate().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}</p>}
               <div style={row}>
                 <button style={ghost} onClick={() => { setEdit(k); setOpen(true); }}><IconPencil size={15} />Ubah</button>
-                <button style={{ ...ghost, color: "var(--color-danger-600)" }} onClick={() => void remove(k)}><IconTrash size={15} />Hapus</button>
+                <RoleGate require={["owner", "admin"]}>
+                  <button style={{ ...ghost, color: "var(--color-danger-600)" }} onClick={() => void remove(k)}><IconTrash size={15} />Hapus</button>
+                </RoleGate>
               </div>
             </article>
           ))}

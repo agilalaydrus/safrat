@@ -36,6 +36,11 @@ export function invalidateTokenCache() {
   cachedToken = undefined;
 }
 
+/** For the rare non-Connect call (e.g. the multipart document upload endpoint, which Connect's unary protocol can't express) that still needs the same Bearer token every RPC carries. Shares the same cache as the interceptor above instead of re-parsing cookies. */
+export async function getBearerToken(): Promise<string | undefined> {
+  return resolveToken();
+}
+
 export const transport = createConnectTransport({
   baseUrl: process.env.NEXT_PUBLIC_API_URL!,
   interceptors: [

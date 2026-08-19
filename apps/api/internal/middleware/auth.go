@@ -96,32 +96,9 @@ func NewAuthInterceptor(pool *pgxpool.Pool) connect.Interceptor {
 				ctx = context.WithValue(ctx, ctxKeyUserEmail, userEmail)
 				return next(ctx, request)
 			}
-			var userID, organizationID, userName string
-			const query = `
-				SELECT s."userId",
-				       COALESCE(s."activeOrganizationId", m."organizationId") AS "orgId",
-				       u.name
-				FROM session s
-				JOIN member m ON m."userId" = s."userId"
-				JOIN "user" u ON u.id = s."userId"
-				WHERE s.token = $1
-				  AND s."expiresAt" > NOW()
-				  AND (
-				    s."activeOrganizationId" IS NULL
-				    OR s."activeOrganizationId" = m."organizationId"
-				  )
-				ORDER BY
-				  CASE WHEN s."activeOrganizationId" = m."organizationId" THEN 0 ELSE 1 END
-				LIMIT 1`
-			err = pool.QueryRow(ctx, query, token).Scan(&userID, &organizationID, &userName)
-			if errors.Is(err, pgx.ErrNoRows) {
-				return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or expired Better Auth session"))
-			}
+			userID, organizationID, userName, err := ResolveStaffSession(ctx, pool, token)
 			if err != nil {
-				return nil, connect.NewError(connect.CodeInternal, errors.New("validate Better Auth session"))
-			}
-			if userID == "" || organizationID == "" {
-				return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("Better Auth session has no active organization"))
+				return nil, err
 			}
 			ctx = context.WithValue(ctx, ctxKeyUserID, userID)
 			ctx = context.WithValue(ctx, ctxKeyOperatorID, organizationID)
@@ -129,6 +106,42 @@ func NewAuthInterceptor(pool *pgxpool.Pool) connect.Interceptor {
 			return next(ctx, request)
 		}
 	})
+}
+
+// ResolveStaffSession validates a Better Auth bearer token the same way
+// NewAuthInterceptor does for every authenticated Connect RPC, and returns
+// the same three values the interceptor puts on ctx. Exported so plain
+// net/http handlers outside Connect (e.g. the multipart upload endpoint in
+// main.go) can authenticate with the identical rule instead of
+// reimplementing this query.
+func ResolveStaffSession(ctx context.Context, pool *pgxpool.Pool, token string) (userID, organizationID, userName string, err error) {
+	const query = `
+		SELECT s."userId",
+		       COALESCE(s."activeOrganizationId", m."organizationId") AS "orgId",
+		       u.name
+		FROM session s
+		JOIN member m ON m."userId" = s."userId"
+		JOIN "user" u ON u.id = s."userId"
+		WHERE s.token = $1
+		  AND s."expiresAt" > NOW()
+		  AND (
+		    s."activeOrganizationId" IS NULL
+		    OR s."activeOrganizationId" = m."organizationId"
+		  )
+		ORDER BY
+		  CASE WHEN s."activeOrganizationId" = m."organizationId" THEN 0 ELSE 1 END
+		LIMIT 1`
+	err = pool.QueryRow(ctx, query, token).Scan(&userID, &organizationID, &userName)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", "", connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or expired Better Auth session"))
+	}
+	if err != nil {
+		return "", "", "", connect.NewError(connect.CodeInternal, errors.New("validate Better Auth session"))
+	}
+	if userID == "" || organizationID == "" {
+		return "", "", "", connect.NewError(connect.CodeUnauthenticated, errors.New("Better Auth session has no active organization"))
+	}
+	return userID, organizationID, userName, nil
 }
 
 func UserIDFromCtx(ctx context.Context) string {

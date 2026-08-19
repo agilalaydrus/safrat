@@ -115,6 +115,31 @@ func (r *SeasonRepository) SetActive(ctx context.Context, operatorID, seasonID s
 	return results, nil
 }
 
+func (r *SeasonRepository) GetAnalytics(ctx context.Context, operatorID, seasonID string) (*domain.SeasonAnalytics, error) {
+	operatorUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	seasonUUID, err := pgUUID(seasonID)
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.queries.GetSeasonAnalytics(ctx, db.GetSeasonAnalyticsParams{OperatorID: operatorUUID, SeasonID: seasonUUID})
+	if err != nil {
+		return nil, err
+	}
+	return &domain.SeasonAnalytics{
+		TotalPilgrims:  row.TotalPilgrims,
+		PaidCount:      row.PaidCount,
+		DPCount:        row.DpCount,
+		UnpaidCount:    row.UnpaidCount,
+		DocsComplete:   row.DocsComplete,
+		CheckedInCount: row.CheckedInCount,
+		RoomsAllocated: row.RoomsAllocated,
+		SeatsAssigned:  row.SeatsAssigned,
+	}, nil
+}
+
 func pgUUID(value string) (pgtype.UUID, error) {
 	parsed, err := uuid.Parse(value)
 	if err != nil {

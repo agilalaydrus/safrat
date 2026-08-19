@@ -378,6 +378,64 @@ func (r *PilgrimRepository) ListWithExpiringPassports(ctx context.Context, opera
 	return result, nil
 }
 
+func (r *PilgrimRepository) CreateDocument(ctx context.Context, operatorID, pilgrimID, docType, fileURL, fileName, uploadedBy string) (*domain.PilgrimDocument, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrimUUID, err := pgUUID(pilgrimID)
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.queries.CreatePilgrimDocument(ctx, db.CreatePilgrimDocumentParams{
+		PilgrimID: pilgrimUUID, OperatorID: opUUID, DocType: docType, FileUrl: fileURL, FileName: fileName, UploadedBy: uploadedBy,
+	})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toPilgrimDocument(row), nil
+}
+
+func (r *PilgrimRepository) ListDocuments(ctx context.Context, pilgrimID string) ([]*domain.PilgrimDocument, error) {
+	pilgrimUUID, err := pgUUID(pilgrimID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListPilgrimDocuments(ctx, pilgrimUUID)
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	result := make([]*domain.PilgrimDocument, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, toPilgrimDocument(row))
+	}
+	return result, nil
+}
+
+func (r *PilgrimRepository) DeleteDocument(ctx context.Context, operatorID, documentID string) error {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return err
+	}
+	docUUID, err := pgUUID(documentID)
+	if err != nil {
+		return err
+	}
+	return databaseError(r.queries.DeletePilgrimDocument(ctx, db.DeletePilgrimDocumentParams{ID: docUUID, OperatorID: opUUID}))
+}
+
+func toPilgrimDocument(value db.PilgrimDocument) *domain.PilgrimDocument {
+	return &domain.PilgrimDocument{
+		ID:         uuid.UUID(value.ID.Bytes).String(),
+		PilgrimID:  uuid.UUID(value.PilgrimID.Bytes).String(),
+		DocType:    value.DocType,
+		FileURL:    value.FileUrl,
+		FileName:   value.FileName,
+		UploadedBy: value.UploadedBy,
+		CreatedAt:  value.CreatedAt.Time,
+	}
+}
+
 func databaseError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.ErrNotFound

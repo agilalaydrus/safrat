@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { IconMailForward, IconTrash, IconX } from "@tabler/icons-react";
 import { authClient } from "@/lib/auth-client";
+import { RoleGate } from "@/components/auth/RoleGate";
 
 const ROLE_LABEL: Record<string, string> = { owner: "Pemilik", admin: "Admin", member: "Anggota" };
 
@@ -128,7 +129,7 @@ export default function TeamPanel() {
               <option value="admin">Admin</option>
               <option value="member">Anggota</option>
             </select>
-            {member.userId !== session?.user?.id && <button disabled={working === member.id} onClick={() => removeMember(member)} style={ghostDanger}><IconTrash size={16} /></button>}
+            {member.userId !== session?.user?.id && <RoleGate require="owner"><button disabled={working === member.id} onClick={() => removeMember(member)} style={ghostDanger}><IconTrash size={16} /></button></RoleGate>}
           </div>
         </div>)}
       </div>}

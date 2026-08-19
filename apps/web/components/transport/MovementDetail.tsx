@@ -9,6 +9,7 @@ import { transportClient, pilgrimClient } from "@/lib/rpc";
 import { exportCSV } from "@/lib/csv";
 import VehicleFormDialog from "./VehicleFormDialog";
 import VehicleManifestPanel from "./VehicleManifestPanel";
+import { RoleGate } from "@/components/auth/RoleGate";
 
 const MODE_LABEL: Record<string, { addButton: string; unit: string; noOperator: string; number: string; operator: string; contact: string }> = {
   BUS: { addButton: "Tambah Kendaraan", unit: "Kendaraan", noOperator: "Sopir belum ditentukan", number: "Plat Kendaraan", operator: "Sopir", contact: "Telepon Sopir" },
@@ -125,11 +126,13 @@ export default function MovementDetail({ movementId }: { movementId: string }) {
         </button>)}
       </section>
       {isScheduled && <section style={deleteSection}>
-        {confirmDelete ? <>
-          <p style={{ margin: 0 }}>Hapus jadwal ini? Tindakan ini tidak dapat dibatalkan.</p>
-          <button disabled={working} onClick={() => void deleteMovement()} style={dangerSolid}>Hapus jadwal</button>
-          <button disabled={working} onClick={() => setConfirmDelete(false)} style={secondary}>Batalkan penghapusan</button>
-        </> : <button onClick={() => setConfirmDelete(true)} style={dangerOutline}>Hapus jadwal</button>}
+        <RoleGate require={["owner", "admin"]} fallback={<p style={{ margin: 0, color: "var(--color-warm-400)", fontSize: 13 }}>Hanya pemilik atau admin yang dapat menghapus jadwal.</p>}>
+          {confirmDelete ? <>
+            <p style={{ margin: 0 }}>Hapus jadwal ini? Tindakan ini tidak dapat dibatalkan.</p>
+            <button disabled={working} onClick={() => void deleteMovement()} style={dangerSolid}>Hapus jadwal</button>
+            <button disabled={working} onClick={() => setConfirmDelete(false)} style={secondary}>Batalkan penghapusan</button>
+          </> : <button onClick={() => setConfirmDelete(true)} style={dangerOutline}>Hapus jadwal</button>}
+        </RoleGate>
       </section>}
       <VehicleFormDialog open={vehicleFormOpen} movementId={movementId} mode={movement?.mode} onClose={() => setVehicleFormOpen(false)} onSaved={() => void refresh()} />
       <VehicleManifestPanel open={Boolean(selectedVehicleId)} vehicleId={selectedVehicleId} seasonId={movement?.seasonId ?? ""} movementStatus={movement?.status ?? ""} mode={movement?.mode} onClose={() => setSelectedVehicleId("")} onChanged={() => void refresh()} />

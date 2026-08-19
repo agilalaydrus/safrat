@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Timestamp } from "@bufbuild/protobuf";
 import { Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { pilgrimClient } from "@/lib/rpc";
+import DocumentUploader from "./DocumentUploader";
 
 const PAYMENT_STATUSES = [
   { value: "UNPAID", label: "Belum Bayar", color: "var(--color-danger-600)" },
@@ -145,6 +146,11 @@ export default function PilgrimDocumentsPanel({ pilgrim, onUpdated }: { pilgrim:
         <input type="date" value={vaccineMeningitisDate} onChange={(e) => setVaccineMeningitisDate(e.target.value)} style={input} />
       </label>
       <button disabled={savingDocuments} onClick={saveDocuments} style={emerald}>{savingDocuments ? "Menyimpan..." : "Simpan Dokumen"}</button>
+    </section>
+
+    <section style={card}>
+      <h2 style={{ margin: 0 }}>File Dokumen</h2>
+      <DocumentUploader pilgrimId={pilgrim.id} />
     </section>
 
     <section style={card}>

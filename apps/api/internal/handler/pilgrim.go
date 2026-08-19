@@ -150,6 +150,28 @@ func (h *PilgrimHandler) ListPilgrimsWithExpiringPassports(ctx context.Context, 
 	return connect.NewResponse(result), nil
 }
 
+func (h *PilgrimHandler) ListPilgrimDocuments(ctx context.Context, req *connect.Request[hajjv1.ListPilgrimDocumentsRequest]) (*connect.Response[hajjv1.ListPilgrimDocumentsResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimService.ListDocuments(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PilgrimHandler) DeletePilgrimDocument(ctx context.Context, req *connect.Request[hajjv1.DeletePilgrimDocumentRequest]) (*connect.Response[hajjv1.DeletePilgrimDocumentResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimService.DeleteDocument(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *PilgrimHandler) SubstitutePilgrim(ctx context.Context, req *connect.Request[hajjv1.SubstitutePilgrimRequest]) (*connect.Response[hajjv1.SubstitutePilgrimResult], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

@@ -137,6 +137,30 @@ func (s *SeasonService) SetActive(ctx context.Context, authenticatedOrgID string
 	return nil, serviceError("SeasonService.SetActive", apperror.ErrNotFound)
 }
 
+func (s *SeasonService) GetAnalytics(ctx context.Context, authenticatedOrgID string, request *hajjv1.GetSeasonAnalyticsRequest) (*hajjv1.SeasonAnalytics, error) {
+	if request == nil || !isUUID(request.SeasonId) {
+		return nil, serviceError("SeasonService.GetAnalytics", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("SeasonService.GetAnalytics", err)
+	}
+	analytics, err := s.seasonRepository.GetAnalytics(ctx, operator.ID, request.SeasonId)
+	if err != nil {
+		return nil, serviceError("SeasonService.GetAnalytics", err)
+	}
+	return &hajjv1.SeasonAnalytics{
+		TotalPilgrims:  analytics.TotalPilgrims,
+		PaidCount:      analytics.PaidCount,
+		DpCount:        analytics.DPCount,
+		UnpaidCount:    analytics.UnpaidCount,
+		DocsComplete:   analytics.DocsComplete,
+		CheckedInCount: analytics.CheckedInCount,
+		RoomsAllocated: analytics.RoomsAllocated,
+		SeatsAssigned:  analytics.SeatsAssigned,
+	}, nil
+}
+
 func seasonType(value hajjv1.SeasonType) domain.SeasonType {
 	switch value {
 	case hajjv1.SeasonType_SEASON_TYPE_UMRAH_REGULER:
