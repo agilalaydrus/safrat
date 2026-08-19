@@ -76,6 +76,8 @@ message Pilgrim {
   bool documents_passport = 33;
   bool documents_photo = 34;
   bool documents_vaccine = 35;
+  // ACTIVE | CANCELLED — independent of is_substituted.
+  string status = 36;
 }
 
 message CreatePilgrimRequest {

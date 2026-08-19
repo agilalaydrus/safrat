@@ -552,6 +552,7 @@ func toPilgrim(value db.Pilgrim) *domain.Pilgrim {
 		DocumentsPassport:     value.DocumentsPassport,
 		DocumentsPhoto:        value.DocumentsPhoto,
 		DocumentsVaccine:      value.DocumentsVaccine,
+		Status:                value.Status,
 	}
 }
 

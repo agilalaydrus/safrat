@@ -11,6 +11,8 @@ const PUBLIC_PATHS = [
   "/accept-invitation",
   "/api/auth",
   "/apply",
+  "/waitlist",
+  "/track",
   "/firebase-messaging-sw.js",
 ];
 

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { IconCalendar, IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import Link from "next/link";
+import { IconCalendar, IconCheck, IconPencil, IconPlus, IconReceiptRefund, IconTrash, IconUsers } from "@tabler/icons-react";
 import { Season } from "@hajj-saas/proto-gen/hajj/v1/season_pb";
 import { seasonClient } from "@/lib/rpc";
 import { SEASON_TYPE_LABEL } from "@/lib/season-types";
@@ -72,6 +73,8 @@ export default function SeasonsDashboard() {
                 {" – "}
                 {season.endDate?.toDate().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
               </p>
+              <p style={dateRange}><IconUsers size={15} />{season.capacity > 0 ? `Kapasitas ${season.capacity} jamaah` : "Kapasitas tidak dibatasi"}</p>
+              <Link href={`/dashboard/seasons/${season.id}/cancellation-policy`} style={{ ...ghost, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, justifyContent: "center" }}><IconReceiptRefund size={15} />Atur Kebijakan Pembatalan</Link>
               {!season.isActive && (
                 <button style={ghost} disabled={activating === season.id} onClick={() => void activate(season)}>
                   {activating === season.id ? "Mengaktifkan..." : "Jadikan Aktif"}

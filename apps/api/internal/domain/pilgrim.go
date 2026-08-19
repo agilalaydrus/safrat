@@ -41,6 +41,10 @@ type Pilgrim struct {
 	DocumentsPassport     bool
 	DocumentsPhoto        bool
 	DocumentsVaccine      bool
+	// ACTIVE | CANCELLED — independent of IsSubstituted (a substituted
+	// pilgrim was replaced by someone else; a cancelled one has no
+	// replacement at all).
+	Status string
 }
 
 type PilgrimDocument struct {

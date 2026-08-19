@@ -15,6 +15,7 @@ export default function SeasonFormDialog({ open, initial, onClose, onSaved }: Pr
   const [type, setType] = useState<SeasonType>(SeasonType.HAJJ);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [capacity, setCapacity] = useState("0");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
@@ -24,6 +25,7 @@ export default function SeasonFormDialog({ open, initial, onClose, onSaved }: Pr
     setType(initial?.type ?? SeasonType.HAJJ);
     setStartDate(toDateInput(initial?.startDate?.toDate()));
     setEndDate(toDateInput(initial?.endDate?.toDate()));
+    setCapacity(String(initial?.capacity ?? 0));
     setErrors({});
   }, [open, initial]);
 
@@ -50,6 +52,7 @@ export default function SeasonFormDialog({ open, initial, onClose, onSaved }: Pr
         type,
         startDate: Timestamp.fromDate(new Date(`${startDate}T00:00:00.000Z`)),
         endDate: Timestamp.fromDate(new Date(`${endDate}T00:00:00.000Z`)),
+        capacity: Math.max(0, Number(capacity) || 0),
       };
       if (initial) await seasonClient.updateSeason({ ...payload, seasonId: initial.id });
       else await seasonClient.createSeason(payload);
@@ -91,6 +94,11 @@ export default function SeasonFormDialog({ open, initial, onClose, onSaved }: Pr
               <span style={lab}>Tanggal selesai</span>
               <input className="safrat-input" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={i} />
               {errors.endDate && <small style={{ color: "var(--color-danger-600)" }}>{errors.endDate}</small>}
+            </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span style={lab}>Kapasitas jamaah</span>
+              <input className="safrat-input" type="number" min={0} placeholder="0 = tidak terbatas" value={capacity} onChange={(e) => setCapacity(e.target.value)} style={i} />
+              <small style={{ color: "var(--color-warm-400)" }}>Saat kapasitas tercapai, pendaftar baru masuk daftar tunggu. Isi 0 untuk tidak membatasi.</small>
             </label>
             {errors._form && <p style={err}>{errors._form}</p>}
           </form>

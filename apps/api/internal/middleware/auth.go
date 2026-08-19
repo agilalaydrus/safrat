@@ -50,6 +50,16 @@ var publicProcedures = map[string]bool{
 	// every call (see RegistrationService.Submit/GetForm).
 	"/hajj.v1.RegistrationService/SubmitRegistration":  true,
 	"/hajj.v1.RegistrationService/GetRegistrationForm": true,
+	// WaitlistService — a prospective jamaah joining/leaving/confirming a
+	// waitlist slot has no session either; identity is email+operator_id+
+	// season_id from the body, re-validated server-side (see waitlist.go).
+	"/hajj.v1.WaitlistService/JoinWaitlist":        true,
+	"/hajj.v1.WaitlistService/LeaveWaitlist":       true,
+	"/hajj.v1.WaitlistService/ConfirmWaitlistSlot": true,
+	// FamilyTrackerService — authenticated by app_access_code only, no
+	// session of any kind. See family_tracker.proto for the exposed-field
+	// allowlist that keeps this from leaking PII.
+	"/hajj.v1.FamilyTrackerService/GetFamilyStatus": true,
 }
 
 // sessionOnlyProcedures lists RPCs that require a real, server-validated

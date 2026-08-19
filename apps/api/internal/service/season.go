@@ -31,7 +31,7 @@ func (s *SeasonService) Create(ctx context.Context, authenticatedOrgID string, r
 	if err != nil {
 		return nil, serviceError("SeasonService.Create", err)
 	}
-	season, err := s.seasonRepository.Create(ctx, operator.ID, request.Name, seasonType(request.Type), request.StartDate.AsTime(), request.EndDate.AsTime())
+	season, err := s.seasonRepository.Create(ctx, operator.ID, request.Name, seasonType(request.Type), request.StartDate.AsTime(), request.EndDate.AsTime(), request.Capacity)
 	if err != nil {
 		return nil, serviceError("SeasonService.Create", err)
 	}
@@ -62,7 +62,7 @@ func (s *SeasonService) Update(ctx context.Context, authenticatedOrgID string, r
 	if err != nil {
 		return nil, serviceError("SeasonService.Update", err)
 	}
-	season, err := s.seasonRepository.Update(ctx, operator.ID, request.SeasonId, request.Name, seasonType(request.Type), request.StartDate.AsTime(), request.EndDate.AsTime())
+	season, err := s.seasonRepository.Update(ctx, operator.ID, request.SeasonId, request.Name, seasonType(request.Type), request.StartDate.AsTime(), request.EndDate.AsTime(), request.Capacity)
 	if err != nil {
 		return nil, serviceError("SeasonService.Update", err)
 	}
@@ -205,5 +205,6 @@ func seasonMessage(value *domain.Season) *hajjv1.Season {
 		EndDate:    timestamppb.New(value.EndDate),
 		IsActive:   value.IsActive,
 		CreatedAt:  timestamppb.New(value.CreatedAt),
+		Capacity:   value.Capacity,
 	}
 }

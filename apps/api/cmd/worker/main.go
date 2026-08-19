@@ -38,6 +38,7 @@ func main() {
 	agentRepository := repository.NewAgentRepository(queries)
 	pilgrimRepository := repository.NewPilgrimRepository(queries)
 	sosRepository := repository.NewSOSRepository(queries)
+	waitlistRepository := repository.NewWaitlistRepository(queries)
 	notificationRepository := repository.NewNotificationRepository(queries)
 	auditRepository := repository.NewAuditRepository(queries)
 	agentService := service.NewAgentService(operatorRepository, agentRepository, auditRepository, pool)
@@ -49,6 +50,7 @@ func main() {
 	}
 	sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, auditRepository, firebasePusher)
 	sosHandler := worker.NewSOSHandler(logger, sosService)
+	waitlistHandler := worker.NewWaitlistHandler(logger, waitlistRepository)
 
 	redisOpt, err := asynq.ParseRedisURI(redisURL)
 	if err != nil {
@@ -65,6 +67,10 @@ func main() {
 		logger.Error("register SOS escalation schedule", "error", err)
 		os.Exit(1)
 	}
+	if _, err := scheduler.Register("@every 5m", worker.NewWaitlistExpireTask()); err != nil {
+		logger.Error("register waitlist expiration schedule", "error", err)
+		os.Exit(1)
+	}
 	go func() {
 		if err := scheduler.Run(); err != nil {
 			logger.Error("scheduler stopped", "error", err)
@@ -75,6 +81,7 @@ func main() {
 	mux := asynq.NewServeMux()
 	mux.HandleFunc(worker.TaskTierRecalculateAll, tierHandler.HandleRecalculateAll)
 	mux.HandleFunc(worker.TaskSOSEscalate, sosHandler.HandleEscalate)
+	mux.HandleFunc(worker.TaskWaitlistExpire, waitlistHandler.HandleExpire)
 
 	server := asynq.NewServer(redisOpt, asynq.Config{Concurrency: 5, Logger: slogAdapter{logger}})
 	logger.Info("worker listening", "redis", redisURL)

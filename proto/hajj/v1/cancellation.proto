@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service CancellationService {
+  // Policy management — authenticated, owner/admin gated at UI level (RoleGate).
+  rpc SetCancellationPolicy(SetCancellationPolicyRequest) returns (CancellationPolicy);
+  rpc ListCancellationPolicies(ListCancellationPoliciesRequest) returns (ListCancellationPoliciesResponse);
+  rpc DeleteCancellationPolicy(DeleteCancellationPolicyRequest) returns (DeleteCancellationPolicyResponse);
+
+  // Cancellation flow — authenticated.
+  rpc PreviewCancellation(PreviewCancellationRequest) returns (CancellationPreview);
+  rpc ConfirmCancellation(ConfirmCancellationRequest) returns (PilgrimCancellation);
+  rpc ListCancellations(ListCancellationsRequest) returns (ListCancellationsResponse);
+}
+
+message CancellationPolicy {
+  string id = 1;
+  string season_id = 2;
+  string name = 3;
+  int32 min_days = 4;
+  double refund_pct = 5;
+  int32 sort_order = 6;
+}
+
+// Read-only calculation — nothing is written. Shown to the operator before
+// they confirm a cancellation.
+message CancellationPreview {
+  string pilgrim_id = 1;
+  string pilgrim_name = 2;
+  int32 days_before = 3;
+  double refund_pct = 4;
+  int64 total_paid_idr = 5;
+  int64 refund_amount_idr = 6;
+  // Empty when no tier matched (= 0% refund).
+  string policy_name = 7;
+}
+
+message PilgrimCancellation {
+  string id = 1;
+  string pilgrim_id = 2;
+  string pilgrim_name = 3;
+  double refund_pct = 4;
+  int64 refund_amount_idr = 5;
+  int64 total_paid_idr = 6;
+  string reason = 7;
+  string cancelled_by = 8;
+  google.protobuf.Timestamp cancelled_at = 9;
+}
+
+message SetCancellationPolicyRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  int32 min_days = 3 [(buf.validate.field).int32.gte = 0];
+  double refund_pct = 4 [(buf.validate.field).double = {gte: 0, lte: 100}];
+  int32 sort_order = 5;
+}
+
+message ListCancellationPoliciesRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message ListCancellationPoliciesResponse {
+  repeated CancellationPolicy policies = 1;
+}
+
+message DeleteCancellationPolicyRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+message DeleteCancellationPolicyResponse {}
+
+message PreviewCancellationRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message ConfirmCancellationRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+  string reason = 2 [(buf.validate.field).string.min_len = 1];
+}
+
+message ListCancellationsRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message ListCancellationsResponse {
+  repeated PilgrimCancellation cancellations = 1;
+}

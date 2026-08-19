@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service FamilyTrackerService {
+  // Public — authenticated by app_access_code only, no operator session
+  // and no pilgrim session. Rate-limited tightly (see ratelimit.go) to
+  // resist code enumeration.
+  rpc GetFamilyStatus(GetFamilyStatusRequest) returns (FamilyStatus);
+}
+
+message GetFamilyStatusRequest {
+  string app_access_code = 1 [(buf.validate.field).string = {min_len: 1, max_len: 64}];
+}
+
+// Deliberately minimal — privacy-first. Never carries passport_number,
+// date_of_birth, phone, room_number, or raw GPS coordinates.
+message FamilyStatus {
+  string first_name = 1;
+  // PAID | DP | UNPAID
+  string payment_status = 2;
+  bool hotel_checked_in = 3;
+  // ACTIVE | CANCELLED
+  string pilgrim_status = 4;
+  string season_name = 5;
+  google.protobuf.Timestamp departure_date = 6;
+  string group_name = 7;
+  string leader_name = 8;
+  // When the pilgrim app last reported a location ping — tells the family
+  // tracking is live without exposing where the pilgrim actually is.
+  google.protobuf.Timestamp last_location_at = 9;
+  bool has_active_sos = 10;
+}

@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service WaitlistService {
+  // Public — no Better Auth session. Rate-limited (see ratelimit.go).
+  rpc JoinWaitlist(JoinWaitlistRequest) returns (JoinWaitlistResponse);
+  rpc LeaveWaitlist(LeaveWaitlistRequest) returns (LeaveWaitlistResponse);
+  rpc ConfirmWaitlistSlot(ConfirmWaitlistSlotRequest) returns (ConfirmWaitlistSlotResponse);
+
+  // Authenticated — operator session required.
+  rpc ListWaitlist(ListWaitlistRequest) returns (ListWaitlistResponse);
+  rpc PromoteFromWaitlist(PromoteFromWaitlistRequest) returns (WaitlistEntry);
+  rpc RemoveFromWaitlist(RemoveFromWaitlistRequest) returns (RemoveFromWaitlistResponse);
+}
+
+message WaitlistEntry {
+  string id = 1;
+  string season_id = 2;
+  string full_name = 3;
+  string email = 4;
+  string phone = 5;
+  string product_id = 6;
+  int32 position = 7;
+  // WAITING | PROMOTED | CONFIRMED | EXPIRED | REMOVED
+  string status = 8;
+  google.protobuf.Timestamp promoted_at = 9;
+  google.protobuf.Timestamp expires_at = 10;
+  google.protobuf.Timestamp created_at = 11;
+}
+
+message JoinWaitlistRequest {
+  string operator_id = 1 [(buf.validate.field).string.uuid = true];
+  string season_id = 2 [(buf.validate.field).string.uuid = true];
+  string full_name = 3 [(buf.validate.field).string.min_len = 1];
+  string email = 4 [(buf.validate.field).string.email = true];
+  string phone = 5;
+  string product_id = 6;
+}
+
+message JoinWaitlistResponse {
+  WaitlistEntry entry = 1;
+  // true = season full, added to waitlist. false = season still has
+  // capacity — entry is unset, caller should redirect to registration.
+  bool is_full = 2;
+  int32 position = 3;
+}
+
+message LeaveWaitlistRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+  string email = 2 [(buf.validate.field).string.email = true];
+}
+message LeaveWaitlistResponse {}
+
+message ConfirmWaitlistSlotRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  string season_id = 2 [(buf.validate.field).string.uuid = true];
+  string email = 3 [(buf.validate.field).string.email = true];
+}
+message ConfirmWaitlistSlotResponse {
+  WaitlistEntry entry = 1;
+}
+
+message ListWaitlistRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message ListWaitlistResponse {
+  repeated WaitlistEntry entries = 1;
+  int32 total_waiting = 2;
+}
+
+message PromoteFromWaitlistRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message RemoveFromWaitlistRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+message RemoveFromWaitlistResponse {}

@@ -2,7 +2,9 @@ import { createClient } from "@connectrpc/connect";
 import { AccommodationService } from "@hajj-saas/proto-gen/hajj/v1/accommodation_connect";
 import { AgentService } from "@hajj-saas/proto-gen/hajj/v1/agent_connect";
 import { BroadcastService } from "@hajj-saas/proto-gen/hajj/v1/broadcast_connect";
+import { CancellationService } from "@hajj-saas/proto-gen/hajj/v1/cancellation_connect";
 import { ChatService } from "@hajj-saas/proto-gen/hajj/v1/chat_connect";
+import { FamilyTrackerService } from "@hajj-saas/proto-gen/hajj/v1/family_tracker_connect";
 import { GroupService } from "@hajj-saas/proto-gen/hajj/v1/group_connect";
 import { GroupLeaderService } from "@hajj-saas/proto-gen/hajj/v1/groupleader_connect";
 import { IdentityService } from "@hajj-saas/proto-gen/hajj/v1/identity_connect";
@@ -17,6 +19,7 @@ import { RegistrationService } from "@hajj-saas/proto-gen/hajj/v1/registration_c
 import { SeasonService } from "@hajj-saas/proto-gen/hajj/v1/season_connect";
 import { SOSService } from "@hajj-saas/proto-gen/hajj/v1/sos_connect";
 import { TransportService } from "@hajj-saas/proto-gen/hajj/v1/transport_connect";
+import { WaitlistService } from "@hajj-saas/proto-gen/hajj/v1/waitlist_connect";
 import { transport } from "./transport";
 
 export const operatorClient = createClient(OperatorService, transport);
@@ -37,3 +40,6 @@ export const identityClient = createClient(IdentityService, transport);
 export const orderClient = createClient(OrderService, transport);
 export const broadcastClient = createClient(BroadcastService, transport);
 export const registrationClient = createClient(RegistrationService, transport);
+export const waitlistClient = createClient(WaitlistService, transport);
+export const cancellationClient = createClient(CancellationService, transport);
+export const familyTrackerClient = createClient(FamilyTrackerService, transport);

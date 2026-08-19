@@ -77,6 +77,9 @@ func main() {
 		orderRepository := repository.NewOrderRepository(queries)
 		broadcastRepository := repository.NewBroadcastRepository(queries)
 		registrationRepository := repository.NewRegistrationRepository(queries)
+		waitlistRepository := repository.NewWaitlistRepository(queries)
+		cancellationRepository := repository.NewCancellationRepository(pool, queries)
+		familyTrackerRepository := repository.NewFamilyTrackerRepository(queries)
 
 		firebasePusher, err := notification.NewFirebasePusher(ctx, logger, config.FirebaseServiceAccountJSON, notificationRepository)
 		if err != nil {
@@ -103,6 +106,9 @@ func main() {
 		orderService := service.NewOrderService(operatorRepository, pilgrimRepository, productRepository, orderRepository, auditRepository, xenditClient, config.AllowedOrigin)
 		broadcastService := service.NewBroadcastService(operatorRepository, broadcastRepository, auditRepository)
 		registrationService := service.NewRegistrationService(operatorRepository, registrationRepository, auditRepository)
+		waitlistService := service.NewWaitlistService(operatorRepository, waitlistRepository, auditRepository)
+		cancellationService := service.NewCancellationService(operatorRepository, pilgrimRepository, seasonRepository, cancellationRepository, waitlistRepository, auditRepository)
+		familyTrackerService := service.NewFamilyTrackerService(familyTrackerRepository)
 		operatorHandler := handler.NewOperatorHandler(operatorService)
 		pilgrimHandler := handler.NewPilgrimHandler(pilgrimService)
 		seasonHandler := handler.NewSeasonHandler(seasonService)
@@ -121,6 +127,9 @@ func main() {
 		orderHandler := handler.NewOrderHandler(orderService)
 		broadcastHandler := handler.NewBroadcastHandler(broadcastService)
 		registrationHandler := handler.NewRegistrationHandler(registrationService)
+		waitlistHandler := handler.NewWaitlistHandler(waitlistService)
+		cancellationHandler := handler.NewCancellationHandler(cancellationService)
+		familyTrackerHandler := handler.NewFamilyTrackerHandler(familyTrackerService)
 		handlerOptions := []connect.HandlerOption{connect.WithInterceptors(
 			middleware.NewRateLimitInterceptor(),
 			middleware.NewAuthInterceptor(pool),
@@ -143,6 +152,9 @@ func main() {
 		orderPath, orderServiceHandler := hajjv1connect.NewOrderServiceHandler(orderHandler, handlerOptions...)
 		broadcastPath, broadcastServiceHandler := hajjv1connect.NewBroadcastServiceHandler(broadcastHandler, handlerOptions...)
 		registrationPath, registrationServiceHandler := hajjv1connect.NewRegistrationServiceHandler(registrationHandler, handlerOptions...)
+		waitlistPath, waitlistServiceHandler := hajjv1connect.NewWaitlistServiceHandler(waitlistHandler, handlerOptions...)
+		cancellationPath, cancellationServiceHandler := hajjv1connect.NewCancellationServiceHandler(cancellationHandler, handlerOptions...)
+		familyTrackerPath, familyTrackerServiceHandler := hajjv1connect.NewFamilyTrackerServiceHandler(familyTrackerHandler, handlerOptions...)
 		mux.Handle(operatorPath, operatorServiceHandler)
 		mux.Handle(pilgrimPath, pilgrimServiceHandler)
 		mux.Handle(seasonPath, seasonServiceHandler)
@@ -161,6 +173,9 @@ func main() {
 		mux.Handle(orderPath, orderServiceHandler)
 		mux.Handle(broadcastPath, broadcastServiceHandler)
 		mux.Handle(registrationPath, registrationServiceHandler)
+		mux.Handle(waitlistPath, waitlistServiceHandler)
+		mux.Handle(cancellationPath, cancellationServiceHandler)
+		mux.Handle(familyTrackerPath, familyTrackerServiceHandler)
 		mux.HandleFunc("POST /webhooks/xendit", handler.NewXenditWebhookHandler(logger, orderRepository, config.XenditWebhookToken))
 		uploadDir := os.Getenv("UPLOAD_DIR")
 		if uploadDir == "" {

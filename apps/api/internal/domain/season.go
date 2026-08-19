@@ -22,6 +22,7 @@ type Season struct {
 	EndDate    time.Time
 	IsActive   bool
 	CreatedAt  time.Time
+	Capacity   int32
 }
 
 type SeasonAnalytics struct {

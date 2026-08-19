@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { IconEdit, IconReceipt2, IconUser } from "@tabler/icons-react";
+import { IconEdit, IconReceipt2, IconShare, IconUser } from "@tabler/icons-react";
 import { Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { pilgrimClient, groupClient } from "@/lib/rpc";
 import PilgrimFormDialog from "./PilgrimFormDialog";
@@ -69,10 +69,12 @@ export default function PilgrimDetail({ id }: { id: string }) {
     <header style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginTop: 20 }}>
       <div><p style={eyebrow}>PROFIL JAMAAH</p><h1 style={{ margin: 0, fontSize: 40 }}>{pilgrim.fullName}</h1></div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/track/${pilgrim.appAccessCode}`); setNotice("Tautan pelacak keluarga disalin!"); }} style={ghostBtn}><IconShare size={18} />Bagikan ke Keluarga</button>
         <Link href={`/dashboard/pilgrims/${id}/invoice`} target="_blank" style={{ ...gold, textDecoration: "none" }}><IconReceipt2 size={18} />Cetak Invoice</Link>
         <button onClick={() => setEdit(true)} style={emerald}><IconEdit size={18} />Ubah</button>
       </div>
     </header>
+    {pilgrim.status === "CANCELLED" && <p style={{ margin: "12px 0 0", padding: "10px 14px", borderRadius: 8, background: "var(--color-danger-100)", color: "var(--color-danger-600)", fontWeight: 700 }}>Jamaah ini telah dibatalkan.</p>}
     <div className="gold-divider" />
     <div style={tabBar}>
       <button onClick={() => setTab("profil")} style={tab === "profil" ? tabActive : tabInactive}>Profil</button>
@@ -92,7 +94,7 @@ export default function PilgrimDetail({ id }: { id: string }) {
           <h2 style={{ margin: 0 }}>Penggantian Jamaah</h2>
           <Link href={`/dashboard/pilgrims/substitution?seasonId=${pilgrim.seasonId}`} style={{ fontSize: 12, color: "var(--color-gold-800)" }}>Lihat riwayat</Link>
         </div>
-        {pilgrim.isSubstituted ? <p style={{ color: "var(--color-gold-800)" }}>Ditandai sebagai digantikan</p> : <RoleGate require={["owner", "admin"]} fallback={<p style={{ margin: 0, color: "var(--color-warm-400)", fontSize: 13 }}>Hanya pemilik atau admin yang dapat melakukan substitusi.</p>}>
+        {pilgrim.isSubstituted ? <p style={{ color: "var(--color-gold-800)" }}>Ditandai sebagai digantikan</p> : pilgrim.status === "CANCELLED" ? <p style={{ color: "var(--color-warm-400)", fontSize: 13 }}>Jamaah yang dibatalkan tidak dapat disubstitusi.</p> : <RoleGate require={["owner", "admin"]} fallback={<p style={{ margin: 0, color: "var(--color-warm-400)", fontSize: 13 }}>Hanya pemilik atau admin yang dapat melakukan substitusi.</p>}>
           {confirmSubstitution ? <div style={confirmation}>
             {selectedReplacement ? <>
               <p style={{ margin: 0 }}>Ganti {pilgrim.fullName} dengan {selectedReplacement.fullName}?</p>
@@ -107,6 +109,13 @@ export default function PilgrimDetail({ id }: { id: string }) {
             </> : <><label style={{ display: "grid", gap: 6, color: "var(--color-warm-500)", fontSize: 14 }}>Cari pengganti<input value={replacementSearch} onChange={(event) => setReplacementSearch(event.target.value)} placeholder="Cari nama atau paspor" style={input} /></label><div style={{ display: "grid", gap: 8, maxHeight: 240, overflowY: "auto" }}>{candidates.map((candidate) => <button key={candidate.id} onClick={() => setSelectedReplacement(candidate)} style={candidateButton}><strong>{candidate.fullName}</strong><span>{candidate.passportNumber}</span></button>)}{!candidates.length && <p style={{ margin: 0, color: "var(--color-warm-500)" }}>Tidak ada calon pengganti yang memenuhi syarat.</p>}</div><button onClick={() => setConfirmSubstitution(false)} style={disabled}>Batal</button></>}
           </div> : <button onClick={() => setConfirmSubstitution(true)} style={danger}>Tandai sebagai Digantikan</button>}
         </RoleGate>}
+        {pilgrim.status !== "CANCELLED" && !pilgrim.isSubstituted && <>
+          <div className="gold-divider" />
+          <h2 style={{ margin: 0 }}>Pembatalan</h2>
+          <RoleGate require={["owner", "admin"]} fallback={<p style={{ margin: 0, color: "var(--color-warm-400)", fontSize: 13 }}>Hanya pemilik atau admin yang dapat membatalkan jamaah.</p>}>
+            <Link href={`/dashboard/pilgrims/${id}/cancel`} style={{ ...danger, textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>Batalkan Jamaah</Link>
+          </RoleGate>
+        </>}
       </aside>
     </div> : <PilgrimDocumentsPanel pilgrim={pilgrim} onUpdated={setPilgrim} />}
     {notice && <p role="status">{notice}</p>}
@@ -125,6 +134,7 @@ const avatar: React.CSSProperties = { width: 80, height: 80, borderRadius: "50%"
 const eyebrow: React.CSSProperties = { margin: "0 0 6px", fontSize: 11, fontWeight: 700, color: "var(--color-gold-800)", letterSpacing: ".08em" };
 const emerald: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, background: "var(--color-emerald-900)", color: "white", fontWeight: 700, padding: "0 18px", display: "inline-flex", gap: 8, alignItems: "center" };
 const gold: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, background: "var(--color-gold-500)", color: "white", fontWeight: 700, padding: "0 18px", display: "inline-flex", gap: 8, alignItems: "center" };
+const ghostBtn: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-emerald-800)", borderRadius: 8, background: "transparent", color: "var(--color-emerald-900)", fontWeight: 600, padding: "0 16px", display: "inline-flex", gap: 8, alignItems: "center" };
 const disabled: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-cream-400)", borderRadius: 8, background: "var(--color-cream-300)", color: "var(--color-warm-400)", padding: "0 14px" };
 const danger: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, background: "var(--color-danger-600)", color: "white", fontWeight: 700, padding: "0 14px" };
 const confirmation: React.CSSProperties = { display: "grid", gap: 12, padding: 12, border: "1px solid var(--color-danger-600)", borderRadius: 8 };

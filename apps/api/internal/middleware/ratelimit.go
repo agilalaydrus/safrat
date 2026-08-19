@@ -42,6 +42,13 @@ var rateLimitedProcedures = map[string]rate.Limit{
 	// the form itself) so it gets the looser read-endpoint ceiling instead.
 	"/hajj.v1.RegistrationService/SubmitRegistration":  rate.Every(time.Minute / rateLimitBurst), // 5 per minute per IP
 	"/hajj.v1.RegistrationService/GetRegistrationForm": rate.Every(time.Minute / 4),
+	"/hajj.v1.WaitlistService/JoinWaitlist":            rate.Every(time.Hour / rateLimitBurst), // 5 per hour per IP
+	"/hajj.v1.WaitlistService/LeaveWaitlist":           rate.Every(time.Hour / rateLimitBurst),
+	"/hajj.v1.WaitlistService/ConfirmWaitlistSlot":     rate.Every(time.Hour / rateLimitBurst),
+	// Tight ceiling — this is the one endpoint where the identity token
+	// itself (app_access_code) is guessable-by-brute-force in principle;
+	// a legitimate family member checks at most a few times per hour.
+	"/hajj.v1.FamilyTrackerService/GetFamilyStatus": rate.Every(time.Minute),
 }
 
 type ipLimiter struct {

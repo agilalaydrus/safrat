@@ -43,6 +43,9 @@ message Season {
   google.protobuf.Timestamp end_date = 6;
   bool is_active = 7;
   google.protobuf.Timestamp created_at = 8;
+  // Maximum pilgrims accepted. 0 = unlimited — JoinWaitlist always
+  // redirects to registration instead of queuing when this is 0.
+  int32 capacity = 9;
 }
 
 message CreateSeasonRequest {
@@ -50,6 +53,7 @@ message CreateSeasonRequest {
   SeasonType type = 2 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3, 4, 5, 6]}];
   google.protobuf.Timestamp start_date = 3 [(buf.validate.field).required = true];
   google.protobuf.Timestamp end_date = 4 [(buf.validate.field).required = true];
+  int32 capacity = 5 [(buf.validate.field).int32.gte = 0];
 }
 
 message ListSeasonsRequest {}
@@ -62,6 +66,7 @@ message UpdateSeasonRequest {
   SeasonType type = 3 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3, 4, 5, 6]}];
   google.protobuf.Timestamp start_date = 4 [(buf.validate.field).required = true];
   google.protobuf.Timestamp end_date = 5 [(buf.validate.field).required = true];
+  int32 capacity = 6 [(buf.validate.field).int32.gte = 0];
 }
 
 message DeleteSeasonRequest {

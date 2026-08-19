@@ -1,6 +1,6 @@
 -- name: CreateSeason :one
-INSERT INTO seasons (operator_id, name, type, start_date, end_date)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO seasons (operator_id, name, type, start_date, end_date, capacity)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: ListSeasonsByOperatorID :many
@@ -8,9 +8,13 @@ SELECT * FROM seasons
 WHERE operator_id = $1
 ORDER BY start_date DESC;
 
+-- name: GetSeasonByID :one
+SELECT * FROM seasons
+WHERE id = $1 AND operator_id = $2;
+
 -- name: UpdateSeason :one
 UPDATE seasons
-SET name = $3, type = $4, start_date = $5, end_date = $6
+SET name = $3, type = $4, start_date = $5, end_date = $6, capacity = $7
 WHERE id = $1 AND operator_id = $2
 RETURNING *;
 

@@ -438,6 +438,9 @@ func (s *PilgrimService) SubstitutePilgrim(ctx context.Context, authenticatedOrg
 	if replacement.IsSubstituted {
 		return nil, serviceError("PilgrimService.SubstitutePilgrim", preconditionError("replacement pilgrim is already substituted"))
 	}
+	if original.Status == "CANCELLED" || replacement.Status == "CANCELLED" {
+		return nil, serviceError("PilgrimService.SubstitutePilgrim", preconditionError("cancelled pilgrims cannot be substituted"))
+	}
 	if err := s.pilgrimRepository.SubstitutePilgrimTx(ctx, tx, originalID, replacementID, operator.ID, reason); err != nil {
 		return nil, serviceError("PilgrimService.SubstitutePilgrim", err)
 	}
@@ -516,6 +519,7 @@ func pilgrimMessage(value *domain.Pilgrim) *hajjv1.Pilgrim {
 		PaymentStatus: value.PaymentStatus, PaymentReceiptUrl: value.PaymentReceiptURL, PaymentNotes: value.PaymentNotes,
 		EmergencyContactName: value.EmergencyContactName, EmergencyContactPhone: value.EmergencyContactPhone,
 		HotelCheckedIn: value.HotelCheckedIn, DocumentsPassport: value.DocumentsPassport, DocumentsPhoto: value.DocumentsPhoto, DocumentsVaccine: value.DocumentsVaccine,
+		Status: value.Status,
 	}
 	if value.PassportExpiryDate != nil {
 		result.PassportExpiryDate = timestamppb.New(*value.PassportExpiryDate)

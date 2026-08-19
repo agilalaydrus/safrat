@@ -19,7 +19,7 @@ func NewSeasonRepository(queries *db.Queries) *SeasonRepository {
 	return &SeasonRepository{queries: queries}
 }
 
-func (r *SeasonRepository) Create(ctx context.Context, operatorID, name string, seasonType domain.SeasonType, startDate, endDate time.Time) (*domain.Season, error) {
+func (r *SeasonRepository) Create(ctx context.Context, operatorID, name string, seasonType domain.SeasonType, startDate, endDate time.Time, capacity int32) (*domain.Season, error) {
 	operatorUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -30,9 +30,26 @@ func (r *SeasonRepository) Create(ctx context.Context, operatorID, name string, 
 		Type:       databaseSeasonType(seasonType),
 		StartDate:  pgTimestamp(startDate),
 		EndDate:    pgTimestamp(endDate),
+		Capacity:   capacity,
 	})
 	if err != nil {
 		return nil, err
+	}
+	return toSeason(season), nil
+}
+
+func (r *SeasonRepository) GetByID(ctx context.Context, operatorID, seasonID string) (*domain.Season, error) {
+	operatorUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	seasonUUID, err := pgUUID(seasonID)
+	if err != nil {
+		return nil, err
+	}
+	season, err := r.queries.GetSeasonByID(ctx, db.GetSeasonByIDParams{ID: seasonUUID, OperatorID: operatorUUID})
+	if err != nil {
+		return nil, databaseError(err)
 	}
 	return toSeason(season), nil
 }
@@ -53,7 +70,7 @@ func (r *SeasonRepository) ListByOperatorID(ctx context.Context, operatorID stri
 	return results, nil
 }
 
-func (r *SeasonRepository) Update(ctx context.Context, operatorID, seasonID, name string, seasonType domain.SeasonType, startDate, endDate time.Time) (*domain.Season, error) {
+func (r *SeasonRepository) Update(ctx context.Context, operatorID, seasonID, name string, seasonType domain.SeasonType, startDate, endDate time.Time, capacity int32) (*domain.Season, error) {
 	operatorUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -64,7 +81,7 @@ func (r *SeasonRepository) Update(ctx context.Context, operatorID, seasonID, nam
 	}
 	season, err := r.queries.UpdateSeason(ctx, db.UpdateSeasonParams{
 		ID: seasonUUID, OperatorID: operatorUUID, Name: name,
-		Type: databaseSeasonType(seasonType), StartDate: pgTimestamp(startDate), EndDate: pgTimestamp(endDate),
+		Type: databaseSeasonType(seasonType), StartDate: pgTimestamp(startDate), EndDate: pgTimestamp(endDate), Capacity: capacity,
 	})
 	if err != nil {
 		return nil, err
@@ -216,5 +233,6 @@ func toSeason(value db.Season) *domain.Season {
 		EndDate:    value.EndDate.Time,
 		IsActive:   value.IsActive,
 		CreatedAt:  value.CreatedAt.Time,
+		Capacity:   value.Capacity,
 	}
 }
