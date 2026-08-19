@@ -222,7 +222,7 @@ func TestSubstitutePilgrimUnassignsTransportSeat(t *testing.T) {
 		t.Fatal(err)
 	}
 	pilgrims := NewPilgrimService(repository.NewOperatorRepository(h.queries), repository.NewPilgrimRepository(h.queries), repository.NewAccommodationRepository(h.queries), repository.NewTransportRepository(h.queries, h.pool), repository.NewAuditRepository(h.queries), h.pool)
-	if _, err := pilgrims.SubstitutePilgrim(h.ctx, h.orgID, original, replacement); err != nil {
+	if _, err := pilgrims.SubstitutePilgrim(h.ctx, h.orgID, original, replacement, "test substitution"); err != nil {
 		t.Fatalf("substitute: %v", err)
 	}
 	var originalCount, replacementCount int

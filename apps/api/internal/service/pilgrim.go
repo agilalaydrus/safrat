@@ -363,7 +363,29 @@ func pilgrimDocumentMessage(value *domain.PilgrimDocument) *hajjv1.PilgrimDocume
 	}
 }
 
-func (s *PilgrimService) SubstitutePilgrim(ctx context.Context, authenticatedOrgID, originalID, replacementID string) (*hajjv1.SubstitutePilgrimResult, error) {
+func (s *PilgrimService) ListSubstitutions(ctx context.Context, authenticatedOrgID string, req *hajjv1.ListSubstitutionsRequest) (*hajjv1.ListSubstitutionsResponse, error) {
+	if req == nil || !isUUID(req.SeasonId) {
+		return nil, serviceError("PilgrimService.ListSubstitutions", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("PilgrimService.ListSubstitutions", err)
+	}
+	rows, err := s.pilgrimRepository.ListSubstitutions(ctx, operator.ID, req.SeasonId)
+	if err != nil {
+		return nil, serviceError("PilgrimService.ListSubstitutions", err)
+	}
+	result := &hajjv1.ListSubstitutionsResponse{Substitutions: make([]*hajjv1.Substitution, 0, len(rows))}
+	for _, row := range rows {
+		result.Substitutions = append(result.Substitutions, &hajjv1.Substitution{
+			OriginalId: row.OriginalID, OriginalName: row.OriginalName, OriginalPassportNumber: row.OriginalPassportNumber,
+			NewId: row.NewID, NewName: row.NewName, Reason: row.Reason, SubstitutedAt: timestamppb.New(row.SubstitutedAt),
+		})
+	}
+	return result, nil
+}
+
+func (s *PilgrimService) SubstitutePilgrim(ctx context.Context, authenticatedOrgID, originalID, replacementID, reason string) (*hajjv1.SubstitutePilgrimResult, error) {
 	if !isUUID(originalID) || !isUUID(replacementID) {
 		return nil, serviceError("PilgrimService.SubstitutePilgrim", apperror.ErrValidation)
 	}
@@ -397,7 +419,7 @@ func (s *PilgrimService) SubstitutePilgrim(ctx context.Context, authenticatedOrg
 	if replacement.IsSubstituted {
 		return nil, serviceError("PilgrimService.SubstitutePilgrim", preconditionError("replacement pilgrim is already substituted"))
 	}
-	if err := s.pilgrimRepository.SubstitutePilgrimTx(ctx, tx, originalID, replacementID, operator.ID); err != nil {
+	if err := s.pilgrimRepository.SubstitutePilgrimTx(ctx, tx, originalID, replacementID, operator.ID, reason); err != nil {
 		return nil, serviceError("PilgrimService.SubstitutePilgrim", err)
 	}
 	if original.GroupID != "" {

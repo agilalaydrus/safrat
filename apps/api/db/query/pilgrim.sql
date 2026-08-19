@@ -67,8 +67,26 @@ WHERE id = $1 AND operator_id = $2;
 UPDATE pilgrims
 SET is_substituted = TRUE,
     substituted_by_id = $2,
+    substitution_reason = $4,
+    substituted_at = NOW(),
     updated_at = NOW()
 WHERE id = $1 AND operator_id = $3;
+
+-- name: ListSubstitutions :many
+SELECT
+  original.id AS original_id,
+  original.full_name AS original_name,
+  original.passport_number AS original_passport_number,
+  replacement.id AS new_id,
+  replacement.full_name AS new_name,
+  original.substitution_reason AS reason,
+  original.substituted_at AS substituted_at
+FROM pilgrims original
+JOIN pilgrims replacement ON replacement.id = original.substituted_by_id
+WHERE original.operator_id = $1
+  AND original.season_id = $2
+  AND original.is_substituted
+ORDER BY original.substituted_at DESC NULLS LAST;
 
 -- name: RegenerateAccessCode :exec
 UPDATE pilgrims

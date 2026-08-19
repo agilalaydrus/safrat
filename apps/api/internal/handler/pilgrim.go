@@ -176,7 +176,18 @@ func (h *PilgrimHandler) SubstitutePilgrim(ctx context.Context, req *connect.Req
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
-	result, err := h.pilgrimService.SubstitutePilgrim(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg.OriginalPilgrimId, req.Msg.ReplacementPilgrimId)
+	result, err := h.pilgrimService.SubstitutePilgrim(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg.OriginalPilgrimId, req.Msg.ReplacementPilgrimId, req.Msg.Reason)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PilgrimHandler) ListSubstitutions(ctx context.Context, req *connect.Request[hajjv1.ListSubstitutionsRequest]) (*connect.Response[hajjv1.ListSubstitutionsResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimService.ListSubstitutions(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
 	if err != nil {
 		return nil, connectError(err)
 	}

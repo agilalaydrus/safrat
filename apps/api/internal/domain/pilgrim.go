@@ -53,6 +53,16 @@ type PilgrimDocument struct {
 	CreatedAt  time.Time
 }
 
+type Substitution struct {
+	OriginalID             string
+	OriginalName           string
+	OriginalPassportNumber string
+	NewID                  string
+	NewName                string
+	Reason                 string
+	SubstitutedAt          time.Time
+}
+
 type PilgrimStats struct {
 	Total              int32
 	Substituted        int32

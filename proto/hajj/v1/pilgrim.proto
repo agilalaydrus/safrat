@@ -23,6 +23,7 @@ service PilgrimService {
   rpc ListPilgrimsWithExpiringPassports(ListPilgrimsWithExpiringPassportsRequest) returns (ListPilgrimsResponse);
   rpc ListPilgrimDocuments(ListPilgrimDocumentsRequest) returns (ListPilgrimDocumentsResponse);
   rpc DeletePilgrimDocument(DeletePilgrimDocumentRequest) returns (DeletePilgrimDocumentResponse);
+  rpc ListSubstitutions(ListSubstitutionsRequest) returns (ListSubstitutionsResponse);
 }
 
 enum Gender {
@@ -140,11 +141,30 @@ message RegenerateAccessCodeRequest {
 message SubstitutePilgrimRequest {
   string original_pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
   string replacement_pilgrim_id = 2 [(buf.validate.field).string.uuid = true];
+  string reason = 3 [(buf.validate.field).string.max_len = 500];
 }
 
 message SubstitutePilgrimResult {
   Pilgrim original = 1;
   Pilgrim replacement = 2;
+}
+
+message Substitution {
+  string original_id = 1;
+  string original_name = 2;
+  string original_passport_number = 3;
+  string new_id = 4;
+  string new_name = 5;
+  string reason = 6;
+  google.protobuf.Timestamp substituted_at = 7;
+}
+
+message ListSubstitutionsRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message ListSubstitutionsResponse {
+  repeated Substitution substitutions = 1;
 }
 
 message GetPilgrimStatsRequest {

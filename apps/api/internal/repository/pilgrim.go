@@ -189,7 +189,7 @@ func (r *PilgrimRepository) GetTx(ctx context.Context, tx pgx.Tx, operatorID, pi
 	return toPilgrim(pilgrim), nil
 }
 
-func (r *PilgrimRepository) SubstitutePilgrimTx(ctx context.Context, tx pgx.Tx, originalID, replacementID, operatorID string) error {
+func (r *PilgrimRepository) SubstitutePilgrimTx(ctx context.Context, tx pgx.Tx, originalID, replacementID, operatorID, reason string) error {
 	originalUUID, err := pgUUID(originalID)
 	if err != nil {
 		return err
@@ -202,7 +202,35 @@ func (r *PilgrimRepository) SubstitutePilgrimTx(ctx context.Context, tx pgx.Tx, 
 	if err != nil {
 		return err
 	}
-	return databaseError(r.queries.WithTx(tx).SubstitutePilgrim(ctx, db.SubstitutePilgrimParams{ID: originalUUID, SubstitutedByID: replacementUUID, OperatorID: operatorUUID}))
+	return databaseError(r.queries.WithTx(tx).SubstitutePilgrim(ctx, db.SubstitutePilgrimParams{ID: originalUUID, SubstitutedByID: replacementUUID, OperatorID: operatorUUID, SubstitutionReason: reason}))
+}
+
+func (r *PilgrimRepository) ListSubstitutions(ctx context.Context, operatorID, seasonID string) ([]*domain.Substitution, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	seasonUUID, err := pgUUID(seasonID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListSubstitutions(ctx, db.ListSubstitutionsParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	result := make([]*domain.Substitution, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &domain.Substitution{
+			OriginalID:             uuid.UUID(row.OriginalID.Bytes).String(),
+			OriginalName:           row.OriginalName,
+			OriginalPassportNumber: row.OriginalPassportNumber,
+			NewID:                  uuid.UUID(row.NewID.Bytes).String(),
+			NewName:                row.NewName,
+			Reason:                 row.Reason,
+			SubstitutedAt:          row.SubstitutedAt.Time,
+		})
+	}
+	return result, nil
 }
 
 func (r *PilgrimRepository) TransferPilgrimGroupTx(ctx context.Context, tx pgx.Tx, pilgrimID, groupID, operatorID string) error {
