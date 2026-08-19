@@ -13,7 +13,7 @@ WHERE ks.operator_id = $1 AND ks.kloter_id = $2;
 
 -- name: ListMyAssignments :many
 -- Staff-facing: show all kloters this staff member is assigned to.
-SELECT ks.*, k.code AS kloter_name, k.departure_date, s.name AS season_name
+SELECT ks.*, k.code AS kloter_name, k.departure_date, k.season_id AS assignment_season_id, s.name AS season_name
 FROM kloter_staff ks
 JOIN kloters k ON k.id = ks.kloter_id
 JOIN seasons s ON s.id = k.season_id

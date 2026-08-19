@@ -29,6 +29,7 @@ message KloterStaff {
   string duties = 8;
   google.protobuf.Timestamp departure_date = 9;
   string season_name = 10;
+  string season_id = 11;
 }
 
 message KloterScheduleSummary {

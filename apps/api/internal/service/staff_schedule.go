@@ -112,7 +112,7 @@ func (s *StaffScheduleService) ListMine(ctx context.Context, authenticatedOrgID,
 func kloterStaffMessage(value *domain.KloterStaff) *hajjv1.KloterStaff {
 	staff := &hajjv1.KloterStaff{
 		Id: value.ID, KloterId: value.KloterID, KloterName: value.KloterName, StaffId: value.StaffID,
-		StaffName: value.StaffName, StaffEmail: value.StaffEmail, Role: value.Role, Duties: value.Duties, SeasonName: value.SeasonName,
+		StaffName: value.StaffName, StaffEmail: value.StaffEmail, Role: value.Role, Duties: value.Duties, SeasonName: value.SeasonName, SeasonId: value.SeasonID,
 	}
 	if value.DepartureDate != nil {
 		staff.DepartureDate = timestamppb.New(*value.DepartureDate)

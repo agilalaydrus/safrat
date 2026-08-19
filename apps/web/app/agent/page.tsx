@@ -1,24 +1,34 @@
 "use client";
 
-import { useState } from "react";
-import { IconWallet, IconUsers, IconLink, IconClock } from "@tabler/icons-react";
+import { useEffect, useState } from "react";
+import { IconWallet, IconUsers, IconLink, IconClock, IconMapPin } from "@tabler/icons-react";
 import AgentWalletTab from "@/components/agent/AgentWalletTab";
 import AgentJamaahTab from "@/components/agent/AgentJamaahTab";
 import AgentReferralTab from "@/components/agent/AgentReferralTab";
 import AgentPayoutTab from "@/components/agent/AgentPayoutTab";
+import AgentTripTab from "@/components/agent/AgentTripTab";
 import { authClient } from "@/lib/auth-client";
+import { staffScheduleClient } from "@/lib/rpc";
 
-const TABS = [
+const BASE_TABS = [
   { id: "wallet", label: "Dompet Komisi", icon: IconWallet },
   { id: "jamaah", label: "Jamaah Saya", icon: IconUsers },
   { id: "referral", label: "Link Referral", icon: IconLink },
   { id: "payout", label: "Pencairan", icon: IconClock },
 ] as const;
-type TabId = (typeof TABS)[number]["id"];
+const TRIP_TAB = { id: "trip", label: "Perjalanan Saya", icon: IconMapPin } as const;
+type TabId = (typeof BASE_TABS)[number]["id"] | typeof TRIP_TAB.id;
 
 export default function AgentPortalPage() {
   const [tab, setTab] = useState<TabId>("wallet");
+  const [hasTrip, setHasTrip] = useState(false);
   const { data: session } = authClient.useSession();
+
+  useEffect(() => {
+    staffScheduleClient.listMyAssignments({}).then((r) => setHasTrip(r.assignments.length > 0)).catch(() => {});
+  }, []);
+
+  const TABS = hasTrip ? [...BASE_TABS, TRIP_TAB] : BASE_TABS;
 
   return (
     <main style={page}>
@@ -37,6 +47,7 @@ export default function AgentPortalPage() {
       {tab === "jamaah" && <AgentJamaahTab />}
       {tab === "referral" && <AgentReferralTab />}
       {tab === "payout" && <AgentPayoutTab />}
+      {tab === "trip" && <AgentTripTab />}
     </main>
   );
 }

@@ -77,7 +77,7 @@ func (r *StaffScheduleRepository) ListMine(ctx context.Context, operatorID, staf
 	for _, row := range rows {
 		result = append(result, &domain.KloterStaff{
 			ID: uuidString(row.ID), OperatorID: uuidString(row.OperatorID), KloterID: uuidString(row.KloterID), KloterName: row.KloterName,
-			StaffID: row.StaffID, StaffName: row.StaffName, StaffEmail: row.StaffEmail, Role: row.Role, Duties: row.Duties,
+			SeasonID: uuidString(row.AssignmentSeasonID), StaffID: row.StaffID, StaffName: row.StaffName, StaffEmail: row.StaffEmail, Role: row.Role, Duties: row.Duties,
 			DepartureDate: timestamptzPtr(row.DepartureDate), SeasonName: row.SeasonName, CreatedAt: row.CreatedAt.Time,
 		})
 	}

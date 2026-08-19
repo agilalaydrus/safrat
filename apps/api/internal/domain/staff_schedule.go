@@ -7,6 +7,7 @@ type KloterStaff struct {
 	OperatorID    string
 	KloterID      string
 	KloterName    string
+	SeasonID      string
 	StaffID       string
 	StaffName     string
 	StaffEmail    string
