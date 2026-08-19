@@ -290,7 +290,7 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
               <Field fieldKey="phone" label="Telepon" error={fieldErrors.phone}>
                 <input className="safrat-input" value={form.phone} onChange={(event) => update("phone", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.phone)} />
               </Field>
-              <Field fieldKey="email" label="Email" hint="Jamaah masuk dengan email ini di halaman Masuk yang sama seperti staf — tanpa link kode. Kosongkan jika belum ada." error={fieldErrors.email}>
+              <Field fieldKey="email" label="Email" hint="Jamaah masuk pakai email ini di halaman Masuk yang sama seperti staf, tanpa perlu link kode. Kosongkan jika belum ada." error={fieldErrors.email}>
                 <input className="safrat-input" type="email" value={form.email} onChange={(event) => update("email", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.email)} />
               </Field>
               <Field fieldKey="emergencyContact" label="Kontak darurat" error={fieldErrors.emergencyContact}>
@@ -327,7 +327,7 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
               <Field fieldKey="kloterId" label="Kloter Keberangkatan" hint="Biarkan kosong untuk ditentukan nanti dari halaman Kloter.">
                 <select className="safrat-input" value={form.kloterId} onChange={(event) => update("kloterId", event.target.value)} style={input}>
                   <option value="">Belum ditentukan</option>
-                  {kloters.map((kloter) => <option key={kloter.id} value={kloter.id}>{kloter.code}{kloter.embarkation ? ` — ${kloter.embarkation}` : ""}</option>)}
+                  {kloters.map((kloter) => <option key={kloter.id} value={kloter.id}>{kloter.code}{kloter.embarkation ? ` · ${kloter.embarkation}` : ""}</option>)}
                 </select>
               </Field>
               <Field fieldKey="groupId" label="Rombongan" hint="Biarkan kosong untuk ditentukan nanti dari halaman Rombongan.">
@@ -339,7 +339,7 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
               <Field fieldKey="mahramId" label="Mahram" hint="Untuk jamaah wanita: pilih wali/mahram laki-laki" error={fieldErrors.mahramId}>
                 <select className="safrat-input" value={form.mahramId} onChange={(event) => update("mahramId", event.target.value)} style={input} aria-invalid={Boolean(fieldErrors.mahramId)}>
                   {loadingMahrams ? <option value="">Memuat jamaah yang memenuhi syarat...</option> : eligibleMahrams.length === 0 ? <option value="">Tidak ada jamaah yang memenuhi syarat</option> : <option value="">Tidak ada mahram dipilih</option>}
-                  {eligibleMahrams.map((pilgrim) => <option key={pilgrim.id} value={pilgrim.id}>{pilgrim.fullName} — {pilgrim.passportNumber}</option>)}
+                  {eligibleMahrams.map((pilgrim) => <option key={pilgrim.id} value={pilgrim.id}>{pilgrim.fullName} · {pilgrim.passportNumber}</option>)}
                 </select>
               </Field>
             </Section>

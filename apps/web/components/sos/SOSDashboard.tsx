@@ -30,7 +30,7 @@ export default function SOSDashboard() {
   async function enableAlarm() {
     const granted = await enableSosAlarm();
     setAlarmEnabled(granted);
-    setNotice(granted ? "Notifikasi & suara SOS telah diaktifkan di perangkat ini." : "Izin notifikasi ditolak — aktifkan dari pengaturan browser Anda.");
+    setNotice(granted ? "Notifikasi & suara SOS telah diaktifkan di perangkat ini." : "Izin notifikasi ditolak. Aktifkan dulu dari pengaturan browser Anda.");
   }
 
   async function enablePush() {

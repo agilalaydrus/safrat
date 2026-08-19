@@ -130,7 +130,7 @@ export default function CreateOrderDialog({ open, seasonId, onClose, onCreated }
                 <span style={lab}>Produk</span>
                 <select className="safrat-input" value={productId} onChange={(e) => setProductId(e.target.value)} style={i}>
                   <option value="">Pilih produk</option>
-                  {products.map((p) => <option key={p.id} value={p.id}>{p.name} — {rupiah(p.priceIdr)}</option>)}
+                  {products.map((p) => <option key={p.id} value={p.id}>{p.name} · {rupiah(p.priceIdr)}</option>)}
                 </select>
                 {errors.product && <small style={{ color: "var(--color-danger-600)" }}>{errors.product}</small>}
               </label>

@@ -218,7 +218,7 @@ export default function VendorsDashboard() {
       </section>}
 
       {tab === "events" && <section style={card}>
-        <h2 style={{ margin: "0 0 12px" }}>{selectedContract ? `Riwayat — ${selectedContract.vendorName}` : "Pilih kontrak dari tab Daftar Kontrak untuk melihat riwayat"}</h2>
+        <h2 style={{ margin: "0 0 12px" }}>{selectedContract ? `Riwayat Kontrak ${selectedContract.vendorName}` : "Pilih kontrak dari tab Daftar Kontrak untuk melihat riwayat"}</h2>
         {selectedContract && (events.length ? <div style={{ display: "grid", gap: 10 }}>
           {events.map((event) => <div key={event.id} style={eventRow}>
             <span style={{ fontSize: 11, color: "var(--color-warm-400)", textTransform: "uppercase" }}>{event.eventType}</span>

@@ -58,7 +58,7 @@ export default function CancellationPolicyPanel({ seasonId }: { seasonId: string
     <header style={header}>
       <p style={eyebrow}>MUSIM {seasonName ? `· ${seasonName}` : ""}</p>
       <h1 style={title}>Kebijakan Pembatalan</h1>
-      <p style={{ color: "var(--color-warm-500)", margin: 0 }}>Atur tingkatan pengembalian dana berdasarkan jarak hari sebelum keberangkatan. Urutan menentukan prioritas — tingkatan pertama yang cocok akan dipakai.</p>
+      <p style={{ color: "var(--color-warm-500)", margin: 0 }}>Atur tingkatan pengembalian dana berdasarkan jarak hari sebelum keberangkatan. Sistem memakai tingkatan pertama yang cocok, jadi urutan menentukan mana yang dipakai duluan.</p>
     </header>
     <div className="gold-divider" />
     {notice && <p role="status" style={{ color: "var(--color-gold-800)" }}>{notice}</p>}
@@ -90,7 +90,7 @@ export default function CancellationPolicyPanel({ seasonId }: { seasonId: string
             </tr>)}
           </tbody>
         </table>
-      </div> : <p style={{ color: "var(--color-warm-500)" }}>Belum ada kebijakan pembatalan untuk musim ini — pembatalan akan selalu 0% refund.</p>}
+      </div> : <p style={{ color: "var(--color-warm-500)" }}>Belum ada kebijakan pembatalan untuk musim ini, jadi pembatalan akan selalu 0% refund.</p>}
     </section>
   </main>;
 }

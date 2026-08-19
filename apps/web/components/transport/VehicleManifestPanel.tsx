@@ -67,7 +67,7 @@ export default function VehicleManifestPanel({ vehicleId, seasonId, movementStat
       for (const pilgrim of toAssign) { await transportClient.assignSeat({ vehicleId, pilgrimId: pilgrim.id, seatNumber: nextSeat }); nextSeat += 1; }
       await refresh();
       onChanged();
-      if (toAssign.length < members.length) setNotice(`Kendaraan penuh — ${toAssign.length} dari ${members.length} jamaah di rombongan ini ditempatkan.`);
+      if (toAssign.length < members.length) setNotice(`Kendaraan sudah penuh, baru ${toAssign.length} dari ${members.length} jamaah di rombongan ini yang tertempatkan.`);
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : "Gagal menempatkan rombongan ini.");
     } finally {
@@ -108,8 +108,8 @@ export default function VehicleManifestPanel({ vehicleId, seasonId, movementStat
     {!full && canAssign && !!groupsWithCandidates.length && <section style={section}><h3 style={sectionTitle}>Tempatkan satu rombongan</h3>{groupsWithCandidates.map(([groupId, members]) => <div key={groupId} style={person}><div><strong><IconUsersGroup size={16} style={{ verticalAlign: "-3px", marginRight: 4 }} />{groupNames[groupId] ?? "Rombongan"}</strong><span style={meta}>{members.length} jamaah belum ditempatkan</span></div><button disabled={workingId === "group"} onClick={() => void assignGroup(members)} style={emerald}><IconUserPlus size={17} />Tempatkan rombongan</button></div>)}</section>}
     {!full && canAssign && <section style={section}><h3 style={sectionTitle}>Tempatkan jamaah</h3><label style={{ position: "relative" }}><span style={sr}>Cari jamaah yang belum ditempatkan</span><IconSearch size={18} style={{ position: "absolute", insetInlineStart: 14, top: 15, color: "var(--color-warm-400)" }} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cari nama atau paspor" style={{ ...input, paddingInlineStart: 42 }} /></label>{candidates.map((pilgrim) => <div key={pilgrim.id} style={person}><div><strong>{pilgrim.fullName}</strong><span style={meta}>{genderIcon(pilgrim.gender)} {pilgrim.passportNumber}</span></div><div style={{ display: "flex", gap: 8, alignItems: "center" }}><input aria-label={`Nomor kursi untuk ${pilgrim.fullName}`} type="number" min="1" max={vehicle?.capacity} value={seatNumbers[pilgrim.id] ?? ""} onChange={(event) => setSeatNumbers((current) => ({ ...current, [pilgrim.id]: event.target.value }))} placeholder="Kursi" style={seatInput} /><button disabled={workingId === pilgrim.id} onClick={() => void assign(pilgrim.id)} style={emerald}><IconUserPlus size={17} />Tempatkan</button></div></div>)}{!candidates.length && <p style={emptyText}>Tidak ada jamaah yang cocok dengan pencarian ini.</p>}</section>}
     {full && canAssign && <p role="status" style={fullNotice}>Kendaraan sudah penuh</p>}
-    {!canAssign && vehicle && vehicle.status !== "scheduled" && <p role="status" style={fullNotice}>Kendaraan ini sudah {statusLabel(vehicle.status).toLowerCase()} — penempatan terkunci.</p>}
-    {!canAssign && vehicle?.status === "scheduled" && movementStatus !== "scheduled" && <p role="status" style={fullNotice}>Jadwal ini sudah {statusLabel(movementStatus).toLowerCase()} — penempatan terkunci.</p>}
+    {!canAssign && vehicle && vehicle.status !== "scheduled" && <p role="status" style={fullNotice}>Kendaraan ini sudah {statusLabel(vehicle.status).toLowerCase()}, jadi penempatan sudah terkunci.</p>}
+    {!canAssign && vehicle?.status === "scheduled" && movementStatus !== "scheduled" && <p role="status" style={fullNotice}>Jadwal ini sudah {statusLabel(movementStatus).toLowerCase()}, jadi penempatan sudah terkunci.</p>}
     {notice && <p role="alert" style={noticeStyle}>{notice}</p>}
   </aside></div>;
 }
