@@ -37,6 +37,13 @@ message PilgrimRegistration {
   string notes = 13;
   google.protobuf.Timestamp date_of_birth = 14;
   google.protobuf.Timestamp created_at = 15;
+  // Set only if a valid, active referral code was supplied on submission.
+  // Informational for the operator (who referred this registration) —
+  // approving a registration does not itself create a pilgrim record, so
+  // this is not yet what sets pilgrims.agent_id; that still happens when
+  // staff creates the actual pilgrim from the pilgrim form.
+  string referred_by_agent_id = 16;
+  string referred_by_agent_name = 17;
 }
 
 message RegistrationFormInfo {
@@ -57,6 +64,9 @@ message SubmitRegistrationRequest {
   string nationality = 9;
   string address = 10;
   google.protobuf.Timestamp date_of_birth = 11;
+  // Optional Tour Leader referral code (agents.referral_code). An invalid
+  // or inactive code is silently ignored — never blocks registration.
+  string referral_code = 12;
 }
 
 message SubmitRegistrationResponse {

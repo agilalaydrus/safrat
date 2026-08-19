@@ -17,10 +17,11 @@ type RegistrationService struct {
 	operatorRepository     *repository.OperatorRepository
 	registrationRepository *repository.RegistrationRepository
 	auditRepository        *repository.AuditRepository
+	agentRepository        *repository.AgentRepository
 }
 
-func NewRegistrationService(operators *repository.OperatorRepository, registrations *repository.RegistrationRepository, audit *repository.AuditRepository) *RegistrationService {
-	return &RegistrationService{operatorRepository: operators, registrationRepository: registrations, auditRepository: audit}
+func NewRegistrationService(operators *repository.OperatorRepository, registrations *repository.RegistrationRepository, audit *repository.AuditRepository, agents *repository.AgentRepository) *RegistrationService {
+	return &RegistrationService{operatorRepository: operators, registrationRepository: registrations, auditRepository: audit, agentRepository: agents}
 }
 
 // SubmitRegistration is public — a prospective pilgrim fills this out with
@@ -40,7 +41,15 @@ func (s *RegistrationService) Submit(ctx context.Context, req *hajjv1.SubmitRegi
 		t := req.DateOfBirth.AsTime()
 		dob = &t
 	}
-	registration, err := s.registrationRepository.Create(ctx, req.OperatorId, req.SeasonId, req.ProductId, req.FullName, req.PassportNumber, dob, req.Gender, req.Phone, req.Email, req.Nationality, req.Address)
+	// A typo'd or inactive referral code never blocks registration — just
+	// silently results in no agent linkage.
+	agentID := ""
+	if code := strings.TrimSpace(req.ReferralCode); code != "" {
+		if agent, err := s.agentRepository.GetByReferralCode(ctx, req.OperatorId, code); err == nil && agent.IsActive {
+			agentID = agent.ID
+		}
+	}
+	registration, err := s.registrationRepository.Create(ctx, req.OperatorId, req.SeasonId, req.ProductId, req.FullName, req.PassportNumber, dob, req.Gender, req.Phone, req.Email, req.Nationality, req.Address, agentID)
 	if err != nil {
 		return nil, serviceError("RegistrationService.Submit", err)
 	}
@@ -122,7 +131,7 @@ func registrationMessage(value *domain.PilgrimRegistration) *hajjv1.PilgrimRegis
 		Id: value.ID, OperatorId: value.OperatorID, SeasonId: value.SeasonID, ProductId: value.ProductID,
 		FullName: value.FullName, PassportNumber: value.PassportNumber, Gender: value.Gender, Phone: value.Phone,
 		Email: value.Email, Nationality: value.Nationality, Address: value.Address, Status: value.Status, Notes: value.Notes,
-		CreatedAt: timestamppb.New(value.CreatedAt),
+		CreatedAt: timestamppb.New(value.CreatedAt), ReferredByAgentId: value.AgentID, ReferredByAgentName: value.AgentName,
 	}
 	if value.DateOfBirth != nil {
 		result.DateOfBirth = timestamppb.New(*value.DateOfBirth)

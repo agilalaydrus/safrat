@@ -11,7 +11,7 @@ export default function GroupFormDialog({open,seasonId,initial,onClose,onSaved}:
     try{
       const result=await authClient.organization.inviteMember({email:inviteEmail.trim(),role:"member"});
       if(result.error){setInviteNotice(result.error.message??"Gagal mengirim undangan.");return}
-      setInviteNotice(`Undangan terkirim ke ${inviteEmail.trim()}. Setelah diterima, mereka akan muncul di daftar Ketua Rombongan.`);
+      setInviteNotice(`Undangan terkirim ke ${inviteEmail.trim()}. Setelah diterima, mereka akan muncul di daftar Muttawwif.`);
       setInviteEmail("");
     }catch{setInviteNotice("Gagal mengirim undangan.")}
     finally{setInviting(false)}
@@ -33,16 +33,16 @@ export default function GroupFormDialog({open,seasonId,initial,onClose,onSaved}:
     <div style={b}><form id="group-form" onSubmit={submit} style={{display:"grid",gap:16}}>
       <label style={{display:"grid",gap:6}}><span style={lab}>Nama rombongan</span><input className="safrat-input" value={name} onChange={e=>setName(e.target.value)} placeholder="mis. GROUP-A" style={i}/></label>
       <label style={{display:"grid",gap:6}}><span style={lab}>Kapasitas</span><input className="safrat-input" type="number" min="1" value={capacity} onChange={e=>setCapacity(e.target.value)} style={i}/></label>
-      {initial&&<label style={{display:"grid",gap:6}}><span style={lab}>Ketua rombongan</span><select className="safrat-input" value={leaderId} onChange={e=>setLeaderId(e.target.value)} style={i}><option value="">Belum ditentukan</option>{members.map(m=><option key={m.userId} value={m.userId}>{m.name} ({m.email})</option>)}</select></label>}
+      {initial&&<label style={{display:"grid",gap:6}}><span style={lab}>Pilih Muttawwif</span><select className="safrat-input" value={leaderId} onChange={e=>setLeaderId(e.target.value)} style={i}><option value="">Belum ditentukan</option>{members.map(m=><option key={m.userId} value={m.userId}>{m.name} ({m.email})</option>)}</select></label>}
       {initial&&<div style={{display:"grid",gap:6,padding:12,background:"var(--color-cream-100)",borderRadius:10}}>
-        <span style={{...lab,fontSize:12}}>Belum ada di daftar? Undang Ketua Rombongan/Muttawwif baru</span>
+        <span style={{...lab,fontSize:12}}>Belum ada di daftar? Undang Muttawwif baru</span>
         <div style={{display:"flex",gap:8}}>
           <input className="safrat-input" type="email" placeholder="email@contoh.com" value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} style={{...i,minHeight:40}}/>
           <button type="button" onClick={()=>void sendInvite()} disabled={inviting||!inviteEmail.trim()} style={{...primary,width:"auto",minHeight:40,padding:"0 16px"}}>{inviting?"Mengirim...":"Undang"}</button>
         </div>
         {inviteNotice&&<span style={{fontSize:12,color:"var(--color-warm-500)"}}>{inviteNotice}</span>}
       </div>}
-      {!initial&&<p style={{margin:0,fontSize:12,color:"var(--color-warm-400)"}}>Anda dapat menetapkan ketua rombongan setelah rombongan dibuat.</p>}
+      {!initial&&<p style={{margin:0,fontSize:12,color:"var(--color-warm-400)"}}>Anda dapat menetapkan Muttawwif setelah rombongan dibuat.</p>}
       {error&&<p style={err}>{error}</p>}
     </form></div>
     <div style={foot}><button form="group-form" disabled={saving} style={primary}>{saving?"Menyimpan...":"Simpan rombongan"}</button></div>

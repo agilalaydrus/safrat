@@ -230,6 +230,35 @@ func (s *AgentService) RequestPayout(ctx context.Context, orgID, userID string, 
 	return payoutRequestMessage(request, agent.Name), nil
 }
 
+// ListMyPilgrims resolves the caller's own agent record (same pattern as
+// GetMyWallet) and returns every pilgrim they've referred.
+func (s *AgentService) ListMyPilgrims(ctx context.Context, orgID, userID string) (*hajjv1.ListMyPilgrimsResponse, error) {
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("AgentService.ListMyPilgrims", err)
+	}
+	agent, err := s.agentRepository.GetByLinkedUser(ctx, op.ID, userID)
+	if err != nil {
+		return nil, serviceError("AgentService.ListMyPilgrims", err)
+	}
+	rows, err := s.agentRepository.ListMyPilgrims(ctx, op.ID, agent.ID)
+	if err != nil {
+		return nil, serviceError("AgentService.ListMyPilgrims", err)
+	}
+	result := &hajjv1.ListMyPilgrimsResponse{Pilgrims: make([]*hajjv1.AgentPilgrim, 0, len(rows))}
+	for _, row := range rows {
+		msg := &hajjv1.AgentPilgrim{
+			Id: row.ID, FullName: row.FullName, PassportNumber: row.PassportNumber, Gender: row.Gender,
+			PaymentStatus: row.PaymentStatus, DocsComplete: row.DocsComplete, PilgrimStatus: row.PilgrimStatus, SeasonName: row.SeasonName,
+		}
+		if row.DepartureDate != nil {
+			msg.DepartureDate = timestamppb.New(*row.DepartureDate)
+		}
+		result.Pilgrims = append(result.Pilgrims, msg)
+	}
+	return result, nil
+}
+
 func (s *AgentService) ListPayoutRequests(ctx context.Context, orgID string, req *hajjv1.ListPayoutRequestsRequest) (*hajjv1.ListPayoutRequestsResponse, error) {
 	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
 	if err != nil {

@@ -101,4 +101,5 @@ type PilgrimInput struct {
 	MahramID           string
 	KloterID           string
 	Email              string
+	AgentID            string
 }

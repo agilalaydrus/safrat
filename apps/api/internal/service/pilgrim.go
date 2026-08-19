@@ -492,24 +492,24 @@ func preconditionError(message string) error {
 }
 
 func createInput(request *hajjv1.CreatePilgrimRequest) (domain.PilgrimInput, error) {
-	if request == nil || !isUUID(request.GetSeasonId()) || request.GetFullName() == "" || request.GetPassportNumber() == "" || request.GetNationality() == "" || request.GetDateOfBirth() == nil || !validGender(request.GetGender()) || !validOptionalUUID(request.GetGroupId()) || !validOptionalUUID(request.GetMahramId()) || !validOptionalUUID(request.GetKloterId()) {
+	if request == nil || !isUUID(request.GetSeasonId()) || request.GetFullName() == "" || request.GetPassportNumber() == "" || request.GetNationality() == "" || request.GetDateOfBirth() == nil || !validGender(request.GetGender()) || !validOptionalUUID(request.GetGroupId()) || !validOptionalUUID(request.GetMahramId()) || !validOptionalUUID(request.GetKloterId()) || !validOptionalUUID(request.GetAgentId()) {
 		return domain.PilgrimInput{}, apperror.ErrValidation
 	}
-	return pilgrimInput(request.SeasonId, request.GroupId, request.FullName, request.PassportNumber, request.Nationality, request.DateOfBirth.AsTime(), request.Gender, request.PhotoUrl, request.Phone, request.EmergencyContact, request.PreferredLang, request.MedicalNotes, request.RequiresWheelchair, request.MahramId, request.KloterId, request.Email), nil
+	return pilgrimInput(request.SeasonId, request.GroupId, request.FullName, request.PassportNumber, request.Nationality, request.DateOfBirth.AsTime(), request.Gender, request.PhotoUrl, request.Phone, request.EmergencyContact, request.PreferredLang, request.MedicalNotes, request.RequiresWheelchair, request.MahramId, request.KloterId, request.Email, request.AgentId), nil
 }
 
 func updateInput(request *hajjv1.UpdatePilgrimRequest) (domain.PilgrimInput, error) {
 	if request == nil || !isUUID(request.GetPilgrimId()) || request.GetFullName() == "" || request.GetPassportNumber() == "" || request.GetNationality() == "" || request.GetDateOfBirth() == nil || !validGender(request.GetGender()) || !validOptionalUUID(request.GetGroupId()) || !validOptionalUUID(request.GetMahramId()) || !validOptionalUUID(request.GetKloterId()) {
 		return domain.PilgrimInput{}, apperror.ErrValidation
 	}
-	return pilgrimInput("", request.GroupId, request.FullName, request.PassportNumber, request.Nationality, request.DateOfBirth.AsTime(), request.Gender, request.PhotoUrl, request.Phone, request.EmergencyContact, request.PreferredLang, request.MedicalNotes, request.RequiresWheelchair, request.MahramId, request.KloterId, request.Email), nil
+	return pilgrimInput("", request.GroupId, request.FullName, request.PassportNumber, request.Nationality, request.DateOfBirth.AsTime(), request.Gender, request.PhotoUrl, request.Phone, request.EmergencyContact, request.PreferredLang, request.MedicalNotes, request.RequiresWheelchair, request.MahramId, request.KloterId, request.Email, ""), nil
 }
 
-func pilgrimInput(seasonID, groupID, fullName, passportNumber, nationality string, dateOfBirth time.Time, gender hajjv1.Gender, photoURL, phone, emergencyContact, preferredLang, medicalNotes string, requiresWheelchair bool, mahramID, kloterID, email string) domain.PilgrimInput {
+func pilgrimInput(seasonID, groupID, fullName, passportNumber, nationality string, dateOfBirth time.Time, gender hajjv1.Gender, photoURL, phone, emergencyContact, preferredLang, medicalNotes string, requiresWheelchair bool, mahramID, kloterID, email, agentID string) domain.PilgrimInput {
 	if preferredLang == "" {
 		preferredLang = "ar"
 	}
-	return domain.PilgrimInput{SeasonID: seasonID, GroupID: groupID, FullName: fullName, PassportNumber: passportNumber, Nationality: nationality, DateOfBirth: dateOfBirth, Gender: gender.String()[7:], PhotoURL: photoURL, Phone: phone, EmergencyContact: emergencyContact, PreferredLang: preferredLang, MedicalNotes: medicalNotes, RequiresWheelchair: requiresWheelchair, MahramID: mahramID, KloterID: kloterID, Email: email}
+	return domain.PilgrimInput{SeasonID: seasonID, GroupID: groupID, FullName: fullName, PassportNumber: passportNumber, Nationality: nationality, DateOfBirth: dateOfBirth, Gender: gender.String()[7:], PhotoURL: photoURL, Phone: phone, EmergencyContact: emergencyContact, PreferredLang: preferredLang, MedicalNotes: medicalNotes, RequiresWheelchair: requiresWheelchair, MahramID: mahramID, KloterID: kloterID, Email: email, AgentID: agentID}
 }
 
 func validGender(value hajjv1.Gender) bool {

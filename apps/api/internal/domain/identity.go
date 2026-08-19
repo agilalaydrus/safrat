@@ -11,6 +11,7 @@ type MyAccess struct {
 	OperatorName  string
 	LeaderGroups  []LeaderGroupSummary
 	LinkedPilgrim *PilgrimSummary
+	LinkedAgent   *Agent
 }
 
 type LeaderGroupSummary struct {

@@ -19,11 +19,15 @@ import { getMyAccessCached } from "./access-cache";
  * /dashboard first because of an incidental membership row is wrong RBAC,
  * not just a rough edge:
  *   1. owner/admin org role -> /dashboard (actual administrators)
- *   2. leads >=1 group -> /leader (their real job)
- *   3. member-role org member with no group -> /dashboard (plain staff;
- *      it's the only surface they have anything to do on)
- *   4. linked pilgrim -> /pilgrim
- *   5. no role at all yet -> /onboarding ("create your operator")
+ *   2. leads >=1 group -> /leader (their real job, as Muttawwif)
+ *   3. member-role org member with an active linked agent record ->
+ *      /agent (Tour Leader) — must come after the leader check: every
+ *      Group Leader is also auto-created as an agent (see
+ *      EnsureAgentForLeader), but their primary surface is /leader
+ *   4. member-role org member with no group and no agent -> /dashboard
+ *      (plain staff; it's the only surface they have anything to do on)
+ *   5. linked pilgrim -> /pilgrim
+ *   6. no role at all yet -> /onboarding ("create your operator")
  */
 export async function resolveLandingPath(): Promise<string> {
   const access = await getMyAccessCached();
@@ -46,6 +50,7 @@ export async function resolveLandingPath(): Promise<string> {
   const isAdmin = access.isOrgMember && (access.orgRole === "owner" || access.orgRole === "admin");
   if (isAdmin) return "/dashboard";
   if (access.leaderGroups.length > 0) return "/leader";
+  if (access.isOrgMember && access.linkedAgent?.isActive) return "/agent";
   if (access.isOrgMember) return "/dashboard";
   if (access.linkedPilgrim) return "/pilgrim";
   return "/onboarding";

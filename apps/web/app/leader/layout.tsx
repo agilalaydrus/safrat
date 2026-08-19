@@ -35,7 +35,10 @@ function LeaderShell({ children }: { children: React.ReactNode }) {
     <div style={shell}>
       <header style={header}>
         <div style={headerTop}>
-          <span style={brand}>Safrat</span>
+          <div>
+            <span style={brand}>Safrat</span>
+            <span style={portalTag}>Portal Muttawwif</span>
+          </div>
           <button onClick={() => void signOut()} style={signOutButton} aria-label="Keluar">
             <IconLogout size={18} />Keluar
           </button>
@@ -80,6 +83,7 @@ const shell: React.CSSProperties = { minHeight: "100dvh", display: "flex", flexD
 const header: React.CSSProperties = { position: "sticky", top: 0, zIndex: 30, display: "grid", gap: 10, padding: "12px 20px", background: "#fff", borderBottom: "1px solid var(--color-cream-400)" };
 const headerTop: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center" };
 const brand: React.CSSProperties = { fontFamily: "'Playfair Display',serif", fontWeight: 700, fontSize: 18, color: "var(--color-emerald-900)" };
+const portalTag: React.CSSProperties = { display: "block", fontSize: 11, fontWeight: 600, color: "var(--color-gold-800)", letterSpacing: ".04em" };
 const signOutButton: React.CSSProperties = { minHeight: 36, border: "1px solid var(--color-cream-500)", borderRadius: 8, padding: "0 12px", background: "transparent", color: "var(--color-warm-500)", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600 };
 const groupSelect: React.CSSProperties = { width: "100%", minHeight: 44, border: "1px solid var(--color-cream-400)", borderRadius: 10, padding: "0 12px", background: "#fff", font: "inherit" };
 const content: React.CSSProperties = { flex: 1, paddingBottom: 84, overflowY: "auto" };

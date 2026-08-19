@@ -117,7 +117,7 @@ export default function AgentPayoutDialog({ open, agent, summary, onClose, onPai
 
           {!!requests.length && (
             <div style={{ marginTop: 20 }}>
-              <p style={sec}>PERMINTAAN PENCAIRAN DARI AGEN</p>
+              <p style={sec}>PERMINTAAN PENCAIRAN DARI TOUR LEADER</p>
               <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
                 {requests.map((request) => (
                   <div key={request.id} style={requestCard}>
@@ -150,12 +150,12 @@ export default function AgentPayoutDialog({ open, agent, summary, onClose, onPai
           )}
 
           {outstanding <= 0 ? (
-            <p style={{ color: "var(--color-warm-500)", textAlign: "center", padding: "24px 0" }}>Tidak ada komisi tertunda untuk agen ini.</p>
+            <p style={{ color: "var(--color-warm-500)", textAlign: "center", padding: "24px 0" }}>Tidak ada komisi tertunda untuk tour leader ini.</p>
           ) : (
             <form id="payout-form" onSubmit={submit} style={{ display: "grid", gap: 16, marginTop: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <p style={sec}>DETAIL PEMBAYARAN</p>
-                {activeRequestId && <button type="button" onClick={() => setActiveRequestId("")} style={{ ...chip, fontSize: 11 }}>Menyelesaikan permintaan — batal</button>}
+                {activeRequestId && <button type="button" onClick={() => setActiveRequestId("")} style={{ ...chip, fontSize: 11 }}>Batalkan, lagi selesaikan permintaan ini</button>}
               </div>
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={lab}>Jumlah</span>

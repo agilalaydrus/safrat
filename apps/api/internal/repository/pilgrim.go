@@ -50,6 +50,7 @@ func (r *PilgrimRepository) Create(ctx context.Context, operatorID string, input
 		Column15:           input.MahramID,
 		Column16:           input.KloterID,
 		Column17:           input.Email,
+		Column18:           input.AgentID,
 	})
 	if err != nil {
 		return nil, databaseError(err)

@@ -187,6 +187,32 @@ func (r *AgentRepository) GetByLinkedUser(ctx context.Context, operatorID, userI
 	return toAgent(agent, 0), nil
 }
 
+// ListMyPilgrims returns every pilgrim referred by this agent, across all
+// seasons — the Tour Leader portal's "Jamaah Saya" tab.
+func (r *AgentRepository) ListMyPilgrims(ctx context.Context, operatorID, agentID string) ([]*domain.AgentPilgrim, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	agentUUID, err := pgUUID(agentID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListMyPilgrims(ctx, db.ListMyPilgrimsParams{AgentID: agentUUID, OperatorID: opUUID})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*domain.AgentPilgrim, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &domain.AgentPilgrim{
+			ID: uuidString(row.ID), FullName: row.FullName, PassportNumber: row.PassportNumber, Gender: row.Gender,
+			PaymentStatus: row.PaymentStatus, DocsComplete: row.DocsComplete.Bool, PilgrimStatus: row.PilgrimStatus,
+			SeasonName: row.SeasonName, DepartureDate: timestamptzPtr(row.DepartureDate),
+		})
+	}
+	return result, nil
+}
+
 func (r *AgentRepository) ListOrderCredits(ctx context.Context, agentID string) ([]*domain.OrderCredit, error) {
 	agentUUID, err := pgUUID(agentID)
 	if err != nil {

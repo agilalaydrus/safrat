@@ -104,6 +104,8 @@ message CreatePilgrimRequest {
   string mahram_id = 14;
   string kloter_id = 15;
   string email = 16;
+  // Optional Tour Leader (agents.id) this pilgrim is a referral of.
+  string agent_id = 17;
 }
 
 message ListPilgrimsRequest {

@@ -15,7 +15,7 @@ func NewRegistrationRepository(queries *db.Queries) *RegistrationRepository {
 	return &RegistrationRepository{queries: queries}
 }
 
-func (r *RegistrationRepository) Create(ctx context.Context, operatorID, seasonID, productID, fullName, passportNumber string, dateOfBirth *time.Time, gender, phone, email, nationality, address string) (*domain.PilgrimRegistration, error) {
+func (r *RegistrationRepository) Create(ctx context.Context, operatorID, seasonID, productID, fullName, passportNumber string, dateOfBirth *time.Time, gender, phone, email, nationality, address, agentID string) (*domain.PilgrimRegistration, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -27,6 +27,7 @@ func (r *RegistrationRepository) Create(ctx context.Context, operatorID, seasonI
 	row, err := r.queries.CreatePilgrimRegistration(ctx, db.CreatePilgrimRegistrationParams{
 		OperatorID: opUUID, SeasonID: seasonUUID, Column3: productID, FullName: fullName, PassportNumber: passportNumber,
 		DateOfBirth: pgDate(dateOfBirth), Gender: gender, Phone: phone, Email: email, Nationality: nationality, Address: address,
+		AgentID: pgUUIDOrNull(agentID),
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -49,7 +50,14 @@ func (r *RegistrationRepository) List(ctx context.Context, operatorID, seasonID 
 	}
 	result := make([]*domain.PilgrimRegistration, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, toRegistration(row))
+		reg := toRegistration(db.PilgrimRegistration{
+			ID: row.ID, OperatorID: row.OperatorID, SeasonID: row.SeasonID, ProductID: row.ProductID,
+			FullName: row.FullName, PassportNumber: row.PassportNumber, DateOfBirth: row.DateOfBirth, Gender: row.Gender,
+			Phone: row.Phone, Email: row.Email, Nationality: row.Nationality, Address: row.Address,
+			Status: row.Status, Notes: row.Notes, CreatedAt: row.CreatedAt, AgentID: row.AgentID,
+		})
+		reg.AgentName = row.AgentName
+		result = append(result, reg)
 	}
 	return result, nil
 }
@@ -143,5 +151,6 @@ func toRegistration(row db.PilgrimRegistration) *domain.PilgrimRegistration {
 		Status:         row.Status,
 		Notes:          row.Notes,
 		CreatedAt:      row.CreatedAt.Time,
+		AgentID:        nullableUUIDString(row.AgentID),
 	}
 }

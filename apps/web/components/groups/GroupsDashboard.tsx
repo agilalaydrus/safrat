@@ -20,15 +20,15 @@ export default function GroupsDashboard(){
     </header>
     <div className="gold-divider"/>
     {notice&&<p style={{color:"var(--color-danger-600)"}}>{notice}</p>}
-    <div style={stats}>{[["Total Rombongan",groups.length],["Total Jamaah Terkelompok",groups.reduce((n,g)=>n+g.pilgrimCount,0)],["Rombongan Tanpa Ketua",groups.filter(g=>!g.leaderId).length]].map(x=><div style={stat} key={String(x[0])}><small>{x[0]}</small><strong>{x[1]}</strong></div>)}</div>
+    <div style={stats}>{[["Total Rombongan",groups.length],["Total Jamaah Terkelompok",groups.reduce((n,g)=>n+g.pilgrimCount,0)],["Rombongan Tanpa Muttawwif",groups.filter(g=>!g.leaderId).length]].map(x=><div style={stat} key={String(x[0])}><small>{x[0]}</small><strong>{x[1]}</strong></div>)}</div>
     {groups.length?<div style={grid}>{groups.map(g=>
       <article style={card} key={g.id}>
         <div style={row}><h2 style={{margin:0,fontSize:18}}>{g.name}</h2><span style={capBadge}>{g.pilgrimCount}/{g.capacity}</span></div>
         <div style={barTrack}><div style={{...barFill,width:`${g.capacity?Math.min(100,(g.pilgrimCount/g.capacity)*100):0}%`}}/></div>
-        <p style={leaderRow}><IconUserCheck size={15}/>{g.leaderName||"Belum ada ketua"}</p>
+        <p style={leaderRow}><IconUserCheck size={15}/>{g.leaderName||"Belum ada Muttawwif"}</p>
         <div style={row}><span><button style={ghost} onClick={()=>setAddJamaahGroup(g)}><IconUserPlus size={15}/>Tambah Jamaah</button><button style={ghost} onClick={()=>setRosterGroup(g)}><IconUsers size={15}/>Lihat Anggota</button><button style={ghost} onClick={()=>setChatGroup(g)}><IconMessageCircle size={15}/>Lihat Chat</button></span><span><button style={ghost} onClick={()=>{setEdit(g);setOpen(true)}}><IconPencil size={15}/>Ubah</button><RoleGate require={["owner","admin"]}><button style={{...ghost,color:"var(--color-danger-600)"}} onClick={async()=>{if(window.confirm(`Hapus rombongan ${g.name}? Jamaah akan dilepas dari rombongan, bukan dihapus.`)){await groupClient.deleteGroup({groupId:g.id});void load()}}}><IconTrash size={15}/>Hapus</button></RoleGate></span></div>
       </article>
-    )}</div>:<section style={empty}><IconUsersGroup size={48} color="var(--color-warm-400)"/><h2 style={{margin:0}}>Belum ada rombongan</h2><p>Buat rombongan untuk mengelompokkan jamaah dan menetapkan ketua.</p><button style={gold} onClick={()=>setOpen(true)}>Tambah Rombongan</button></section>}
+    )}</div>:<section style={empty}><IconUsersGroup size={48} color="var(--color-warm-400)"/><h2 style={{margin:0}}>Belum ada rombongan</h2><p>Buat rombongan untuk mengelompokkan jamaah dan menetapkan Muttawwif.</p><button style={gold} onClick={()=>setOpen(true)}>Tambah Rombongan</button></section>}
     <GroupFormDialog open={open} seasonId={seasonId} initial={edit} onClose={()=>setOpen(false)} onSaved={n=>{setNotice(`${n} berhasil disimpan.`);void load()}}/>
     <GroupChatPanel open={!!chatGroup} groupId={chatGroup?.id??""} groupName={chatGroup?.name??""} onClose={()=>setChatGroup(undefined)}/>
     <GroupRosterPanel open={!!rosterGroup} groupId={rosterGroup?.id??""} groupName={rosterGroup?.name??""} onClose={()=>setRosterGroup(undefined)}/>

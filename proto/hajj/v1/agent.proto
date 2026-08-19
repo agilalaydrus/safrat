@@ -47,6 +47,13 @@ service AgentService {
   // --- Withdrawal request queue (Operator side) ---
   rpc ListPayoutRequests(ListPayoutRequestsRequest) returns (ListPayoutRequestsResponse);
   rpc RejectPayoutRequest(RejectPayoutRequestRequest) returns (PayoutRequest);
+
+  // ListMyPilgrims is the Tour Leader portal's referral list — every
+  // pilgrim with pilgrims.agent_id = this caller's own agent record,
+  // across every season. Resolves "which agent" from the caller's own
+  // Better Auth identity, same as GetMyWallet — never trusts an agent_id
+  // from the request.
+  rpc ListMyPilgrims(ListMyPilgrimsRequest) returns (ListMyPilgrimsResponse);
 }
 
 message Agent {
@@ -223,3 +230,18 @@ message RejectPayoutRequestRequest {
   string request_id = 1 [(buf.validate.field).string.uuid = true];
   string note = 2 [(buf.validate.field).string.min_len = 1];
 }
+
+message AgentPilgrim {
+  string id = 1;
+  string full_name = 2;
+  string passport_number = 3;
+  string gender = 4;
+  string payment_status = 5;
+  bool docs_complete = 6;
+  string pilgrim_status = 7;
+  string season_name = 8;
+  google.protobuf.Timestamp departure_date = 9;
+}
+
+message ListMyPilgrimsRequest {}
+message ListMyPilgrimsResponse { repeated AgentPilgrim pilgrims = 1; }

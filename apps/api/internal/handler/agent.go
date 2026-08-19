@@ -84,6 +84,13 @@ func (h *AgentHandler) RejectPayoutRequest(ctx context.Context, req *connect.Req
 	}
 	return connect.NewResponse(result), nil
 }
+func (h *AgentHandler) ListMyPilgrims(ctx context.Context, _ *connect.Request[hajjv1.ListMyPilgrimsRequest]) (*connect.Response[hajjv1.ListMyPilgrimsResponse], error) {
+	result, err := h.agentService.ListMyPilgrims(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx))
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
 func (h *AgentHandler) UpdateAgent(ctx context.Context, req *connect.Request[hajjv1.UpdateAgentRequest]) (*connect.Response[hajjv1.Agent], error) {
 	result, err := h.agentService.Update(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
 	if err != nil {

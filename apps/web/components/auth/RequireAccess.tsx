@@ -6,10 +6,10 @@ import { authClient } from "@/lib/auth-client";
 import { getMyAccessCached } from "@/lib/access-cache";
 import { resolveLandingPath } from "@/lib/post-login";
 
-type Role = "staff" | "leader" | "pilgrim";
+type Role = "staff" | "leader" | "agent" | "pilgrim";
 
 /**
- * Gate for /dashboard, /leader, and /pilgrim. middleware.ts only checks
+ * Gate for /dashboard, /leader, /agent, and /pilgrim. middleware.ts only checks
  * that a Better Auth session cookie is present — it can't check *who* that
  * session belongs to (Edge middleware has no DB access), so without this,
  * a signed-in pilgrim or a leader-only identity could load the wrong
@@ -36,7 +36,11 @@ export function RequireAccess({ role, children }: { role: Role; children: React.
       try {
         const access = await getMyAccessCached();
         if (cancelled) return;
-        const allowed = role === "staff" ? access.isOrgMember : role === "leader" ? access.leaderGroups.length > 0 : !!access.linkedPilgrim;
+        const allowed =
+          role === "staff" ? access.isOrgMember
+          : role === "leader" ? access.leaderGroups.length > 0
+          : role === "agent" ? access.isOrgMember && !!access.linkedAgent?.isActive
+          : !!access.linkedPilgrim;
         if (allowed) {
           setChecking(false);
           return;

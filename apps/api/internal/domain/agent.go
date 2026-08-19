@@ -55,3 +55,15 @@ type PayoutRequest struct {
 	RequestedAt    time.Time
 	ResolvedAt     *time.Time
 }
+
+type AgentPilgrim struct {
+	ID             string
+	FullName       string
+	PassportNumber string
+	Gender         string
+	PaymentStatus  string
+	DocsComplete   bool
+	PilgrimStatus  string
+	SeasonName     string
+	DepartureDate  *time.Time
+}

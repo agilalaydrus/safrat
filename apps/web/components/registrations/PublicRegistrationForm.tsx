@@ -1,12 +1,15 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Timestamp } from "@bufbuild/protobuf";
 import { IconCheck } from "@tabler/icons-react";
 import { RegistrationFormInfo } from "@hajj-saas/proto-gen/hajj/v1/registration_pb";
 import { registrationClient } from "@/lib/rpc";
 
 export default function PublicRegistrationForm({ operatorId, seasonId }: { operatorId: string; seasonId: string }) {
+  const searchParams = useSearchParams();
+  const referralCode = searchParams.get("ref") ?? "";
   const [formInfo, setFormInfo] = useState<RegistrationFormInfo>();
   const [loadError, setLoadError] = useState("");
   const [form, setForm] = useState({ fullName: "", passportNumber: "", gender: "MALE", phone: "", email: "", nationality: "IDN", address: "", dateOfBirth: "" });
@@ -34,6 +37,7 @@ export default function PublicRegistrationForm({ operatorId, seasonId }: { opera
         nationality: form.nationality.trim() || "IDN",
         address: form.address.trim(),
         dateOfBirth: form.dateOfBirth ? Timestamp.fromDate(new Date(`${form.dateOfBirth}T00:00:00Z`)) : undefined,
+        referralCode,
       });
       setMessage(response.message);
     } catch (caught) {

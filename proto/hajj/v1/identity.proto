@@ -48,6 +48,20 @@ message MyAccess {
   // PilgrimAppService.LinkGoogleAccount. A Better Auth identity can be
   // linked to at most one pilgrim (pilgrims.linked_user_id is unique).
   PilgrimSummary linked_pilgrim = 6;
+
+  // Tour Leader (Agent) — set when this Better Auth identity is linked to
+  // an active agent record via agents.linked_user_id within this org's
+  // operator. A user can be simultaneously an org member AND a linked
+  // agent (Tour Leaders are invited as org members, and every Group
+  // Leader is auto-created as one too — see EnsureAgentForLeader).
+  AgentSummary linked_agent = 7;
+}
+
+message AgentSummary {
+  string id = 1;
+  string name = 2;
+  string referral_code = 3;
+  bool is_active = 4;
 }
 
 message LeaderGroupSummary {

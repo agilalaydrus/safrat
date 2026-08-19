@@ -43,6 +43,9 @@ func (s *IdentityService) GetMyAccess(ctx context.Context, _ *hajjv1.GetMyAccess
 	if access.LinkedPilgrim != nil {
 		result.LinkedPilgrim = &hajjv1.PilgrimSummary{Id: access.LinkedPilgrim.ID, AppAccessCode: access.LinkedPilgrim.AppAccessCode, FullName: access.LinkedPilgrim.FullName}
 	}
+	if access.LinkedAgent != nil {
+		result.LinkedAgent = &hajjv1.AgentSummary{Id: access.LinkedAgent.ID, Name: access.LinkedAgent.Name, ReferralCode: access.LinkedAgent.ReferralCode, IsActive: access.LinkedAgent.IsActive}
+	}
 	return result, nil
 }
 

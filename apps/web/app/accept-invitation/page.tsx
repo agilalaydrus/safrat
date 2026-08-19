@@ -81,7 +81,7 @@ function AcceptInvitationInner() {
   return (
     <div style={{ display: "grid", gap: 16, textAlign: "center" }}>
       {orgName ? (
-        <p style={{ fontSize: 14 }}>Anda diundang untuk bergabung dengan <strong>{orgName}</strong> sebagai Ketua Rombongan / Muttawwif.</p>
+        <p style={{ fontSize: 14 }}>Anda diundang untuk bergabung dengan <strong>{orgName}</strong> sebagai Muttawwif.</p>
       ) : (
         <p style={{ fontSize: 13, color: "var(--color-warm-400)" }}>Memuat detail undangan...</p>
       )}

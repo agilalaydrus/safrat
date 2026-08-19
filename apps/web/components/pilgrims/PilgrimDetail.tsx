@@ -89,7 +89,7 @@ export default function PilgrimDetail({ id }: { id: string }) {
       </section>
       <aside style={card}>
         <h2>Penempatan</h2>
-        <Details values={[["Rombongan", pilgrim.groupId ? (group?.name ?? "Memuat...") : "Belum ditentukan"], ["Ketua Rombongan", pilgrim.groupId ? (group?.leaderName || "Belum ada ketua") : "-"], ["Kamar", "Belum ditentukan"], ["Kendaraan", "Belum ditentukan"]]} />
+        <Details values={[["Rombongan", pilgrim.groupId ? (group?.name ?? "Memuat...") : "Belum ditentukan"], ["Muttawwif", pilgrim.groupId ? (group?.leaderName || "Belum ada Muttawwif") : "-"], ["Kamar", "Belum ditentukan"], ["Kendaraan", "Belum ditentukan"]]} />
         <div className="gold-divider" />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0 }}>Penggantian Jamaah</h2>

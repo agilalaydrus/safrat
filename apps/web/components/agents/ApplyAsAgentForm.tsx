@@ -25,14 +25,14 @@ export default function ApplyAsAgentForm({ operatorId, referredByCode }: { opera
   }
 
   if (submitted) {
-    return <main style={page}><div style={card}><IconCheck size={40} color="var(--color-emerald-900)" /><h1 style={title}>Pendaftaran diterima</h1><p style={{ color: "var(--color-warm-500)" }}>Operator akan meninjau pendaftaran Anda dan mengaktifkan akun agen Anda.</p></div></main>;
+    return <main style={page}><div style={card}><IconCheck size={40} color="var(--color-emerald-900)" /><h1 style={title}>Pendaftaran diterima</h1><p style={{ color: "var(--color-warm-500)" }}>Operator akan meninjau pendaftaran Anda dan mengaktifkan akun Tour Leader Anda.</p></div></main>;
   }
 
   return (
     <main style={page}>
       <div style={card}>
         <p style={eyebrow}>DAFTAR SEBAGAI AGEN RUJUKAN</p>
-        <h1 style={title}>Daftar sebagai agen</h1>
+        <h1 style={title}>Daftar sebagai Tour Leader</h1>
         {referredByCode && <p style={{ color: "var(--color-warm-500)" }}>Dirujuk dengan kode <b>{referredByCode}</b></p>}
         <form onSubmit={submit} style={{ display: "grid", gap: 16, marginTop: 16 }}>
           <label style={{ display: "grid", gap: 6 }}><span style={label}>Nama lengkap</span><input required className="safrat-input" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} style={input} /></label>

@@ -25,14 +25,15 @@ type accessCacheEntry struct {
 }
 
 type IdentityRepository struct {
-	queries *db.Queries
+	queries         *db.Queries
+	agentRepository *AgentRepository
 
 	mu    sync.Mutex
 	cache map[string]accessCacheEntry // userID -> cached MyAccess
 }
 
-func NewIdentityRepository(queries *db.Queries) *IdentityRepository {
-	return &IdentityRepository{queries: queries, cache: make(map[string]accessCacheEntry)}
+func NewIdentityRepository(queries *db.Queries, agents *AgentRepository) *IdentityRepository {
+	return &IdentityRepository{queries: queries, agentRepository: agents, cache: make(map[string]accessCacheEntry)}
 }
 
 // GetMyAccess resolves every role system this user id participates in —
@@ -114,6 +115,21 @@ func (r *IdentityRepository) fetchMyAccess(ctx context.Context, userID string) (
 		// not linked to a pilgrim — expected for staff/leaders
 	default:
 		return nil, err
+	}
+
+	// Tour Leader (Agent) — only possible for an org member, since the
+	// lookup is scoped to this identity's own operator. Non-fatal if not
+	// found (pgx.ErrNoRows) — most org members are not also an agent.
+	if result.IsOrgMember {
+		agent, err := r.agentRepository.GetByLinkedUser(ctx, result.OperatorID, userID)
+		switch {
+		case err == nil && agent.IsActive:
+			result.LinkedAgent = &domain.Agent{ID: agent.ID, Name: agent.Name, ReferralCode: agent.ReferralCode, IsActive: agent.IsActive}
+		case err == nil, errors.Is(err, pgx.ErrNoRows):
+			// inactive agent, or not an agent at all — expected
+		default:
+			return nil, err
+		}
 	}
 
 	return result, nil

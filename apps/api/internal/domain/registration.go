@@ -18,4 +18,6 @@ type PilgrimRegistration struct {
 	Status         string
 	Notes          string
 	CreatedAt      time.Time
+	AgentID        string
+	AgentName      string
 }

@@ -64,6 +64,7 @@ export default function RegistrationsDashboard() {
         gender: genderFromString(registration.gender),
         phone: registration.phone,
         email: registration.email,
+        agentId: registration.referredByAgentId,
       });
       await registrationClient.approveRegistration({ registrationId: registration.id, notes: "" });
       setNotice(`${registration.fullName} disetujui dan ditambahkan sebagai jamaah.`);
@@ -115,6 +116,7 @@ export default function RegistrationsDashboard() {
               <h3 style={{ margin: "0 0 4px" }}>{registration.fullName}</h3>
               <p style={{ margin: 0, color: "var(--color-warm-500)", fontSize: 13 }}>{registration.passportNumber} · {registration.gender === "FEMALE" ? "Wanita" : "Pria"} · {registration.phone || "-"} · {registration.email || "-"}</p>
               {registration.notes && <p style={{ margin: "6px 0 0", fontSize: 13, color: "var(--color-warm-500)" }}>Catatan: {registration.notes}</p>}
+              {registration.referredByAgentName && <p style={{ margin: "6px 0 0", fontSize: 13, color: "var(--color-gold-800)", fontWeight: 600 }}>Referral: {registration.referredByAgentName}</p>}
             </div>
             {registration.status === "PENDING" && <div style={{ display: "flex", gap: 8 }}>
               <button disabled={workingId === registration.id} onClick={() => approve(registration)} style={approveBtn}><IconCheck size={16} />Setujui</button>

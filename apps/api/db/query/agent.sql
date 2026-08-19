@@ -65,3 +65,16 @@ RETURNING *;
 
 -- name: GetUserForAgent :one
 SELECT id, name, email FROM "user" WHERE id = $1;
+
+-- name: ListMyPilgrims :many
+-- Agent-facing: list pilgrims referred by this agent, across all seasons.
+SELECT
+  p.id, p.full_name, p.passport_number, p.gender, p.payment_status,
+  (p.documents_passport AND p.documents_photo AND p.documents_vaccine) AS docs_complete,
+  p.status AS pilgrim_status,
+  s.name AS season_name,
+  s.start_date AS departure_date
+FROM pilgrims p
+JOIN seasons s ON s.id = p.season_id
+WHERE p.agent_id = $1 AND p.operator_id = $2
+ORDER BY s.start_date DESC, p.full_name ASC;
