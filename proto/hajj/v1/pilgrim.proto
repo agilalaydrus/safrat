@@ -24,6 +24,7 @@ service PilgrimService {
   rpc ListPilgrimDocuments(ListPilgrimDocumentsRequest) returns (ListPilgrimDocumentsResponse);
   rpc DeletePilgrimDocument(DeletePilgrimDocumentRequest) returns (DeletePilgrimDocumentResponse);
   rpc ListSubstitutions(ListSubstitutionsRequest) returns (ListSubstitutionsResponse);
+  rpc ListSeasonDocuments(ListSeasonDocumentsRequest) returns (ListSeasonDocumentsResponse);
 }
 
 enum Gender {
@@ -222,6 +223,11 @@ message PilgrimDocument {
   string file_name = 5;
   string uploaded_by = 6;
   google.protobuf.Timestamp created_at = 7;
+  // Only populated by ListSeasonDocuments — a season-wide listing needs to
+  // show whose document this is; a per-pilgrim listing already has that
+  // context from the page it's rendered on, so these stay empty there.
+  string pilgrim_name = 8;
+  string passport_number = 9;
 }
 
 message ListPilgrimDocumentsRequest {
@@ -229,6 +235,14 @@ message ListPilgrimDocumentsRequest {
 }
 
 message ListPilgrimDocumentsResponse {
+  repeated PilgrimDocument documents = 1;
+}
+
+message ListSeasonDocumentsRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message ListSeasonDocumentsResponse {
   repeated PilgrimDocument documents = 1;
 }
 

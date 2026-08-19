@@ -161,6 +161,17 @@ func (h *PilgrimHandler) ListPilgrimDocuments(ctx context.Context, req *connect.
 	return connect.NewResponse(result), nil
 }
 
+func (h *PilgrimHandler) ListSeasonDocuments(ctx context.Context, req *connect.Request[hajjv1.ListSeasonDocumentsRequest]) (*connect.Response[hajjv1.ListSeasonDocumentsResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimService.ListSeasonDocuments(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *PilgrimHandler) DeletePilgrimDocument(ctx context.Context, req *connect.Request[hajjv1.DeletePilgrimDocumentRequest]) (*connect.Response[hajjv1.DeletePilgrimDocumentResponse], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

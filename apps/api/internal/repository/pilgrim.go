@@ -440,6 +440,36 @@ func (r *PilgrimRepository) ListDocuments(ctx context.Context, pilgrimID string)
 	return result, nil
 }
 
+func (r *PilgrimRepository) ListSeasonDocuments(ctx context.Context, operatorID, seasonID string) ([]*domain.PilgrimDocument, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	seasonUUID, err := pgUUID(seasonID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListSeasonDocuments(ctx, db.ListSeasonDocumentsParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	result := make([]*domain.PilgrimDocument, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &domain.PilgrimDocument{
+			ID:             uuid.UUID(row.ID.Bytes).String(),
+			PilgrimID:      uuid.UUID(row.PilgrimID.Bytes).String(),
+			DocType:        row.DocType,
+			FileURL:        row.FileUrl,
+			FileName:       row.FileName,
+			UploadedBy:     row.UploadedBy,
+			CreatedAt:      row.CreatedAt.Time,
+			PilgrimName:    row.PilgrimName,
+			PassportNumber: row.PassportNumber,
+		})
+	}
+	return result, nil
+}
+
 func (r *PilgrimRepository) DeleteDocument(ctx context.Context, operatorID, documentID string) error {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {

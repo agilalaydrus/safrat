@@ -44,13 +44,15 @@ type Pilgrim struct {
 }
 
 type PilgrimDocument struct {
-	ID         string
-	PilgrimID  string
-	DocType    string
-	FileURL    string
-	FileName   string
-	UploadedBy string
-	CreatedAt  time.Time
+	ID             string
+	PilgrimID      string
+	DocType        string
+	FileURL        string
+	FileName       string
+	UploadedBy     string
+	CreatedAt      time.Time
+	PilgrimName    string
+	PassportNumber string
 }
 
 type Substitution struct {

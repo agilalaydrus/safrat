@@ -355,11 +355,30 @@ func (s *PilgrimService) DeleteDocument(ctx context.Context, authenticatedOrgID 
 	return &hajjv1.DeletePilgrimDocumentResponse{}, nil
 }
 
+func (s *PilgrimService) ListSeasonDocuments(ctx context.Context, authenticatedOrgID string, req *hajjv1.ListSeasonDocumentsRequest) (*hajjv1.ListSeasonDocumentsResponse, error) {
+	if req == nil || !isUUID(req.SeasonId) {
+		return nil, serviceError("PilgrimService.ListSeasonDocuments", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("PilgrimService.ListSeasonDocuments", err)
+	}
+	documents, err := s.pilgrimRepository.ListSeasonDocuments(ctx, operator.ID, req.SeasonId)
+	if err != nil {
+		return nil, serviceError("PilgrimService.ListSeasonDocuments", err)
+	}
+	result := &hajjv1.ListSeasonDocumentsResponse{Documents: make([]*hajjv1.PilgrimDocument, 0, len(documents))}
+	for _, document := range documents {
+		result.Documents = append(result.Documents, pilgrimDocumentMessage(document))
+	}
+	return result, nil
+}
+
 func pilgrimDocumentMessage(value *domain.PilgrimDocument) *hajjv1.PilgrimDocument {
 	return &hajjv1.PilgrimDocument{
 		Id: value.ID, PilgrimId: value.PilgrimID, DocType: value.DocType,
 		FileUrl: value.FileURL, FileName: value.FileName, UploadedBy: value.UploadedBy,
-		CreatedAt: timestamppb.New(value.CreatedAt),
+		CreatedAt: timestamppb.New(value.CreatedAt), PilgrimName: value.PilgrimName, PassportNumber: value.PassportNumber,
 	}
 }
 

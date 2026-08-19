@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { IconBuildingHospital, IconBus, IconCalendar, IconChartBar, IconClipboardList, IconFileAnalytics, IconLayoutDashboard, IconLogout, IconMenu2, IconPlane, IconReceipt2, IconSettings, IconShoppingCart, IconSos, IconSpeakerphone, IconUserDollar, IconUsers, IconUsersGroup } from "@tabler/icons-react";
+import { IconBuildingHospital, IconBus, IconCalendar, IconChartBar, IconClipboardList, IconFileAnalytics, IconFiles, IconLayoutDashboard, IconLogout, IconMenu2, IconPlane, IconReceipt2, IconSettings, IconShoppingCart, IconSos, IconSpeakerphone, IconUserDollar, IconUsers, IconUsersGroup } from "@tabler/icons-react";
 import { authClient } from "@/lib/auth-client";
 import { operatorClient, seasonClient } from "@/lib/rpc";
 import { RequireAccess } from "@/components/auth/RequireAccess";
 import { invalidateMyAccessCache } from "@/lib/access-cache";
 
-const nav = [["Ringkasan", "/dashboard", IconLayoutDashboard], ["Musim", "/dashboard/seasons", IconCalendar], ["Jamaah", "/dashboard/pilgrims", IconUsers], ["Pendaftaran", "/dashboard/registrations", IconClipboardList], ["Rombongan", "/dashboard/groups", IconUsersGroup], ["Kloter", "/dashboard/kloter", IconPlane], ["Akomodasi", "/dashboard/accommodation", IconBuildingHospital], ["Transportasi", "/dashboard/transport", IconBus], ["Komunikasi", "/dashboard/communication", IconSpeakerphone], ["SOS", "/dashboard/sos", IconSos], ["Produk", "/dashboard/products", IconShoppingCart], ["Pesanan", "/dashboard/orders", IconReceipt2], ["Agen", "/dashboard/agents", IconUserDollar], ["Laporan", "/dashboard/reports", IconFileAnalytics], ["Analitik", "/dashboard/analytics", IconChartBar]] as const;
+const nav = [["Ringkasan", "/dashboard", IconLayoutDashboard], ["Musim", "/dashboard/seasons", IconCalendar], ["Jamaah", "/dashboard/pilgrims", IconUsers], ["Dokumen", "/dashboard/documents", IconFiles], ["Pendaftaran", "/dashboard/registrations", IconClipboardList], ["Rombongan", "/dashboard/groups", IconUsersGroup], ["Kloter", "/dashboard/kloter", IconPlane], ["Akomodasi", "/dashboard/accommodation", IconBuildingHospital], ["Transportasi", "/dashboard/transport", IconBus], ["Komunikasi", "/dashboard/communication", IconSpeakerphone], ["SOS", "/dashboard/sos", IconSos], ["Produk", "/dashboard/products", IconShoppingCart], ["Pesanan", "/dashboard/orders", IconReceipt2], ["Agen", "/dashboard/agents", IconUserDollar], ["Laporan", "/dashboard/reports", IconFileAnalytics], ["Analitik", "/dashboard/analytics", IconChartBar]] as const;
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname(); const router = useRouter(); const { data: session } = authClient.useSession(); const [open, setOpen] = useState(false); const [operator, setOperator] = useState(""); const [season, setSeason] = useState("");
