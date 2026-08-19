@@ -48,7 +48,14 @@ var rateLimitedProcedures = map[string]rate.Limit{
 	// Tight ceiling — this is the one endpoint where the identity token
 	// itself (app_access_code) is guessable-by-brute-force in principle;
 	// a legitimate family member checks at most a few times per hour.
-	"/hajj.v1.FamilyTrackerService/GetFamilyStatus": rate.Every(time.Minute),
+	"/hajj.v1.FamilyTrackerService/GetFamilyStatus":     rate.Every(time.Minute),
+	"/hajj.v1.ChecklistService/GetMyChecklist":          rate.Every(time.Minute / 4),
+	"/hajj.v1.ChecklistService/CompleteMyChecklistItem": rate.Every(time.Minute / 4),
+	// Once lost, a pilgrim doesn't spam this — but allow a few retries if
+	// the first push silently fails.
+	"/hajj.v1.LostReportService/ReportLost": rate.Every(time.Hour / 3), // 3 per hour per IP
+	// Loose — a jamaah might share and view their certificate multiple times.
+	"/hajj.v1.PilgrimAppService/GetMyCertificate": rate.Every(time.Minute / 4),
 }
 
 type ipLimiter struct {

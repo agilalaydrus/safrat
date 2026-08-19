@@ -128,6 +128,17 @@ func (h *PilgrimHandler) UpdatePilgrimEmergencyContact(ctx context.Context, req 
 	return connect.NewResponse(result), nil
 }
 
+func (h *PilgrimHandler) UpdatePilgrimInsurance(ctx context.Context, req *connect.Request[hajjv1.UpdatePilgrimInsuranceRequest]) (*connect.Response[hajjv1.Pilgrim], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimService.UpdateInsurance(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *PilgrimHandler) CheckInPilgrimHotel(ctx context.Context, req *connect.Request[hajjv1.CheckInPilgrimHotelRequest]) (*connect.Response[hajjv1.Pilgrim], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

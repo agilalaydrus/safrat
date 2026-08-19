@@ -261,6 +261,21 @@ func (s *PilgrimService) UpdateEmergencyContact(ctx context.Context, authenticat
 	return pilgrimMessage(pilgrim), nil
 }
 
+func (s *PilgrimService) UpdateInsurance(ctx context.Context, authenticatedOrgID string, req *hajjv1.UpdatePilgrimInsuranceRequest) (*hajjv1.Pilgrim, error) {
+	if req == nil || !isUUID(req.PilgrimId) {
+		return nil, serviceError("PilgrimService.UpdateInsurance", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("PilgrimService.UpdateInsurance", err)
+	}
+	pilgrim, err := s.pilgrimRepository.UpdateInsurance(ctx, operator.ID, req.PilgrimId, req.InsuranceProvider, req.InsurancePolicyNo, req.InsuranceClass, req.BloodType, req.ChronicConditions, req.CurrentMedications)
+	if err != nil {
+		return nil, serviceError("PilgrimService.UpdateInsurance", err)
+	}
+	return pilgrimMessage(pilgrim), nil
+}
+
 func (s *PilgrimService) CheckInHotel(ctx context.Context, authenticatedOrgID string, req *hajjv1.CheckInPilgrimHotelRequest) (*hajjv1.Pilgrim, error) {
 	if req == nil || !isUUID(req.PilgrimId) {
 		return nil, serviceError("PilgrimService.CheckInHotel", apperror.ErrValidation)
@@ -519,7 +534,9 @@ func pilgrimMessage(value *domain.Pilgrim) *hajjv1.Pilgrim {
 		PaymentStatus: value.PaymentStatus, PaymentReceiptUrl: value.PaymentReceiptURL, PaymentNotes: value.PaymentNotes,
 		EmergencyContactName: value.EmergencyContactName, EmergencyContactPhone: value.EmergencyContactPhone,
 		HotelCheckedIn: value.HotelCheckedIn, DocumentsPassport: value.DocumentsPassport, DocumentsPhoto: value.DocumentsPhoto, DocumentsVaccine: value.DocumentsVaccine,
-		Status: value.Status,
+		Status:            value.Status,
+		InsuranceProvider: value.InsuranceProvider, InsurancePolicyNo: value.InsurancePolicyNo, InsuranceClass: value.InsuranceClass,
+		BloodType: value.BloodType, ChronicConditions: value.ChronicConditions, CurrentMedications: value.CurrentMedications,
 	}
 	if value.PassportExpiryDate != nil {
 		result.PassportExpiryDate = timestamppb.New(*value.PassportExpiryDate)

@@ -56,6 +56,17 @@ func (h *PilgrimAppHandler) ListMyProducts(ctx context.Context, req *connect.Req
 	}
 	return connect.NewResponse(result), nil
 }
+func (h *PilgrimAppHandler) GetMyCertificate(ctx context.Context, req *connect.Request[hajjv1.PilgrimAppRequest]) (*connect.Response[hajjv1.CertificateData], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimAppService.GetMyCertificate(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *PilgrimAppHandler) ListMyBroadcasts(ctx context.Context, req *connect.Request[hajjv1.PilgrimAppRequest]) (*connect.Response[hajjv1.ListBroadcastsResponse], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

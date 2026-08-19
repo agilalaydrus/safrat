@@ -48,6 +48,14 @@ export default function PilgrimDocumentsPanel({ pilgrim, onUpdated }: { pilgrim:
   const [checkingIn, setCheckingIn] = useState(false);
   const [notice, setNotice] = useState("");
 
+  const [insuranceProvider, setInsuranceProvider] = useState(pilgrim.insuranceProvider);
+  const [insurancePolicyNo, setInsurancePolicyNo] = useState(pilgrim.insurancePolicyNo);
+  const [insuranceClass, setInsuranceClass] = useState(pilgrim.insuranceClass || "STANDARD");
+  const [bloodType, setBloodType] = useState(pilgrim.bloodType);
+  const [chronicConditions, setChronicConditions] = useState(pilgrim.chronicConditions);
+  const [currentMedications, setCurrentMedications] = useState(pilgrim.currentMedications);
+  const [savingInsurance, setSavingInsurance] = useState(false);
+
   const monthsToExpiry = monthsUntil(pilgrim.passportExpiryDate);
   const expiryWarning = monthsToExpiry !== undefined && monthsToExpiry < 6;
 
@@ -107,6 +115,21 @@ export default function PilgrimDocumentsPanel({ pilgrim, onUpdated }: { pilgrim:
       setNotice(`Gagal: ${error instanceof Error ? error.message : "tidak diketahui"}`);
     } finally {
       setCheckingIn(false);
+    }
+  };
+
+  const saveInsurance = async () => {
+    setSavingInsurance(true);
+    try {
+      const result = await pilgrimClient.updatePilgrimInsurance({
+        pilgrimId: pilgrim.id, insuranceProvider, insurancePolicyNo, insuranceClass, bloodType, chronicConditions, currentMedications,
+      });
+      onUpdated(result);
+      setNotice("Data asuransi & medis diperbarui");
+    } catch (error) {
+      setNotice(`Gagal: ${error instanceof Error ? error.message : "tidak diketahui"}`);
+    } finally {
+      setSavingInsurance(false);
     }
   };
 
@@ -170,6 +193,33 @@ export default function PilgrimDocumentsPanel({ pilgrim, onUpdated }: { pilgrim:
       <button disabled={checkingIn} onClick={toggleCheckIn} style={pilgrim.hotelCheckedIn ? disabledBtn : emerald}>
         {checkingIn ? "Memproses..." : pilgrim.hotelCheckedIn ? "Batalkan Check-in" : "Tandai Check-in"}
       </button>
+    </section>
+
+    <section style={card}>
+      <h2 style={{ margin: 0 }}>Asuransi & Medis</h2>
+      <label style={field}>Penyedia asuransi
+        <input value={insuranceProvider} onChange={(e) => setInsuranceProvider(e.target.value)} style={input} />
+      </label>
+      <label style={field}>Nomor polis
+        <input value={insurancePolicyNo} onChange={(e) => setInsurancePolicyNo(e.target.value)} style={input} />
+      </label>
+      <label style={field}>Kelas asuransi
+        <select value={insuranceClass} onChange={(e) => setInsuranceClass(e.target.value)} style={input}>
+          <option value="STANDARD">Standard</option>
+          <option value="PLUS">Plus</option>
+          <option value="PREMIUM">Premium</option>
+        </select>
+      </label>
+      <label style={field}>Golongan darah
+        <input value={bloodType} onChange={(e) => setBloodType(e.target.value)} placeholder="A / B / AB / O" style={input} />
+      </label>
+      <label style={field}>Kondisi medis kronis
+        <textarea value={chronicConditions} onChange={(e) => setChronicConditions(e.target.value)} rows={2} style={{ ...input, minHeight: 60, resize: "vertical" }} />
+      </label>
+      <label style={field}>Obat rutin yang dikonsumsi
+        <textarea value={currentMedications} onChange={(e) => setCurrentMedications(e.target.value)} rows={2} style={{ ...input, minHeight: 60, resize: "vertical" }} />
+      </label>
+      <button disabled={savingInsurance} onClick={saveInsurance} style={emerald}>{savingInsurance ? "Menyimpan..." : "Simpan Asuransi & Medis"}</button>
     </section>
 
     {notice && <p role="status" style={{ gridColumn: "1 / -1" }}>{notice}</p>}

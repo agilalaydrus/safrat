@@ -10,6 +10,7 @@ import { PilgrimCodeProvider, usePilgrimCode } from "@/lib/pilgrim-context";
 import { authClient } from "@/lib/auth-client";
 import { invalidateMyAccessCache } from "@/lib/access-cache";
 import { usePilgrimChatUnread } from "@/lib/pilgrim-notifications";
+import { LostReportButton } from "@/components/pilgrim/LostReportButton";
 
 const TABS = [
   ["Beranda", "/pilgrim", IconHome],
@@ -43,6 +44,7 @@ function PilgrimShell({ children }: { children: React.ReactNode }) {
         </button>
       </header>
       <div style={content}>{children}</div>
+      {code && <LostReportButton appAccessCode={code} />}
       <nav style={tabBar} aria-label="Navigasi aplikasi Jamaah">
         {TABS.map(([label, href, Icon]) => {
           const active = pathname === href;

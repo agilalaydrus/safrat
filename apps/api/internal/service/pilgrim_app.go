@@ -24,6 +24,26 @@ func NewPilgrimAppService(pilgrims *repository.PilgrimRepository, products *repo
 	return &PilgrimAppService{pilgrimRepository: pilgrims, productRepository: products, auditRepository: audit, identityRepository: identity, broadcastRepository: broadcasts}
 }
 
+// GetMyCertificate is public (app_access_code), same pattern as every
+// other PilgrimAppService method.
+func (s *PilgrimAppService) GetMyCertificate(ctx context.Context, req *hajjv1.PilgrimAppRequest) (*hajjv1.CertificateData, error) {
+	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" {
+		return nil, serviceError("PilgrimAppService.GetMyCertificate", apperror.ErrValidation)
+	}
+	data, err := s.pilgrimRepository.GetCertificateData(ctx, req.AppAccessCode)
+	if err != nil {
+		return nil, serviceError("PilgrimAppService.GetMyCertificate", apperror.ErrNotFound)
+	}
+	return &hajjv1.CertificateData{
+		PilgrimName: data.PilgrimName, PassportNumber: data.PassportNumber, Nationality: data.Nationality,
+		SeasonName: data.SeasonName, SeasonType: string(data.SeasonType),
+		StartDate: timestamppb.New(data.StartDate), EndDate: timestamppb.New(data.EndDate),
+		OperatorName: data.OperatorName, LicenseNumber: data.LicenseNumber,
+		GroupName: data.GroupName, LeaderName: data.LeaderName,
+		HotelsVisited: data.HotelsVisited, MakkahHotels: data.MakkahHotels, MadinahHotels: data.MadinahHotels,
+	}, nil
+}
+
 // ListMyBroadcasts is public (app_access_code), same pattern as every other
 // PilgrimAppService method — resolves operator+season from the code, then
 // lists that season's broadcasts (same repository BroadcastService uses).

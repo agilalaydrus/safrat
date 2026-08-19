@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { IconBed, IconBuilding, IconBus, IconCircleCheck, IconPlane, IconStar, IconUsersGroup, IconWheelchair, IconWifiOff } from "@tabler/icons-react";
+import { IconAward, IconBed, IconBuilding, IconBus, IconCircleCheck, IconChecklist, IconPlane, IconStar, IconUsersGroup, IconWheelchair, IconWifiOff } from "@tabler/icons-react";
 import { PilgrimAppInfo } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_app_pb";
 import { pilgrimAppClient } from "@/lib/rpc";
 import { cachedFetch, toDateSafe } from "@/lib/offline";
@@ -139,6 +139,16 @@ export default function PilgrimHomePage() {
           {info.kloterDepartureDate && <p style={{ margin: "6px 0 0", fontWeight: 700, color: "var(--color-gold-800)" }}>{toDateSafe(info.kloterDepartureDate)?.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}</p>}
         </section>
       )}
+
+      <Link href="/pilgrim/checklist" style={surveyCard}>
+        <IconChecklist size={20} color="var(--color-emerald-800)" />
+        <div><p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>Checklist Persiapan</p><p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--color-warm-500)" }}>Pantau kelengkapan dokumen dan persiapan keberangkatan Anda.</p></div>
+      </Link>
+
+      <a href={`/certificate/${code}`} target="_blank" rel="noreferrer" style={surveyCard}>
+        <IconAward size={20} color="var(--color-gold-800)" />
+        <div><p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>Unduh Sertifikat</p><p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--color-warm-500)" }}>Lihat dan cetak sertifikat perjalanan Anda.</p></div>
+      </a>
 
       <Link href="/pilgrim/survey" style={surveyCard}>
         <IconStar size={20} color="var(--color-gold-800)" />

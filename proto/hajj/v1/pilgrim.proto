@@ -25,6 +25,7 @@ service PilgrimService {
   rpc DeletePilgrimDocument(DeletePilgrimDocumentRequest) returns (DeletePilgrimDocumentResponse);
   rpc ListSubstitutions(ListSubstitutionsRequest) returns (ListSubstitutionsResponse);
   rpc ListSeasonDocuments(ListSeasonDocumentsRequest) returns (ListSeasonDocumentsResponse);
+  rpc UpdatePilgrimInsurance(UpdatePilgrimInsuranceRequest) returns (Pilgrim);
 }
 
 enum Gender {
@@ -78,6 +79,12 @@ message Pilgrim {
   bool documents_vaccine = 35;
   // ACTIVE | CANCELLED — independent of is_substituted.
   string status = 36;
+  string insurance_provider = 37;
+  string insurance_policy_no = 38;
+  string insurance_class = 39; // STANDARD | PLUS | PREMIUM
+  string blood_type = 40;
+  string chronic_conditions = 41;
+  string current_medications = 42;
 }
 
 message CreatePilgrimRequest {
@@ -253,3 +260,13 @@ message DeletePilgrimDocumentRequest {
 }
 
 message DeletePilgrimDocumentResponse {}
+
+message UpdatePilgrimInsuranceRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+  string insurance_provider = 2 [(buf.validate.field).string.max_len = 150];
+  string insurance_policy_no = 3 [(buf.validate.field).string.max_len = 100];
+  string insurance_class = 4 [(buf.validate.field).string = {in: ["STANDARD", "PLUS", "PREMIUM"]}];
+  string blood_type = 5 [(buf.validate.field).string.max_len = 10];
+  string chronic_conditions = 6 [(buf.validate.field).string.max_len = 500];
+  string current_medications = 7 [(buf.validate.field).string.max_len = 500];
+}

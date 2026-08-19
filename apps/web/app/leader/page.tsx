@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { IconGenderFemale, IconGenderMale, IconPlane, IconUsersGroup, IconWheelchair, IconWifiOff } from "@tabler/icons-react";
+import { IconGenderFemale, IconGenderMale, IconMapPinExclamation, IconPlane, IconUsersGroup, IconWheelchair, IconWifiOff } from "@tabler/icons-react";
 import { Gender, Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
-import { groupLeaderClient, kloterClient } from "@/lib/rpc";
+import { LostReport } from "@hajj-saas/proto-gen/hajj/v1/lost_report_pb";
+import { groupLeaderClient, kloterClient, lostReportClient } from "@/lib/rpc";
 import { cachedFetch } from "@/lib/offline";
 import { useLeaderGroup } from "@/lib/leader-context";
 
@@ -13,6 +14,7 @@ export default function LeaderRosterPage() {
   const [kloterCodes, setKloterCodes] = useState<Record<string, string>>({});
   const [fromCache, setFromCache] = useState(false);
   const [error, setError] = useState("");
+  const [lostReports, setLostReports] = useState<LostReport[]>([]);
 
   useEffect(() => {
     if (!selectedGroupId) return;
@@ -22,6 +24,19 @@ export default function LeaderRosterPage() {
         setFromCache(result.fromCache);
       })
       .catch(() => setError("Gagal memuat daftar jamaah rombongan ini."));
+  }, [selectedGroupId]);
+
+  useEffect(() => {
+    if (!selectedGroupId) return;
+    let cancelled = false;
+    function poll() {
+      lostReportClient.listGroupLostReports({ groupId: selectedGroupId }).then((response) => {
+        if (!cancelled) setLostReports(response.reports.filter((r) => r.status !== "RESOLVED"));
+      }).catch(() => {});
+    }
+    poll();
+    const interval = window.setInterval(poll, 10000);
+    return () => { cancelled = true; window.clearInterval(interval); };
   }, [selectedGroupId]);
 
   useEffect(() => {
@@ -48,6 +63,15 @@ export default function LeaderRosterPage() {
       <h1 style={title}>{pilgrims.length} jamaah</h1>
       {fromCache && <p style={offlineBanner}><IconWifiOff size={16} />Menampilkan data tersimpan — Anda sedang offline</p>}
       {error && <p style={{ color: "var(--color-danger-600)" }}>{error}</p>}
+      {lostReports.map((report) => (
+        <a key={report.id} href={`https://www.google.com/maps?q=${report.latitude},${report.longitude}`} target="_blank" rel="noreferrer" style={lostBanner}>
+          <IconMapPinExclamation size={22} color="#fff" />
+          <div>
+            <p style={{ margin: 0, fontWeight: 700 }}>{report.pilgrimName} melaporkan tersesat</p>
+            <p style={{ margin: "2px 0 0", fontSize: 12, opacity: 0.9 }}>Ketuk untuk buka lokasi di Google Maps</p>
+          </div>
+        </a>
+      ))}
       <div style={list}>
         {pilgrims.map((pilgrim) => (
           <article key={pilgrim.id} style={card}>
@@ -67,6 +91,7 @@ const page: React.CSSProperties = { maxWidth: 480, margin: "0 auto", padding: "2
 const eyebrow: React.CSSProperties = { color: "var(--color-gold-800)", fontSize: 11, fontWeight: 700, letterSpacing: ".08em", margin: "0 0 6px" };
 const title: React.CSSProperties = { fontSize: 26, margin: "0 0 14px" };
 const offlineBanner: React.CSSProperties = { display: "flex", alignItems: "center", gap: 6, background: "var(--color-gold-50)", color: "var(--color-gold-800)", padding: "8px 12px", borderRadius: 8, fontSize: 12, marginBottom: 14 };
+const lostBanner: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, background: "var(--color-danger-600)", color: "#fff", padding: "12px 14px", borderRadius: 12, marginBottom: 14, textDecoration: "none" };
 const list: React.CSSProperties = { display: "grid", gap: 10 };
 const card: React.CSSProperties = { background: "#fff", border: "1px solid var(--color-cream-400)", borderRadius: 12, padding: 14, display: "flex", justifyContent: "space-between", alignItems: "center" };
 const meta: React.CSSProperties = { margin: "4px 0 0", display: "flex", alignItems: "center", gap: 6, color: "var(--color-warm-500)", fontSize: 12 };

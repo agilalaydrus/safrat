@@ -68,6 +68,37 @@ func (p *FirebasePusher) NotifySOSAlert(ctx context.Context, operatorID string, 
 	}
 }
 
+// NotifyLostReport pushes to every registered coordinator/leader device for
+// the operator — same broadcast scope as NotifySOSAlert. There's no
+// per-leader token targeting in this system (tokens are keyed to operator,
+// not to a specific leader/group), so a leader learns about their own
+// group's report the same way any coordinator does: via this broadcast,
+// then filters to their group in the leader app UI.
+func (p *FirebasePusher) NotifyLostReport(ctx context.Context, operatorID, pilgrimName string) {
+	if p == nil || p.client == nil {
+		return
+	}
+	tokens, err := p.tokens.ListTokensForOperator(ctx, operatorID)
+	if err != nil {
+		p.logger.Error("list push tokens", "error", err)
+		return
+	}
+	if len(tokens) == 0 {
+		return
+	}
+	response, err := p.client.SendEachForMulticast(ctx, &messaging.MulticastMessage{
+		Tokens:       tokens,
+		Notification: &messaging.Notification{Title: "🟡 Jamaah Terpisah", Body: pilgrimName + " melaporkan diri terpisah dari rombongan."},
+	})
+	if err != nil {
+		p.logger.Error("send lost report push", "error", err)
+		return
+	}
+	if response.FailureCount > 0 {
+		p.logger.Warn("lost report push partial failure", "failure_count", response.FailureCount, "success_count", response.SuccessCount)
+	}
+}
+
 func sosNotificationText(alert *domain.SOSAlert) (string, string) {
 	if alert.Status == "ESCALATED" {
 		return "SOS ESCALATED", alert.PilgrimName + " has not been acknowledged in 10 minutes."

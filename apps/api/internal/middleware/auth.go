@@ -60,6 +60,17 @@ var publicProcedures = map[string]bool{
 	// session of any kind. See family_tracker.proto for the exposed-field
 	// allowlist that keeps this from leaking PII.
 	"/hajj.v1.FamilyTrackerService/GetFamilyStatus": true,
+	// ChecklistService pilgrim-app RPCs — app_access_code authenticated,
+	// same pattern as the rest of PilgrimAppService.
+	"/hajj.v1.ChecklistService/GetMyChecklist":          true,
+	"/hajj.v1.ChecklistService/CompleteMyChecklistItem": true,
+	// LostReportService/ReportLost — a pilgrim tapping "Saya Tersesat" has
+	// no session, only app_access_code; pilgrim_id/operator_id/group_id are
+	// always derived server-side from it (see LostReportService.ReportLost).
+	"/hajj.v1.LostReportService/ReportLost": true,
+	// PilgrimAppService/GetMyCertificate — same public, code-authenticated
+	// pattern as the rest of this service.
+	"/hajj.v1.PilgrimAppService/GetMyCertificate": true,
 }
 
 // sessionOnlyProcedures lists RPCs that require a real, server-validated

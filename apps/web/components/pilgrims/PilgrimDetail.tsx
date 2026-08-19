@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { IconEdit, IconReceipt2, IconShare, IconUser } from "@tabler/icons-react";
+import { IconAward, IconEdit, IconReceipt2, IconShare, IconUser } from "@tabler/icons-react";
 import { Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { pilgrimClient, groupClient } from "@/lib/rpc";
 import PilgrimFormDialog from "./PilgrimFormDialog";
@@ -70,6 +70,7 @@ export default function PilgrimDetail({ id }: { id: string }) {
       <div><p style={eyebrow}>PROFIL JAMAAH</p><h1 style={{ margin: 0, fontSize: 40 }}>{pilgrim.fullName}</h1></div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/track/${pilgrim.appAccessCode}`); setNotice("Tautan pelacak keluarga disalin!"); }} style={ghostBtn}><IconShare size={18} />Bagikan ke Keluarga</button>
+        <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/certificate/${pilgrim.appAccessCode}`); setNotice("Tautan sertifikat disalin!"); }} style={ghostBtn}><IconAward size={18} />Bagikan Sertifikat</button>
         <Link href={`/dashboard/pilgrims/${id}/invoice`} target="_blank" style={{ ...gold, textDecoration: "none" }}><IconReceipt2 size={18} />Cetak Invoice</Link>
         <button onClick={() => setEdit(true)} style={emerald}><IconEdit size={18} />Ubah</button>
       </div>

@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service VendorService {
+  rpc CreateVendorContract(CreateVendorContractRequest) returns (VendorContract);
+  rpc ListVendorContracts(ListVendorContractsRequest) returns (ListVendorContractsResponse);
+  rpc UpdateVendorContract(UpdateVendorContractRequest) returns (VendorContract);
+  rpc DeleteVendorContract(DeleteVendorContractRequest) returns (DeleteVendorContractResponse);
+  rpc AddContractEvent(AddContractEventRequest) returns (ContractEvent);
+  rpc ListContractEvents(ListContractEventsRequest) returns (ListContractEventsResponse);
+  rpc GetVendorSLAStatus(GetVendorSLAStatusRequest) returns (GetVendorSLAStatusResponse);
+}
+
+message VendorContract {
+  string id = 1;
+  string vendor_name = 2;
+  string vendor_type = 3;
+  string contract_number = 4;
+  int32 committed_units = 5;
+  int32 confirmed_units = 6;
+  string confirmation_deadline = 7; // ISO date string, empty if unset
+  int64 rate_per_unit_idr = 8;
+  int64 total_value_idr = 9; // DB-generated: committed_units * rate_per_unit_idr
+  int64 deposit_amount_idr = 10;
+  bool deposit_paid = 11;
+  string status = 12; // NEGOTIATING | CONFIRMED | PARTIAL | CANCELLED
+  string sla_health = 13; // ON_TRACK | AT_RISK | OVERDUE | PENDING
+  string notes = 14;
+  string contact_name = 15;
+  string contact_phone = 16;
+  google.protobuf.Timestamp created_at = 17;
+}
+
+message ContractEvent {
+  string id = 1;
+  string contract_id = 2;
+  string event_type = 3;
+  string description = 4;
+  string recorded_by = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message CreateVendorContractRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+  string vendor_name = 2 [(buf.validate.field).string.min_len = 1];
+  string vendor_type = 3;
+  string contract_number = 4;
+  int32 committed_units = 5 [(buf.validate.field).int32.gte = 0];
+  string confirmation_deadline = 6;
+  int64 rate_per_unit_idr = 7 [(buf.validate.field).int64.gte = 0];
+  int64 deposit_amount_idr = 8 [(buf.validate.field).int64.gte = 0];
+  string notes = 9;
+  string contact_name = 10;
+  string contact_phone = 11;
+}
+
+message ListVendorContractsRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message ListVendorContractsResponse {
+  repeated VendorContract contracts = 1;
+}
+
+message UpdateVendorContractRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  string vendor_name = 2 [(buf.validate.field).string.min_len = 1];
+  int32 confirmed_units = 3 [(buf.validate.field).int32.gte = 0];
+  string confirmation_deadline = 4;
+  string status = 5 [(buf.validate.field).string = {in: ["NEGOTIATING", "CONFIRMED", "PARTIAL", "CANCELLED"]}];
+  string notes = 6;
+  bool deposit_paid = 7;
+  string contact_name = 8;
+  string contact_phone = 9;
+}
+
+message DeleteVendorContractRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+message DeleteVendorContractResponse {}
+
+message AddContractEventRequest {
+  string contract_id = 1 [(buf.validate.field).string.uuid = true];
+  string event_type = 2 [(buf.validate.field).string.min_len = 1];
+  string description = 3 [(buf.validate.field).string.min_len = 1];
+}
+message ListContractEventsRequest {
+  string contract_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message ListContractEventsResponse {
+  repeated ContractEvent events = 1;
+}
+message GetVendorSLAStatusRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message GetVendorSLAStatusResponse {
+  repeated VendorContract contracts = 1;
+}

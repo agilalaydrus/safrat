@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service StaffScheduleService {
+  rpc AssignStaffToKloter(AssignStaffToKloterRequest) returns (KloterStaff);
+  rpc ListKloterStaff(ListKloterStaffRequest) returns (ListKloterStaffResponse);
+  rpc RemoveStaffFromKloter(RemoveStaffFromKloterRequest) returns (RemoveStaffFromKloterResponse);
+  rpc ListAllStaffSchedule(ListAllStaffScheduleRequest) returns (ListAllStaffScheduleResponse);
+  // ListMyAssignments is authenticated like every other RPC here — scoped
+  // to the caller's own Better Auth user id from context, never from the
+  // request body.
+  rpc ListMyAssignments(ListMyAssignmentsRequest) returns (ListMyAssignmentsResponse);
+}
+
+message KloterStaff {
+  string id = 1;
+  string kloter_id = 2;
+  string kloter_name = 3;
+  string staff_id = 4;
+  string staff_name = 5;
+  string staff_email = 6;
+  string role = 7;
+  string duties = 8;
+  google.protobuf.Timestamp departure_date = 9;
+  string season_name = 10;
+}
+
+message KloterScheduleSummary {
+  string kloter_id = 1;
+  string kloter_name = 2;
+  string season_name = 3;
+  int32 staff_count = 4;
+  string staff_names = 5;
+  google.protobuf.Timestamp departure_date = 6;
+}
+
+message AssignStaffToKloterRequest {
+  string kloter_id = 1 [(buf.validate.field).string.uuid = true];
+  string staff_id = 2 [(buf.validate.field).string.min_len = 1];
+  string staff_name = 3 [(buf.validate.field).string.min_len = 1];
+  string staff_email = 4;
+  string role = 5;
+  string duties = 6;
+}
+message ListKloterStaffRequest {
+  string kloter_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message ListKloterStaffResponse {
+  repeated KloterStaff staff = 1;
+}
+message RemoveStaffFromKloterRequest {
+  string kloter_id = 1 [(buf.validate.field).string.uuid = true];
+  string staff_id = 2 [(buf.validate.field).string.min_len = 1];
+}
+message RemoveStaffFromKloterResponse {}
+message ListAllStaffScheduleRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message ListAllStaffScheduleResponse {
+  repeated KloterScheduleSummary kloters = 1;
+}
+message ListMyAssignmentsRequest {}
+message ListMyAssignmentsResponse {
+  repeated KloterStaff assignments = 1;
+}

@@ -13,6 +13,7 @@ const PUBLIC_PATHS = [
   "/apply",
   "/waitlist",
   "/track",
+  "/certificate",
   "/firebase-messaging-sw.js",
 ];
 

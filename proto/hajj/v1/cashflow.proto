@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service CashFlowService {
+  rpc CreateVendorPayment(CreateVendorPaymentRequest) returns (VendorPayment);
+  rpc ListVendorPayments(ListVendorPaymentsRequest) returns (ListVendorPaymentsResponse);
+  rpc UpdateVendorPaymentStatus(UpdateVendorPaymentStatusRequest) returns (VendorPayment);
+  rpc DeleteVendorPayment(DeleteVendorPaymentRequest) returns (DeleteVendorPaymentResponse);
+  rpc GetCashFlowSummary(GetCashFlowSummaryRequest) returns (CashFlowSummary);
+  rpc GetMonthlyProjection(GetMonthlyProjectionRequest) returns (GetMonthlyProjectionResponse);
+}
+
+message VendorPayment {
+  string id = 1;
+  string season_id = 2;
+  string vendor_name = 3;
+  string category = 4;
+  string description = 5;
+  int64 amount_idr = 6;
+  string due_date = 7; // ISO date string YYYY-MM-DD
+  string status = 8; // PENDING | PAID | OVERDUE | CANCELLED
+  google.protobuf.Timestamp paid_at = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message CashFlowSummary {
+  int64 total_collected_idr = 1;
+  int64 total_committed_idr = 2;
+  int64 total_paid_out_idr = 3;
+  int64 total_outstanding_idr = 4;
+  int64 total_overdue_idr = 5;
+  int64 due_next_30_days_idr = 6;
+  int64 unpaid_pilgrim_count = 7;
+  // total_collected_idr - total_outstanding_idr, computed in the service.
+  int64 net_position_idr = 8;
+}
+
+message MonthlyProjectionEntry {
+  string month = 1; // YYYY-MM
+  int64 vendor_obligations_idr = 2;
+  int32 payment_count = 3;
+}
+
+message CreateVendorPaymentRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+  string vendor_name = 2 [(buf.validate.field).string.min_len = 1];
+  string category = 3;
+  string description = 4;
+  int64 amount_idr = 5 [(buf.validate.field).int64.gt = 0];
+  string due_date = 6 [(buf.validate.field).string.min_len = 1];
+}
+
+message ListVendorPaymentsRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message ListVendorPaymentsResponse {
+  repeated VendorPayment payments = 1;
+}
+
+message UpdateVendorPaymentStatusRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  string status = 2 [(buf.validate.field).string = {in: ["PENDING", "PAID", "OVERDUE", "CANCELLED"]}];
+}
+
+message DeleteVendorPaymentRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+message DeleteVendorPaymentResponse {}
+
+message GetCashFlowSummaryRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message GetMonthlyProjectionRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message GetMonthlyProjectionResponse {
+  repeated MonthlyProjectionEntry months = 1;
+}

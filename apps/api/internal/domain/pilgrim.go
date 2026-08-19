@@ -45,6 +45,13 @@ type Pilgrim struct {
 	// pilgrim was replaced by someone else; a cancelled one has no
 	// replacement at all).
 	Status string
+
+	InsuranceProvider  string
+	InsurancePolicyNo  string
+	InsuranceClass     string
+	BloodType          string
+	ChronicConditions  string
+	CurrentMedications string
 }
 
 type PilgrimDocument struct {

@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service InsuranceService {
+  rpc CreateInsuranceClaim(CreateInsuranceClaimRequest) returns (InsuranceClaim);
+  rpc ListInsuranceClaims(ListInsuranceClaimsRequest) returns (ListInsuranceClaimsResponse);
+  rpc UpdateInsuranceClaimStatus(UpdateInsuranceClaimStatusRequest) returns (InsuranceClaim);
+  rpc GetInsuranceClaimExportData(GetInsuranceClaimExportDataRequest) returns (InsuranceClaimExportData);
+}
+
+message InsuranceClaim {
+  string id = 1;
+  string pilgrim_id = 2;
+  string pilgrim_name = 3;
+  string passport_number = 4;
+  string insurance_provider = 5;
+  string insurance_policy_no = 6;
+  string claim_type = 7; // MEDICAL | DEATH | FLIGHT | BAGGAGE | OTHER
+  string incident_date = 8; // ISO date
+  string description = 9;
+  string status = 10; // FILED | SUBMITTED | PROCESSING | SETTLED | REJECTED
+  int64 claim_amount_idr = 11;
+  int64 settled_amount_idr = 12;
+  string filed_by = 13;
+  google.protobuf.Timestamp created_at = 14;
+}
+
+message InsuranceClaimExportData {
+  string full_name = 1;
+  string passport_number = 2;
+  google.protobuf.Timestamp date_of_birth = 3;
+  string gender = 4;
+  string nationality = 5;
+  string phone = 6;
+  string emergency_contact_name = 7;
+  string emergency_contact_phone = 8;
+  string blood_type = 9;
+  string chronic_conditions = 10;
+  string current_medications = 11;
+  string insurance_provider = 12;
+  string insurance_policy_no = 13;
+  string insurance_class = 14;
+  string medical_notes = 15;
+  string season_name = 16;
+  google.protobuf.Timestamp season_start_date = 17;
+  google.protobuf.Timestamp season_end_date = 18;
+  string operator_name = 19;
+  string operator_license_number = 20;
+  string operator_phone = 21;
+  InsuranceClaim claim = 22;
+}
+
+message CreateInsuranceClaimRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+  string claim_type = 2 [(buf.validate.field).string = {in: ["MEDICAL", "DEATH", "FLIGHT", "BAGGAGE", "OTHER"]}];
+  string incident_date = 3 [(buf.validate.field).string.min_len = 1];
+  string description = 4 [(buf.validate.field).string.min_len = 1];
+  int64 claim_amount_idr = 5 [(buf.validate.field).int64.gte = 0];
+}
+
+message ListInsuranceClaimsRequest {}
+message ListInsuranceClaimsResponse {
+  repeated InsuranceClaim claims = 1;
+}
+
+message UpdateInsuranceClaimStatusRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  string status = 2 [(buf.validate.field).string = {in: ["FILED", "SUBMITTED", "PROCESSING", "SETTLED", "REJECTED"]}];
+  int64 settled_amount_idr = 3 [(buf.validate.field).int64.gte = 0];
+}
+
+message GetInsuranceClaimExportDataRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}

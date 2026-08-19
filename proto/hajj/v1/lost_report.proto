@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service LostReportService {
+  // Public — pilgrim-facing, authenticated by app_access_code. pilgrim_id
+  // and group_id are always derived server-side from the code, never
+  // trusted from the request.
+  rpc ReportLost(ReportLostRequest) returns (LostReport);
+
+  // Authenticated — operator + leader facing.
+  rpc ListActiveLostReports(ListActiveLostReportsRequest) returns (ListActiveLostReportsResponse);
+  rpc ResolveLostReport(ResolveLostReportRequest) returns (ResolveLostReportResponse);
+  rpc ListGroupLostReports(ListGroupLostReportsRequest) returns (ListGroupLostReportsResponse);
+}
+
+message LostReport {
+  string id = 1;
+  string pilgrim_id = 2;
+  string pilgrim_name = 3;
+  string pilgrim_phone = 4;
+  string group_name = 5;
+  double latitude = 6;
+  double longitude = 7;
+  string last_known_location = 8;
+  string status = 9; // LOST | FOUND | RESOLVED
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp resolved_at = 11;
+}
+
+message ReportLostRequest {
+  string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
+  double latitude = 2 [(buf.validate.field).double = {gte: -90, lte: 90}];
+  double longitude = 3 [(buf.validate.field).double = {gte: -180, lte: 180}];
+  string last_known_location = 4;
+}
+
+message ListActiveLostReportsRequest {}
+message ListActiveLostReportsResponse {
+  repeated LostReport reports = 1;
+}
+message ResolveLostReportRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+message ResolveLostReportResponse {}
+message ListGroupLostReportsRequest {
+  string group_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message ListGroupLostReportsResponse {
+  repeated LostReport reports = 1;
+}

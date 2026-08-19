@@ -368,6 +368,25 @@ func (r *PilgrimRepository) UpdateEmergencyContact(ctx context.Context, operator
 	return toPilgrim(pilgrim), nil
 }
 
+func (r *PilgrimRepository) UpdateInsurance(ctx context.Context, operatorID, pilgrimID, provider, policyNo, class, bloodType, chronicConditions, medications string) (*domain.Pilgrim, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrimUUID, err := pgUUID(pilgrimID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrim, err := r.queries.UpdatePilgrimInsurance(ctx, db.UpdatePilgrimInsuranceParams{
+		ID: pilgrimUUID, OperatorID: opUUID, InsuranceProvider: provider, InsurancePolicyNo: policyNo,
+		InsuranceClass: class, BloodType: bloodType, ChronicConditions: chronicConditions, CurrentMedications: medications,
+	})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toPilgrim(pilgrim), nil
+}
+
 func (r *PilgrimRepository) CheckInHotel(ctx context.Context, operatorID, pilgrimID string, checkedIn bool) (*domain.Pilgrim, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
@@ -553,6 +572,12 @@ func toPilgrim(value db.Pilgrim) *domain.Pilgrim {
 		DocumentsPhoto:        value.DocumentsPhoto,
 		DocumentsVaccine:      value.DocumentsVaccine,
 		Status:                value.Status,
+		InsuranceProvider:     value.InsuranceProvider,
+		InsurancePolicyNo:     value.InsurancePolicyNo,
+		InsuranceClass:        value.InsuranceClass,
+		BloodType:             value.BloodType,
+		ChronicConditions:     value.ChronicConditions,
+		CurrentMedications:    value.CurrentMedications,
 	}
 }
 
