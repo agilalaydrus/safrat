@@ -41,7 +41,15 @@ var publicProcedures = map[string]bool{
 	// like every other entry here (see ratelimit.go), and never trusts a
 	// client-supplied operator/season/price — every value is re-derived
 	// server-side from the pilgrim record and the product row.
-	"/hajj.v1.OrderService/CreateOrder": true,
+	"/hajj.v1.OrderService/CreateOrder":           true,
+	"/hajj.v1.PilgrimAppService/ListMyBroadcasts": true,
+	// SubmitRegistration/GetRegistrationForm: a prospective pilgrim filling
+	// out the public registration form (see registration.proto) has no
+	// pilgrim record yet, so no app_access_code either — authenticated only
+	// by knowing a real operator_id+season_id, re-validated server-side on
+	// every call (see RegistrationService.Submit/GetForm).
+	"/hajj.v1.RegistrationService/SubmitRegistration":  true,
+	"/hajj.v1.RegistrationService/GetRegistrationForm": true,
 }
 
 // sessionOnlyProcedures lists RPCs that require a real, server-validated

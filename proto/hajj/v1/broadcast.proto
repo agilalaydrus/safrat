@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service BroadcastService {
+  rpc CreateBroadcast(CreateBroadcastRequest) returns (Broadcast);
+  rpc ListBroadcasts(ListBroadcastsRequest) returns (ListBroadcastsResponse);
+  rpc DeleteBroadcast(DeleteBroadcastRequest) returns (DeleteBroadcastResponse);
+}
+
+message Broadcast {
+  string id = 1;
+  string operator_id = 2;
+  string season_id = 3;
+  string title = 4;
+  string body = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message CreateBroadcastRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+  string title = 2 [(buf.validate.field).string = {min_len: 1, max_len: 150}];
+  string body = 3 [(buf.validate.field).string = {min_len: 1, max_len: 1000}];
+}
+
+message ListBroadcastsRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message ListBroadcastsResponse {
+  repeated Broadcast broadcasts = 1;
+}
+
+message DeleteBroadcastRequest {
+  string broadcast_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message DeleteBroadcastResponse {}

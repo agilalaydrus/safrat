@@ -35,7 +35,13 @@ var rateLimitedProcedures = map[string]rate.Limit{
 	"/hajj.v1.ChatService/SendMyMessage":           rate.Every(time.Minute / 10),
 	// A real checkout is a one-shot action, not a poll — tight ceiling,
 	// closer to ApplyAsAgent than to the read endpoints above.
-	"/hajj.v1.OrderService/CreateOrder": rate.Every(time.Hour / rateLimitBurst), // 5 per hour per IP
+	"/hajj.v1.OrderService/CreateOrder":           rate.Every(time.Hour / rateLimitBurst), // 5 per hour per IP
+	"/hajj.v1.PilgrimAppService/ListMyBroadcasts": rate.Every(time.Minute / 4),
+	// A public registration submission is a one-shot form, same tier as
+	// ApplyAsAgent/CreateOrder. GetRegistrationForm is read-only (loading
+	// the form itself) so it gets the looser read-endpoint ceiling instead.
+	"/hajj.v1.RegistrationService/SubmitRegistration":  rate.Every(time.Minute / rateLimitBurst), // 5 per minute per IP
+	"/hajj.v1.RegistrationService/GetRegistrationForm": rate.Every(time.Minute / 4),
 }
 
 type ipLimiter struct {

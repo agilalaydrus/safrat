@@ -6,6 +6,7 @@ import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
 import "hajj/v1/transport.proto";
 import "hajj/v1/product.proto";
+import "hajj/v1/broadcast.proto";
 
 option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 
@@ -34,6 +35,10 @@ service PilgrimAppService {
   // money-touching action (Module 7 orders/payments) — the access-code
   // link alone keeps working for everything that exists today.
   rpc LinkGoogleAccount(LinkGoogleAccountRequest) returns (LinkGoogleAccountResponse);
+  // ListMyBroadcasts is public (app_access_code), like the rest of this
+  // service — resolves the pilgrim's operator+season from the code, then
+  // lists that season's broadcasts. See publicProcedures in auth.go.
+  rpc ListMyBroadcasts(PilgrimAppRequest) returns (ListBroadcastsResponse);
 }
 
 message PilgrimAppRequest {

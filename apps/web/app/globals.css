@@ -13,6 +13,7 @@
   --color-danger-600: #dc2626; --color-danger-100: #fdf0f0; --color-success-600: #059669; --color-success-50: #ecfdf5;
   --teal: var(--color-emerald-900); --gold: var(--color-gold-500);
 }
+@media print { .no-print { display: none !important; } }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 15px; line-height: 1.6; color: var(--color-warm-900); background: var(--color-cream-100); }

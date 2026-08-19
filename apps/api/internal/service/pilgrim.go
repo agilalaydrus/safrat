@@ -206,6 +206,96 @@ func (s *PilgrimService) RegenerateAccessCode(ctx context.Context, authenticated
 	return pilgrimMessage(pilgrim), nil
 }
 
+func (s *PilgrimService) UpdatePayment(ctx context.Context, authenticatedOrgID string, req *hajjv1.UpdatePilgrimPaymentRequest) (*hajjv1.Pilgrim, error) {
+	if req == nil || !isUUID(req.PilgrimId) {
+		return nil, serviceError("PilgrimService.UpdatePayment", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("PilgrimService.UpdatePayment", err)
+	}
+	pilgrim, err := s.pilgrimRepository.UpdatePayment(ctx, operator.ID, req.PilgrimId, req.PaymentStatus, req.PaymentReceiptUrl, req.PaymentNotes)
+	if err != nil {
+		return nil, serviceError("PilgrimService.UpdatePayment", err)
+	}
+	s.logActivity(ctx, operator.ID, "pilgrim_payment_updated", pilgrim.ID, fmt.Sprintf("%s: status pembayaran diubah ke %s", pilgrim.FullName, req.PaymentStatus))
+	return pilgrimMessage(pilgrim), nil
+}
+
+func (s *PilgrimService) UpdateDocuments(ctx context.Context, authenticatedOrgID string, req *hajjv1.UpdatePilgrimDocumentsRequest) (*hajjv1.Pilgrim, error) {
+	if req == nil || !isUUID(req.PilgrimId) {
+		return nil, serviceError("PilgrimService.UpdateDocuments", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("PilgrimService.UpdateDocuments", err)
+	}
+	var passportExpiry, vaccineDate *time.Time
+	if req.PassportExpiryDate != nil {
+		t := req.PassportExpiryDate.AsTime()
+		passportExpiry = &t
+	}
+	if req.VaccineMeningitisDate != nil {
+		t := req.VaccineMeningitisDate.AsTime()
+		vaccineDate = &t
+	}
+	pilgrim, err := s.pilgrimRepository.UpdateDocuments(ctx, operator.ID, req.PilgrimId, req.DocumentsPassport, req.DocumentsPhoto, req.DocumentsVaccine, passportExpiry, vaccineDate)
+	if err != nil {
+		return nil, serviceError("PilgrimService.UpdateDocuments", err)
+	}
+	return pilgrimMessage(pilgrim), nil
+}
+
+func (s *PilgrimService) UpdateEmergencyContact(ctx context.Context, authenticatedOrgID string, req *hajjv1.UpdatePilgrimEmergencyContactRequest) (*hajjv1.Pilgrim, error) {
+	if req == nil || !isUUID(req.PilgrimId) {
+		return nil, serviceError("PilgrimService.UpdateEmergencyContact", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("PilgrimService.UpdateEmergencyContact", err)
+	}
+	pilgrim, err := s.pilgrimRepository.UpdateEmergencyContact(ctx, operator.ID, req.PilgrimId, req.EmergencyContactName, req.EmergencyContactPhone)
+	if err != nil {
+		return nil, serviceError("PilgrimService.UpdateEmergencyContact", err)
+	}
+	return pilgrimMessage(pilgrim), nil
+}
+
+func (s *PilgrimService) CheckInHotel(ctx context.Context, authenticatedOrgID string, req *hajjv1.CheckInPilgrimHotelRequest) (*hajjv1.Pilgrim, error) {
+	if req == nil || !isUUID(req.PilgrimId) {
+		return nil, serviceError("PilgrimService.CheckInHotel", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("PilgrimService.CheckInHotel", err)
+	}
+	pilgrim, err := s.pilgrimRepository.CheckInHotel(ctx, operator.ID, req.PilgrimId, req.CheckedIn)
+	if err != nil {
+		return nil, serviceError("PilgrimService.CheckInHotel", err)
+	}
+	return pilgrimMessage(pilgrim), nil
+}
+
+func (s *PilgrimService) ListWithExpiringPassports(ctx context.Context, authenticatedOrgID string, req *hajjv1.ListPilgrimsWithExpiringPassportsRequest) (*hajjv1.ListPilgrimsResponse, error) {
+	if req == nil || !isUUID(req.SeasonId) || req.DaysThreshold <= 0 {
+		return nil, serviceError("PilgrimService.ListWithExpiringPassports", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("PilgrimService.ListWithExpiringPassports", err)
+	}
+	before := time.Now().AddDate(0, 0, int(req.DaysThreshold))
+	pilgrims, err := s.pilgrimRepository.ListWithExpiringPassports(ctx, operator.ID, req.SeasonId, before)
+	if err != nil {
+		return nil, serviceError("PilgrimService.ListWithExpiringPassports", err)
+	}
+	result := &hajjv1.ListPilgrimsResponse{Pilgrims: make([]*hajjv1.Pilgrim, 0, len(pilgrims))}
+	for _, pilgrim := range pilgrims {
+		result.Pilgrims = append(result.Pilgrims, pilgrimMessage(pilgrim))
+	}
+	return result, nil
+}
+
 func (s *PilgrimService) SubstitutePilgrim(ctx context.Context, authenticatedOrgID, originalID, replacementID string) (*hajjv1.SubstitutePilgrimResult, error) {
 	if !isUUID(originalID) || !isUUID(replacementID) {
 		return nil, serviceError("PilgrimService.SubstitutePilgrim", apperror.ErrValidation)
@@ -314,5 +404,16 @@ func pilgrimMessage(value *domain.Pilgrim) *hajjv1.Pilgrim {
 	if value.Gender == "FEMALE" {
 		gender = hajjv1.Gender_GENDER_FEMALE
 	}
-	return &hajjv1.Pilgrim{Id: value.ID, SeasonId: value.SeasonID, OperatorId: value.OperatorID, GroupId: value.GroupID, FullName: value.FullName, PassportNumber: value.PassportNumber, Nationality: value.Nationality, DateOfBirth: timestamppb.New(value.DateOfBirth), Gender: gender, PhotoUrl: value.PhotoURL, Phone: value.Phone, EmergencyContact: value.EmergencyContact, PreferredLang: value.PreferredLang, MedicalNotes: value.MedicalNotes, RequiresWheelchair: value.RequiresWheelchair, MahramId: value.MahramID, IsSubstituted: value.IsSubstituted, SubstitutedById: value.SubstitutedByID, AppAccessCode: value.AppAccessCode, CreatedAt: timestamppb.New(value.CreatedAt), UpdatedAt: timestamppb.New(value.UpdatedAt), KloterId: value.KloterID, Email: value.Email, HasAccount: value.HasAccount}
+	result := &hajjv1.Pilgrim{Id: value.ID, SeasonId: value.SeasonID, OperatorId: value.OperatorID, GroupId: value.GroupID, FullName: value.FullName, PassportNumber: value.PassportNumber, Nationality: value.Nationality, DateOfBirth: timestamppb.New(value.DateOfBirth), Gender: gender, PhotoUrl: value.PhotoURL, Phone: value.Phone, EmergencyContact: value.EmergencyContact, PreferredLang: value.PreferredLang, MedicalNotes: value.MedicalNotes, RequiresWheelchair: value.RequiresWheelchair, MahramId: value.MahramID, IsSubstituted: value.IsSubstituted, SubstitutedById: value.SubstitutedByID, AppAccessCode: value.AppAccessCode, CreatedAt: timestamppb.New(value.CreatedAt), UpdatedAt: timestamppb.New(value.UpdatedAt), KloterId: value.KloterID, Email: value.Email, HasAccount: value.HasAccount,
+		PaymentStatus: value.PaymentStatus, PaymentReceiptUrl: value.PaymentReceiptURL, PaymentNotes: value.PaymentNotes,
+		EmergencyContactName: value.EmergencyContactName, EmergencyContactPhone: value.EmergencyContactPhone,
+		HotelCheckedIn: value.HotelCheckedIn, DocumentsPassport: value.DocumentsPassport, DocumentsPhoto: value.DocumentsPhoto, DocumentsVaccine: value.DocumentsVaccine,
+	}
+	if value.PassportExpiryDate != nil {
+		result.PassportExpiryDate = timestamppb.New(*value.PassportExpiryDate)
+	}
+	if value.VaccineMeningitisDate != nil {
+		result.VaccineMeningitisDate = timestamppb.New(*value.VaccineMeningitisDate)
+	}
+	return result
 }

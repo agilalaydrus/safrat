@@ -13,14 +13,37 @@ import (
 )
 
 type PilgrimAppService struct {
-	pilgrimRepository  *repository.PilgrimRepository
-	productRepository  *repository.ProductRepository
-	auditRepository    *repository.AuditRepository
-	identityRepository *repository.IdentityRepository
+	pilgrimRepository   *repository.PilgrimRepository
+	productRepository   *repository.ProductRepository
+	auditRepository     *repository.AuditRepository
+	identityRepository  *repository.IdentityRepository
+	broadcastRepository *repository.BroadcastRepository
 }
 
-func NewPilgrimAppService(pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, audit *repository.AuditRepository, identity *repository.IdentityRepository) *PilgrimAppService {
-	return &PilgrimAppService{pilgrimRepository: pilgrims, productRepository: products, auditRepository: audit, identityRepository: identity}
+func NewPilgrimAppService(pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, audit *repository.AuditRepository, identity *repository.IdentityRepository, broadcasts *repository.BroadcastRepository) *PilgrimAppService {
+	return &PilgrimAppService{pilgrimRepository: pilgrims, productRepository: products, auditRepository: audit, identityRepository: identity, broadcastRepository: broadcasts}
+}
+
+// ListMyBroadcasts is public (app_access_code), same pattern as every other
+// PilgrimAppService method — resolves operator+season from the code, then
+// lists that season's broadcasts (same repository BroadcastService uses).
+func (s *PilgrimAppService) ListMyBroadcasts(ctx context.Context, req *hajjv1.PilgrimAppRequest) (*hajjv1.ListBroadcastsResponse, error) {
+	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" {
+		return nil, serviceError("PilgrimAppService.ListMyBroadcasts", apperror.ErrValidation)
+	}
+	info, err := s.pilgrimRepository.GetAppInfo(ctx, req.AppAccessCode)
+	if err != nil {
+		return nil, serviceError("PilgrimAppService.ListMyBroadcasts", apperror.ErrNotFound)
+	}
+	broadcasts, err := s.broadcastRepository.List(ctx, info.OperatorID, info.SeasonID)
+	if err != nil {
+		return nil, serviceError("PilgrimAppService.ListMyBroadcasts", err)
+	}
+	result := &hajjv1.ListBroadcastsResponse{Broadcasts: make([]*hajjv1.Broadcast, 0, len(broadcasts))}
+	for _, b := range broadcasts {
+		result.Broadcasts = append(result.Broadcasts, broadcastMessage(b))
+	}
+	return result, nil
 }
 
 func (s *PilgrimAppService) GetMyInfo(ctx context.Context, req *hajjv1.PilgrimAppRequest) (*hajjv1.PilgrimAppInfo, error) {

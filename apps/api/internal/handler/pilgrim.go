@@ -95,6 +95,61 @@ func (h *PilgrimHandler) RegenerateAccessCode(ctx context.Context, req *connect.
 	return connect.NewResponse(result), nil
 }
 
+func (h *PilgrimHandler) UpdatePilgrimPayment(ctx context.Context, req *connect.Request[hajjv1.UpdatePilgrimPaymentRequest]) (*connect.Response[hajjv1.Pilgrim], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimService.UpdatePayment(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PilgrimHandler) UpdatePilgrimDocuments(ctx context.Context, req *connect.Request[hajjv1.UpdatePilgrimDocumentsRequest]) (*connect.Response[hajjv1.Pilgrim], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimService.UpdateDocuments(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PilgrimHandler) UpdatePilgrimEmergencyContact(ctx context.Context, req *connect.Request[hajjv1.UpdatePilgrimEmergencyContactRequest]) (*connect.Response[hajjv1.Pilgrim], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimService.UpdateEmergencyContact(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PilgrimHandler) CheckInPilgrimHotel(ctx context.Context, req *connect.Request[hajjv1.CheckInPilgrimHotelRequest]) (*connect.Response[hajjv1.Pilgrim], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimService.CheckInHotel(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PilgrimHandler) ListPilgrimsWithExpiringPassports(ctx context.Context, req *connect.Request[hajjv1.ListPilgrimsWithExpiringPassportsRequest]) (*connect.Response[hajjv1.ListPilgrimsResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimService.ListWithExpiringPassports(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *PilgrimHandler) SubstitutePilgrim(ctx context.Context, req *connect.Request[hajjv1.SubstitutePilgrimRequest]) (*connect.Response[hajjv1.SubstitutePilgrimResult], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

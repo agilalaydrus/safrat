@@ -50,6 +50,10 @@ export default function VehicleManifestPanel({ vehicleId, seasonId, movementStat
     for (const pilgrim of candidates) if (pilgrim.groupId) (byGroup[pilgrim.groupId] ??= []).push(pilgrim);
     return Object.entries(byGroup).filter(([, members]) => members.length > 1);
   }, [candidates]);
+  const mahramWarnings = useMemo(() => occupants
+    .map((occupant) => ({ occupant, mahramId: pilgrims.find((p) => p.id === occupant.id)?.mahramId }))
+    .filter((entry): entry is { occupant: typeof occupants[number]; mahramId: string } => !!entry.mahramId && !occupants.some((other) => other.id === entry.mahramId))
+    .map(({ occupant, mahramId }) => ({ occupant, mahramName: pilgrims.find((p) => p.id === mahramId)?.fullName ?? "pasangan mahram-nya" })), [occupants, pilgrims]);
   if (!open) return null;
 
   async function assignGroup(members: typeof candidates) {
@@ -98,6 +102,7 @@ export default function VehicleManifestPanel({ vehicleId, seasonId, movementStat
   return <div role="dialog" aria-modal="true" aria-label="Manifest kendaraan" style={overlay}><aside style={sheet}>
     <header style={header}><div><p style={eyebrow}>MANIFEST KENDARAAN</p><h2 style={{ margin: 0 }}>{vehicle?.plateNumber ?? "Kendaraan"}</h2><p style={{ margin: "6px 0 0", color: "var(--color-warm-500)" }}>{vehicle?.driverName || (MODE_NO_OPERATOR[mode] ?? MODE_NO_OPERATOR.BUS!)} · {occupants.length}/{vehicle?.capacity ?? 0} ditempatkan</p></div><button onClick={onClose} style={secondary}>Tutup</button></header>
     <div className="gold-divider" />
+    {mahramWarnings.length > 0 && <div style={{ display: "grid", gap: 6, marginTop: 12 }}>{mahramWarnings.map(({ occupant, mahramName }) => <p key={occupant.id} role="status" style={mahramWarningStyle}>Peringatan: {occupant.fullName} memiliki pasangan mahram ({mahramName}) yang tidak berada di kendaraan ini.</p>)}</div>}
     {vehicle && <div style={statusRow}><span style={badge(vehicle.status)}>{statusLabel(vehicle.status)}</span>{vehicle.status === "scheduled" && <><button disabled={workingId === "status"} onClick={() => void updateStatus("departed")} style={emerald}>Tandai Berangkat</button><button disabled={workingId === "status"} onClick={() => void updateStatus("cancelled")} style={dangerOutline}>Batalkan</button></>}{vehicle.status === "departed" && <button disabled={workingId === "status"} onClick={() => void updateStatus("arrived")} style={emerald}>Tandai Tiba</button>}</div>}
     <section style={section}><h3 style={sectionTitle}>Jamaah yang ditempatkan</h3>{occupants.length ? occupants.map((pilgrim) => <div key={pilgrim.id} style={person}><div><strong>{pilgrim.fullName}</strong><span style={meta}>{genderIcon(pilgrim.gender)} {pilgrim.passportNumber} · Kursi {pilgrim.seatNumber || "-"}</span></div><button disabled={workingId === pilgrim.id} onClick={() => void remove(pilgrim.id)} style={dangerOutline}><IconUserMinus size={17} />Keluarkan</button></div>) : <p style={emptyText}>Belum ada jamaah yang ditempatkan.</p>}</section>
     {!full && canAssign && !!groupsWithCandidates.length && <section style={section}><h3 style={sectionTitle}>Tempatkan satu rombongan</h3>{groupsWithCandidates.map(([groupId, members]) => <div key={groupId} style={person}><div><strong><IconUsersGroup size={16} style={{ verticalAlign: "-3px", marginRight: 4 }} />{groupNames[groupId] ?? "Rombongan"}</strong><span style={meta}>{members.length} jamaah belum ditempatkan</span></div><button disabled={workingId === "group"} onClick={() => void assignGroup(members)} style={emerald}><IconUserPlus size={17} />Tempatkan rombongan</button></div>)}</section>}
@@ -132,6 +137,7 @@ const input: React.CSSProperties = { minHeight: 48, width: "100%", border: "1px 
 const seatInput: React.CSSProperties = { minHeight: 48, width: 74, border: "1px solid var(--color-cream-500)", borderRadius: 8, padding: "0 8px", background: "var(--color-cream-200)", color: "var(--color-warm-900)", font: "inherit" };
 const fullNotice: React.CSSProperties = { marginTop: 24, padding: 12, borderRadius: 8, background: "var(--color-gold-50)", color: "var(--color-gold-800)" };
 const noticeStyle: React.CSSProperties = { marginTop: 20, color: "var(--color-danger-600)", fontWeight: 600 };
+const mahramWarningStyle: React.CSSProperties = { margin: 0, padding: "10px 14px", borderRadius: 8, background: "var(--color-danger-100)", color: "var(--color-danger-600)", fontSize: 13, fontWeight: 600 };
 const emptyText: React.CSSProperties = { margin: 0, color: "var(--color-warm-400)" };
 const sr: React.CSSProperties = { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" };
 function badge(status: string): React.CSSProperties { return { padding: "5px 10px", borderRadius: 99, background: status === "arrived" ? "var(--color-emerald-50)" : status === "departed" ? "var(--color-cream-200)" : status === "cancelled" ? "var(--color-danger-100)" : "var(--color-cream-300)", color: "var(--color-warm-500)", fontSize: 12, fontWeight: 700, textTransform: "capitalize" }; }

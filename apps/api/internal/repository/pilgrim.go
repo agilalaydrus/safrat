@@ -285,6 +285,99 @@ func (r *PilgrimRepository) GetStatsByKloter(ctx context.Context, operatorID, se
 	return domain.PilgrimStats{Total: stats.Total, Substituted: stats.Substituted, RequiresWheelchair: stats.RequiresWheelchair, UnassignedGroup: stats.UnassignedGroup, UnassignedKloter: stats.UnassignedKloter}, nil
 }
 
+func (r *PilgrimRepository) UpdatePayment(ctx context.Context, operatorID, pilgrimID, paymentStatus, receiptURL, notes string) (*domain.Pilgrim, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrimUUID, err := pgUUID(pilgrimID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrim, err := r.queries.UpdatePilgrimPayment(ctx, db.UpdatePilgrimPaymentParams{
+		ID: pilgrimUUID, OperatorID: opUUID, PaymentStatus: paymentStatus, PaymentReceiptUrl: receiptURL, PaymentNotes: notes,
+	})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toPilgrim(pilgrim), nil
+}
+
+func (r *PilgrimRepository) UpdateDocuments(ctx context.Context, operatorID, pilgrimID string, passport, photo, vaccine bool, passportExpiry, vaccineDate *time.Time) (*domain.Pilgrim, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrimUUID, err := pgUUID(pilgrimID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrim, err := r.queries.UpdatePilgrimDocuments(ctx, db.UpdatePilgrimDocumentsParams{
+		ID: pilgrimUUID, OperatorID: opUUID, DocumentsPassport: passport, DocumentsPhoto: photo, DocumentsVaccine: vaccine,
+		PassportExpiryDate: pgDate(passportExpiry), VaccineMeningitisDate: pgDate(vaccineDate),
+	})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toPilgrim(pilgrim), nil
+}
+
+func (r *PilgrimRepository) UpdateEmergencyContact(ctx context.Context, operatorID, pilgrimID, name, phone string) (*domain.Pilgrim, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrimUUID, err := pgUUID(pilgrimID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrim, err := r.queries.UpdatePilgrimEmergencyContact(ctx, db.UpdatePilgrimEmergencyContactParams{
+		ID: pilgrimUUID, OperatorID: opUUID, EmergencyContactName: name, EmergencyContactPhone: phone,
+	})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toPilgrim(pilgrim), nil
+}
+
+func (r *PilgrimRepository) CheckInHotel(ctx context.Context, operatorID, pilgrimID string, checkedIn bool) (*domain.Pilgrim, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrimUUID, err := pgUUID(pilgrimID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrim, err := r.queries.CheckInPilgrimHotel(ctx, db.CheckInPilgrimHotelParams{ID: pilgrimUUID, OperatorID: opUUID, HotelCheckedIn: checkedIn})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toPilgrim(pilgrim), nil
+}
+
+func (r *PilgrimRepository) ListWithExpiringPassports(ctx context.Context, operatorID, seasonID string, before time.Time) ([]*domain.Pilgrim, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	seasonUUID, err := pgUUID(seasonID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListPilgrimsWithExpiringPassports(ctx, db.ListPilgrimsWithExpiringPassportsParams{
+		OperatorID: opUUID, SeasonID: seasonUUID, PassportExpiryDate: pgtype.Date{Time: before, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*domain.Pilgrim, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, toPilgrim(row))
+	}
+	return result, nil
+}
+
 func databaseError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return apperror.ErrNotFound
@@ -305,34 +398,53 @@ func databaseError(err error) error {
 
 func toPilgrim(value db.Pilgrim) *domain.Pilgrim {
 	return &domain.Pilgrim{
-		ID:                 uuidString(value.ID),
-		SeasonID:           uuidString(value.SeasonID),
-		OperatorID:         uuidString(value.OperatorID),
-		GroupID:            nullableUUIDString(value.GroupID),
-		FullName:           value.FullName,
-		PassportNumber:     value.PassportNumber,
-		Nationality:        value.Nationality,
-		DateOfBirth:        value.DateOfBirth.Time,
-		Gender:             value.Gender,
-		PhotoURL:           value.PhotoUrl.String,
-		Phone:              value.Phone.String,
-		EmergencyContact:   value.EmergencyContact.String,
-		PreferredLang:      value.PreferredLang,
-		MedicalNotes:       value.MedicalNotes.String,
-		RequiresWheelchair: value.RequiresWheelchair,
-		MahramID:           nullableUUIDString(value.MahramID),
-		IsSubstituted:      value.IsSubstituted,
-		SubstitutedByID:    nullableUUIDString(value.SubstitutedByID),
-		AppAccessCode:      value.AppAccessCode,
-		CreatedAt:          value.CreatedAt.Time,
-		UpdatedAt:          value.UpdatedAt.Time,
-		LastLat:            float8Ptr(value.LastLat),
-		LastLng:            float8Ptr(value.LastLng),
-		LastLocationAt:     timestamptzPtr(value.LastLocationAt),
-		KloterID:           nullableUUIDString(value.KloterID),
-		Email:              value.Email.String,
-		HasAccount:         value.LinkedUserID.Valid,
+		ID:                    uuidString(value.ID),
+		SeasonID:              uuidString(value.SeasonID),
+		OperatorID:            uuidString(value.OperatorID),
+		GroupID:               nullableUUIDString(value.GroupID),
+		FullName:              value.FullName,
+		PassportNumber:        value.PassportNumber,
+		Nationality:           value.Nationality,
+		DateOfBirth:           value.DateOfBirth.Time,
+		Gender:                value.Gender,
+		PhotoURL:              value.PhotoUrl.String,
+		Phone:                 value.Phone.String,
+		EmergencyContact:      value.EmergencyContact.String,
+		PreferredLang:         value.PreferredLang,
+		MedicalNotes:          value.MedicalNotes.String,
+		RequiresWheelchair:    value.RequiresWheelchair,
+		MahramID:              nullableUUIDString(value.MahramID),
+		IsSubstituted:         value.IsSubstituted,
+		SubstitutedByID:       nullableUUIDString(value.SubstitutedByID),
+		AppAccessCode:         value.AppAccessCode,
+		CreatedAt:             value.CreatedAt.Time,
+		UpdatedAt:             value.UpdatedAt.Time,
+		LastLat:               float8Ptr(value.LastLat),
+		LastLng:               float8Ptr(value.LastLng),
+		LastLocationAt:        timestamptzPtr(value.LastLocationAt),
+		KloterID:              nullableUUIDString(value.KloterID),
+		Email:                 value.Email.String,
+		HasAccount:            value.LinkedUserID.Valid,
+		PaymentStatus:         value.PaymentStatus,
+		PaymentReceiptURL:     value.PaymentReceiptUrl,
+		PaymentNotes:          value.PaymentNotes,
+		EmergencyContactName:  value.EmergencyContactName,
+		EmergencyContactPhone: value.EmergencyContactPhone,
+		PassportExpiryDate:    datePtr(value.PassportExpiryDate),
+		VaccineMeningitisDate: datePtr(value.VaccineMeningitisDate),
+		HotelCheckedIn:        value.HotelCheckedIn,
+		DocumentsPassport:     value.DocumentsPassport,
+		DocumentsPhoto:        value.DocumentsPhoto,
+		DocumentsVaccine:      value.DocumentsVaccine,
 	}
+}
+
+func datePtr(value pgtype.Date) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	v := value.Time
+	return &v
 }
 
 func float8Ptr(value pgtype.Float8) *float64 {

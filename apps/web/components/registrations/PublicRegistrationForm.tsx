@@ -1,0 +1,84 @@
+"use client";
+
+import { FormEvent, useEffect, useState } from "react";
+import { Timestamp } from "@bufbuild/protobuf";
+import { IconCheck } from "@tabler/icons-react";
+import { RegistrationFormInfo } from "@hajj-saas/proto-gen/hajj/v1/registration_pb";
+import { registrationClient } from "@/lib/rpc";
+
+export default function PublicRegistrationForm({ operatorId, seasonId }: { operatorId: string; seasonId: string }) {
+  const [formInfo, setFormInfo] = useState<RegistrationFormInfo>();
+  const [loadError, setLoadError] = useState("");
+  const [form, setForm] = useState({ fullName: "", passportNumber: "", gender: "MALE", phone: "", email: "", nationality: "IDN", address: "", dateOfBirth: "" });
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    registrationClient.getRegistrationForm({ operatorId, seasonId }).then(setFormInfo).catch(() => setLoadError("Tautan pendaftaran ini tidak valid atau sudah tidak aktif."));
+  }, [operatorId, seasonId]);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    if (!form.fullName.trim() || !form.passportNumber.trim()) { setError("Nama lengkap dan nomor paspor wajib diisi."); return; }
+    setSubmitting(true);
+    try {
+      const response = await registrationClient.submitRegistration({
+        operatorId, seasonId,
+        fullName: form.fullName.trim(),
+        passportNumber: form.passportNumber.trim(),
+        gender: form.gender,
+        phone: form.phone.trim(),
+        email: form.email.trim(),
+        nationality: form.nationality.trim() || "IDN",
+        address: form.address.trim(),
+        dateOfBirth: form.dateOfBirth ? Timestamp.fromDate(new Date(`${form.dateOfBirth}T00:00:00Z`)) : undefined,
+      });
+      setMessage(response.message);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Gagal mengirim pendaftaran Anda.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (loadError) {
+    return <main style={page}><div style={card}><h1 style={title}>Tautan tidak valid</h1><p style={{ color: "var(--color-warm-500)" }}>{loadError}</p></div></main>;
+  }
+
+  if (message) {
+    return <main style={page}><div style={card}><IconCheck size={40} color="var(--color-emerald-900)" /><h1 style={title}>Pendaftaran terkirim</h1><p style={{ color: "var(--color-warm-500)" }}>{message}</p></div></main>;
+  }
+
+  return (
+    <main style={page}>
+      <div style={card}>
+        <p style={eyebrow}>PENDAFTARAN JAMAAH</p>
+        <h1 style={title}>{formInfo ? `Daftar ${formInfo.seasonName} bersama ${formInfo.operatorName}` : "Formulir Pendaftaran"}</h1>
+        {!!formInfo?.availableProducts.length && <p style={{ color: "var(--color-warm-500)", fontSize: 13 }}>Paket tersedia: {formInfo.availableProducts.join(", ")}</p>}
+        <form onSubmit={submit} style={{ display: "grid", gap: 16, marginTop: 16 }}>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Nama lengkap (sesuai paspor)</span><input required className="safrat-input" value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} style={input} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Nomor paspor</span><input required className="safrat-input" value={form.passportNumber} onChange={(e) => setForm((f) => ({ ...f, passportNumber: e.target.value }))} style={input} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Jenis kelamin</span><select className="safrat-input" value={form.gender} onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))} style={input}><option value="MALE">Pria</option><option value="FEMALE">Wanita</option></select></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Tanggal lahir</span><input type="date" className="safrat-input" value={form.dateOfBirth} onChange={(e) => setForm((f) => ({ ...f, dateOfBirth: e.target.value }))} style={input} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Telepon</span><input className="safrat-input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={input} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Email</span><input type="email" className="safrat-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} style={input} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Kewarganegaraan</span><input className="safrat-input" value={form.nationality} onChange={(e) => setForm((f) => ({ ...f, nationality: e.target.value }))} style={input} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Alamat</span><textarea className="safrat-input" rows={3} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} style={{ ...input, minHeight: 80, resize: "vertical" as const }} /></label>
+          {error && <p style={errStyle}>{error}</p>}
+          <button disabled={submitting} style={primary}>{submitting ? "Mengirim..." : "Kirim pendaftaran"}</button>
+        </form>
+      </div>
+    </main>
+  );
+}
+
+const page: React.CSSProperties = { minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, background: "var(--color-cream-100)" };
+const card: React.CSSProperties = { width: "min(520px,100%)", background: "#fff", border: "1px solid var(--color-cream-400)", borderRadius: 16, padding: 32, textAlign: "start", display: "grid", gap: 6 };
+const eyebrow: React.CSSProperties = { margin: 0, color: "var(--color-gold-800)", fontSize: 11, fontWeight: 700, letterSpacing: ".1em" };
+const title: React.CSSProperties = { margin: "4px 0 8px", fontSize: 26, fontFamily: "'Playfair Display', serif", color: "var(--color-emerald-900)" };
+const label: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--color-warm-700)" };
+const input: React.CSSProperties = { minHeight: 48, width: "100%", border: "1.5px solid var(--color-cream-400)", borderRadius: 10, padding: "0 14px", background: "#fff", font: "inherit" };
+const primary: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 10, background: "var(--color-gold-500)", color: "var(--color-warm-900)", fontWeight: 700 };
+const errStyle: React.CSSProperties = { margin: 0, padding: 10, borderRadius: 8, background: "var(--color-danger-100)", color: "var(--color-danger-600)" };

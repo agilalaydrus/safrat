@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service RegistrationService {
+  // PUBLIC — jamaah submit sendiri tanpa login. See publicProcedures in
+  // internal/middleware/auth.go and rateLimitedProcedures in ratelimit.go
+  // (SubmitRegistration is a one-shot action, rate-limited tightly, same
+  // pattern as OrderService.CreateOrder).
+  rpc SubmitRegistration(SubmitRegistrationRequest) returns (SubmitRegistrationResponse);
+  rpc GetRegistrationForm(GetRegistrationFormRequest) returns (RegistrationFormInfo);
+
+  // AUTHENTICATED — operator manage pendaftaran masuk
+  rpc ListRegistrations(ListRegistrationsRequest) returns (ListRegistrationsResponse);
+  rpc ApproveRegistration(ApproveRegistrationRequest) returns (PilgrimRegistration);
+  rpc RejectRegistration(RejectRegistrationRequest) returns (PilgrimRegistration);
+}
+
+message PilgrimRegistration {
+  string id = 1;
+  string operator_id = 2;
+  string season_id = 3;
+  string product_id = 4;
+  string full_name = 5;
+  string passport_number = 6;
+  string gender = 7;
+  string phone = 8;
+  string email = 9;
+  string nationality = 10;
+  string address = 11;
+  string status = 12; // PENDING | APPROVED | REJECTED
+  string notes = 13;
+  google.protobuf.Timestamp date_of_birth = 14;
+  google.protobuf.Timestamp created_at = 15;
+}
+
+message RegistrationFormInfo {
+  string operator_name = 1;
+  string season_name = 2;
+  repeated string available_products = 3; // product names
+}
+
+message SubmitRegistrationRequest {
+  string operator_id = 1 [(buf.validate.field).string.uuid = true];
+  string season_id = 2 [(buf.validate.field).string.uuid = true];
+  string product_id = 3;
+  string full_name = 4 [(buf.validate.field).string = {min_len: 2, max_len: 100}];
+  string passport_number = 5;
+  string gender = 6 [(buf.validate.field).string = {in: ["MALE", "FEMALE"]}];
+  string phone = 7 [(buf.validate.field).string.min_len = 1];
+  string email = 8;
+  string nationality = 9;
+  string address = 10;
+  google.protobuf.Timestamp date_of_birth = 11;
+}
+
+message SubmitRegistrationResponse {
+  string registration_id = 1;
+  string message = 2; // "Pendaftaran Anda telah diterima. Tim kami akan menghubungi Anda."
+}
+
+message GetRegistrationFormRequest {
+  string operator_id = 1 [(buf.validate.field).string.uuid = true];
+  string season_id = 2 [(buf.validate.field).string.uuid = true];
+}
+
+message ListRegistrationsRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message ListRegistrationsResponse {
+  repeated PilgrimRegistration registrations = 1;
+}
+
+message ApproveRegistrationRequest {
+  string registration_id = 1 [(buf.validate.field).string.uuid = true];
+  string notes = 2;
+}
+
+message RejectRegistrationRequest {
+  string registration_id = 1 [(buf.validate.field).string.uuid = true];
+  string notes = 2 [(buf.validate.field).string.min_len = 1];
+}

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { IconBed, IconBuilding, IconBus, IconCircleCheck, IconPlane, IconUsersGroup, IconWheelchair, IconWifiOff } from "@tabler/icons-react";
+import { IconBed, IconBuilding, IconBus, IconCircleCheck, IconPlane, IconStar, IconUsersGroup, IconWheelchair, IconWifiOff } from "@tabler/icons-react";
 import { PilgrimAppInfo } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_app_pb";
 import { pilgrimAppClient } from "@/lib/rpc";
 import { cachedFetch, toDateSafe } from "@/lib/offline";
@@ -139,6 +140,11 @@ export default function PilgrimHomePage() {
         </section>
       )}
 
+      <Link href="/pilgrim/survey" style={surveyCard}>
+        <IconStar size={20} color="var(--color-gold-800)" />
+        <div><p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>Beri Ulasan Perjalanan</p><p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--color-warm-500)" }}>Bagikan pengalaman perjalanan Anda kepada operator.</p></div>
+      </Link>
+
       {movement && (
         <section style={nextCard}>
           <p style={eyebrow}><IconBus size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />JADWAL BERIKUTNYA</p>
@@ -165,3 +171,4 @@ const cardValue: React.CSSProperties = { margin: 0, fontSize: 13, fontWeight: 70
 const nextCard: React.CSSProperties = { marginTop: 20, background: "var(--color-emerald-50)", border: "1px solid var(--color-emerald-200)", borderRadius: 14, padding: 18 };
 const offlineBanner: React.CSSProperties = { display: "flex", alignItems: "center", gap: 6, background: "var(--color-gold-50)", color: "var(--color-gold-800)", padding: "8px 12px", borderRadius: 8, fontSize: 12, marginBottom: 16 };
 const errorText: React.CSSProperties = { color: "var(--color-danger-600)" };
+const surveyCard: React.CSSProperties = { marginTop: 16, display: "flex", alignItems: "center", gap: 10, background: "var(--color-gold-50)", border: "1px solid var(--color-gold-200)", borderRadius: 14, padding: 14, textDecoration: "none" };

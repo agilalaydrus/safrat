@@ -16,6 +16,11 @@ service PilgrimService {
   rpc RegenerateAccessCode(RegenerateAccessCodeRequest) returns (Pilgrim);
   rpc SubstitutePilgrim(SubstitutePilgrimRequest) returns (SubstitutePilgrimResult);
   rpc GetPilgrimStats(GetPilgrimStatsRequest) returns (PilgrimStats);
+  rpc UpdatePilgrimPayment(UpdatePilgrimPaymentRequest) returns (Pilgrim);
+  rpc UpdatePilgrimDocuments(UpdatePilgrimDocumentsRequest) returns (Pilgrim);
+  rpc UpdatePilgrimEmergencyContact(UpdatePilgrimEmergencyContactRequest) returns (Pilgrim);
+  rpc CheckInPilgrimHotel(CheckInPilgrimHotelRequest) returns (Pilgrim);
+  rpc ListPilgrimsWithExpiringPassports(ListPilgrimsWithExpiringPassportsRequest) returns (ListPilgrimsResponse);
 }
 
 enum Gender {
@@ -56,6 +61,17 @@ message Pilgrim {
   // confirm the pilgrim has actually claimed access, not just that an email
   // was entered for them.
   bool has_account = 24;
+  string payment_status = 25; // UNPAID | DP | PAID
+  string payment_receipt_url = 26;
+  string payment_notes = 27;
+  string emergency_contact_name = 28;
+  string emergency_contact_phone = 29;
+  google.protobuf.Timestamp passport_expiry_date = 30;
+  google.protobuf.Timestamp vaccine_meningitis_date = 31;
+  bool hotel_checked_in = 32;
+  bool documents_passport = 33;
+  bool documents_photo = 34;
+  bool documents_vaccine = 35;
 }
 
 message CreatePilgrimRequest {
@@ -141,4 +157,37 @@ message PilgrimStats {
   int32 requires_wheelchair = 3;
   int32 unassigned_group = 4;
   int32 unassigned_kloter = 5;
+}
+
+message UpdatePilgrimPaymentRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+  string payment_status = 2 [(buf.validate.field).string = {in: ["UNPAID", "DP", "PAID"]}];
+  string payment_receipt_url = 3;
+  string payment_notes = 4 [(buf.validate.field).string.max_len = 1000];
+}
+
+message UpdatePilgrimDocumentsRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+  bool documents_passport = 2;
+  bool documents_photo = 3;
+  bool documents_vaccine = 4;
+  google.protobuf.Timestamp passport_expiry_date = 5;
+  google.protobuf.Timestamp vaccine_meningitis_date = 6;
+}
+
+message UpdatePilgrimEmergencyContactRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+  string emergency_contact_name = 2 [(buf.validate.field).string.max_len = 100];
+  string emergency_contact_phone = 3 [(buf.validate.field).string.max_len = 30];
+}
+
+message CheckInPilgrimHotelRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+  bool checked_in = 2;
+}
+
+message ListPilgrimsWithExpiringPassportsRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+  // Days threshold, e.g. 180 means "expiring within 180 days".
+  int32 days_threshold = 2 [(buf.validate.field).int32 = {gt: 0, lte: 3650}];
 }

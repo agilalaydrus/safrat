@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { IconHome, IconSos, IconMessageCircle, IconCalendarEvent, IconShoppingBag, IconLogout } from "@tabler/icons-react";
+import { IconHome, IconSos, IconMessageCircle, IconCalendarEvent, IconShoppingBag, IconLogout, IconSpeakerphone } from "@tabler/icons-react";
 import { useRegisterShellServiceWorker } from "@/lib/register-sw";
 import { useLocationPing } from "@/lib/geolocation";
 import { RequireAccess } from "@/components/auth/RequireAccess";
@@ -17,6 +17,7 @@ const TABS = [
   ["Chat", "/pilgrim/chat", IconMessageCircle],
   ["Jadwal", "/pilgrim/schedule", IconCalendarEvent],
   ["Produk", "/pilgrim/products", IconShoppingBag],
+  ["Info", "/pilgrim/announcements", IconSpeakerphone],
 ] as const;
 
 function PilgrimShell({ children }: { children: React.ReactNode }) {

@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 
+	"buf.build/go/protovalidate"
 	"connectrpc.com/connect"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/service"
@@ -50,6 +51,16 @@ func (h *PilgrimAppHandler) LinkGoogleAccount(ctx context.Context, req *connect.
 }
 func (h *PilgrimAppHandler) ListMyProducts(ctx context.Context, req *connect.Request[hajjv1.PilgrimAppRequest]) (*connect.Response[hajjv1.ListMyProductsResponse], error) {
 	result, err := h.pilgrimAppService.ListMyProducts(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+func (h *PilgrimAppHandler) ListMyBroadcasts(ctx context.Context, req *connect.Request[hajjv1.PilgrimAppRequest]) (*connect.Response[hajjv1.ListBroadcastsResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimAppService.ListMyBroadcasts(ctx, req.Msg)
 	if err != nil {
 		return nil, connectError(err)
 	}

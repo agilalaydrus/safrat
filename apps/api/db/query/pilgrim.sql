@@ -110,3 +110,40 @@ SELECT
   0::int AS unassigned_kloter
 FROM pilgrims
 WHERE operator_id = $1 AND season_id = $2 AND kloter_id = $3;
+
+-- name: UpdatePilgrimPayment :one
+UPDATE pilgrims
+SET payment_status = $3, payment_receipt_url = $4,
+    payment_notes = $5, updated_at = NOW()
+WHERE id = $1 AND operator_id = $2
+RETURNING *;
+
+-- name: UpdatePilgrimDocuments :one
+UPDATE pilgrims
+SET documents_passport = $3, documents_photo = $4,
+    documents_vaccine = $5, passport_expiry_date = $6,
+    vaccine_meningitis_date = $7, updated_at = NOW()
+WHERE id = $1 AND operator_id = $2
+RETURNING *;
+
+-- name: UpdatePilgrimEmergencyContact :one
+UPDATE pilgrims
+SET emergency_contact_name = $3,
+    emergency_contact_phone = $4, updated_at = NOW()
+WHERE id = $1 AND operator_id = $2
+RETURNING *;
+
+-- name: CheckInPilgrimHotel :one
+UPDATE pilgrims
+SET hotel_checked_in = $3, updated_at = NOW()
+WHERE id = $1 AND operator_id = $2
+RETURNING *;
+
+-- name: ListPilgrimsWithExpiringPassports :many
+SELECT * FROM pilgrims
+WHERE operator_id = $1
+  AND season_id = $2
+  AND passport_expiry_date IS NOT NULL
+  AND passport_expiry_date < $3
+  AND NOT is_substituted
+ORDER BY passport_expiry_date ASC;

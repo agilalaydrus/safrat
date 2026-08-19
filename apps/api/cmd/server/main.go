@@ -75,6 +75,8 @@ func main() {
 		kloterRepository := repository.NewKloterRepository(queries)
 		identityRepository := repository.NewIdentityRepository(queries)
 		orderRepository := repository.NewOrderRepository(queries)
+		broadcastRepository := repository.NewBroadcastRepository(queries)
+		registrationRepository := repository.NewRegistrationRepository(queries)
 
 		firebasePusher, err := notification.NewFirebasePusher(ctx, logger, config.FirebaseServiceAccountJSON, notificationRepository)
 		if err != nil {
@@ -90,7 +92,7 @@ func main() {
 		productService := service.NewProductService(operatorRepository, productRepository)
 		agentService := service.NewAgentService(operatorRepository, agentRepository, auditRepository, pool)
 		groupService := service.NewGroupService(operatorRepository, groupRepository, auditRepository, agentRepository)
-		pilgrimAppService := service.NewPilgrimAppService(pilgrimRepository, productRepository, auditRepository, identityRepository)
+		pilgrimAppService := service.NewPilgrimAppService(pilgrimRepository, productRepository, auditRepository, identityRepository, broadcastRepository)
 		sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, auditRepository, firebasePusher)
 		chatService := service.NewChatService(operatorRepository, pilgrimRepository, chatRepository, groupRepository)
 		groupLeaderService := service.NewGroupLeaderService(operatorRepository, groupLeaderRepository, sosRepository)
@@ -99,6 +101,8 @@ func main() {
 		identityService := service.NewIdentityService(identityRepository)
 		xenditClient := payment.NewClient(config.XenditSecretKey)
 		orderService := service.NewOrderService(operatorRepository, pilgrimRepository, productRepository, orderRepository, auditRepository, xenditClient, config.AllowedOrigin)
+		broadcastService := service.NewBroadcastService(operatorRepository, broadcastRepository, auditRepository)
+		registrationService := service.NewRegistrationService(operatorRepository, registrationRepository, auditRepository)
 		operatorHandler := handler.NewOperatorHandler(operatorService)
 		pilgrimHandler := handler.NewPilgrimHandler(pilgrimService)
 		seasonHandler := handler.NewSeasonHandler(seasonService)
@@ -115,6 +119,8 @@ func main() {
 		kloterHandler := handler.NewKloterHandler(kloterService)
 		identityHandler := handler.NewIdentityHandler(identityService)
 		orderHandler := handler.NewOrderHandler(orderService)
+		broadcastHandler := handler.NewBroadcastHandler(broadcastService)
+		registrationHandler := handler.NewRegistrationHandler(registrationService)
 		handlerOptions := []connect.HandlerOption{connect.WithInterceptors(
 			middleware.NewRateLimitInterceptor(),
 			middleware.NewAuthInterceptor(pool),
@@ -135,6 +141,8 @@ func main() {
 		kloterPath, kloterServiceHandler := hajjv1connect.NewKloterServiceHandler(kloterHandler, handlerOptions...)
 		identityPath, identityServiceHandler := hajjv1connect.NewIdentityServiceHandler(identityHandler, handlerOptions...)
 		orderPath, orderServiceHandler := hajjv1connect.NewOrderServiceHandler(orderHandler, handlerOptions...)
+		broadcastPath, broadcastServiceHandler := hajjv1connect.NewBroadcastServiceHandler(broadcastHandler, handlerOptions...)
+		registrationPath, registrationServiceHandler := hajjv1connect.NewRegistrationServiceHandler(registrationHandler, handlerOptions...)
 		mux.Handle(operatorPath, operatorServiceHandler)
 		mux.Handle(pilgrimPath, pilgrimServiceHandler)
 		mux.Handle(seasonPath, seasonServiceHandler)
@@ -151,6 +159,8 @@ func main() {
 		mux.Handle(kloterPath, kloterServiceHandler)
 		mux.Handle(identityPath, identityServiceHandler)
 		mux.Handle(orderPath, orderServiceHandler)
+		mux.Handle(broadcastPath, broadcastServiceHandler)
+		mux.Handle(registrationPath, registrationServiceHandler)
 		mux.HandleFunc("POST /webhooks/xendit", handler.NewXenditWebhookHandler(logger, orderRepository, config.XenditWebhookToken))
 		mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, request *http.Request) {
 			if err := pool.Ping(request.Context()); err != nil {

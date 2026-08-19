@@ -2,15 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { IconEdit, IconUser } from "@tabler/icons-react";
+import { IconEdit, IconReceipt2, IconUser } from "@tabler/icons-react";
 import { Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { pilgrimClient, groupClient } from "@/lib/rpc";
 import PilgrimFormDialog from "./PilgrimFormDialog";
+import PilgrimDocumentsPanel from "./PilgrimDocumentsPanel";
 
 export default function PilgrimDetail({ id }: { id: string }) {
   const [pilgrim, setPilgrim] = useState<Pilgrim>();
   const [group, setGroup] = useState<{ name: string; leaderName: string }>();
   const [edit, setEdit] = useState(false);
+  const [tab, setTab] = useState<"profil" | "dokumen">("profil");
   const [confirmSubstitution, setConfirmSubstitution] = useState(false);
   const [replacementSearch, setReplacementSearch] = useState("");
   const [replacementTerm, setReplacementTerm] = useState("");
@@ -63,10 +65,17 @@ export default function PilgrimDetail({ id }: { id: string }) {
     <Link href="/dashboard/pilgrims" style={{ color: "var(--color-gold-800)" }}>Kembali ke daftar jamaah</Link>
     <header style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginTop: 20 }}>
       <div><p style={eyebrow}>PROFIL JAMAAH</p><h1 style={{ margin: 0, fontSize: 40 }}>{pilgrim.fullName}</h1></div>
-      <button onClick={() => setEdit(true)} style={emerald}><IconEdit size={18} />Ubah</button>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <Link href={`/dashboard/pilgrims/${id}/invoice`} target="_blank" style={{ ...gold, textDecoration: "none" }}><IconReceipt2 size={18} />Cetak Invoice</Link>
+        <button onClick={() => setEdit(true)} style={emerald}><IconEdit size={18} />Ubah</button>
+      </div>
     </header>
     <div className="gold-divider" />
-    <div style={grid}>
+    <div style={tabBar}>
+      <button onClick={() => setTab("profil")} style={tab === "profil" ? tabActive : tabInactive}>Profil</button>
+      <button onClick={() => setTab("dokumen")} style={tab === "dokumen" ? tabActive : tabInactive}>Dokumen &amp; Pembayaran</button>
+    </div>
+    {tab === "profil" ? <div style={grid}>
       <section style={card}>
         <div style={avatar}><IconUser size={36} /></div>
         <h2>Identitas</h2>
@@ -81,7 +90,7 @@ export default function PilgrimDetail({ id }: { id: string }) {
           {selectedReplacement ? <><p style={{ margin: 0 }}>Ganti {pilgrim.fullName} dengan {selectedReplacement.fullName}?</p><p style={{ margin: 0, color: "var(--color-warm-500)", fontSize: 13 }}>{selectedReplacement.passportNumber}</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button disabled={substituting} onClick={substitute} style={danger}>{substituting ? "Mengganti..." : "Konfirmasi penggantian"}</button><button onClick={() => setSelectedReplacement(undefined)} style={disabled}>Pilih yang lain</button></div></> : <><label style={{ display: "grid", gap: 6, color: "var(--color-warm-500)", fontSize: 14 }}>Cari pengganti<input value={replacementSearch} onChange={(event) => setReplacementSearch(event.target.value)} placeholder="Cari nama atau paspor" style={input} /></label><div style={{ display: "grid", gap: 8, maxHeight: 240, overflowY: "auto" }}>{candidates.map((candidate) => <button key={candidate.id} onClick={() => setSelectedReplacement(candidate)} style={candidateButton}><strong>{candidate.fullName}</strong><span>{candidate.passportNumber}</span></button>)}{!candidates.length && <p style={{ margin: 0, color: "var(--color-warm-500)" }}>Tidak ada calon pengganti yang memenuhi syarat.</p>}</div><button onClick={() => setConfirmSubstitution(false)} style={disabled}>Batal</button></>}
         </div> : <button onClick={() => setConfirmSubstitution(true)} style={danger}>Tandai sebagai Digantikan</button>}
       </aside>
-    </div>
+    </div> : <PilgrimDocumentsPanel pilgrim={pilgrim} onUpdated={setPilgrim} />}
     {notice && <p role="status">{notice}</p>}
     <PilgrimFormDialog open={edit} onClose={() => setEdit(false)} seasonId={pilgrim.seasonId} pilgrims={[pilgrim]} initial={pilgrim} onSaved={() => { setNotice("Data jamaah diperbarui"); pilgrimClient.getPilgrim({ pilgrimId: id }).then(setPilgrim); }} />
   </main>;
@@ -97,8 +106,12 @@ const card: React.CSSProperties = { background: "var(--color-cream-200)", border
 const avatar: React.CSSProperties = { width: 80, height: 80, borderRadius: "50%", display: "grid", placeItems: "center", background: "var(--color-emerald-50)", color: "var(--color-emerald-900)" };
 const eyebrow: React.CSSProperties = { margin: "0 0 6px", fontSize: 11, fontWeight: 700, color: "var(--color-gold-800)", letterSpacing: ".08em" };
 const emerald: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, background: "var(--color-emerald-900)", color: "white", fontWeight: 700, padding: "0 18px", display: "inline-flex", gap: 8, alignItems: "center" };
+const gold: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, background: "var(--color-gold-500)", color: "white", fontWeight: 700, padding: "0 18px", display: "inline-flex", gap: 8, alignItems: "center" };
 const disabled: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-cream-400)", borderRadius: 8, background: "var(--color-cream-300)", color: "var(--color-warm-400)", padding: "0 14px" };
 const danger: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, background: "var(--color-danger-600)", color: "white", fontWeight: 700, padding: "0 14px" };
 const confirmation: React.CSSProperties = { display: "grid", gap: 12, padding: 12, border: "1px solid var(--color-danger-600)", borderRadius: 8 };
 const input: React.CSSProperties = { minHeight: 48, width: "100%", border: "1px solid var(--color-cream-500)", borderRadius: 8, padding: "10px 12px", background: "var(--color-cream-200)", color: "var(--color-warm-900)", font: "inherit" };
 const candidateButton: React.CSSProperties = { minHeight: 48, display: "grid", gap: 2, textAlign: "start", border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "10px 12px", background: "white", color: "var(--color-emerald-900)" };
+const tabBar: React.CSSProperties = { display: "flex", gap: 8, margin: "16px 0" };
+const tabActive: React.CSSProperties = { minHeight: 44, border: 0, borderRadius: 8, background: "var(--color-emerald-900)", color: "white", fontWeight: 700, padding: "0 18px" };
+const tabInactive: React.CSSProperties = { minHeight: 44, border: "1px solid var(--color-cream-400)", borderRadius: 8, background: "var(--color-cream-200)", color: "var(--color-warm-700)", fontWeight: 600, padding: "0 18px" };

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { IconClipboardCheck, IconLogout, IconMessageCircle, IconSos, IconUsersGroup, IconWallet } from "@tabler/icons-react";
+import { IconBuildingHospital, IconClipboardCheck, IconLogout, IconMessageCircle, IconSos, IconUsersGroup, IconWallet } from "@tabler/icons-react";
 import { RequireAccess } from "@/components/auth/RequireAccess";
 import { LeaderGroupProvider, useLeaderGroup } from "@/lib/leader-context";
 import { authClient } from "@/lib/auth-client";
@@ -12,6 +12,7 @@ import { useLeaderActiveSOSCount, useLeaderChatUnread } from "@/lib/leader-notif
 const TABS = [
   ["Daftar Jamaah", "/leader", IconUsersGroup],
   ["Check-In", "/leader/check-in", IconClipboardCheck],
+  ["Hotel", "/leader/hotel", IconBuildingHospital],
   ["Chat", "/leader/chat", IconMessageCircle],
   ["SOS", "/leader/sos", IconSos],
   ["Dompet", "/leader/wallet", IconWallet],
