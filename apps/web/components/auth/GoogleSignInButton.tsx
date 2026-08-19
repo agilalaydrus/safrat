@@ -12,19 +12,31 @@ import { authClient } from "@/lib/auth-client";
  */
 export function GoogleSignInButton({ callbackURL, label = "Lanjutkan dengan Google" }: { callbackURL: string; label?: string }) {
   const [working, setWorking] = useState(false);
+  const [error, setError] = useState("");
   async function start() {
     setWorking(true);
+    setError("");
     try {
-      await authClient.signIn.social({ provider: "google", callbackURL });
-    } catch {
+      const result = await authClient.signIn.social({ provider: "google", callbackURL });
+      if (result.error) {
+        setError(result.error.message || "Gagal memulai login Google. Silakan coba lagi.");
+        setWorking(false);
+      }
+      // On success, better-auth navigates the browser away to Google's
+      // consent screen itself — no further action needed here.
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Gagal memulai login Google. Silakan coba lagi.");
       setWorking(false);
     }
   }
   return (
-    <button type="button" onClick={() => void start()} disabled={working} style={button}>
-      <GoogleMark />
-      {working ? "Mengarahkan..." : label}
-    </button>
+    <div style={{ display: "grid", gap: 6 }}>
+      <button type="button" onClick={() => void start()} disabled={working} style={button}>
+        <GoogleMark />
+        {working ? "Mengarahkan..." : label}
+      </button>
+      {error && <p style={errorStyle}>{error}</p>}
+    </div>
   );
 }
 
@@ -55,3 +67,5 @@ const button: React.CSSProperties = {
   fontFamily: "'Plus Jakarta Sans',sans-serif",
   cursor: "pointer",
 };
+
+const errorStyle: React.CSSProperties = { margin: 0, fontSize: 12, color: "var(--color-danger-600)" };

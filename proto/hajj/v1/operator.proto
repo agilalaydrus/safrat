@@ -10,6 +10,7 @@ option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 service OperatorService {
   rpc CreateOperator(CreateOperatorRequest) returns (Operator);
   rpc GetMyOperator(GetMyOperatorRequest) returns (Operator);
+  rpc UpdateOperator(UpdateOperatorRequest) returns (Operator);
   rpc ListAuditLogs(ListAuditLogsRequest) returns (ListAuditLogsResponse);
 }
 
@@ -32,6 +33,13 @@ message CreateOperatorRequest {
 }
 
 message GetMyOperatorRequest {}
+
+message UpdateOperatorRequest {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  string country = 2;
+  string email = 3 [(buf.validate.field).string.email = true];
+  string license_number = 4;
+}
 
 message AuditLog {
   string id = 1;

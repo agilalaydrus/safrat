@@ -55,6 +55,31 @@ func (r *OperatorRepository) Create(ctx context.Context, betterAuthOrgID, name, 
 	return toOperator(operator), nil
 }
 
+func (r *OperatorRepository) Update(ctx context.Context, operatorID, name, country, email, licenseNumber string) (*domain.Operator, error) {
+	id, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	operator, err := r.queries.UpdateOperator(ctx, db.UpdateOperatorParams{
+		ID:      id,
+		Name:    name,
+		Country: country,
+		Email:   email,
+		Column5: licenseNumber,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperror.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	result := toOperator(operator)
+	r.mu.Lock()
+	r.cache[result.BetterAuthOrgID] = operatorCacheEntry{value: result, expiresAt: time.Now().Add(operatorCacheTTL)}
+	r.mu.Unlock()
+	return result, nil
+}
+
 func (r *OperatorRepository) GetByBetterAuthOrgID(ctx context.Context, betterAuthOrgID string) (*domain.Operator, error) {
 	if cached, ok := r.cachedOperator(betterAuthOrgID); ok {
 		return cached, nil

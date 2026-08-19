@@ -46,6 +46,27 @@ func (s *OperatorService) Create(ctx context.Context, authenticatedOrgID string,
 	return operatorMessage(operator), nil
 }
 
+func (s *OperatorService) Update(ctx context.Context, authenticatedOrgID string, request *hajjv1.UpdateOperatorRequest) (*hajjv1.Operator, error) {
+	if request == nil {
+		return nil, serviceError("OperatorService.Update", apperror.ErrValidation)
+	}
+	if authenticatedOrgID == "" {
+		return nil, serviceError("OperatorService.Update", apperror.ErrUnauthorized)
+	}
+	if request.Country != "" && len(request.Country) != 2 {
+		return nil, serviceError("OperatorService.Update", apperror.ErrValidation)
+	}
+	current, err := s.repository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("OperatorService.Update", err)
+	}
+	operator, err := s.repository.Update(ctx, current.ID, request.Name, request.Country, request.Email, request.LicenseNumber)
+	if err != nil {
+		return nil, serviceError("OperatorService.Update", err)
+	}
+	return operatorMessage(operator), nil
+}
+
 func (s *OperatorService) GetMy(ctx context.Context, authenticatedOrgID string) (*hajjv1.Operator, error) {
 	if authenticatedOrgID == "" {
 		return nil, serviceError("OperatorService.GetMy", apperror.ErrUnauthorized)

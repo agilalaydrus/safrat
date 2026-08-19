@@ -4,6 +4,12 @@ VALUES ($1, $2, $3, $4, NULLIF($5, ''))
 ON CONFLICT (better_auth_org_id) DO NOTHING
 RETURNING *;
 
+-- name: UpdateOperator :one
+UPDATE operators
+SET name = $2, country = $3, email = $4, license_number = NULLIF($5, '')
+WHERE id = $1
+RETURNING *;
+
 -- name: GetOperatorByBetterAuthOrgID :one
 SELECT * FROM operators WHERE better_auth_org_id = $1;
 
