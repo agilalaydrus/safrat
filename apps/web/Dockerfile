@@ -17,6 +17,11 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY . .
 
+# packages/proto-gen is generated (gitignored) — regenerate it here the same
+# way scripts/generate.sh does, or `next build` fails on missing imports.
+RUN npm install -g @bufbuild/buf
+RUN cd proto && buf generate
+
 # NEXT_PUBLIC_* must be baked at build time — they are inlined into the
 # client bundle. Anything read by a client component must be listed here
 # or it silently becomes undefined in the browser.

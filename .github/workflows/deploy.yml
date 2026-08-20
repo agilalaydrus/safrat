@@ -25,7 +25,7 @@ jobs:
 
       - name: Install sqlc
         run: |
-          curl -fsSL https://github.com/sqlc-dev/sqlc/releases/download/v1.27.0/sqlc_1.27.0_linux_amd64.tar.gz | tar -xz
+          curl -fsSL https://github.com/sqlc-dev/sqlc/releases/download/v1.31.1/sqlc_1.31.1_linux_amd64.tar.gz | tar -xz
           sudo mv sqlc /usr/local/bin/
 
       - name: Generate proto + sqlc

@@ -7,10 +7,11 @@ COPY . .
 # Install buf
 RUN go install github.com/bufbuild/buf/cmd/buf@latest
 
-# Install sqlc — pinned (not @latest): sqlc v1.31.1+ requires Go >= 1.26,
-# newer than this image's golang:1.25-alpine. v1.27.0 matches the version
-# .github/workflows/deploy.yml's CI job installs.
-RUN go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.27.0
+# Install sqlc — pinned, downloaded as a prebuilt binary instead of
+# `go install` so it doesn't need Go >= 1.26 (sqlc v1.31.1+'s requirement)
+# on this image's golang:1.25-alpine toolchain.
+RUN apk add --no-cache curl
+RUN curl -fsSL https://github.com/sqlc-dev/sqlc/releases/download/v1.31.1/sqlc_1.31.1_linux_amd64.tar.gz | tar -xz -C /usr/local/bin sqlc
 
 # Generate proto + sqlc
 RUN cd /app/proto && buf generate
