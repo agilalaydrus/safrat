@@ -121,6 +121,10 @@ jobs:
             export IMAGE_TAG=${{ github.event.inputs.skip_build == 'y' && 'latest' || github.sha }}
             cd /home/deploy/safrat
 
+            # Prune old images first — runs even if the previous deploy
+            # attempt failed partway through, before this one pulls more.
+            docker image prune -f
+
             # Pull latest repo (migration files live in repo)
             git pull origin main
 
@@ -148,6 +152,3 @@ jobs:
             sleep 5
             docker compose -f docker-compose.prod.yml --env-file .env.prod \
               up -d --no-deps web
-
-            # Prune old images to free disk space
-            docker image prune -f
