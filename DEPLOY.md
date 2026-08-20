@@ -487,122 +487,13 @@ sudo systemctl status certbot.timer
 
 ## 8. GitHub Actions CI/CD
 
-**Current state:** only the `test` job below is actually wired up, as `.github/workflows/ci.yml` — it runs on every push to `main` and every PR, with no secrets required. The `build-and-deploy` job is documented here but not yet created as a workflow file: it needs `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `NEXT_PUBLIC_SENTRY_DSN`, and `NEXT_PUBLIC_FIREBASE_*` (API_KEY/PROJECT_ID/MESSAGING_SENDER_ID/APP_ID) configured as GitHub Secrets first, and a real VPS to deploy to. `ci.yml` also skips the `buf breaking` step below — resolving `proto/buf.lock` against the `main` branch's historical state currently fails for reasons unrelated to any real breaking change; fix that before adding the gate.
-
-`.github/workflows/deploy.yml` (reference — not yet created):
-
-```yaml
-name: Deploy to VPS
-
-on:
-  push:
-    branches: [main]
-
-env:
-  API_IMAGE: ghcr.io/${{ github.repository_owner }}/safrat-api
-  WEB_IMAGE: ghcr.io/${{ github.repository_owner }}/safrat-web
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Buf lint + breaking check
-        uses: bufbuild/buf-setup-action@v1
-      - run: buf lint proto/
-      - run: buf breaking proto/ --against '.git#branch=main'
-
-      - name: Go test
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: apps/api/go.mod
-      - run: cd apps/api && go test ./...
-
-      - name: TypeScript check
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - run: corepack enable && corepack prepare pnpm@9 --activate
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @hajj-saas/web typecheck
-
-  build-and-deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push API image
-        uses: docker/build-push-action@v5
-        with:
-          context: apps/api
-          push: true
-          tags: |
-            ${{ env.API_IMAGE }}:${{ github.sha }}
-            ${{ env.API_IMAGE }}:latest
-
-      - name: Build and push Web image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: apps/web/Dockerfile
-          push: true
-          tags: |
-            ${{ env.WEB_IMAGE }}:${{ github.sha }}
-            ${{ env.WEB_IMAGE }}:latest
-          build-args: |
-            NEXT_PUBLIC_API_URL=https://api.safrat.com
-            NEXT_PUBLIC_APP_URL=https://app.safrat.com
-            NEXT_PUBLIC_VAPID_PUBLIC_KEY=${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
-            NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
-            NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
-            NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
-            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
-            NEXT_PUBLIC_FIREBASE_APP_ID=${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
-
-      - name: Deploy to VPS
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            cd /home/deploy/safrat
-
-            # Pull latest repo (migration files live in repo)
-            git pull origin main
-
-            # Pull new Docker images
-            docker compose -f docker-compose.prod.yml --env-file .env.prod pull
-
-            # Run goose migrations
-            source .env.prod
-            docker run --rm \
-              --network safrat_internal \
-              -v $(pwd)/apps/api/db/migrations:/migrations \
-              ghcr.io/kukymbr/goose-docker:latest \
-              goose -dir /migrations postgres \
-              "postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat" up
-
-            # Restart containers
-            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps api
-            sleep 5
-            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps web
-
-            docker image prune -f
-```
+**Current state:** `.github/workflows/deploy.yml` is live — `test` (Go test + TS typecheck) then
+`build-and-deploy` (builds + pushes both images to GHCR, then SSHes into the VPS to pull, run
+goose migrations, and rolling-restart `api`/`worker` then `web`). It runs on every push to `main`,
+and can also be triggered manually (`workflow_dispatch`) with a `skip_build` input — set to `y` to
+redeploy the existing `:latest` images without rebuilding (e.g. to retry a failed deploy step).
+Read the workflow file itself for the exact script — this doc no longer keeps an inline copy, to
+avoid the two drifting apart.
 
 **GitHub Secrets required:**
 
@@ -612,6 +503,11 @@ jobs:
 | `VPS_USER` | `deploy` |
 | `VPS_SSH_KEY` | Private key for deploy user |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | VAPID public key |
+| `NEXT_PUBLIC_SENTRY_DSN` | Sentry client DSN |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase web config |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase web config |
+| `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | Firebase web config |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase web config |
 
 ---
 

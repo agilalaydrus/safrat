@@ -118,7 +118,7 @@ jobs:
           script: |
             set -e
             export GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
-            export IMAGE_TAG=${{ github.sha }}
+            export IMAGE_TAG=${{ github.event.inputs.skip_build == 'y' && 'latest' || github.sha }}
             cd /home/deploy/safrat
 
             # Pull latest repo (migration files live in repo)
