@@ -165,3 +165,11 @@ WHERE operator_id = $1
   AND passport_expiry_date < $3
   AND NOT is_substituted
 ORDER BY passport_expiry_date ASC;
+
+-- name: ListPilgrimsForKloter :many
+-- Trip-scoped roster: only pilgrims in this specific kloter, never the
+-- full season — see TripService, which verifies kloter_staff assignment
+-- before calling this.
+SELECT * FROM pilgrims
+WHERE operator_id = $1 AND kloter_id = $2
+ORDER BY full_name ASC;

@@ -37,3 +37,11 @@ ORDER BY k.departure_date ASC;
 -- name: RemoveStaffFromKloter :exec
 DELETE FROM kloter_staff
 WHERE kloter_id = $1 AND staff_id = $2 AND operator_id = $3;
+
+-- name: GetKloterStaffAssignment :one
+-- Ownership check: confirms this staff_id is actually assigned to this
+-- kloter before any trip-scoped action — mirrors EnsureLeaderOwnsGroup for
+-- Muttawwif. Every TripService RPC must call this rather than trusting
+-- kloter_id in the request.
+SELECT * FROM kloter_staff
+WHERE kloter_id = $1 AND operator_id = $2 AND staff_id = $3;

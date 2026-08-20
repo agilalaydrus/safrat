@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { IconBed, IconBus, IconCheck, IconSos } from "@tabler/icons-react";
 import { KloterStaff } from "@hajj-saas/proto-gen/hajj/v1/staff_schedule_pb";
 import { Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { SOSAlert } from "@hajj-saas/proto-gen/hajj/v1/sos_pb";
 import { Movement } from "@hajj-saas/proto-gen/hajj/v1/transport_pb";
 import { CheckIn } from "@hajj-saas/proto-gen/hajj/v1/groupleader_pb";
-import { staffScheduleClient, pilgrimClient, sosClient, transportClient, groupLeaderClient } from "@/lib/rpc";
+import { staffScheduleClient, tripClient } from "@/lib/rpc";
 
 const SOS_STATUS_LABEL: Record<string, string> = { ACTIVE: "Aktif", ACKNOWLEDGED: "Dikonfirmasi", ESCALATED: "Dieskalasi" };
 
@@ -33,29 +33,25 @@ export default function AgentTripTab() {
     if (!selected) return;
     setLoading(true);
     Promise.all([
-      pilgrimClient.listPilgrims({ seasonId: selected.seasonId, limit: 500, offset: 0 }),
-      sosClient.listActiveSOSAlerts({}),
-      transportClient.listMovements({ seasonId: selected.seasonId }),
-    ]).then(([pilgrimsRes, alertsRes, movementsRes]) => {
-      const roster = pilgrimsRes.pilgrims.filter((p) => p.kloterId === selected.kloterId);
-      setPilgrims(roster);
-      const rosterIds = new Set(roster.map((p) => p.id));
-      setAlerts(alertsRes.alerts.filter((a) => a.status !== "RESOLVED" && rosterIds.has(a.pilgrimId)));
-      const kloterMovements = movementsRes.movements.filter((m) => m.kloterId === selected.kloterId);
-      setMovements(kloterMovements);
-      Promise.all(kloterMovements.map((m) => groupLeaderClient.listCheckIns({ movementId: m.id }).then((r) => [m.id, r.checkIns] as const))).then((pairs) => {
+      tripClient.getTripRoster({ kloterId: selected.kloterId }),
+      tripClient.listTripSOSAlerts({ kloterId: selected.kloterId }),
+      tripClient.listTripMovements({ kloterId: selected.kloterId }),
+    ]).then(([rosterRes, alertsRes, movementsRes]) => {
+      setPilgrims(rosterRes.pilgrims);
+      setAlerts(alertsRes.alerts.filter((a) => a.status !== "RESOLVED"));
+      setMovements(movementsRes.movements);
+      Promise.all(movementsRes.movements.map((m) => tripClient.listTripCheckIns({ kloterId: selected.kloterId, movementId: m.id }).then((r) => [m.id, r.checkIns] as const))).then((pairs) => {
         setCheckIns(Object.fromEntries(pairs));
       });
     }).catch(() => setNotice("Gagal memuat data perjalanan.")).finally(() => setLoading(false));
   };
   useEffect(refreshRoster, [selected]);
 
-  const rosterIndex = useMemo(() => new Map(pilgrims.map((p) => [p.id, p])), [pilgrims]);
-
   const toggleHotelCheckIn = async (pilgrim: Pilgrim) => {
+    if (!selected) return;
     setWorking(pilgrim.id);
     try {
-      const result = await pilgrimClient.checkInPilgrimHotel({ pilgrimId: pilgrim.id, checkedIn: !pilgrim.hotelCheckedIn });
+      const result = await tripClient.setTripHotelCheckIn({ kloterId: selected.kloterId, pilgrimId: pilgrim.id, checkedIn: !pilgrim.hotelCheckedIn });
       setPilgrims((current) => current.map((p) => (p.id === pilgrim.id ? result : p)));
     } catch {
       setNotice("Gagal memperbarui status check-in hotel.");
@@ -65,9 +61,10 @@ export default function AgentTripTab() {
   };
 
   const acknowledgeAlert = async (alert: SOSAlert) => {
+    if (!selected) return;
     setWorking(alert.id);
     try {
-      await sosClient.acknowledgeSOSAlert({ sosAlertId: alert.id });
+      await tripClient.acknowledgeTripSOSAlert({ kloterId: selected.kloterId, sosAlertId: alert.id });
       refreshRoster();
     } catch {
       setNotice("Gagal mengonfirmasi SOS.");
@@ -77,9 +74,10 @@ export default function AgentTripTab() {
   };
 
   const resolveAlert = async (alert: SOSAlert) => {
+    if (!selected) return;
     setWorking(alert.id);
     try {
-      await sosClient.resolveSOSAlert({ sosAlertId: alert.id, notes: "" });
+      await tripClient.resolveTripSOSAlert({ kloterId: selected.kloterId, sosAlertId: alert.id, notes: "" });
       refreshRoster();
     } catch {
       setNotice("Gagal menyelesaikan SOS.");
@@ -89,11 +87,12 @@ export default function AgentTripTab() {
   };
 
   const checkInMovement = async (movement: Movement, pilgrim: Pilgrim, type: "DEPARTURE" | "ARRIVAL") => {
+    if (!selected) return;
     const key = `${movement.id}:${pilgrim.id}`;
     setWorking(key);
     try {
-      await groupLeaderClient.createCheckIn({ movementId: movement.id, pilgrimId: pilgrim.id, type });
-      const r = await groupLeaderClient.listCheckIns({ movementId: movement.id });
+      await tripClient.createTripCheckIn({ kloterId: selected.kloterId, movementId: movement.id, pilgrimId: pilgrim.id, type });
+      const r = await tripClient.listTripCheckIns({ kloterId: selected.kloterId, movementId: movement.id });
       setCheckIns((current) => ({ ...current, [movement.id]: r.checkIns }));
     } catch {
       setNotice("Gagal mencatat check-in.");

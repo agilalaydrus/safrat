@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "hajj/v1/pilgrim.proto";
+import "hajj/v1/sos.proto";
+import "hajj/v1/transport.proto";
+import "hajj/v1/groupleader.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// TripService is the kloter-scoped counterpart to GroupLeaderService — for
+// a Tour Leader (or any coordinator) who is traveling with a kloter, not
+// leading a group. Every RPC takes a kloter_id and verifies the caller is
+// actually assigned to it (kloter_staff) before returning or changing
+// anything — the same ownership discipline GroupLeaderService applies via
+// EnsureLeaderOwnsGroup, so a Tour Leader's session can never fetch or
+// modify data outside their own assigned kloter, even by calling this API
+// directly. Deliberately does NOT reuse PilgrimService/SOSService/
+// TransportService's operator-wide RPCs, which only check org membership.
+service TripService {
+  rpc GetTripRoster(GetTripRosterRequest) returns (GetTripRosterResponse);
+  rpc SetTripHotelCheckIn(SetTripHotelCheckInRequest) returns (Pilgrim);
+  rpc ListTripMovements(ListTripMovementsRequest) returns (ListTripMovementsResponse);
+  rpc ListTripCheckIns(ListTripCheckInsRequest) returns (ListTripCheckInsResponse);
+  rpc CreateTripCheckIn(CreateTripCheckInRequest) returns (CheckIn);
+  rpc ListTripSOSAlerts(ListTripSOSAlertsRequest) returns (ListTripSOSAlertsResponse);
+  rpc AcknowledgeTripSOSAlert(AcknowledgeTripSOSAlertRequest) returns (SOSAlert);
+  rpc ResolveTripSOSAlert(ResolveTripSOSAlertRequest) returns (SOSAlert);
+}
+
+message GetTripRosterRequest {
+  string kloter_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message GetTripRosterResponse {
+  repeated Pilgrim pilgrims = 1;
+}
+
+message SetTripHotelCheckInRequest {
+  string kloter_id = 1 [(buf.validate.field).string.uuid = true];
+  string pilgrim_id = 2 [(buf.validate.field).string.uuid = true];
+  bool checked_in = 3;
+}
+
+message ListTripMovementsRequest {
+  string kloter_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message ListTripMovementsResponse {
+  repeated Movement movements = 1;
+}
+
+message ListTripCheckInsRequest {
+  string kloter_id = 1 [(buf.validate.field).string.uuid = true];
+  string movement_id = 2 [(buf.validate.field).string.uuid = true];
+}
+message ListTripCheckInsResponse {
+  repeated CheckIn check_ins = 1;
+}
+
+message CreateTripCheckInRequest {
+  string kloter_id = 1 [(buf.validate.field).string.uuid = true];
+  string movement_id = 2 [(buf.validate.field).string.uuid = true];
+  string pilgrim_id = 3 [(buf.validate.field).string.uuid = true];
+  string type = 4 [(buf.validate.field).string = {in: ["DEPARTURE", "ARRIVAL"]}];
+}
+
+message ListTripSOSAlertsRequest {
+  string kloter_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message ListTripSOSAlertsResponse {
+  repeated SOSAlert alerts = 1;
+}
+
+message AcknowledgeTripSOSAlertRequest {
+  string kloter_id = 1 [(buf.validate.field).string.uuid = true];
+  string sos_alert_id = 2 [(buf.validate.field).string.uuid = true];
+}
+
+message ResolveTripSOSAlertRequest {
+  string kloter_id = 1 [(buf.validate.field).string.uuid = true];
+  string sos_alert_id = 2 [(buf.validate.field).string.uuid = true];
+  string notes = 3;
+}

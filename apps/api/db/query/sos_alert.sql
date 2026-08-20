@@ -50,3 +50,10 @@ SELECT * FROM sos_alerts
 WHERE pilgrim_id = $1 AND operator_id = $2
 ORDER BY created_at DESC
 LIMIT 20;
+
+-- name: ListActiveSOSAlertsForKloter :many
+SELECT s.*, p.full_name AS pilgrim_name
+FROM sos_alerts s
+JOIN pilgrims p ON p.id = s.pilgrim_id
+WHERE s.operator_id = $1 AND p.kloter_id = $2 AND s.status IN ('ACTIVE','ACKNOWLEDGED','ESCALATED')
+ORDER BY s.created_at DESC;

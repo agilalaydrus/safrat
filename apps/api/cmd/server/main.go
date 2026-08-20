@@ -86,6 +86,7 @@ func main() {
 		insuranceRepository := repository.NewInsuranceRepository(queries)
 		checklistRepository := repository.NewChecklistRepository(queries)
 		lostReportRepository := repository.NewLostReportRepository(queries)
+		tripRepository := repository.NewTripRepository(queries)
 
 		firebasePusher, err := notification.NewFirebasePusher(ctx, logger, config.FirebaseServiceAccountJSON, notificationRepository)
 		if err != nil {
@@ -121,6 +122,7 @@ func main() {
 		insuranceService := service.NewInsuranceService(operatorRepository, insuranceRepository)
 		checklistService := service.NewChecklistService(operatorRepository, pilgrimRepository, checklistRepository)
 		lostReportService := service.NewLostReportService(operatorRepository, pilgrimRepository, lostReportRepository, groupLeaderRepository, firebasePusher)
+		tripService := service.NewTripService(operatorRepository, tripRepository, pilgrimRepository, sosRepository, groupLeaderRepository, transportRepository)
 		operatorHandler := handler.NewOperatorHandler(operatorService)
 		pilgrimHandler := handler.NewPilgrimHandler(pilgrimService)
 		seasonHandler := handler.NewSeasonHandler(seasonService)
@@ -148,6 +150,7 @@ func main() {
 		insuranceHandler := handler.NewInsuranceHandler(insuranceService)
 		checklistHandler := handler.NewChecklistHandler(checklistService)
 		lostReportHandler := handler.NewLostReportHandler(lostReportService)
+		tripHandler := handler.NewTripHandler(tripService)
 		handlerOptions := []connect.HandlerOption{connect.WithInterceptors(
 			middleware.NewRateLimitInterceptor(),
 			middleware.NewAuthInterceptor(pool),
@@ -179,6 +182,7 @@ func main() {
 		insurancePath, insuranceServiceHandler := hajjv1connect.NewInsuranceServiceHandler(insuranceHandler, handlerOptions...)
 		checklistPath, checklistServiceHandler := hajjv1connect.NewChecklistServiceHandler(checklistHandler, handlerOptions...)
 		lostReportPath, lostReportServiceHandler := hajjv1connect.NewLostReportServiceHandler(lostReportHandler, handlerOptions...)
+		tripPath, tripServiceHandler := hajjv1connect.NewTripServiceHandler(tripHandler, handlerOptions...)
 		mux.Handle(operatorPath, operatorServiceHandler)
 		mux.Handle(pilgrimPath, pilgrimServiceHandler)
 		mux.Handle(seasonPath, seasonServiceHandler)
@@ -206,6 +210,7 @@ func main() {
 		mux.Handle(insurancePath, insuranceServiceHandler)
 		mux.Handle(checklistPath, checklistServiceHandler)
 		mux.Handle(lostReportPath, lostReportServiceHandler)
+		mux.Handle(tripPath, tripServiceHandler)
 		mux.HandleFunc("POST /webhooks/xendit", handler.NewXenditWebhookHandler(logger, orderRepository, config.XenditWebhookToken))
 		uploadDir := os.Getenv("UPLOAD_DIR")
 		if uploadDir == "" {
