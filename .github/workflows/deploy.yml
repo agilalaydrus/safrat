@@ -141,9 +141,11 @@ jobs:
             docker run --rm \
               --network "${NETWORK:-safrat_internal}" \
               -v "$(pwd)/apps/api/db/migrations:/migrations" \
+              -e GOOSE_DRIVER=postgres \
+              -e GOOSE_DBSTRING="postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat" \
+              -e GOOSE_MIGRATION_DIR=/migrations \
               ghcr.io/kukymbr/goose-docker:latest \
-              goose -dir /migrations postgres \
-              "postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat" up
+              up
 
             # Rolling restart — API first (no downtime for pure API changes),
             # web second. Worker restarts together with API (same image).

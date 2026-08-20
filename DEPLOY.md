@@ -237,9 +237,11 @@ source .env.prod
 docker run --rm \
   --network safrat_internal \
   -v $(pwd)/apps/api/db/migrations:/migrations \
+  -e GOOSE_DRIVER=postgres \
+  -e GOOSE_DBSTRING="postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat" \
+  -e GOOSE_MIGRATION_DIR=/migrations \
   ghcr.io/kukymbr/goose-docker:latest \
-  goose -dir /migrations postgres \
-  "postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat" up
+  up
 
 # Step 2 — Better Auth migrations (users, sessions, organizations tables)
 # Run this from the web container or locally with DATABASE_URL pointing to prod DB
@@ -250,9 +252,11 @@ DATABASE_URL="postgresql://safrat:${POSTGRES_PASSWORD}@localhost:5432/safrat" \
 docker run --rm \
   --network safrat_internal \
   -v $(pwd)/apps/api/db/migrations:/migrations \
+  -e GOOSE_DRIVER=postgres \
+  -e GOOSE_DBSTRING="postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat" \
+  -e GOOSE_MIGRATION_DIR=/migrations \
   ghcr.io/kukymbr/goose-docker:latest \
-  goose -dir /migrations postgres \
-  "postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat" status
+  status
 ```
 
 > Network name is `<project-dir>_internal`. Verify with: `docker network ls`
