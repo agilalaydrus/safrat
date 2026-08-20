@@ -16,3 +16,6 @@ LEFT JOIN vehicles v ON v.movement_id=m.id
 LEFT JOIN seat_assignments sa ON sa.vehicle_id=v.id
 WHERE m.operator_id=$1 AND m.kloter_id=$2
 GROUP BY m.id ORDER BY m.scheduled_at ASC;
+
+-- name: GetMovementKloterID :one
+SELECT kloter_id FROM movements WHERE id = $1 AND operator_id = $2;

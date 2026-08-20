@@ -15,10 +15,11 @@ type GroupLeaderService struct {
 	operatorRepository    *repository.OperatorRepository
 	groupLeaderRepository *repository.GroupLeaderRepository
 	sosRepository         *repository.SOSRepository
+	pilgrimRepository     *repository.PilgrimRepository
 }
 
-func NewGroupLeaderService(operators *repository.OperatorRepository, groupLeaders *repository.GroupLeaderRepository, sos *repository.SOSRepository) *GroupLeaderService {
-	return &GroupLeaderService{operatorRepository: operators, groupLeaderRepository: groupLeaders, sosRepository: sos}
+func NewGroupLeaderService(operators *repository.OperatorRepository, groupLeaders *repository.GroupLeaderRepository, sos *repository.SOSRepository, pilgrims *repository.PilgrimRepository) *GroupLeaderService {
+	return &GroupLeaderService{operatorRepository: operators, groupLeaderRepository: groupLeaders, sosRepository: sos, pilgrimRepository: pilgrims}
 }
 
 // ListMySOSAlerts scopes the coordinator-wide SOS surface down to only
@@ -82,6 +83,13 @@ func (s *GroupLeaderService) ListCheckIns(ctx context.Context, orgID string, req
 	if err != nil {
 		return nil, serviceError("GroupLeaderService.ListCheckIns", err)
 	}
+	movement, err := s.groupLeaderRepository.GetMovementKloter(ctx, op.ID, req.MovementId)
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.ListCheckIns", apperror.ErrNotFound)
+	}
+	if err := s.groupLeaderRepository.EnsureLeaderHasPilgrimInKloter(ctx, op.ID, movement, middleware.UserIDFromCtx(ctx)); err != nil {
+		return nil, serviceError("GroupLeaderService.ListCheckIns", apperror.ErrForbidden)
+	}
 	checkIns, err := s.groupLeaderRepository.ListCheckIns(ctx, op.ID, req.MovementId)
 	if err != nil {
 		return nil, serviceError("GroupLeaderService.ListCheckIns", err)
@@ -101,11 +109,87 @@ func (s *GroupLeaderService) CreateCheckIn(ctx context.Context, orgID string, re
 	if err != nil {
 		return nil, serviceError("GroupLeaderService.CreateCheckIn", err)
 	}
+	if err := s.groupLeaderRepository.EnsureLeaderOwnsPilgrim(ctx, op.ID, req.PilgrimId, middleware.UserIDFromCtx(ctx)); err != nil {
+		return nil, serviceError("GroupLeaderService.CreateCheckIn", apperror.ErrForbidden)
+	}
 	checkIn, err := s.groupLeaderRepository.CreateCheckIn(ctx, op.ID, req.MovementId, req.PilgrimId, req.Type, middleware.UserIDFromCtx(ctx))
 	if err != nil {
 		return nil, serviceError("GroupLeaderService.CreateCheckIn", apperror.ErrAlreadyExists)
 	}
 	return &hajjv1.CheckIn{Id: checkIn.ID, MovementId: checkIn.MovementID, PilgrimId: checkIn.PilgrimID, Type: checkIn.Type, CreatedAt: timestamppb.New(checkIn.CreatedAt)}, nil
+}
+
+// CheckInGroupPilgrimHotel is the leader-scoped counterpart to
+// PilgrimService.CheckInPilgrimHotel — only ever touches a pilgrim in one
+// of this leader's own groups.
+func (s *GroupLeaderService) CheckInGroupPilgrimHotel(ctx context.Context, orgID string, req *hajjv1.CheckInGroupPilgrimHotelRequest) (*hajjv1.Pilgrim, error) {
+	if req == nil || !isUUID(req.PilgrimId) {
+		return nil, serviceError("GroupLeaderService.CheckInGroupPilgrimHotel", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.CheckInGroupPilgrimHotel", err)
+	}
+	if err := s.groupLeaderRepository.EnsureLeaderOwnsPilgrim(ctx, op.ID, req.PilgrimId, middleware.UserIDFromCtx(ctx)); err != nil {
+		return nil, serviceError("GroupLeaderService.CheckInGroupPilgrimHotel", apperror.ErrForbidden)
+	}
+	pilgrim, err := s.pilgrimRepository.CheckInHotel(ctx, op.ID, req.PilgrimId, req.CheckedIn)
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.CheckInGroupPilgrimHotel", err)
+	}
+	return pilgrimMessage(pilgrim), nil
+}
+
+// authorizeAlertOwnedByLeader confirms alertID is currently visible via
+// ListMySOSAlerts (i.e. for a pilgrim in one of this leader's own groups)
+// before allowing it to be acknowledged/resolved.
+func (s *GroupLeaderService) authorizeAlertOwnedByLeader(ctx context.Context, op, alertID string) error {
+	alerts, err := s.sosRepository.ListActiveForLeader(ctx, op, middleware.UserIDFromCtx(ctx))
+	if err != nil {
+		return err
+	}
+	for _, a := range alerts {
+		if a.ID == alertID {
+			return nil
+		}
+	}
+	return apperror.ErrForbidden
+}
+
+func (s *GroupLeaderService) AcknowledgeMySOSAlert(ctx context.Context, orgID string, req *hajjv1.AcknowledgeMySOSAlertRequest) (*hajjv1.SOSAlert, error) {
+	if req == nil || !isUUID(req.SosAlertId) {
+		return nil, serviceError("GroupLeaderService.AcknowledgeMySOSAlert", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.AcknowledgeMySOSAlert", err)
+	}
+	if err := s.authorizeAlertOwnedByLeader(ctx, op.ID, req.SosAlertId); err != nil {
+		return nil, serviceError("GroupLeaderService.AcknowledgeMySOSAlert", err)
+	}
+	alert, err := s.sosRepository.Acknowledge(ctx, op.ID, req.SosAlertId, middleware.UserIDFromCtx(ctx))
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.AcknowledgeMySOSAlert", err)
+	}
+	return sosAlertMessage(alert), nil
+}
+
+func (s *GroupLeaderService) ResolveMySOSAlert(ctx context.Context, orgID string, req *hajjv1.ResolveMySOSAlertRequest) (*hajjv1.SOSAlert, error) {
+	if req == nil || !isUUID(req.SosAlertId) {
+		return nil, serviceError("GroupLeaderService.ResolveMySOSAlert", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.ResolveMySOSAlert", err)
+	}
+	if err := s.authorizeAlertOwnedByLeader(ctx, op.ID, req.SosAlertId); err != nil {
+		return nil, serviceError("GroupLeaderService.ResolveMySOSAlert", err)
+	}
+	alert, err := s.sosRepository.Resolve(ctx, op.ID, req.SosAlertId, middleware.UserIDFromCtx(ctx), strings.TrimSpace(req.Notes))
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.ResolveMySOSAlert", err)
+	}
+	return sosAlertMessage(alert), nil
 }
 
 func (s *GroupLeaderService) authorizeGroup(ctx context.Context, orgID, groupID string) (string, error) {

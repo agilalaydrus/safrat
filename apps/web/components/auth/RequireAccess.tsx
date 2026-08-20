@@ -36,8 +36,16 @@ export function RequireAccess({ role, children }: { role: Role; children: React.
       try {
         const access = await getMyAccessCached();
         if (cancelled) return;
+        const isAdmin = access.isOrgMember && (access.orgRole === "owner" || access.orgRole === "admin");
+        // A member-role org member who also leads a group and/or is an
+        // active Tour Leader gets ONLY their dedicated portal, never
+        // /dashboard — matches the backend's restrictedMemberProcedures
+        // gate (internal/middleware/auth.go), which actually enforces
+        // this; this check is UX (redirect to the right place), not the
+        // real boundary.
+        const isRestrictedMember = access.leaderGroups.length > 0 || !!access.linkedAgent?.isActive;
         const allowed =
-          role === "staff" ? access.isOrgMember
+          role === "staff" ? access.isOrgMember && (isAdmin || !isRestrictedMember)
           : role === "leader" ? access.leaderGroups.length > 0
           : role === "agent" ? access.isOrgMember && !!access.linkedAgent?.isActive
           : !!access.linkedPilgrim;

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
+	"github.com/hajj-saas/api/internal/repository"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -17,6 +18,7 @@ const (
 	ctxKeyOperatorID contextKey = "operator_id"
 	ctxKeyUserName   contextKey = "user_name"
 	ctxKeyUserEmail  contextKey = "user_email"
+	ctxKeyOrgRole    contextKey = "org_role"
 )
 
 // publicProcedures lists RPCs that must be reachable without a Better Auth session —
@@ -87,9 +89,79 @@ var sessionOnlyProcedures = map[string]bool{
 	"/hajj.v1.IdentityService/InvalidateMyAccess":  true,
 }
 
+// restrictedMemberProcedures lists RPCs a "restricted member" — an org
+// member who is a Muttawwif (leads a group) and/or a Tour Leader (linked
+// agent), and not owner/admin — may call. Everything else on the
+// authenticated (non-public) surface is refused with PermissionDenied,
+// even though such an identity does hold a valid org-member session that
+// would otherwise satisfy every dashboard RPC's org-scoping check. This is
+// the actual enforcement of "a Muttawwif/Tour Leader only gets their own
+// portal, not the operator dashboard" — RequireAccess on the frontend is
+// UX, this is the real boundary. A plain "member" who is neither a leader
+// nor an agent is NOT restricted (see resolveLandingPath's rule 3 — that
+// identity's only surface IS the dashboard).
+//
+// Kept deliberately small and reviewed as a security decision, same as
+// publicProcedures. A few reads with no pilgrim-level or financial detail
+// (season/kloter/movement listings) are allowed operator-wide rather than
+// building dedicated scoped RPCs for every one of them — documented next
+// to each entry below.
+var restrictedMemberProcedures = map[string]bool{
+	// GroupLeaderService — every method is already self-scoped to groups
+	// this identity leads (EnsureLeaderOwnsGroup / EnsureLeaderOwnsPilgrim).
+	"/hajj.v1.GroupLeaderService/ListMyGroups":             true,
+	"/hajj.v1.GroupLeaderService/GetGroupRoster":           true,
+	"/hajj.v1.GroupLeaderService/ListCheckIns":             true,
+	"/hajj.v1.GroupLeaderService/CreateCheckIn":            true,
+	"/hajj.v1.GroupLeaderService/ListMySOSAlerts":          true,
+	"/hajj.v1.GroupLeaderService/CheckInGroupPilgrimHotel": true,
+	"/hajj.v1.GroupLeaderService/AcknowledgeMySOSAlert":    true,
+	"/hajj.v1.GroupLeaderService/ResolveMySOSAlert":        true,
+	// TripService — every method is already self-scoped to kloters this
+	// identity is assigned staff on (EnsureStaffAssignedToKloter).
+	"/hajj.v1.TripService/GetTripRoster":           true,
+	"/hajj.v1.TripService/SetTripHotelCheckIn":     true,
+	"/hajj.v1.TripService/ListTripMovements":       true,
+	"/hajj.v1.TripService/ListTripCheckIns":        true,
+	"/hajj.v1.TripService/CreateTripCheckIn":       true,
+	"/hajj.v1.TripService/ListTripSOSAlerts":       true,
+	"/hajj.v1.TripService/AcknowledgeTripSOSAlert": true,
+	"/hajj.v1.TripService/ResolveTripSOSAlert":     true,
+	// AgentService — self-scoped wallet/referral methods only. Deliberately
+	// NOT ListPayoutRequests/RecordAgentPayout/RejectPayoutRequest/
+	// ListAgents/etc — those are the operator's payout inbox and agent
+	// roster, not a Tour Leader's own data.
+	"/hajj.v1.AgentService/GetMyWallet":        true,
+	"/hajj.v1.AgentService/RequestAgentPayout": true,
+	"/hajj.v1.AgentService/ListMyPilgrims":     true,
+	// StaffScheduleService — read-only, own assignments only.
+	"/hajj.v1.StaffScheduleService/ListMyAssignments": true,
+	// ChatService — group_id-scoped; ChatService itself additionally
+	// enforces EnsureLeaderOwnsGroup for any non-owner/admin caller (see
+	// service/chat.go), so listing this here does not by itself grant
+	// cross-group access.
+	"/hajj.v1.ChatService/ListGroupMessages": true,
+	"/hajj.v1.ChatService/SendGroupMessage":  true,
+	// LostReportService — already scoped via EnsureLeaderOwnsGroup.
+	"/hajj.v1.LostReportService/ListGroupLostReports": true,
+	// NotificationService — registers only the caller's own push token.
+	"/hajj.v1.NotificationService/RegisterPushSubscription": true,
+	// Low-sensitivity, read-only, operator-wide listings with no
+	// pilgrim-level or financial detail — pragmatically allowed rather than
+	// building a dedicated scoped RPC for each. Revisit if that changes
+	// (e.g. movements gain per-pilgrim manifest data in the response).
+	"/hajj.v1.SeasonService/ListSeasons":      true,
+	"/hajj.v1.KloterService/ListKloters":      true,
+	"/hajj.v1.TransportService/ListMovements": true,
+	// GroupService — ListOperatorMembers is the picker GroupFormDialog uses
+	// (dashboard-only in practice, but read-only and non-sensitive — just
+	// org member names/emails already visible via the invite flow).
+	"/hajj.v1.GroupService/ListOperatorMembers": true,
+}
+
 // NewAuthInterceptor validates Better Auth's opaque database session token.
 // Better Auth does not issue JWTs for its default session strategy.
-func NewAuthInterceptor(pool *pgxpool.Pool) connect.Interceptor {
+func NewAuthInterceptor(pool *pgxpool.Pool, identityRepository *repository.IdentityRepository) connect.Interceptor {
 	return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, request connect.AnyRequest) (connect.AnyResponse, error) {
 			if publicProcedures[request.Spec().Procedure] {
@@ -117,13 +189,24 @@ func NewAuthInterceptor(pool *pgxpool.Pool) connect.Interceptor {
 				ctx = context.WithValue(ctx, ctxKeyUserEmail, userEmail)
 				return next(ctx, request)
 			}
-			userID, organizationID, userName, err := ResolveStaffSession(ctx, pool, token)
+			userID, organizationID, userName, orgRole, err := resolveStaffSessionWithRole(ctx, pool, token)
 			if err != nil {
 				return nil, err
+			}
+			if orgRole != "owner" && orgRole != "admin" {
+				access, err := identityRepository.GetMyAccess(ctx, userID)
+				if err != nil {
+					return nil, connect.NewError(connect.CodeInternal, errors.New("resolve access"))
+				}
+				restricted := len(access.LeaderGroups) > 0 || (access.LinkedAgent != nil && access.LinkedAgent.IsActive)
+				if restricted && !restrictedMemberProcedures[request.Spec().Procedure] {
+					return nil, connect.NewError(connect.CodePermissionDenied, errors.New("this account's role does not permit this action"))
+				}
 			}
 			ctx = context.WithValue(ctx, ctxKeyUserID, userID)
 			ctx = context.WithValue(ctx, ctxKeyOperatorID, organizationID)
 			ctx = context.WithValue(ctx, ctxKeyUserName, userName)
+			ctx = context.WithValue(ctx, ctxKeyOrgRole, orgRole)
 			return next(ctx, request)
 		}
 	})
@@ -136,10 +219,16 @@ func NewAuthInterceptor(pool *pgxpool.Pool) connect.Interceptor {
 // main.go) can authenticate with the identical rule instead of
 // reimplementing this query.
 func ResolveStaffSession(ctx context.Context, pool *pgxpool.Pool, token string) (userID, organizationID, userName string, err error) {
+	userID, organizationID, userName, _, err = resolveStaffSessionWithRole(ctx, pool, token)
+	return userID, organizationID, userName, err
+}
+
+func resolveStaffSessionWithRole(ctx context.Context, pool *pgxpool.Pool, token string) (userID, organizationID, userName, orgRole string, err error) {
 	const query = `
 		SELECT s."userId",
 		       COALESCE(s."activeOrganizationId", m."organizationId") AS "orgId",
-		       u.name
+		       u.name,
+		       m.role
 		FROM session s
 		JOIN member m ON m."userId" = s."userId"
 		JOIN "user" u ON u.id = s."userId"
@@ -152,17 +241,17 @@ func ResolveStaffSession(ctx context.Context, pool *pgxpool.Pool, token string) 
 		ORDER BY
 		  CASE WHEN s."activeOrganizationId" = m."organizationId" THEN 0 ELSE 1 END
 		LIMIT 1`
-	err = pool.QueryRow(ctx, query, token).Scan(&userID, &organizationID, &userName)
+	err = pool.QueryRow(ctx, query, token).Scan(&userID, &organizationID, &userName, &orgRole)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", "", "", connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or expired Better Auth session"))
+		return "", "", "", "", connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or expired Better Auth session"))
 	}
 	if err != nil {
-		return "", "", "", connect.NewError(connect.CodeInternal, errors.New("validate Better Auth session"))
+		return "", "", "", "", connect.NewError(connect.CodeInternal, errors.New("validate Better Auth session"))
 	}
 	if userID == "" || organizationID == "" {
-		return "", "", "", connect.NewError(connect.CodeUnauthenticated, errors.New("Better Auth session has no active organization"))
+		return "", "", "", "", connect.NewError(connect.CodeUnauthenticated, errors.New("Better Auth session has no active organization"))
 	}
-	return userID, organizationID, userName, nil
+	return userID, organizationID, userName, orgRole, nil
 }
 
 func UserIDFromCtx(ctx context.Context) string {
@@ -183,6 +272,11 @@ func UserNameFromCtx(ctx context.Context) string {
 func UserEmailFromCtx(ctx context.Context) string {
 	userEmail, _ := ctx.Value(ctxKeyUserEmail).(string)
 	return userEmail
+}
+
+func OrgRoleFromCtx(ctx context.Context) string {
+	orgRole, _ := ctx.Value(ctxKeyOrgRole).(string)
+	return orgRole
 }
 
 // ContextWithIdentity attaches authenticated values for in-process callers and tests.

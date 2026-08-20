@@ -51,3 +51,20 @@ FROM member m
 JOIN "user" u ON u.id = m."userId"
 WHERE m."organizationId" = $1
 ORDER BY u.name ASC;
+
+-- name: PilgrimBelongsToLeader :one
+-- Ownership check for leader-scoped pilgrim actions (hotel check-in,
+-- movement check-in) — confirms the pilgrim is in a group this leader
+-- actually leads, not just any pilgrim in the operator.
+SELECT p.id FROM pilgrims p
+JOIN groups g ON g.id = p.group_id
+WHERE p.id = $1 AND p.operator_id = $2 AND g.leader_id = $3;
+
+-- name: LeaderHasPilgrimInKloter :one
+-- Confirms this leader has at least one of their own pilgrims in the given
+-- kloter — used to scope ListCheckIns (which only has a movement_id, not a
+-- pilgrim_id) to movements actually relevant to this leader's group.
+SELECT 1 FROM pilgrims p
+JOIN groups g ON g.id = p.group_id
+WHERE g.operator_id = $1 AND g.leader_id = $2 AND p.kloter_id = $3
+LIMIT 1;

@@ -21,6 +21,16 @@ service GroupLeaderService {
   // groups this leader leads — a narrower view than the coordinator
   // dashboard's operator-wide SOSService.ListActiveSOSAlerts.
   rpc ListMySOSAlerts(ListMySOSAlertsRequest) returns (ListSOSAlertsResponse);
+  // CheckInGroupPilgrimHotel is the leader-scoped counterpart to
+  // PilgrimService.CheckInPilgrimHotel (dashboard/operator-wide) — verifies
+  // the pilgrim is in a group this leader leads before touching anything.
+  rpc CheckInGroupPilgrimHotel(CheckInGroupPilgrimHotelRequest) returns (Pilgrim);
+  // AcknowledgeMySOSAlert/ResolveMySOSAlert are the leader-scoped
+  // counterparts to SOSService's operator-wide equivalents — only an alert
+  // already visible via ListMySOSAlerts (i.e. for one of this leader's own
+  // pilgrims) can be acted on.
+  rpc AcknowledgeMySOSAlert(AcknowledgeMySOSAlertRequest) returns (SOSAlert);
+  rpc ResolveMySOSAlert(ResolveMySOSAlertRequest) returns (SOSAlert);
 }
 
 message LeaderGroup {
@@ -59,3 +69,17 @@ message CreateCheckInRequest {
 }
 
 message ListMySOSAlertsRequest {}
+
+message CheckInGroupPilgrimHotelRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+  bool checked_in = 2;
+}
+
+message AcknowledgeMySOSAlertRequest {
+  string sos_alert_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message ResolveMySOSAlertRequest {
+  string sos_alert_id = 1 [(buf.validate.field).string.uuid = true];
+  string notes = 2;
+}

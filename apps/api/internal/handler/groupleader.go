@@ -49,3 +49,24 @@ func (h *GroupLeaderHandler) ListMySOSAlerts(ctx context.Context, _ *connect.Req
 	}
 	return connect.NewResponse(result), nil
 }
+func (h *GroupLeaderHandler) CheckInGroupPilgrimHotel(ctx context.Context, req *connect.Request[hajjv1.CheckInGroupPilgrimHotelRequest]) (*connect.Response[hajjv1.Pilgrim], error) {
+	result, err := h.groupLeaderService.CheckInGroupPilgrimHotel(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+func (h *GroupLeaderHandler) AcknowledgeMySOSAlert(ctx context.Context, req *connect.Request[hajjv1.AcknowledgeMySOSAlertRequest]) (*connect.Response[hajjv1.SOSAlert], error) {
+	result, err := h.groupLeaderService.AcknowledgeMySOSAlert(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+func (h *GroupLeaderHandler) ResolveMySOSAlert(ctx context.Context, req *connect.Request[hajjv1.ResolveMySOSAlertRequest]) (*connect.Response[hajjv1.SOSAlert], error) {
+	result, err := h.groupLeaderService.ResolveMySOSAlert(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

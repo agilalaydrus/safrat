@@ -13,14 +13,15 @@ import (
 )
 
 type ChatService struct {
-	operatorRepository *repository.OperatorRepository
-	pilgrimRepository  *repository.PilgrimRepository
-	chatRepository     *repository.ChatRepository
-	groupRepository    *repository.GroupRepository
+	operatorRepository    *repository.OperatorRepository
+	pilgrimRepository     *repository.PilgrimRepository
+	chatRepository        *repository.ChatRepository
+	groupRepository       *repository.GroupRepository
+	groupLeaderRepository *repository.GroupLeaderRepository
 }
 
-func NewChatService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, chat *repository.ChatRepository, groups *repository.GroupRepository) *ChatService {
-	return &ChatService{operatorRepository: operators, pilgrimRepository: pilgrims, chatRepository: chat, groupRepository: groups}
+func NewChatService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, chat *repository.ChatRepository, groups *repository.GroupRepository, groupLeaders *repository.GroupLeaderRepository) *ChatService {
+	return &ChatService{operatorRepository: operators, pilgrimRepository: pilgrims, chatRepository: chat, groupRepository: groups, groupLeaderRepository: groupLeaders}
 }
 
 // ListMyMessages / SendMyMessage are public (app_access_code) — the pilgrim
@@ -99,6 +100,11 @@ func (s *ChatService) SendGroupMessage(ctx context.Context, orgID string, req *h
 	return chatMessage(message), nil
 }
 
+// resolveOperatorGroup confirms groupID belongs to this operator, and
+// additionally that the caller owns it (leads it) unless they're a real
+// staff member (owner/admin) — the operator dashboard's group chat panel
+// needs to reach any group, but the leader app's identical RPC call must
+// not let one Muttawwif read or post into another Muttawwif's group chat.
 func (s *ChatService) resolveOperatorGroup(ctx context.Context, orgID, groupID string) (*domain.Operator, error) {
 	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
 	if err != nil {
@@ -106,6 +112,12 @@ func (s *ChatService) resolveOperatorGroup(ctx context.Context, orgID, groupID s
 	}
 	if err := s.groupRepository.EnsureGroupBelongsToOperator(ctx, op.ID, groupID); err != nil {
 		return nil, serviceError("ChatService", apperror.ErrNotFound)
+	}
+	role := middleware.OrgRoleFromCtx(ctx)
+	if role != "owner" && role != "admin" {
+		if err := s.groupLeaderRepository.EnsureLeaderOwnsGroup(ctx, op.ID, groupID, middleware.UserIDFromCtx(ctx)); err != nil {
+			return nil, serviceError("ChatService", apperror.ErrForbidden)
+		}
 	}
 	return op, nil
 }

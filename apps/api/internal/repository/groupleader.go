@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
+	"github.com/jackc/pgx/v5"
 )
 
 type GroupLeaderRepository struct{ queries *db.Queries }
@@ -43,6 +44,61 @@ func (r *GroupLeaderRepository) EnsureLeaderOwnsGroup(ctx context.Context, opera
 		return err
 	}
 	_, err = r.queries.GetGroupForLeader(ctx, db.GetGroupForLeaderParams{ID: groupUUID, OperatorID: opUUID, LeaderID: pgText(leaderUserID)})
+	return err
+}
+
+// EnsureLeaderOwnsPilgrim confirms pilgrimID is in a group this leader
+// actually leads — the leader-scoped counterpart of PilgrimRepository.Get
+// used before any per-pilgrim action (hotel check-in, movement check-in).
+func (r *GroupLeaderRepository) EnsureLeaderOwnsPilgrim(ctx context.Context, operatorID, pilgrimID, leaderUserID string) error {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return err
+	}
+	pilgrimUUID, err := pgUUID(pilgrimID)
+	if err != nil {
+		return err
+	}
+	_, err = r.queries.PilgrimBelongsToLeader(ctx, db.PilgrimBelongsToLeaderParams{ID: pilgrimUUID, OperatorID: opUUID, LeaderID: pgText(leaderUserID)})
+	return err
+}
+
+// GetMovementKloter resolves a movement's kloter_id, so ListCheckIns can be
+// scoped to whether this leader has a pilgrim in that kloter — a movement
+// with no kloter (kloter_id NULL) is never leader-visible.
+func (r *GroupLeaderRepository) GetMovementKloter(ctx context.Context, operatorID, movementID string) (string, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return "", err
+	}
+	movementUUID, err := pgUUID(movementID)
+	if err != nil {
+		return "", err
+	}
+	kloterID, err := r.queries.GetMovementKloterID(ctx, db.GetMovementKloterIDParams{ID: movementUUID, OperatorID: opUUID})
+	if err != nil {
+		return "", err
+	}
+	if !kloterID.Valid {
+		return "", pgx.ErrNoRows
+	}
+	return uuid.UUID(kloterID.Bytes).String(), nil
+}
+
+// EnsureLeaderHasPilgrimInKloter confirms this leader has at least one
+// pilgrim in kloterID — used to scope ListCheckIns to movements actually
+// relevant to this leader's own group, since ListCheckIns only has a
+// movement_id, not a specific pilgrim.
+func (r *GroupLeaderRepository) EnsureLeaderHasPilgrimInKloter(ctx context.Context, operatorID, kloterID, leaderUserID string) error {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return err
+	}
+	kloterUUID, err := pgUUID(kloterID)
+	if err != nil {
+		return err
+	}
+	_, err = r.queries.LeaderHasPilgrimInKloter(ctx, db.LeaderHasPilgrimInKloterParams{OperatorID: opUUID, LeaderID: pgText(leaderUserID), KloterID: kloterUUID})
 	return err
 }
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { IconCheck, IconWifiOff } from "@tabler/icons-react";
 import { Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
-import { groupLeaderClient, pilgrimClient } from "@/lib/rpc";
+import { groupLeaderClient } from "@/lib/rpc";
 import { cachedFetch } from "@/lib/offline";
 import { useLeaderGroup } from "@/lib/leader-context";
 
@@ -27,7 +27,7 @@ export default function LeaderHotelCheckInPage() {
     setWorking(pilgrim.id);
     setNotice("");
     try {
-      const result = await pilgrimClient.checkInPilgrimHotel({ pilgrimId: pilgrim.id, checkedIn: !pilgrim.hotelCheckedIn });
+      const result = await groupLeaderClient.checkInGroupPilgrimHotel({ pilgrimId: pilgrim.id, checkedIn: !pilgrim.hotelCheckedIn });
       setPilgrims((current) => current.map((p) => (p.id === result.id ? result : p)));
     } catch (caught) {
       setNotice(caught instanceof Error ? caught.message : "Gagal memperbarui status check-in hotel.");

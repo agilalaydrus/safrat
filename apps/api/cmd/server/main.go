@@ -104,8 +104,8 @@ func main() {
 		groupService := service.NewGroupService(operatorRepository, groupRepository, auditRepository, agentRepository)
 		pilgrimAppService := service.NewPilgrimAppService(pilgrimRepository, productRepository, auditRepository, identityRepository, broadcastRepository)
 		sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, auditRepository, firebasePusher)
-		chatService := service.NewChatService(operatorRepository, pilgrimRepository, chatRepository, groupRepository)
-		groupLeaderService := service.NewGroupLeaderService(operatorRepository, groupLeaderRepository, sosRepository)
+		chatService := service.NewChatService(operatorRepository, pilgrimRepository, chatRepository, groupRepository, groupLeaderRepository)
+		groupLeaderService := service.NewGroupLeaderService(operatorRepository, groupLeaderRepository, sosRepository, pilgrimRepository)
 		notificationService := service.NewNotificationService(operatorRepository, notificationRepository)
 		kloterService := service.NewKloterService(operatorRepository, kloterRepository, auditRepository)
 		identityService := service.NewIdentityService(identityRepository)
@@ -153,7 +153,7 @@ func main() {
 		tripHandler := handler.NewTripHandler(tripService)
 		handlerOptions := []connect.HandlerOption{connect.WithInterceptors(
 			middleware.NewRateLimitInterceptor(),
-			middleware.NewAuthInterceptor(pool),
+			middleware.NewAuthInterceptor(pool, identityRepository),
 		)}
 		operatorPath, operatorServiceHandler := hajjv1connect.NewOperatorServiceHandler(operatorHandler, handlerOptions...)
 		pilgrimPath, pilgrimServiceHandler := hajjv1connect.NewPilgrimServiceHandler(pilgrimHandler, handlerOptions...)

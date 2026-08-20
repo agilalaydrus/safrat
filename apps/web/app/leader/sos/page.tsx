@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { IconBell, IconBellOff, IconCheck, IconMapPin, IconSos } from "@tabler/icons-react";
 import { SOSAlert } from "@hajj-saas/proto-gen/hajj/v1/sos_pb";
-import { groupLeaderClient, notificationClient, sosClient } from "@/lib/rpc";
+import { groupLeaderClient, notificationClient } from "@/lib/rpc";
 import { requestPushToken } from "@/lib/firebase";
 import { enableSosAlarm, useSosAlarm } from "@/lib/sos-alarm";
 
@@ -47,11 +47,11 @@ export default function LeaderSOSPage() {
   }
 
   async function acknowledge(id: string) {
-    try { await sosClient.acknowledgeSOSAlert({ sosAlertId: id }); void refresh(); } catch { setNotice("Gagal mengonfirmasi notifikasi."); }
+    try { await groupLeaderClient.acknowledgeMySOSAlert({ sosAlertId: id }); void refresh(); } catch { setNotice("Gagal mengonfirmasi notifikasi."); }
   }
   async function resolve(id: string) {
     setResolvingId(id);
-    try { await sosClient.resolveSOSAlert({ sosAlertId: id, notes: "" }); void refresh(); } catch { setNotice("Gagal menyelesaikan notifikasi."); } finally { setResolvingId(""); }
+    try { await groupLeaderClient.resolveMySOSAlert({ sosAlertId: id, notes: "" }); void refresh(); } catch { setNotice("Gagal menyelesaikan notifikasi."); } finally { setResolvingId(""); }
   }
 
   const active = alerts.filter((a) => a.status !== "RESOLVED");
