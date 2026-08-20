@@ -3,7 +3,11 @@ name: Deploy to VPS
 on:
   push:
     branches: [main]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      skip_build:
+        description: 'Skip build, only deploy (y/n)'
+        default: 'n'
 
 env:
   API_IMAGE: ghcr.io/${{ github.repository_owner }}/safrat-api
@@ -71,6 +75,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push API image
+        if: ${{ github.event.inputs.skip_build != 'y' }}
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -83,6 +88,7 @@ jobs:
             ${{ env.API_IMAGE }}:latest
 
       - name: Build and push Web image
+        if: ${{ github.event.inputs.skip_build != 'y' }}
         uses: docker/build-push-action@v5
         with:
           context: .
