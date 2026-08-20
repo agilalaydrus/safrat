@@ -1,0 +1,82 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: safrat
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: safrat
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # No ports exposed — internal network only
+    networks:
+      - internal
+
+  api:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/safrat-api:${IMAGE_TAG:-latest}
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      CORS_ALLOWED_ORIGIN: https://app.safrat.com
+      SENTRY_DSN: ${SENTRY_DSN}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON}
+      XENDIT_SECRET_KEY: ${XENDIT_SECRET_KEY}
+      XENDIT_WEBHOOK_TOKEN: ${XENDIT_WEBHOOK_TOKEN}
+    ports:
+      - "127.0.0.1:9100:8080"   # nginx -> localhost:9100 -> container :8080
+    depends_on:
+      - postgres
+    networks:
+      - internal
+
+  # Same image as api, different command — see apps/api/Dockerfile (CMD is
+  # overridden here to run the /worker binary instead of /server). Without
+  # this service, SOS alerts never escalate past ACTIVE to a coordinator.
+  worker:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/safrat-api:${IMAGE_TAG:-latest}
+    command: ["/worker"]
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat
+      REDIS_URL: redis://redis:6379
+      SENTRY_DSN: ${SENTRY_DSN}
+      FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - internal
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    # No ports exposed — internal network only, same as postgres
+    networks:
+      - internal
+
+  web:
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/safrat-web:${IMAGE_TAG:-latest}
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: https://app.safrat.com
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL}
+      SENTRY_DSN: ${SENTRY_DSN}
+    ports:
+      - "127.0.0.1:9101:3000"   # nginx -> localhost:9101 -> container :3000
+    depends_on:
+      - postgres
+    networks:
+      - internal
+
+volumes:
+  postgres_data:
+
+networks:
+  internal:
+    driver: bridge
