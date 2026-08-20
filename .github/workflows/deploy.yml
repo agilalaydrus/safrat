@@ -121,6 +121,10 @@ jobs:
             # Pull new images
             docker compose -f docker-compose.prod.yml --env-file .env.prod pull
 
+            # Start postgres dulu supaya network terbentuk
+            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d postgres
+            sleep 5
+
             # Run goose migrations before restarting API
             source .env.prod
             NETWORK=$(docker network ls --filter name=safrat_internal --format '{{.Name}}' | head -1)
