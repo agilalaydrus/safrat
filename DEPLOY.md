@@ -238,8 +238,9 @@ docker run --rm \
   --network safrat_internal \
   -v $(pwd)/apps/api/db/migrations:/migrations \
   -e GOOSE_DRIVER=postgres \
-  -e GOOSE_DBSTRING="postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat" \
+  -e GOOSE_DBSTRING="host=postgres port=5432 user=safrat dbname=safrat sslmode=disable" \
   -e GOOSE_MIGRATION_DIR=/migrations \
+  -e PGPASSWORD="${POSTGRES_PASSWORD}" \
   ghcr.io/kukymbr/goose-docker:latest \
   up
 
@@ -253,8 +254,9 @@ docker run --rm \
   --network safrat_internal \
   -v $(pwd)/apps/api/db/migrations:/migrations \
   -e GOOSE_DRIVER=postgres \
-  -e GOOSE_DBSTRING="postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat" \
+  -e GOOSE_DBSTRING="host=postgres port=5432 user=safrat dbname=safrat sslmode=disable" \
   -e GOOSE_MIGRATION_DIR=/migrations \
+  -e PGPASSWORD="${POSTGRES_PASSWORD}" \
   ghcr.io/kukymbr/goose-docker:latest \
   status
 ```
