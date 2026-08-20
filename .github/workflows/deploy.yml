@@ -135,9 +135,21 @@ jobs:
             docker compose -f docker-compose.prod.yml --env-file .env.prod up -d postgres
             sleep 5
 
-            # Run goose migrations before restarting API
             source .env.prod
             NETWORK=$(docker network ls --filter name=safrat_internal --format '{{.Name}}' | head -1)
+
+            # Better Auth owns its own tables (user/session/account/etc.) and
+            # migrates them itself — goose's 025_fix_groups_leader_id.sql and
+            # later reference "user", so this must run before goose.
+            docker run --rm \
+              --network "${NETWORK:-safrat_internal}" \
+              -v "$(pwd):/repo" \
+              -w /repo \
+              -e DATABASE_URL="postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat" \
+              node:20-alpine \
+              sh -c "apk add --no-cache python3 make g++ && corepack enable && corepack prepare pnpm@9 --activate && pnpm install --frozen-lockfile --config.node-linker=hoisted && cd apps/web && npx @better-auth/cli@1.4.21 migrate --yes"
+
+            # Run goose migrations before restarting API
             docker run --rm \
               --network "${NETWORK:-safrat_internal}" \
               -v "$(pwd)/apps/api/db/migrations:/migrations" \

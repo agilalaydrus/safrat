@@ -233,7 +233,20 @@ Two sets of migrations — run both on first deploy and after every release:
 cd /home/deploy/safrat
 source .env.prod
 
-# Step 1 — goose migrations (business schema: operators, pilgrims, seasons, etc.)
+# Step 1 — Better Auth migrations (user, session, account, organization, etc.)
+# Must run BEFORE goose: 025_fix_groups_leader_id.sql and later reference
+# "user", which only exists after this runs. `better-auth` itself has no
+# CLI — the real package is `@better-auth/cli`, and it needs python3/make/g++
+# to build its native `better-sqlite3` dependency even though we use Postgres.
+docker run --rm \
+  --network safrat_internal \
+  -v $(pwd):/repo \
+  -w /repo \
+  -e DATABASE_URL="postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat" \
+  node:20-alpine \
+  sh -c "apk add --no-cache python3 make g++ && corepack enable && corepack prepare pnpm@9 --activate && pnpm install --frozen-lockfile --config.node-linker=hoisted && cd apps/web && npx @better-auth/cli@1.4.21 migrate --yes"
+
+# Step 2 — goose migrations (business schema: operators, pilgrims, seasons, etc.)
 docker run --rm \
   --network safrat_internal \
   -v $(pwd)/apps/api/db/migrations:/migrations \
@@ -243,11 +256,6 @@ docker run --rm \
   -e PGPASSWORD="${POSTGRES_PASSWORD}" \
   ghcr.io/kukymbr/goose-docker:latest \
   up
-
-# Step 2 — Better Auth migrations (users, sessions, organizations tables)
-# Run this from the web container or locally with DATABASE_URL pointing to prod DB
-DATABASE_URL="postgresql://safrat:${POSTGRES_PASSWORD}@localhost:5432/safrat" \
-  npx better-auth migrate
 
 # Check migration status
 docker run --rm \
