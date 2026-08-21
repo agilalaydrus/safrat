@@ -18,7 +18,7 @@ services:
     environment:
       DATABASE_URL: postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-https://app.safrat.com}
+      CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-https://app.tawafiqhub.id}
       SENTRY_DSN: ${SENTRY_DSN}
       FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON}
       XENDIT_SECRET_KEY: ${XENDIT_SECRET_KEY}
@@ -61,7 +61,7 @@ services:
     environment:
       DATABASE_URL: postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      BETTER_AUTH_URL: https://app.safrat.com
+      BETTER_AUTH_URL: https://app.tawafiqhub.id
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       RESEND_API_KEY: ${RESEND_API_KEY}

@@ -85,7 +85,7 @@ services:
     environment:
       DATABASE_URL: postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      CORS_ALLOWED_ORIGIN: https://app.safrat.com
+      CORS_ALLOWED_ORIGIN: https://app.tawafiqhub.id
       SENTRY_DSN: ${SENTRY_DSN}
       FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON}
       XENDIT_SECRET_KEY: ${XENDIT_SECRET_KEY}
@@ -127,7 +127,7 @@ services:
     environment:
       DATABASE_URL: postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      BETTER_AUTH_URL: https://app.safrat.com
+      BETTER_AUTH_URL: https://app.tawafiqhub.id
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       RESEND_API_KEY: ${RESEND_API_KEY}
@@ -161,7 +161,7 @@ POSTGRES_PASSWORD=use_a_strong_random_password
 BETTER_AUTH_SECRET=your_secret_here
 
 # Google Sign-In (Better Auth social provider) — web service only, never
-# reaches the Go API directly. Redirect URI: https://app.safrat.com/api/auth/callback/google
+# reaches the Go API directly. Redirect URI: https://app.tawafiqhub.id/api/auth/callback/google
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 
@@ -191,13 +191,13 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
 # onboarding@resend.dev (sandbox — only deliverable to the Resend
 # account's own address).
 RESEND_API_KEY=re_...
-RESEND_FROM_EMAIL=noreply@safrat.com
+RESEND_FROM_EMAIL=noreply@tawafiqhub.id
 
 # Xendit (Module 7 — Orders & Payments) — apps/api only, unrelated to
 # email/web. Without XENDIT_SECRET_KEY, checkout fails fast with a clear
 # error (internal/payment/xendit.go) rather than creating an unpayable
 # order. Register the webhook URL in the Xendit Dashboard > Settings >
-# Webhooks: https://api.safrat.com/webhooks/xendit — XENDIT_WEBHOOK_TOKEN
+# Webhooks: https://api.tawafiqhub.id/webhooks/xendit — XENDIT_WEBHOOK_TOKEN
 # must match the "Verification Token" shown on that same page.
 XENDIT_SECRET_KEY=xnd_production_...
 XENDIT_WEBHOOK_TOKEN=...
@@ -371,7 +371,7 @@ CMD ["node", "apps/web/server.js"]
 ```nginx
 server {
     listen 80;
-    server_name api.safrat.com;
+    server_name api.tawafiqhub.id;
     location / {
         proxy_pass http://127.0.0.1:9100;
         proxy_set_header Host $host;
@@ -380,7 +380,7 @@ server {
 }
 server {
     listen 80;
-    server_name app.safrat.com;
+    server_name app.tawafiqhub.id;
     location / {
         proxy_pass http://127.0.0.1:9101;
         proxy_set_header Host $host;
@@ -397,7 +397,7 @@ sudo nginx -t && sudo systemctl reload nginx
 **Step 2 — Issue SSL:**
 
 ```bash
-sudo certbot --nginx -d app.safrat.com -d api.safrat.com
+sudo certbot --nginx -d app.tawafiqhub.id -d api.tawafiqhub.id
 ```
 
 **Step 3 — Full TLS config** (replace after cert issued):
@@ -406,15 +406,15 @@ sudo certbot --nginx -d app.safrat.com -d api.safrat.com
 # API — Go backend
 server {
     listen 80;
-    server_name api.safrat.com;
+    server_name api.tawafiqhub.id;
     return 301 https://$host$request_uri;
 }
 server {
     listen 443 ssl http2;
-    server_name api.safrat.com;
+    server_name api.tawafiqhub.id;
 
-    ssl_certificate     /etc/letsencrypt/live/api.safrat.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/api.safrat.com/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/api.tawafiqhub.id/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.tawafiqhub.id/privkey.pem;
 
     add_header X-Frame-Options SAMEORIGIN;
     add_header X-Content-Type-Options nosniff;
@@ -442,15 +442,15 @@ server {
 # Web — Next.js
 server {
     listen 80;
-    server_name app.safrat.com;
+    server_name app.tawafiqhub.id;
     return 301 https://$host$request_uri;
 }
 server {
     listen 443 ssl http2;
-    server_name app.safrat.com;
+    server_name app.tawafiqhub.id;
 
-    ssl_certificate     /etc/letsencrypt/live/app.safrat.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/app.safrat.com/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/app.tawafiqhub.id/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/app.tawafiqhub.id/privkey.pem;
 
     add_header X-Frame-Options SAMEORIGIN;
     add_header X-Content-Type-Options nosniff;

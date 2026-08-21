@@ -9,10 +9,10 @@ on:
         description: 'Skip build, only deploy (y/n)'
         default: 'n'
       override_api_url:
-        description: 'Override NEXT_PUBLIC_API_URL (leave blank for https://api.safrat.com)'
+        description: 'Override NEXT_PUBLIC_API_URL (leave blank for https://api.tawafiqhub.id)'
         default: ''
       override_app_url:
-        description: 'Override NEXT_PUBLIC_APP_URL (leave blank for https://app.safrat.com)'
+        description: 'Override NEXT_PUBLIC_APP_URL (leave blank for https://app.tawafiqhub.id)'
         default: ''
 
 env:
@@ -106,8 +106,8 @@ jobs:
             ${{ env.WEB_IMAGE }}:${{ github.sha }}
             ${{ env.WEB_IMAGE }}:latest
           build-args: |
-            NEXT_PUBLIC_API_URL=${{ github.event.inputs.override_api_url != '' && github.event.inputs.override_api_url || 'https://api.safrat.com' }}
-            NEXT_PUBLIC_APP_URL=${{ github.event.inputs.override_app_url != '' && github.event.inputs.override_app_url || 'https://app.safrat.com' }}
+            NEXT_PUBLIC_API_URL=${{ github.event.inputs.override_api_url != '' && github.event.inputs.override_api_url || 'https://api.tawafiqhub.id' }}
+            NEXT_PUBLIC_APP_URL=${{ github.event.inputs.override_app_url != '' && github.event.inputs.override_app_url || 'https://app.tawafiqhub.id' }}
             NEXT_PUBLIC_VAPID_PUBLIC_KEY=${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
             NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
             NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
