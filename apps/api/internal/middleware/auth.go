@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 
 	"connectrpc.com/connect"
@@ -183,6 +184,7 @@ func NewAuthInterceptor(pool *pgxpool.Pool, identityRepository *repository.Ident
 					return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or expired Better Auth session"))
 				}
 				if err != nil {
+					slog.Error("validate Better Auth session", "procedure", request.Spec().Procedure, "error", err)
 					return nil, connect.NewError(connect.CodeInternal, errors.New("validate Better Auth session"))
 				}
 				ctx = context.WithValue(ctx, ctxKeyUserID, userID)
@@ -196,6 +198,7 @@ func NewAuthInterceptor(pool *pgxpool.Pool, identityRepository *repository.Ident
 			if orgRole != "owner" && orgRole != "admin" {
 				access, err := identityRepository.GetMyAccess(ctx, userID)
 				if err != nil {
+					slog.Error("resolve access", "procedure", request.Spec().Procedure, "error", err)
 					return nil, connect.NewError(connect.CodeInternal, errors.New("resolve access"))
 				}
 				restricted := len(access.LeaderGroups) > 0 || (access.LinkedAgent != nil && access.LinkedAgent.IsActive)
