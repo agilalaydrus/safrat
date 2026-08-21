@@ -3,7 +3,11 @@ import { organization } from "better-auth/plugins";
 import { Pool } from "pg";
 import { invitationEmail, resetPasswordEmail, sendEmail, verifyEmailEmail } from "./email";
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// No connectionString — a URL string breaks if POSTGRES_PASSWORD contains
+// characters pg-connection-string's strict parser rejects (this happened in
+// production: "TypeError: Invalid URL"). Pool() with no args reads PGHOST/
+// PGPORT/PGUSER/PGPASSWORD/PGDATABASE directly, sidestepping URL parsing.
+const pool = new Pool();
 
 export const auth = betterAuth({
   database: pool,

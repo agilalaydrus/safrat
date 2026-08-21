@@ -125,7 +125,14 @@ services:
     image: ghcr.io/YOUR_ORG/safrat-web:${IMAGE_TAG:-latest}
     restart: always
     environment:
-      DATABASE_URL: postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat
+      # apps/web/lib/auth.ts's Pool() reads these directly (no DATABASE_URL
+      # string) — a raw password embedded in a URL breaks Node's strict URL
+      # parser if it contains certain characters (this broke in production).
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: safrat
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: https://app.tawafiqhub.id
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
@@ -238,16 +245,21 @@ source .env.prod
 # "user", which only exists after this runs. `better-auth` itself has no
 # CLI — the real package is `@better-auth/cli`, and it needs python3/make/g++
 # to build its native `better-sqlite3` dependency even though we use Postgres.
-# POSTGRES_PASSWORD is percent-encoded before going into DATABASE_URL — any
-# of @ / # " \ etc. in the raw password breaks URL parsing otherwise (this
-# broke a real deploy: pg-connection-string threw "Invalid URL").
+# Uses PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE, same as apps/web/lib/
+# auth.ts's Pool() at runtime — not a DATABASE_URL string, which broke in
+# production ("TypeError: Invalid URL") whenever the real password hit
+# pg-connection-string's strict parser.
 docker run --rm \
   --network safrat_internal \
   -v $(pwd):/repo \
   -w /repo \
-  -e POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
+  -e PGHOST=postgres \
+  -e PGPORT=5432 \
+  -e PGUSER=safrat \
+  -e PGPASSWORD="${POSTGRES_PASSWORD}" \
+  -e PGDATABASE=safrat \
   node:20-alpine \
-  sh -c 'apk add --no-cache python3 make g++ && ENCODED_PW=$(node -e "console.log(encodeURIComponent(process.env.POSTGRES_PASSWORD))") && export DATABASE_URL="postgresql://safrat:${ENCODED_PW}@postgres:5432/safrat" && corepack enable && corepack prepare pnpm@9 --activate && pnpm install --frozen-lockfile --config.node-linker=hoisted && cd apps/web && npx @better-auth/cli@1.4.21 migrate --yes'
+  sh -c 'apk add --no-cache python3 make g++ && corepack enable && corepack prepare pnpm@9 --activate && pnpm install --frozen-lockfile --config.node-linker=hoisted && cd apps/web && npx @better-auth/cli@1.4.21 migrate --yes'
 
 # Step 2 — goose migrations (business schema: operators, pilgrims, seasons, etc.)
 docker run --rm \

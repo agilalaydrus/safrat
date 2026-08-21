@@ -59,7 +59,14 @@ services:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/safrat-web:${IMAGE_TAG:-latest}
     restart: always
     environment:
-      DATABASE_URL: postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat
+      # apps/web/lib/auth.ts's Pool() reads these directly (no DATABASE_URL
+      # string) — a raw password embedded in a URL breaks Node's strict URL
+      # parser if it contains certain characters (this broke in production).
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: safrat
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: https://app.tawafiqhub.id
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
