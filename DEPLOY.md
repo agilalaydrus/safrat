@@ -85,7 +85,7 @@ services:
     environment:
       DATABASE_URL: postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      CORS_ALLOWED_ORIGIN: https://tawafiqhub.id
+      CORS_ALLOWED_ORIGIN: https://app.tawafiqhub.id
       SENTRY_DSN: ${SENTRY_DSN}
       FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON}
       XENDIT_SECRET_KEY: ${XENDIT_SECRET_KEY}
@@ -134,7 +134,7 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD}
       PGDATABASE: safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      BETTER_AUTH_URL: https://tawafiqhub.id
+      BETTER_AUTH_URL: https://app.tawafiqhub.id
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       RESEND_API_KEY: ${RESEND_API_KEY}
@@ -168,7 +168,7 @@ POSTGRES_PASSWORD=use_a_strong_random_password
 BETTER_AUTH_SECRET=your_secret_here
 
 # Google Sign-In (Better Auth social provider) — web service only, never
-# reaches the Go API directly. Redirect URI: https://tawafiqhub.id/api/auth/callback/google
+# reaches the Go API directly. Redirect URI: https://app.tawafiqhub.id/api/auth/callback/google
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 
