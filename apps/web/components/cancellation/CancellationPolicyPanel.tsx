@@ -26,7 +26,7 @@ export default function CancellationPolicyPanel({ seasonId }: { seasonId: string
   useEffect(refresh, [seasonId]);
 
   const addPolicy = async () => {
-    if (!form.name.trim()) { setNotice("Nama tingkatan wajib diisi."); return; }
+    if (!form.name.trim()) { setNotice("Nama ketentuan wajib diisi."); return; }
     setSaving(true);
     setNotice("");
     try {
@@ -44,7 +44,7 @@ export default function CancellationPolicyPanel({ seasonId }: { seasonId: string
   };
 
   const removePolicy = async (policy: CancellationPolicy) => {
-    if (!window.confirm(`Hapus tingkatan "${policy.name}"?`)) return;
+    if (!window.confirm(`Hapus ketentuan "${policy.name}"?`)) return;
     try {
       await cancellationClient.deleteCancellationPolicy({ id: policy.id });
       refresh();
@@ -58,28 +58,28 @@ export default function CancellationPolicyPanel({ seasonId }: { seasonId: string
     <header style={header}>
       <p style={eyebrow}>MUSIM {seasonName ? `· ${seasonName}` : ""}</p>
       <h1 style={title}>Kebijakan Pembatalan</h1>
-      <p style={{ color: "var(--color-warm-500)", margin: 0 }}>Atur tingkatan pengembalian dana berdasarkan jarak hari sebelum keberangkatan. Sistem memakai tingkatan pertama yang cocok, jadi urutan menentukan mana yang dipakai duluan.</p>
+      <p style={{ color: "var(--color-warm-500)", margin: 0 }}>Atur ketentuan pengembalian dana berdasarkan jarak hari sebelum keberangkatan. Sistem memakai ketentuan pertama yang cocok, jadi urutan menentukan mana yang dipakai duluan.</p>
     </header>
     <div className="gold-divider" />
     {notice && <p role="status" style={{ color: "var(--color-gold-800)" }}>{notice}</p>}
 
     <RoleGate require={["owner", "admin"]} fallback={<p style={{ color: "var(--color-warm-400)", fontSize: 13 }}>Hanya pemilik atau admin yang dapat mengatur kebijakan pembatalan.</p>}>
       <section style={card}>
-        <h2 style={{ margin: 0 }}>Tambah Tingkatan</h2>
+        <h2 style={{ margin: 0 }}>Tambah Ketentuan</h2>
         <div style={formGrid}>
-          <label style={field}>Nama Tingkatan<input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Lebih dari 90 hari" style={input} /></label>
+          <label style={field}>Nama Ketentuan<input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Lebih dari 90 hari" style={input} /></label>
           <label style={field}>Min. Hari Sebelum Keberangkatan<input type="number" min={0} value={form.minDays} onChange={(e) => setForm((f) => ({ ...f, minDays: e.target.value }))} style={input} /></label>
           <label style={field}>Persentase Refund (%)<input type="number" min={0} max={100} value={form.refundPct} onChange={(e) => setForm((f) => ({ ...f, refundPct: e.target.value }))} style={input} /></label>
           <label style={field}>Urutan Prioritas<input type="number" min={0} value={form.sortOrder} onChange={(e) => setForm((f) => ({ ...f, sortOrder: e.target.value }))} style={input} /></label>
         </div>
-        <button disabled={saving} onClick={addPolicy} style={emerald}><IconPlus size={18} />Tambah Tingkatan</button>
+        <button disabled={saving} onClick={addPolicy} style={emerald}><IconPlus size={18} />Tambah Ketentuan</button>
       </section>
     </RoleGate>
 
     <section style={{ marginTop: 20 }}>
       {loading ? <p style={{ color: "var(--color-warm-500)" }}>Memuat...</p> : policies.length ? <div style={{ overflowX: "auto" }}>
         <table style={table}>
-          <thead><tr>{["Urutan", "Nama Tingkatan", "Min. Hari", "Refund", ""].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
+          <thead><tr>{["Urutan", "Nama Ketentuan", "Min. Hari", "Refund", ""].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
           <tbody>
             {policies.map((policy) => <tr key={policy.id} style={tr}>
               <td style={td}>{policy.sortOrder}</td>

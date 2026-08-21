@@ -49,7 +49,7 @@ export default function PilgrimCancelFlow({ pilgrimId }: { pilgrimId: string }) 
       <h2 style={{ margin: 0 }}>{preview.pilgrimName}</h2>
       <div style={grid}>
         <div style={stat}><span style={statLabel}>Hari Sebelum Keberangkatan</span><strong style={statValue}>{preview.daysBefore} hari</strong></div>
-        <div style={stat}><span style={statLabel}>Tingkatan Kebijakan</span><strong style={statValue}>{preview.policyName || "Tidak ada (0%)"}</strong></div>
+        <div style={stat}><span style={statLabel}>Ketentuan yang Berlaku</span><strong style={statValue}>{preview.policyName || "Tidak ada (0%)"}</strong></div>
         <div style={stat}><span style={statLabel}>Total Dibayar</span><strong style={statValue}>{formatIDR(preview.totalPaidIdr)}</strong></div>
         <div style={stat}><span style={statLabel}>Persentase Refund</span><strong style={{ ...statValue, color: "var(--color-gold-800)" }}>{preview.refundPct}%</strong></div>
       </div>
