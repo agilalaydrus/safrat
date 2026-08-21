@@ -36,9 +36,11 @@ func Load() (Config, error) {
 		XenditSecretKey:    strings.TrimSpace(os.Getenv("XENDIT_SECRET_KEY")),
 		XenditWebhookToken: strings.TrimSpace(os.Getenv("XENDIT_WEBHOOK_TOKEN")),
 	}
-	if config.DatabaseURL == "" {
-		return Config{}, errors.New("DATABASE_URL is required")
-	}
+	// DatabaseURL is optional — when unset, pgxpool.New in main.go is called
+	// with an empty string, which pgx resolves from PGHOST/PGPORT/PGUSER/
+	// PGPASSWORD/PGDATABASE directly (no URL parsing at all). Kept as a
+	// convenience for local dev, where a simple password never breaks URL
+	// parsing; production sets PG* vars instead — see docker-compose.prod.yml.
 	if config.BetterAuthSecret == "" {
 		return Config{}, errors.New("BETTER_AUTH_SECRET is required")
 	}

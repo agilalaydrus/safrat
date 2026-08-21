@@ -83,7 +83,15 @@ services:
     image: ghcr.io/YOUR_ORG/safrat-api:${IMAGE_TAG:-latest}
     restart: always
     environment:
-      DATABASE_URL: postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat
+      # No DATABASE_URL — pgxpool.New(ctx, "") in main.go resolves these
+      # directly, avoiding URL parsing entirely (a raw password embedded in
+      # a URL broke this in production: pgx silently produced an empty
+      # host and fell back to a unix socket instead of erroring).
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: safrat
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       CORS_ALLOWED_ORIGIN: https://app.tawafiqhub.id
       SENTRY_DSN: ${SENTRY_DSN}
@@ -104,7 +112,11 @@ services:
     command: ["./worker"]
     restart: always
     environment:
-      DATABASE_URL: postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: safrat
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: safrat
       REDIS_URL: redis://redis:6379
       SENTRY_DSN: ${SENTRY_DSN}
       FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON}

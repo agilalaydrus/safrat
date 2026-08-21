@@ -19,10 +19,13 @@ import (
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
+	// DATABASE_URL is optional — pgxpool.New with an empty string resolves
+	// from PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE instead (no URL
+	// parsing, so a password with special characters can't break it).
 	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	redisURL := strings.TrimSpace(os.Getenv("REDIS_URL"))
-	if databaseURL == "" || redisURL == "" {
-		logger.Error("invalid configuration", "error", "DATABASE_URL and REDIS_URL are required")
+	if redisURL == "" {
+		logger.Error("invalid configuration", "error", "REDIS_URL is required")
 		os.Exit(1)
 	}
 
