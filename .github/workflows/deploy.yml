@@ -145,9 +145,9 @@ jobs:
               --network "${NETWORK:-safrat_internal}" \
               -v "$(pwd):/repo" \
               -w /repo \
-              -e DATABASE_URL="postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat" \
+              -e POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
               node:20-alpine \
-              sh -c "apk add --no-cache python3 make g++ && corepack enable && corepack prepare pnpm@9 --activate && pnpm install --frozen-lockfile --config.node-linker=hoisted && cd apps/web && npx @better-auth/cli@1.4.21 migrate --yes"
+              sh -c 'apk add --no-cache python3 make g++ && ENCODED_PW=$(node -e "console.log(encodeURIComponent(process.env.POSTGRES_PASSWORD))") && export DATABASE_URL="postgresql://safrat:${ENCODED_PW}@postgres:5432/safrat" && corepack enable && corepack prepare pnpm@9 --activate && pnpm install --frozen-lockfile --config.node-linker=hoisted && cd apps/web && npx @better-auth/cli@1.4.21 migrate --yes'
 
             # Run goose migrations before restarting API
             docker run --rm \

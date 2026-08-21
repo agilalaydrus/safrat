@@ -238,13 +238,16 @@ source .env.prod
 # "user", which only exists after this runs. `better-auth` itself has no
 # CLI — the real package is `@better-auth/cli`, and it needs python3/make/g++
 # to build its native `better-sqlite3` dependency even though we use Postgres.
+# POSTGRES_PASSWORD is percent-encoded before going into DATABASE_URL — any
+# of @ / # " \ etc. in the raw password breaks URL parsing otherwise (this
+# broke a real deploy: pg-connection-string threw "Invalid URL").
 docker run --rm \
   --network safrat_internal \
   -v $(pwd):/repo \
   -w /repo \
-  -e DATABASE_URL="postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat" \
+  -e POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
   node:20-alpine \
-  sh -c "apk add --no-cache python3 make g++ && corepack enable && corepack prepare pnpm@9 --activate && pnpm install --frozen-lockfile --config.node-linker=hoisted && cd apps/web && npx @better-auth/cli@1.4.21 migrate --yes"
+  sh -c 'apk add --no-cache python3 make g++ && ENCODED_PW=$(node -e "console.log(encodeURIComponent(process.env.POSTGRES_PASSWORD))") && export DATABASE_URL="postgresql://safrat:${ENCODED_PW}@postgres:5432/safrat" && corepack enable && corepack prepare pnpm@9 --activate && pnpm install --frozen-lockfile --config.node-linker=hoisted && cd apps/web && npx @better-auth/cli@1.4.21 migrate --yes'
 
 # Step 2 — goose migrations (business schema: operators, pilgrims, seasons, etc.)
 docker run --rm \
