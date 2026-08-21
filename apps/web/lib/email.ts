@@ -17,7 +17,7 @@ export async function sendEmail({ to, subject, html }: { to: string; subject: st
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ from: `Safrat <${from}>`, to, subject, html }),
+    body: JSON.stringify({ from: `Tawafiq Hub <${from}>`, to, subject, html }),
   });
   if (!response.ok) {
     const body = await response.text().catch(() => "");
@@ -33,7 +33,7 @@ function emailShell(title: string, bodyHtml: string, ctaLabel: string, ctaUrl: s
       <tr><td align="center">
         <table role="presentation" width="480" style="max-width:100%;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #e9dfc8;">
           <tr><td style="background:#0d3d27;padding:24px 32px;">
-            <span style="font-family:Georgia,serif;color:#c9a84c;font-size:24px;font-weight:700;">Safrat</span>
+            <span style="font-family:Georgia,serif;color:#c9a84c;font-size:24px;font-weight:700;">Tawafiq Hub</span>
           </td></tr>
           <tr><td style="padding:32px;">
             <h1 style="margin:0 0 16px;font-size:20px;color:#1a1a1a;">${title}</h1>
@@ -55,7 +55,7 @@ function emailShell(title: string, bodyHtml: string, ctaLabel: string, ctaUrl: s
 export function resetPasswordEmail(name: string, url: string): string {
   return emailShell(
     "Atur Ulang Kata Sandi",
-    `<p>Assalamualaikum ${name || ""},</p><p>Kami menerima permintaan untuk mengatur ulang kata sandi akun Safrat Anda. Tautan ini berlaku selama 1 jam. Jika Anda tidak meminta ini, abaikan email ini — kata sandi Anda tidak akan berubah.</p>`,
+    `<p>Assalamualaikum ${name || ""},</p><p>Kami menerima permintaan untuk mengatur ulang kata sandi akun Tawafiq Hub Anda. Tautan ini berlaku selama 1 jam. Jika Anda tidak meminta ini, abaikan email ini — kata sandi Anda tidak akan berubah.</p>`,
     "Atur Ulang Kata Sandi",
     url,
   );
@@ -64,7 +64,7 @@ export function resetPasswordEmail(name: string, url: string): string {
 export function verifyEmailEmail(name: string, url: string): string {
   return emailShell(
     "Verifikasi Alamat Email Anda",
-    `<p>Assalamualaikum ${name || ""},</p><p>Terima kasih telah mendaftar di Safrat. Mohon verifikasi alamat email Anda untuk mengaktifkan akun sepenuhnya. Tautan ini berlaku selama 1 jam.</p>`,
+    `<p>Assalamualaikum ${name || ""},</p><p>Terima kasih telah mendaftar di Tawafiq Hub. Mohon verifikasi alamat email Anda untuk mengaktifkan akun sepenuhnya. Tautan ini berlaku selama 1 jam.</p>`,
     "Verifikasi Email",
     url,
   );
@@ -73,7 +73,7 @@ export function verifyEmailEmail(name: string, url: string): string {
 export function invitationEmail(inviterName: string, organizationName: string, url: string): string {
   return emailShell(
     "Undangan Bergabung",
-    `<p>Assalamualaikum,</p><p><strong>${inviterName}</strong> mengundang Anda untuk bergabung dengan <strong>${organizationName}</strong> di Safrat sebagai Ketua Rombongan / Muttawwif. Klik tombol di bawah untuk membuat akun (atau masuk jika sudah punya) dan menerima undangan.</p>`,
+    `<p>Assalamualaikum,</p><p><strong>${inviterName}</strong> mengundang Anda untuk bergabung dengan <strong>${organizationName}</strong> di Tawafiq Hub sebagai Ketua Rombongan / Muttawwif. Klik tombol di bawah untuk membuat akun (atau masuk jika sudah punya) dan menerima undangan.</p>`,
     "Terima Undangan",
     url,
   );

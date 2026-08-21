@@ -61,7 +61,7 @@ export default function ResetPasswordPage() {
     <main style={page}>
       <div style={card}>
         <div style={brand}>
-          <Link href="/" aria-label="Safrat home" style={logo}>Safrat</Link>
+          <Link href="/" aria-label="Tawafiq Hub home" style={logo}>Tawafiq Hub</Link>
         </div>
         <div className="gold-divider" />
         <Suspense fallback={<p style={{ color: "var(--color-warm-400)", fontSize: 13 }}>Memuat...</p>}>

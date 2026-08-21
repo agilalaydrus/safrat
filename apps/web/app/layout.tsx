@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Safrat | Operator Dashboard",
+  title: "Tawafiq Hub | Operator Dashboard",
   description: "Hajj and Umrah operations management",
 };
 

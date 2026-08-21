@@ -18,7 +18,7 @@ function AgentShell({ children }: { children: React.ReactNode }) {
   return (
     <div style={shell}>
       <header style={header}>
-        <span style={brand}>Safrat</span>
+        <span style={brand}>Tawafiq Hub</span>
         <button onClick={() => void signOut()} style={signOutButton} aria-label="Keluar">
           <IconLogout size={18} />Keluar
         </button>

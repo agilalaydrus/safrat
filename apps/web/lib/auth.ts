@@ -20,7 +20,7 @@ export const auth = betterAuth({
         const url = `${process.env.NEXT_PUBLIC_APP_URL}/accept-invitation?id=${data.id}`;
         await sendEmail({
           to: data.email,
-          subject: `Undangan bergabung dengan ${data.organization.name} di Safrat`,
+          subject: `Undangan bergabung dengan ${data.organization.name} di Tawafiq Hub`,
           html: invitationEmail(data.inviter.user.name, data.organization.name, url),
         });
       },
@@ -35,14 +35,14 @@ export const auth = betterAuth({
     // organically-signed-up account, not just a Google-first one.
     requireEmailVerification: true,
     sendResetPassword: async ({ user, url }) => {
-      await sendEmail({ to: user.email, subject: "Atur Ulang Kata Sandi Safrat", html: resetPasswordEmail(user.name, url) });
+      await sendEmail({ to: user.email, subject: "Atur Ulang Kata Sandi Tawafiq Hub", html: resetPasswordEmail(user.name, url) });
     },
   },
   emailVerification: {
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }) => {
-      await sendEmail({ to: user.email, subject: "Verifikasi Email Safrat", html: verifyEmailEmail(user.name, url) });
+      await sendEmail({ to: user.email, subject: "Verifikasi Email Tawafiq Hub", html: verifyEmailEmail(user.name, url) });
     },
   },
   // Google is additive, not a replacement — email/password keeps working.

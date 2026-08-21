@@ -57,7 +57,7 @@ export default function LandingPage() {
   return (
     <div style={page}>
       <nav style={nav}>
-        <Link href="/" aria-label="Safrat home" style={navLogo}>Safrat</Link>
+        <Link href="/" aria-label="Tawafiq Hub home" style={navLogo}>Tawafiq Hub</Link>
         <div style={navLinks}>
           {isAuthenticated ? (
             <>
@@ -101,7 +101,7 @@ export default function LandingPage() {
 
       <section style={painSection}>
         <div style={sectionInner}>
-          <p className="section-eyebrow" style={{ textAlign: "center" }}>Kenapa Safrat Dibuat</p>
+          <p className="section-eyebrow" style={{ textAlign: "center" }}>Kenapa Tawafiq Hub Dibuat</p>
           <h2 style={{ ...sectionTitle, textAlign: "center" }}>Yang Bikin Musim Kemarin Pusing</h2>
           <div style={painGrid}>
             {PAIN_POINTS.map(({ icon: Icon, problem, solution }) => (
@@ -158,9 +158,9 @@ export default function LandingPage() {
       </section>
 
       <footer style={footer}>
-        <Link href="/" aria-label="Safrat home" style={navLogo}>Safrat</Link>
+        <Link href="/" aria-label="Tawafiq Hub home" style={navLogo}>Tawafiq Hub</Link>
         <p style={footerTag}><IconUsersGroup size={14} style={{ verticalAlign: "-2px", marginRight: 6 }} />Platform operator Haji &amp; Umrah terpadu</p>
-        <p style={{ fontSize: 12, color: "var(--color-warm-400)", marginTop: 12 }}>© 2026 Safrat. Hak cipta dilindungi.</p>
+        <p style={{ fontSize: 12, color: "var(--color-warm-400)", marginTop: 12 }}>© 2026 Tawafiq Hub. Hak cipta dilindungi.</p>
       </footer>
     </div>
   );

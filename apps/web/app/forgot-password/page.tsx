@@ -34,7 +34,7 @@ export default function ForgotPasswordPage() {
     <main style={page}>
       <div style={card}>
         <div style={brand}>
-          <Link href="/" aria-label="Safrat home" style={logo}>Safrat</Link>
+          <Link href="/" aria-label="Tawafiq Hub home" style={logo}>Tawafiq Hub</Link>
         </div>
         <div className="gold-divider" />
         {sent ? (

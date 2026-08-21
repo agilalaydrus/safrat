@@ -36,7 +36,7 @@ function LeaderShell({ children }: { children: React.ReactNode }) {
       <header style={header}>
         <div style={headerTop}>
           <div>
-            <span style={brand}>Safrat</span>
+            <span style={brand}>Tawafiq Hub</span>
             <span style={portalTag}>Portal Muttawwif</span>
           </div>
           <button onClick={() => void signOut()} style={signOutButton} aria-label="Keluar">

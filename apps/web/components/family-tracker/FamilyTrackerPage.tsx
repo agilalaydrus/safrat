@@ -19,7 +19,7 @@ export default function FamilyTrackerPage({ code }: { code: string }) {
 
   if (loading) return <Centered><p style={{ color: "var(--color-warm-400)" }}>Memuat status...</p></Centered>;
   if (notFound || !status) return <Centered>
-    <p style={brand}>Safrat</p>
+    <p style={brand}>Tawafiq Hub</p>
     <p style={{ color: "var(--color-warm-500)", marginTop: 8 }}>Kode pelacak tidak valid atau sudah tidak aktif.</p>
   </Centered>;
 
@@ -38,7 +38,7 @@ export default function FamilyTrackerPage({ code }: { code: string }) {
 
   return <main style={page}>
     <div style={{ maxWidth: 480, margin: "0 auto" }}>
-      <p style={brand}>Safrat</p>
+      <p style={brand}>Tawafiq Hub</p>
       <p style={{ color: "var(--color-warm-400)", fontSize: 13, margin: "4px 0 32px" }}>Pelacak Status Jamaah</p>
 
       {status.hasActiveSos && <div style={sosBanner}>

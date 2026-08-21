@@ -33,7 +33,7 @@ export default function PilgrimInvoice({ pilgrimId }: { pilgrimId: string }) {
     <div className="no-print" style={toolbar}><button onClick={() => window.print()} style={printButton}><IconPrinter size={18} />Cetak / Simpan PDF</button></div>
     <div style={sheet}>
       <header style={header}>
-        <div><h1 style={{ margin: 0, fontFamily: "'Playfair Display', serif" }}>{operatorName || "Safrat"}</h1><p style={{ margin: "4px 0 0", color: "var(--color-warm-500)" }}>Invoice Jamaah</p></div>
+        <div><h1 style={{ margin: 0, fontFamily: "'Playfair Display', serif" }}>{operatorName || "Tawafiq Hub"}</h1><p style={{ margin: "4px 0 0", color: "var(--color-warm-500)" }}>Invoice Jamaah</p></div>
         <div style={{ textAlign: "right" }}><p style={{ margin: 0, fontSize: 12, color: "var(--color-warm-400)" }}>Tanggal Cetak</p><p style={{ margin: 0, fontWeight: 700 }}>{new Date().toLocaleDateString("id-ID")}</p></div>
       </header>
       <div className="gold-divider" />

@@ -18,7 +18,7 @@ firebase.initializeApp(${JSON.stringify(config)});
 
 const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title ?? "Safrat";
+  const title = payload.notification?.title ?? "Tawafiq Hub";
   const body = payload.notification?.body ?? "";
   self.registration.showNotification(title, { body, icon: "/icons/icon-192.png" });
 });
