@@ -18,7 +18,7 @@ services:
     environment:
       DATABASE_URL: postgresql://safrat:${POSTGRES_PASSWORD}@postgres:5432/safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      CORS_ALLOWED_ORIGIN: https://app.safrat.com
+      CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-https://app.safrat.com}
       SENTRY_DSN: ${SENTRY_DSN}
       FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON}
       XENDIT_SECRET_KEY: ${XENDIT_SECRET_KEY}
