@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
 	"strings"
 
 	"connectrpc.com/connect"
@@ -183,57 +184,99 @@ var restrictedMemberProcedures = map[string]bool{
 
 // NewAuthInterceptor validates Better Auth's opaque database session token.
 // Better Auth does not issue JWTs for its default session strategy.
+//
+// Implemented as a full connect.Interceptor (WrapUnary + WrapStreamingClient
+// + WrapStreamingHandler), not connect.UnaryInterceptorFunc — that helper
+// only wraps unary RPCs and silently no-ops on streaming ones, which would
+// mean a server-streaming RPC like MonitoringService.StreamEvents reaches
+// its handler with zero authentication and an empty operator ID on ctx.
+// Both WrapUnary and WrapStreamingHandler below call the same authenticate
+// helper so the two paths can never drift.
 func NewAuthInterceptor(pool *pgxpool.Pool, identityRepository *repository.IdentityRepository) connect.Interceptor {
-	return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
-		return func(ctx context.Context, request connect.AnyRequest) (connect.AnyResponse, error) {
-			if publicProcedures[request.Spec().Procedure] {
-				return next(ctx, request)
-			}
-			token, err := bearerToken(request.Header().Get("Authorization"))
-			if err != nil {
-				return nil, connect.NewError(connect.CodeUnauthenticated, err)
-			}
-			if sessionOnlyProcedures[request.Spec().Procedure] {
-				var userID, userEmail string
-				const sessionQuery = `
-					SELECT s."userId", u.email
-					FROM session s
-					JOIN "user" u ON u.id = s."userId"
-					WHERE s.token = $1 AND s."expiresAt" > NOW()`
-				err = pool.QueryRow(ctx, sessionQuery, token).Scan(&userID, &userEmail)
-				if errors.Is(err, pgx.ErrNoRows) {
-					return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or expired Better Auth session"))
-				}
-				if err != nil {
-					slog.Error("validate Better Auth session", "procedure", request.Spec().Procedure, "error", err)
-					return nil, connect.NewError(connect.CodeInternal, errors.New("validate Better Auth session"))
-				}
-				ctx = context.WithValue(ctx, ctxKeyUserID, userID)
-				ctx = context.WithValue(ctx, ctxKeyUserEmail, userEmail)
-				return next(ctx, request)
-			}
-			userID, organizationID, userName, orgRole, err := resolveStaffSessionWithRole(ctx, pool, token)
-			if err != nil {
-				return nil, err
-			}
-			if orgRole != "owner" && orgRole != "admin" {
-				access, err := identityRepository.GetMyAccess(ctx, userID)
-				if err != nil {
-					slog.Error("resolve access", "procedure", request.Spec().Procedure, "error", err)
-					return nil, connect.NewError(connect.CodeInternal, errors.New("resolve access"))
-				}
-				restricted := len(access.LeaderGroups) > 0 || (access.LinkedAgent != nil && access.LinkedAgent.IsActive)
-				if restricted && !restrictedMemberProcedures[request.Spec().Procedure] {
-					return nil, connect.NewError(connect.CodePermissionDenied, errors.New("this account's role does not permit this action"))
-				}
-			}
-			ctx = context.WithValue(ctx, ctxKeyUserID, userID)
-			ctx = context.WithValue(ctx, ctxKeyOperatorID, organizationID)
-			ctx = context.WithValue(ctx, ctxKeyUserName, userName)
-			ctx = context.WithValue(ctx, ctxKeyOrgRole, orgRole)
-			return next(ctx, request)
+	return &authInterceptor{pool: pool, identity: identityRepository}
+}
+
+type authInterceptor struct {
+	pool     *pgxpool.Pool
+	identity *repository.IdentityRepository
+}
+
+func (a *authInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
+	return func(ctx context.Context, request connect.AnyRequest) (connect.AnyResponse, error) {
+		ctx, err := a.authenticate(ctx, request.Spec().Procedure, request.Header())
+		if err != nil {
+			return nil, err
 		}
-	})
+		return next(ctx, request)
+	}
+}
+
+// WrapStreamingClient is a passthrough — this server never originates
+// outbound streaming Connect calls of its own, only handles inbound ones.
+func (a *authInterceptor) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
+	return next
+}
+
+func (a *authInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
+	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
+		ctx, err := a.authenticate(ctx, conn.Spec().Procedure, conn.RequestHeader())
+		if err != nil {
+			return err
+		}
+		return next(ctx, conn)
+	}
+}
+
+// authenticate holds the exact rule set previously inlined in the unary-only
+// interceptor — same publicProcedures/sessionOnlyProcedures/
+// restrictedMemberProcedures checks, same three context values on success.
+func (a *authInterceptor) authenticate(ctx context.Context, procedure string, header http.Header) (context.Context, error) {
+	if publicProcedures[procedure] {
+		return ctx, nil
+	}
+	token, err := bearerToken(header.Get("Authorization"))
+	if err != nil {
+		return nil, connect.NewError(connect.CodeUnauthenticated, err)
+	}
+	if sessionOnlyProcedures[procedure] {
+		var userID, userEmail string
+		const sessionQuery = `
+			SELECT s."userId", u.email
+			FROM session s
+			JOIN "user" u ON u.id = s."userId"
+			WHERE s.token = $1 AND s."expiresAt" > NOW()`
+		err = a.pool.QueryRow(ctx, sessionQuery, token).Scan(&userID, &userEmail)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or expired Better Auth session"))
+		}
+		if err != nil {
+			slog.Error("validate Better Auth session", "procedure", procedure, "error", err)
+			return nil, connect.NewError(connect.CodeInternal, errors.New("validate Better Auth session"))
+		}
+		ctx = context.WithValue(ctx, ctxKeyUserID, userID)
+		ctx = context.WithValue(ctx, ctxKeyUserEmail, userEmail)
+		return ctx, nil
+	}
+	userID, organizationID, userName, orgRole, err := resolveStaffSessionWithRole(ctx, a.pool, token)
+	if err != nil {
+		return nil, err
+	}
+	if orgRole != "owner" && orgRole != "admin" {
+		access, err := a.identity.GetMyAccess(ctx, userID)
+		if err != nil {
+			slog.Error("resolve access", "procedure", procedure, "error", err)
+			return nil, connect.NewError(connect.CodeInternal, errors.New("resolve access"))
+		}
+		restricted := len(access.LeaderGroups) > 0 || (access.LinkedAgent != nil && access.LinkedAgent.IsActive)
+		if restricted && !restrictedMemberProcedures[procedure] {
+			return nil, connect.NewError(connect.CodePermissionDenied, errors.New("this account's role does not permit this action"))
+		}
+	}
+	ctx = context.WithValue(ctx, ctxKeyUserID, userID)
+	ctx = context.WithValue(ctx, ctxKeyOperatorID, organizationID)
+	ctx = context.WithValue(ctx, ctxKeyUserName, userName)
+	ctx = context.WithValue(ctx, ctxKeyOrgRole, orgRole)
+	return ctx, nil
 }
 
 // ResolveStaffSession validates a Better Auth bearer token the same way

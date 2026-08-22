@@ -9,6 +9,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
+	"github.com/hajj-saas/api/internal/events"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/repository"
@@ -22,10 +23,11 @@ type KloterService struct {
 	auditRepository    *repository.AuditRepository
 	journeyService     *JourneyService
 	pushNotifier       PushNotifier
+	eventBus           *events.Bus
 }
 
-func NewKloterService(operators *repository.OperatorRepository, kloters *repository.KloterRepository, audit *repository.AuditRepository, journey *JourneyService, push PushNotifier) *KloterService {
-	return &KloterService{operatorRepository: operators, kloterRepository: kloters, auditRepository: audit, journeyService: journey, pushNotifier: push}
+func NewKloterService(operators *repository.OperatorRepository, kloters *repository.KloterRepository, audit *repository.AuditRepository, journey *JourneyService, push PushNotifier, bus *events.Bus) *KloterService {
+	return &KloterService{operatorRepository: operators, kloterRepository: kloters, auditRepository: audit, journeyService: journey, pushNotifier: push, eventBus: bus}
 }
 
 // kloterStatusPushText is the "seluruh jamaah kloter" push copy per the
@@ -165,6 +167,7 @@ func (s *KloterService) updateStatus(ctx context.Context, operatorID, kloterID, 
 	if body, ok := kloterStatusPushText[status]; ok && s.pushNotifier != nil {
 		s.pushNotifier.NotifyKloterPilgrims(ctx, operatorID, kloter.ID, "Tawafiq Hub", body)
 	}
+	s.eventBus.Publish(operatorID, "kloter_status", kloter.ID)
 	return kloter, nil
 }
 

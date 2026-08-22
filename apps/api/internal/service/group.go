@@ -8,6 +8,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
+	"github.com/hajj-saas/api/internal/events"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/repository"
@@ -22,10 +23,11 @@ type GroupService struct {
 	agentRepository    *repository.AgentRepository
 	journeyService     *JourneyService
 	pushNotifier       PushNotifier
+	eventBus           *events.Bus
 }
 
-func NewGroupService(operators *repository.OperatorRepository, groups *repository.GroupRepository, audit *repository.AuditRepository, agents *repository.AgentRepository, journey *JourneyService, push PushNotifier) *GroupService {
-	return &GroupService{operatorRepository: operators, groupRepository: groups, auditRepository: audit, agentRepository: agents, journeyService: journey, pushNotifier: push}
+func NewGroupService(operators *repository.OperatorRepository, groups *repository.GroupRepository, audit *repository.AuditRepository, agents *repository.AgentRepository, journey *JourneyService, push PushNotifier, bus *events.Bus) *GroupService {
+	return &GroupService{operatorRepository: operators, groupRepository: groups, auditRepository: audit, agentRepository: agents, journeyService: journey, pushNotifier: push, eventBus: bus}
 }
 
 // cityToJourneyStatus cascades a Muttawwif's location update to every
@@ -235,6 +237,7 @@ func (s *GroupService) UpdateGroupCity(ctx context.Context, orgID string, req *h
 	if s.pushNotifier != nil {
 		s.pushNotifier.NotifyGroupPilgrims(ctx, op.ID, group.ID, "Tawafiq Hub", groupCityPushBody(req.City))
 	}
+	s.eventBus.Publish(op.ID, "group_location", group.ID)
 	return groupMessage(group), nil
 }
 

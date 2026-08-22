@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// MonitoringService backs /dashboard/monitoring — authenticated,
+// operator-scoped like every other admin RPC (never added to
+// publicProcedures in internal/middleware/auth.go). StreamEvents is a
+// long-lived server-streaming call: the client refetches GetSnapshot
+// whenever a ping arrives rather than trusting per-event payloads, so the
+// stream itself never carries anything beyond "something changed" — no
+// pilgrim data crosses the wire on the ping channel.
+service MonitoringService {
+  rpc GetSnapshot(GetSnapshotRequest) returns (MonitoringSnapshot);
+  rpc StreamEvents(StreamEventsRequest) returns (stream MonitoringPing);
+}
+
+message GetSnapshotRequest {
+  string season_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message StreamEventsRequest {
+  string season_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+// type is one of: sos, health, group_location, kloter_status, ritual —
+// purely informational (which snapshot section to prioritize re-rendering
+// first); the client always refetches the whole snapshot.
+message MonitoringPing {
+  string type = 1;
+  string entity_id = 2;
+  google.protobuf.Timestamp at = 3;
+}
+
+message SOSAlertMini {
+  string id = 1;
+  string pilgrim_name = 2;
+  string group_name = 3;
+  string status = 4; // ACTIVE | ACKNOWLEDGED | ESCALATED
+  google.protobuf.Timestamp created_at = 5;
+}
+
+message HealthReportMini {
+  string id = 1;
+  string pilgrim_name = 2;
+  string group_name = 3;
+  string severity = 4; // RINGAN | SEDANG | BERAT
+  string symptoms = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message GroupMonitoringCard {
+  string group_id = 1;
+  string name = 2;
+  string leader_name = 3;
+  string current_city = 4;
+  string current_activity = 5;
+  google.protobuf.Timestamp last_update = 6;
+  int32 pilgrim_count = 7;
+  // -1 if no ritual templates exist yet for this season's type — the
+  // client should show "belum ada template", not a 0% bar.
+  double ritual_completion_pct = 8;
+  bool has_active_sos = 9;
+}
+
+message ReturnTimelineItem {
+  string kloter_id = 1;
+  string kloter_code = 2;
+  google.protobuf.Timestamp return_at = 3;
+  int32 total_pilgrims = 4;
+  int32 ready_count = 5;
+}
+
+message MonitoringSnapshot {
+  repeated SOSAlertMini active_sos = 1;
+  repeated HealthReportMini open_health_reports = 2;
+  repeated GroupMonitoringCard groups = 3;
+  repeated ReturnTimelineItem return_timeline = 4;
+  google.protobuf.Timestamp generated_at = 5;
+}

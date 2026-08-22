@@ -7,6 +7,7 @@ import (
 
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
+	"github.com/hajj-saas/api/internal/events"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/repository"
@@ -20,10 +21,11 @@ type RitualService struct {
 	journeyRepository  *repository.JourneyRepository
 	auditRepository    *repository.AuditRepository
 	pushNotifier       PushNotifier
+	eventBus           *events.Bus
 }
 
-func NewRitualService(operators *repository.OperatorRepository, rituals *repository.RitualRepository, journeys *repository.JourneyRepository, audit *repository.AuditRepository, push PushNotifier) *RitualService {
-	return &RitualService{operatorRepository: operators, ritualRepository: rituals, journeyRepository: journeys, auditRepository: audit, pushNotifier: push}
+func NewRitualService(operators *repository.OperatorRepository, rituals *repository.RitualRepository, journeys *repository.JourneyRepository, audit *repository.AuditRepository, push PushNotifier, bus *events.Bus) *RitualService {
+	return &RitualService{operatorRepository: operators, ritualRepository: rituals, journeyRepository: journeys, auditRepository: audit, pushNotifier: push, eventBus: bus}
 }
 
 func (s *RitualService) logActivity(ctx context.Context, operatorID, action, entityID, message string) {
@@ -153,6 +155,7 @@ func (s *RitualService) BulkCompleteRitual(ctx context.Context, orgID string, re
 	if s.pushNotifier != nil {
 		s.pushNotifier.NotifyGroupPilgrims(ctx, op.ID, req.GroupId, "Tawafiq Hub", "Sebuah ritual ibadah telah diselesaikan ✓")
 	}
+	s.eventBus.Publish(op.ID, "ritual", req.GroupId)
 	return &hajjv1.BulkCompleteRitualResponse{CompletedCount: count}, nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -82,21 +83,50 @@ type rateLimiter struct {
 // rateLimitedProcedures by client IP. State is in-memory and per-process —
 // fine for the single-API-instance deployment in DEPLOY.md; move to Redis if
 // the API ever runs more than one replica.
+// Implemented as a full connect.Interceptor, not connect.UnaryInterceptorFunc
+// — see the identical rationale on authInterceptor in auth.go. No procedure
+// in rateLimitedProcedures is a streaming RPC today, but a
+// connect.UnaryInterceptorFunc would silently skip rate limiting entirely
+// for one if it ever were, rather than erroring loudly.
 func NewRateLimitInterceptor() connect.Interceptor {
 	limiter := &rateLimiter{limiters: make(map[string]map[string]*ipLimiter)}
 	go limiter.cleanupLoop()
-	return connect.UnaryInterceptorFunc(func(next connect.UnaryFunc) connect.UnaryFunc {
-		return func(ctx context.Context, request connect.AnyRequest) (connect.AnyResponse, error) {
-			limit, limited := rateLimitedProcedures[request.Spec().Procedure]
-			if !limited {
-				return next(ctx, request)
-			}
-			if !limiter.allow(request.Spec().Procedure, clientIP(request), limit) {
-				return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("too many requests — try again later"))
-			}
-			return next(ctx, request)
+	return &rateLimitInterceptor{limiter: limiter}
+}
+
+type rateLimitInterceptor struct{ limiter *rateLimiter }
+
+func (r *rateLimitInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
+	return func(ctx context.Context, request connect.AnyRequest) (connect.AnyResponse, error) {
+		if err := r.check(request.Spec().Procedure, clientIP(request.Header(), request.Peer().Addr)); err != nil {
+			return nil, err
 		}
-	})
+		return next(ctx, request)
+	}
+}
+
+func (r *rateLimitInterceptor) WrapStreamingClient(next connect.StreamingClientFunc) connect.StreamingClientFunc {
+	return next
+}
+
+func (r *rateLimitInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
+	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
+		if err := r.check(conn.Spec().Procedure, clientIP(conn.RequestHeader(), conn.Peer().Addr)); err != nil {
+			return err
+		}
+		return next(ctx, conn)
+	}
+}
+
+func (r *rateLimitInterceptor) check(procedure, ip string) error {
+	limit, limited := rateLimitedProcedures[procedure]
+	if !limited {
+		return nil
+	}
+	if !r.limiter.allow(procedure, ip, limit) {
+		return connect.NewError(connect.CodeResourceExhausted, errors.New("too many requests — try again later"))
+	}
+	return nil
 }
 
 func (rl *rateLimiter) allow(procedure, ip string, limit rate.Limit) bool {
@@ -142,18 +172,17 @@ func (rl *rateLimiter) cleanupLoop() {
 // always sets X-Real-IP to $remote_addr itself — a client can't override what
 // nginx forwards. Falls back to the raw peer address for local dev without a
 // proxy in front.
-func clientIP(request connect.AnyRequest) string {
-	if real := strings.TrimSpace(request.Header().Get("X-Real-IP")); real != "" {
+func clientIP(header http.Header, peerAddr string) string {
+	if real := strings.TrimSpace(header.Get("X-Real-IP")); real != "" {
 		return real
 	}
-	if forwarded := request.Header().Get("X-Forwarded-For"); forwarded != "" {
+	if forwarded := header.Get("X-Forwarded-For"); forwarded != "" {
 		if first := strings.TrimSpace(strings.Split(forwarded, ",")[0]); first != "" {
 			return first
 		}
 	}
-	addr := request.Peer().Addr
-	if host, _, err := net.SplitHostPort(addr); err == nil {
+	if host, _, err := net.SplitHostPort(peerAddr); err == nil {
 		return host
 	}
-	return addr
+	return peerAddr
 }

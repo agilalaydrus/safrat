@@ -14,6 +14,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/config"
+	"github.com/hajj-saas/api/internal/events"
 	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/hajj-saas/api/internal/gen/hajj/v1/hajjv1connect"
 	"github.com/hajj-saas/api/internal/handler"
@@ -92,6 +93,7 @@ func main() {
 		journeyRepository := repository.NewJourneyRepository(queries)
 		ritualRepository := repository.NewRitualRepository(queries)
 		healthReportRepository := repository.NewHealthReportRepository(queries)
+		monitoringRepository := repository.NewMonitoringRepository(queries)
 
 		firebasePusher, err := notification.NewFirebasePusher(ctx, logger, config.FirebaseServiceAccountJSON, notificationRepository)
 		if err != nil {
@@ -102,6 +104,10 @@ func main() {
 		// SOSNotifier and PushNotifier — a nil pointer stored in the interface
 		// still works because every method checks its own receiver for nil.
 		var pushNotifier service.PushNotifier = firebasePusher
+		// eventBus feeds the operator monitoring dashboard's real-time stream
+		// (MonitoringService.StreamEvents) — in-process pub/sub, see
+		// internal/events/bus.go for why (and when to switch to Redis).
+		eventBus := events.NewBus()
 
 		operatorService := service.NewOperatorService(operatorRepository, seasonRepository)
 		pilgrimService := service.NewPilgrimService(operatorRepository, pilgrimRepository, accommodationRepository, transportRepository, auditRepository, pool)
@@ -111,15 +117,16 @@ func main() {
 		productService := service.NewProductService(operatorRepository, productRepository)
 		agentService := service.NewAgentService(operatorRepository, agentRepository, auditRepository, pool)
 		journeyService := service.NewJourneyService(operatorRepository, journeyRepository, auditRepository)
-		groupService := service.NewGroupService(operatorRepository, groupRepository, auditRepository, agentRepository, journeyService, pushNotifier)
+		groupService := service.NewGroupService(operatorRepository, groupRepository, auditRepository, agentRepository, journeyService, pushNotifier, eventBus)
 		pilgrimAppService := service.NewPilgrimAppService(pilgrimRepository, productRepository, auditRepository, identityRepository, broadcastRepository, journeyRepository, ritualRepository, notificationRepository)
-		sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, auditRepository, firebasePusher)
+		sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, auditRepository, firebasePusher, eventBus)
 		chatService := service.NewChatService(operatorRepository, pilgrimRepository, chatRepository, groupRepository, groupLeaderRepository)
-		groupLeaderService := service.NewGroupLeaderService(operatorRepository, groupLeaderRepository, sosRepository, pilgrimRepository, groupRepository, journeyService, pushNotifier)
+		groupLeaderService := service.NewGroupLeaderService(operatorRepository, groupLeaderRepository, sosRepository, pilgrimRepository, groupRepository, journeyService, pushNotifier, eventBus)
 		notificationService := service.NewNotificationService(operatorRepository, notificationRepository)
-		kloterService := service.NewKloterService(operatorRepository, kloterRepository, auditRepository, journeyService, pushNotifier)
-		ritualService := service.NewRitualService(operatorRepository, ritualRepository, journeyRepository, auditRepository, pushNotifier)
-		healthReportService := service.NewHealthReportService(operatorRepository, healthReportRepository, pilgrimRepository, auditRepository, pushNotifier)
+		kloterService := service.NewKloterService(operatorRepository, kloterRepository, auditRepository, journeyService, pushNotifier, eventBus)
+		ritualService := service.NewRitualService(operatorRepository, ritualRepository, journeyRepository, auditRepository, pushNotifier, eventBus)
+		healthReportService := service.NewHealthReportService(operatorRepository, healthReportRepository, pilgrimRepository, auditRepository, pushNotifier, eventBus)
+		monitoringService := service.NewMonitoringService(operatorRepository, monitoringRepository, groupRepository, eventBus)
 		identityService := service.NewIdentityService(identityRepository)
 		xenditClient := payment.NewClient(config.XenditSecretKey)
 		orderService := service.NewOrderService(operatorRepository, pilgrimRepository, productRepository, orderRepository, auditRepository, xenditClient, config.AllowedOrigin)
@@ -166,6 +173,7 @@ func main() {
 		journeyHandler := handler.NewJourneyHandler(journeyService)
 		ritualHandler := handler.NewRitualHandler(ritualService)
 		healthReportHandler := handler.NewHealthReportHandler(healthReportService)
+		monitoringHandler := handler.NewMonitoringHandler(monitoringService)
 		handlerOptions := []connect.HandlerOption{connect.WithInterceptors(
 			middleware.NewRateLimitInterceptor(),
 			middleware.NewAuthInterceptor(pool, identityRepository),
@@ -201,6 +209,7 @@ func main() {
 		journeyPath, journeyServiceHandler := hajjv1connect.NewJourneyServiceHandler(journeyHandler, handlerOptions...)
 		ritualPath, ritualServiceHandler := hajjv1connect.NewRitualServiceHandler(ritualHandler, handlerOptions...)
 		healthReportPath, healthReportServiceHandler := hajjv1connect.NewHealthReportServiceHandler(healthReportHandler, handlerOptions...)
+		monitoringPath, monitoringServiceHandler := hajjv1connect.NewMonitoringServiceHandler(monitoringHandler, handlerOptions...)
 		mux.Handle(operatorPath, operatorServiceHandler)
 		mux.Handle(pilgrimPath, pilgrimServiceHandler)
 		mux.Handle(seasonPath, seasonServiceHandler)
@@ -232,6 +241,7 @@ func main() {
 		mux.Handle(journeyPath, journeyServiceHandler)
 		mux.Handle(ritualPath, ritualServiceHandler)
 		mux.Handle(healthReportPath, healthReportServiceHandler)
+		mux.Handle(monitoringPath, monitoringServiceHandler)
 		mux.HandleFunc("POST /webhooks/xendit", handler.NewXenditWebhookHandler(logger, orderRepository, orderService, config.XenditWebhookToken))
 		uploadDir := os.Getenv("UPLOAD_DIR")
 		if uploadDir == "" {

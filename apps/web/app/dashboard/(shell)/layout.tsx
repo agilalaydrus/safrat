@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { IconBuildingHospital, IconBus, IconCalendar, IconCalendarEvent, IconCash, IconChartBar, IconChecklist, IconClipboardList, IconClock, IconFileAnalytics, IconFiles, IconHeartHandshake, IconLayoutDashboard, IconLogout, IconMapPinExclamation, IconMenu2, IconPlane, IconReceipt2, IconSettings, IconShieldCheck, IconShoppingCart, IconSos, IconSpeakerphone, IconUserCheck, IconUserDollar, IconUsers, IconUsersGroup } from "@tabler/icons-react";
+import { IconBuildingHospital, IconBus, IconCalendar, IconCalendarEvent, IconCash, IconChartBar, IconChecklist, IconClipboardList, IconClock, IconFileAnalytics, IconFiles, IconHeartHandshake, IconLayoutDashboard, IconLogout, IconMapPinExclamation, IconMenu2, IconPlane, IconRadar, IconReceipt2, IconSettings, IconShieldCheck, IconShoppingCart, IconSos, IconSpeakerphone, IconUserCheck, IconUserDollar, IconUsers, IconUsersGroup } from "@tabler/icons-react";
 import { authClient } from "@/lib/auth-client";
 import { operatorClient, seasonClient } from "@/lib/rpc";
 import { RequireAccess } from "@/components/auth/RequireAccess";
@@ -28,6 +28,7 @@ const nav = [
   {
     label: "Operasional",
     items: [
+      ["Monitoring", "/dashboard/monitoring", IconRadar],
       ["Akomodasi", "/dashboard/accommodation", IconBuildingHospital],
       ["Transportasi", "/dashboard/transport", IconBus],
       ["Komunikasi", "/dashboard/communication", IconSpeakerphone],

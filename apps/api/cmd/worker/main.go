@@ -51,7 +51,11 @@ func main() {
 	if err != nil {
 		logger.Error("init firebase", "error", err)
 	}
-	sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, auditRepository, firebasePusher)
+	// eventBus is nil here — the worker is a separate process from the API
+	// server, so it has no monitoring-dashboard subscribers to publish to
+	// (those live in the server's in-process events.Bus). Bus.Publish is a
+	// documented nil-safe no-op for exactly this case.
+	sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, auditRepository, firebasePusher, nil)
 	sosHandler := worker.NewSOSHandler(logger, sosService)
 	waitlistHandler := worker.NewWaitlistHandler(logger, waitlistRepository)
 	cashFlowHandler := worker.NewCashFlowHandler(logger, queries)

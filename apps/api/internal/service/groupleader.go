@@ -9,6 +9,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
+	"github.com/hajj-saas/api/internal/events"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/repository"
@@ -23,10 +24,11 @@ type GroupLeaderService struct {
 	groupRepository       *repository.GroupRepository
 	journeyService        *JourneyService
 	pushNotifier          PushNotifier
+	eventBus              *events.Bus
 }
 
-func NewGroupLeaderService(operators *repository.OperatorRepository, groupLeaders *repository.GroupLeaderRepository, sos *repository.SOSRepository, pilgrims *repository.PilgrimRepository, groups *repository.GroupRepository, journey *JourneyService, push PushNotifier) *GroupLeaderService {
-	return &GroupLeaderService{operatorRepository: operators, groupLeaderRepository: groupLeaders, sosRepository: sos, pilgrimRepository: pilgrims, groupRepository: groups, journeyService: journey, pushNotifier: push}
+func NewGroupLeaderService(operators *repository.OperatorRepository, groupLeaders *repository.GroupLeaderRepository, sos *repository.SOSRepository, pilgrims *repository.PilgrimRepository, groups *repository.GroupRepository, journey *JourneyService, push PushNotifier, bus *events.Bus) *GroupLeaderService {
+	return &GroupLeaderService{operatorRepository: operators, groupLeaderRepository: groupLeaders, sosRepository: sos, pilgrimRepository: pilgrims, groupRepository: groups, journeyService: journey, pushNotifier: push, eventBus: bus}
 }
 
 // ListMySOSAlerts scopes the coordinator-wide SOS surface down to only
@@ -84,6 +86,7 @@ func (s *GroupLeaderService) UpdateMyGroupCity(ctx context.Context, orgID string
 	if s.pushNotifier != nil {
 		s.pushNotifier.NotifyGroupPilgrims(ctx, op, group.ID, "Tawafiq Hub", groupCityPushBody(req.City))
 	}
+	s.eventBus.Publish(op, "group_location", group.ID)
 	return &hajjv1.LeaderGroup{Id: group.ID, Name: group.Name, Capacity: group.Capacity, SeasonId: group.SeasonID, CurrentCity: group.CurrentCity, LastUpdate: timestampOrNil(group.LastUpdate), CurrentActivity: group.CurrentActivity}, nil
 }
 

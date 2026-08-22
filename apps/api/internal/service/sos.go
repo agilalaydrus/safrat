@@ -7,6 +7,7 @@ import (
 
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
+	"github.com/hajj-saas/api/internal/events"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/repository"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -18,6 +19,7 @@ type SOSService struct {
 	sosRepository      *repository.SOSRepository
 	auditRepository    *repository.AuditRepository
 	notifier           SOSNotifier
+	eventBus           *events.Bus
 }
 
 // SOSNotifier decouples the service from the Firebase-specific push
@@ -27,8 +29,8 @@ type SOSNotifier interface {
 	NotifySOSAlert(ctx context.Context, operatorID string, alert *domain.SOSAlert)
 }
 
-func NewSOSService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, sos *repository.SOSRepository, audit *repository.AuditRepository, notifier SOSNotifier) *SOSService {
-	return &SOSService{operatorRepository: operators, pilgrimRepository: pilgrims, sosRepository: sos, auditRepository: audit, notifier: notifier}
+func NewSOSService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, sos *repository.SOSRepository, audit *repository.AuditRepository, notifier SOSNotifier, bus *events.Bus) *SOSService {
+	return &SOSService{operatorRepository: operators, pilgrimRepository: pilgrims, sosRepository: sos, auditRepository: audit, notifier: notifier, eventBus: bus}
 }
 
 func (s *SOSService) logActivity(ctx context.Context, operatorID, userID, action, entityID, message string) {
@@ -62,6 +64,7 @@ func (s *SOSService) CreateSOSAlert(ctx context.Context, req *hajjv1.CreateSOSAl
 	if s.notifier != nil {
 		s.notifier.NotifySOSAlert(ctx, pilgrim.OperatorID, alert)
 	}
+	s.eventBus.Publish(pilgrim.OperatorID, "sos", alert.ID)
 	return sosAlertMessage(alert), nil
 }
 
@@ -100,6 +103,7 @@ func (s *SOSService) EscalateStaleAlerts(ctx context.Context) error {
 		if s.notifier != nil {
 			s.notifier.NotifySOSAlert(ctx, alert.OperatorID, alert)
 		}
+		s.eventBus.Publish(alert.OperatorID, "sos", alert.ID)
 	}
 	return nil
 }
@@ -133,6 +137,7 @@ func (s *SOSService) AcknowledgeSOSAlert(ctx context.Context, orgID, userID stri
 		return nil, serviceError("SOSService.AcknowledgeSOSAlert", apperror.ErrFailedPrecondition)
 	}
 	s.logActivity(ctx, op.ID, userID, "sos_acknowledged", alert.ID, "SOS dikonfirmasi")
+	s.eventBus.Publish(op.ID, "sos", alert.ID)
 	return sosAlertMessage(alert), nil
 }
 
@@ -149,6 +154,7 @@ func (s *SOSService) ResolveSOSAlert(ctx context.Context, orgID, userID string, 
 		return nil, serviceError("SOSService.ResolveSOSAlert", apperror.ErrFailedPrecondition)
 	}
 	s.logActivity(ctx, op.ID, userID, "sos_resolved", alert.ID, "SOS ditandai selesai")
+	s.eventBus.Publish(op.ID, "sos", alert.ID)
 	return sosAlertMessage(alert), nil
 }
 

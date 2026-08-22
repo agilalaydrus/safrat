@@ -7,6 +7,7 @@ import (
 
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
+	"github.com/hajj-saas/api/internal/events"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/repository"
@@ -19,10 +20,11 @@ type HealthReportService struct {
 	pilgrimRepository  *repository.PilgrimRepository
 	auditRepository    *repository.AuditRepository
 	pushNotifier       PushNotifier
+	eventBus           *events.Bus
 }
 
-func NewHealthReportService(operators *repository.OperatorRepository, health *repository.HealthReportRepository, pilgrims *repository.PilgrimRepository, audit *repository.AuditRepository, push PushNotifier) *HealthReportService {
-	return &HealthReportService{operatorRepository: operators, healthRepository: health, pilgrimRepository: pilgrims, auditRepository: audit, pushNotifier: push}
+func NewHealthReportService(operators *repository.OperatorRepository, health *repository.HealthReportRepository, pilgrims *repository.PilgrimRepository, audit *repository.AuditRepository, push PushNotifier, bus *events.Bus) *HealthReportService {
+	return &HealthReportService{operatorRepository: operators, healthRepository: health, pilgrimRepository: pilgrims, auditRepository: audit, pushNotifier: push, eventBus: bus}
 }
 
 func (s *HealthReportService) logActivity(ctx context.Context, operatorID, action, entityID, message string) {
@@ -56,6 +58,7 @@ func (s *HealthReportService) CreateHealthReport(ctx context.Context, orgID stri
 	if req.Severity == "BERAT" && s.pushNotifier != nil {
 		s.pushNotifier.NotifyOperatorStaff(ctx, op.ID, "⚠ Laporan Kesehatan BERAT", fmt.Sprintf("%s — perlu perhatian segera.", pilgrim.FullName))
 	}
+	s.eventBus.Publish(op.ID, "health", report.ID)
 	return healthReportMessage(report, pilgrim.FullName), nil
 }
 
@@ -92,6 +95,7 @@ func (s *HealthReportService) ResolveHealthReport(ctx context.Context, orgID str
 		return nil, serviceError("HealthReportService.ResolveHealthReport", err)
 	}
 	s.logActivity(ctx, op.ID, "health_report_resolved", report.ID, "Laporan kesehatan diselesaikan")
+	s.eventBus.Publish(op.ID, "health", report.ID)
 	return healthReportMessage(report, ""), nil
 }
 
