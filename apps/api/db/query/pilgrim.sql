@@ -189,3 +189,11 @@ ORDER BY passport_expiry_date ASC;
 SELECT * FROM pilgrims
 WHERE operator_id = $1 AND kloter_id = $2
 ORDER BY full_name ASC;
+
+-- name: AssignKloterIfUnset :exec
+-- Auto-assign cascade when a TRAVEL_PACKAGE order with a default_kloter_id
+-- gets PAID (see OrderService) — never overwrites a kloter someone already
+-- set (manually or from an earlier package), only fills an empty one.
+UPDATE pilgrims
+SET kloter_id = $3, updated_at = NOW()
+WHERE id = $1 AND operator_id = $2 AND kloter_id IS NULL;

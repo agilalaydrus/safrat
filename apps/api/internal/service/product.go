@@ -76,7 +76,7 @@ func (s *ProductService) Create(ctx context.Context, orgID string, req *hajjv1.C
 	if err != nil {
 		return nil, serviceError("ProductService.Create", err)
 	}
-	product, err := s.productRepository.Create(ctx, op.ID, req.SeasonId, req.Name, req.Category, req.Type, req.Description, req.PriceIdr, req.DurationDays, req.Inclusions, platformMargin, operatorMargin, agentMargin)
+	product, err := s.productRepository.Create(ctx, op.ID, req.SeasonId, req.Name, req.Category, req.Type, req.Description, req.PriceIdr, req.DurationDays, req.Inclusions, platformMargin, operatorMargin, agentMargin, itineraryFromProto(req.ItineraryDays), req.HotelIds, req.DefaultKloterId)
 	if err != nil {
 		return nil, serviceError("ProductService.Create", err)
 	}
@@ -129,7 +129,7 @@ func (s *ProductService) Update(ctx context.Context, orgID string, req *hajjv1.U
 	if err != nil {
 		return nil, serviceError("ProductService.Update", err)
 	}
-	product, err := s.productRepository.Update(ctx, op.ID, req.ProductId, req.Name, req.Category, req.Type, req.Description, req.PriceIdr, req.DurationDays, req.Inclusions, req.IsActive, platformMargin, operatorMargin, agentMargin)
+	product, err := s.productRepository.Update(ctx, op.ID, req.ProductId, req.Name, req.Category, req.Type, req.Description, req.PriceIdr, req.DurationDays, req.Inclusions, req.IsActive, platformMargin, operatorMargin, agentMargin, itineraryFromProto(req.ItineraryDays), req.HotelIds, req.DefaultKloterId)
 	if err != nil {
 		return nil, serviceError("ProductService.Update", err)
 	}
@@ -149,5 +149,29 @@ func (s *ProductService) Delete(ctx context.Context, orgID string, req *hajjv1.D
 	return &hajjv1.DeleteProductResponse{}, nil
 }
 func productMessage(product *domain.Product) *hajjv1.Product {
-	return &hajjv1.Product{Id: product.ID, OperatorId: product.OperatorID, SeasonId: product.SeasonID, Name: product.Name, Category: product.Category, Type: product.Type, PriceIdr: product.PriceIDR, DurationDays: product.DurationDays, Description: product.Description, Inclusions: product.Inclusions, IsActive: product.IsActive, CreatedAt: timestamppb.New(product.CreatedAt), UpdatedAt: timestamppb.New(product.UpdatedAt), PlatformMarginPct: product.PlatformMarginPct, OperatorMarginPct: product.OperatorMarginPct, AgentMarginPct: product.AgentMarginPct}
+	msg := &hajjv1.Product{
+		Id: product.ID, OperatorId: product.OperatorID, SeasonId: product.SeasonID, Name: product.Name, Category: product.Category, Type: product.Type,
+		PriceIdr: product.PriceIDR, DurationDays: product.DurationDays, Description: product.Description, Inclusions: product.Inclusions, IsActive: product.IsActive,
+		CreatedAt: timestamppb.New(product.CreatedAt), UpdatedAt: timestamppb.New(product.UpdatedAt),
+		PlatformMarginPct: product.PlatformMarginPct, OperatorMarginPct: product.OperatorMarginPct, AgentMarginPct: product.AgentMarginPct,
+		HotelIds: product.HotelIDs, DefaultKloterId: product.DefaultKloterID,
+	}
+	for _, d := range product.ItineraryDays {
+		msg.ItineraryDays = append(msg.ItineraryDays, &hajjv1.ItineraryDay{
+			DayNumber: d.DayNumber, Title: d.Title, City: d.City, Activities: d.Activities,
+			MealBreakfast: d.MealBreakfast, MealLunch: d.MealLunch, MealDinner: d.MealDinner,
+		})
+	}
+	return msg
+}
+
+func itineraryFromProto(days []*hajjv1.ItineraryDay) []domain.ItineraryDay {
+	result := make([]domain.ItineraryDay, 0, len(days))
+	for _, d := range days {
+		result = append(result, domain.ItineraryDay{
+			DayNumber: d.DayNumber, Title: d.Title, City: d.City, Activities: d.Activities,
+			MealBreakfast: d.MealBreakfast, MealLunch: d.MealLunch, MealDinner: d.MealDinner,
+		})
+	}
+	return result
 }

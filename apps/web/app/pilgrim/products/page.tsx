@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { IconWifiOff } from "@tabler/icons-react";
+import { IconChevronDown, IconChevronUp, IconWifiOff } from "@tabler/icons-react";
 import { Product } from "@hajj-saas/proto-gen/hajj/v1/product_pb";
 import { pilgrimAppClient, orderClient } from "@/lib/rpc";
 import { cachedFetch } from "@/lib/offline";
@@ -18,6 +18,7 @@ export default function PilgrimProductsPage() {
   const [loaded, setLoaded] = useState(false);
   const [buying, setBuying] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [expanded, setExpanded] = useState<string>("");
 
   useEffect(() => {
     if (!code) return;
@@ -65,6 +66,32 @@ export default function PilgrimProductsPage() {
             {product.description && <p style={desc}>{product.description}</p>}
             {product.inclusions.length > 0 && <ul style={inclusions}>{product.inclusions.map((item) => <li key={item}>{item}</li>)}</ul>}
             <p style={price}>{money(product.priceIdr)}{product.durationDays > 0 && <span style={duration}> · {product.durationDays} hari</span>}</p>
+            {product.itineraryDays.length > 0 && (
+              <>
+                <button type="button" onClick={() => setExpanded(expanded === product.id ? "" : product.id)} style={itineraryToggle}>
+                  {expanded === product.id ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
+                  Lihat Itinerary ({product.itineraryDays.length} hari)
+                </button>
+                {expanded === product.id && (
+                  <div style={itineraryList}>
+                    {product.itineraryDays.map((day) => (
+                      <div key={day.dayNumber} style={itineraryDay}>
+                        <span style={itineraryDayBadge}>Hari {day.dayNumber}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <strong style={{ fontSize: 13 }}>{day.title}{day.city && ` — ${day.city}`}</strong>
+                          {day.activities && <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--color-warm-500)" }}>{day.activities}</p>}
+                          {(day.mealBreakfast || day.mealLunch || day.mealDinner) && (
+                            <p style={{ margin: "2px 0 0", fontSize: 11, color: "var(--color-warm-400)" }}>
+                              {[day.mealBreakfast && "Sarapan", day.mealLunch && "Makan Siang", day.mealDinner && "Makan Malam"].filter(Boolean).join(" · ")}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
             <button onClick={() => void buy(product)} disabled={buying === product.id || fromCache} style={buyButton}>{buying === product.id ? "Memproses..." : "Beli"}</button>
           </article>
         ))}
@@ -87,3 +114,7 @@ const inclusions: React.CSSProperties = { margin: "8px 0 0", paddingInlineStart:
 const price: React.CSSProperties = { margin: "10px 0 0", fontWeight: 700, color: "var(--color-emerald-900)", fontSize: 16 };
 const duration: React.CSSProperties = { fontWeight: 400, color: "var(--color-warm-400)", fontSize: 13 };
 const buyButton: React.CSSProperties = { marginTop: 12, width: "100%", minHeight: 44, border: "none", borderRadius: 8, background: "var(--color-gold-500)", color: "var(--color-warm-900)", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif" };
+const itineraryToggle: React.CSSProperties = { marginTop: 10, display: "flex", alignItems: "center", gap: 4, border: 0, background: "transparent", color: "var(--color-emerald-800)", fontSize: 12, fontWeight: 600, padding: 0 };
+const itineraryList: React.CSSProperties = { marginTop: 8, display: "grid", gap: 8 };
+const itineraryDay: React.CSSProperties = { display: "flex", gap: 8, alignItems: "flex-start", background: "var(--color-cream-100)", border: "1px solid var(--color-cream-300)", borderRadius: 8, padding: "8px 10px" };
+const itineraryDayBadge: React.CSSProperties = { flexShrink: 0, padding: "2px 8px", borderRadius: 99, background: "var(--color-emerald-50)", color: "var(--color-emerald-900)", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" };

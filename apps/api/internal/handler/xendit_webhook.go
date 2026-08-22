@@ -7,6 +7,7 @@ import (
 
 	"github.com/hajj-saas/api/internal/payment"
 	"github.com/hajj-saas/api/internal/repository"
+	"github.com/hajj-saas/api/internal/service"
 )
 
 // xenditWebhookPayload only lists the fields this handler actually reads —
@@ -20,7 +21,7 @@ type xenditWebhookPayload struct {
 // NewXenditWebhookHandler is a plain net/http handler, not a Connect RPC —
 // Xendit calls back over a normal webhook POST, it doesn't speak Connect.
 // Registered directly on the mux in main.go.
-func NewXenditWebhookHandler(logger *slog.Logger, orders *repository.OrderRepository, webhookToken string) http.HandlerFunc {
+func NewXenditWebhookHandler(logger *slog.Logger, orders *repository.OrderRepository, orderService *service.OrderService, webhookToken string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !payment.VerifyWebhookToken(webhookToken, r.Header.Get("X-CALLBACK-TOKEN")) {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -36,7 +37,11 @@ func NewXenditWebhookHandler(logger *slog.Logger, orders *repository.OrderReposi
 		var err error
 		switch payload.Status {
 		case "PAID":
-			_, err = orders.MarkPaidByInvoiceID(ctx, payload.ID)
+			// Goes through OrderService, not the repository directly, so the
+			// TRAVEL_PACKAGE auto-kloter-assign cascade fires here too (see
+			// OrderService.applyPaidSideEffects) — not just on the manual
+			// CASH/BANK_TRANSFER path.
+			err = orderService.MarkPaidByInvoiceID(ctx, payload.ID)
 		case "EXPIRED":
 			_, err = orders.MarkStatusByInvoiceID(ctx, payload.ID, "EXPIRED")
 		case "FAILED":

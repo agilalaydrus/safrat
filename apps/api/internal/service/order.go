@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
@@ -176,10 +177,40 @@ func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req 
 		}
 		order.Status = paid.Status
 		order.PaidAt = paid.PaidAt
+		s.applyPaidSideEffects(ctx, product, paid)
 	}
 	_ = s.auditRepository.Write(ctx, op.ID, userID, "manual_order_created", "order", order.ID,
 		fmt.Sprintf("%s x%d — Rp%d via %s%s", product.Name, req.Quantity, totalPrice, method, noteSuffix(req.Note)))
 	return &hajjv1.CreateOrderResponse{Order: orderMessage(order), CheckoutUrl: checkoutURL}, nil
+}
+
+// applyPaidSideEffects runs the TRAVEL_PACKAGE auto-kloter-assign cascade
+// (see product.default_kloter_id) once an order actually reaches PAID —
+// best-effort: a failure here never undoes the payment, it's just logged.
+func (s *OrderService) applyPaidSideEffects(ctx context.Context, product *domain.Product, order *domain.Order) {
+	if product == nil || product.Category != "TRAVEL_PACKAGE" || product.DefaultKloterID == "" {
+		return
+	}
+	if err := s.pilgrimRepository.AssignKloterIfUnset(ctx, order.OperatorID, order.PilgrimID, product.DefaultKloterID); err != nil {
+		sentry.CaptureException(fmt.Errorf("OrderService.applyPaidSideEffects: assign kloter: %w", err))
+	}
+}
+
+// MarkPaidByInvoiceID is called from the Xendit webhook handler (a plain
+// net/http handler, not a Connect RPC — see handler/xendit_webhook.go) —
+// wraps the repository call so the same paid-order cascade above also
+// fires for self-checkout / manual-XENDIT_LINK orders, not just the
+// CASH/BANK_TRANSFER path in CreateManualOrder.
+func (s *OrderService) MarkPaidByInvoiceID(ctx context.Context, invoiceID string) error {
+	order, err := s.orderRepository.MarkPaidByInvoiceID(ctx, invoiceID)
+	if err != nil {
+		return err
+	}
+	product, err := s.productRepository.GetByID(ctx, order.OperatorID, order.ProductID)
+	if err == nil {
+		s.applyPaidSideEffects(ctx, product, order)
+	}
+	return nil
 }
 
 func manualOrderMethodToDB(m hajjv1.ManualOrderPaymentMethod) string {

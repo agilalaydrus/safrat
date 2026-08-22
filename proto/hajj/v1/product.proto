@@ -40,6 +40,23 @@ message Product {
   double platform_margin_pct = 14;
   double operator_margin_pct = 15;
   double agent_margin_pct = 16;
+  // The three fields below only apply when category == TRAVEL_PACKAGE.
+  repeated ItineraryDay itinerary_days = 17;
+  repeated string hotel_ids = 18;
+  // When set, an order for this product that reaches PAID auto-assigns
+  // the buying pilgrim into this kloter (only if they don't already have
+  // one — see OrderService's paid-order cascade).
+  string default_kloter_id = 19;
+}
+
+message ItineraryDay {
+  int32 day_number = 1;
+  string title = 2;
+  string city = 3;
+  string activities = 4;
+  bool meal_breakfast = 5;
+  bool meal_lunch = 6;
+  bool meal_dinner = 7;
 }
 
 message CreateProductRequest {
@@ -54,6 +71,9 @@ message CreateProductRequest {
   double platform_margin_pct = 9;
   double operator_margin_pct = 10;
   double agent_margin_pct = 11;
+  repeated ItineraryDay itinerary_days = 12;
+  repeated string hotel_ids = 13;
+  string default_kloter_id = 14;
 }
 
 message GetProductRequest { string product_id = 1 [(buf.validate.field).string.min_len = 1]; }
@@ -73,6 +93,9 @@ message UpdateProductRequest {
   double platform_margin_pct = 10;
   double operator_margin_pct = 11;
   double agent_margin_pct = 12;
+  repeated ItineraryDay itinerary_days = 13;
+  repeated string hotel_ids = 14;
+  string default_kloter_id = 15;
 }
 
 message DeleteProductRequest { string product_id = 1 [(buf.validate.field).string.min_len = 1]; }

@@ -66,7 +66,7 @@ func main() {
 		seasonRepository := repository.NewSeasonRepository(queries)
 		accommodationRepository := repository.NewAccommodationRepository(queries)
 		transportRepository := repository.NewTransportRepository(queries, pool)
-		productRepository := repository.NewProductRepository(queries)
+		productRepository := repository.NewProductRepository(queries, pool)
 		agentRepository := repository.NewAgentRepository(queries)
 		groupRepository := repository.NewGroupRepository(queries)
 		sosRepository := repository.NewSOSRepository(queries)
@@ -232,7 +232,7 @@ func main() {
 		mux.Handle(journeyPath, journeyServiceHandler)
 		mux.Handle(ritualPath, ritualServiceHandler)
 		mux.Handle(healthReportPath, healthReportServiceHandler)
-		mux.HandleFunc("POST /webhooks/xendit", handler.NewXenditWebhookHandler(logger, orderRepository, config.XenditWebhookToken))
+		mux.HandleFunc("POST /webhooks/xendit", handler.NewXenditWebhookHandler(logger, orderRepository, orderService, config.XenditWebhookToken))
 		uploadDir := os.Getenv("UPLOAD_DIR")
 		if uploadDir == "" {
 			uploadDir = "./uploads/documents"

@@ -681,6 +681,25 @@ func uuidString(value pgtype.UUID) string {
 	return uuid.UUID(value.Bytes).String()
 }
 
+// AssignKloterIfUnset is the TRAVEL_PACKAGE paid-order cascade (see
+// OrderService) — a no-op if the pilgrim already has a kloter, so it never
+// clobbers an existing (manual or earlier-package) assignment.
+func (r *PilgrimRepository) AssignKloterIfUnset(ctx context.Context, operatorID, pilgrimID, kloterID string) error {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return err
+	}
+	pilgrimUUID, err := pgUUID(pilgrimID)
+	if err != nil {
+		return err
+	}
+	kloterUUID, err := pgUUID(kloterID)
+	if err != nil {
+		return err
+	}
+	return r.queries.AssignKloterIfUnset(ctx, db.AssignKloterIfUnsetParams{ID: pilgrimUUID, OperatorID: opUUID, KloterID: kloterUUID})
+}
+
 func nullableUUIDString(value pgtype.UUID) string {
 	if !value.Valid {
 		return ""

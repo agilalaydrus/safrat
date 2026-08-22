@@ -19,4 +19,19 @@ type Product struct {
 	PlatformMarginPct float64
 	OperatorMarginPct float64
 	AgentMarginPct    float64
+	// Only meaningful when Category == "TRAVEL_PACKAGE".
+	ItineraryDays   []ItineraryDay
+	HotelIDs        []string
+	HotelNames      []string // parallel to HotelIDs, for display without a second lookup
+	DefaultKloterID string
+}
+
+type ItineraryDay struct {
+	DayNumber     int32
+	Title         string
+	City          string
+	Activities    string
+	MealBreakfast bool
+	MealLunch     bool
+	MealDinner    bool
 }
