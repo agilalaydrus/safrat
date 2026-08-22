@@ -44,6 +44,13 @@ service PilgrimAppService {
   // pilgrim session at all — see family_tracker.proto for the same
   // "public, code-authenticated, minimal fields" pattern.
   rpc GetMyCertificate(PilgrimAppRequest) returns (CertificateData);
+  // SubmitMyPilgrimKyc lets a pilgrim fill in their own NIK/address instead
+  // of waiting on an admin — public (app_access_code), like the rest of
+  // this service. Always lands in PENDING_REVIEW regardless of who
+  // submitted it; an admin still has to verify (see
+  // PilgrimService.VerifyPilgrimKyc). Never gates any other pilgrim
+  // feature today.
+  rpc SubmitMyPilgrimKyc(SubmitMyPilgrimKycRequest) returns (PilgrimAppInfo);
 }
 
 message PilgrimAppRequest {
@@ -65,6 +72,28 @@ message PilgrimAppInfo {
   google.protobuf.Timestamp kloter_departure_date = 12;
   // Empty if this pilgrim has never linked a Google account.
   string linked_google_email = 13;
+  string phone = 14;
+  string nik = 15;
+  string address = 16;
+  string kyc_status = 17; // UNVERIFIED | PENDING_REVIEW | VERIFIED | REJECTED
+  string kyc_rejection_reason = 18;
+  string place_of_birth = 19;
+  string marital_status = 20;
+  string occupation = 21;
+  string father_name = 22;
+  // ACTIVE | CANCELLED — whether the operator has confirmed/kept this
+  // pilgrim's participation, independent of KYC.
+  string status = 23;
+  string payment_status = 24; // UNPAID | DP | PAID
+  // Full list of hotel stays (Makkah + Madinah, when both are assigned) —
+  // hotel_name/room_number above are just a "what's current" summary.
+  repeated HotelStay hotel_stays = 25;
+}
+
+message HotelStay {
+  string hotel_name = 1;
+  string room_number = 2;
+  string room_type = 3;
 }
 
 message ListMyScheduleResponse {
@@ -98,6 +127,16 @@ message LinkGoogleAccountRequest {
 
 message LinkGoogleAccountResponse {
   string linked_google_email = 1;
+}
+
+message SubmitMyPilgrimKycRequest {
+  string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
+  string nik = 2 [(buf.validate.field).string.max_len = 32];
+  string address = 3 [(buf.validate.field).string.max_len = 300];
+  string place_of_birth = 4 [(buf.validate.field).string.max_len = 100];
+  string marital_status = 5 [(buf.validate.field).string = {in: ["", "SINGLE", "MARRIED", "DIVORCED", "WIDOWED"]}];
+  string occupation = 6 [(buf.validate.field).string.max_len = 100];
+  string father_name = 7 [(buf.validate.field).string.max_len = 100];
 }
 
 message CertificateData {

@@ -4,18 +4,19 @@ import { useEffect, useState } from "react";
 import { IconCopy, IconCheck } from "@tabler/icons-react";
 import { getMyAccessCached } from "@/lib/access-cache";
 import { seasonClient } from "@/lib/rpc";
+import { buildTenantLink } from "@/lib/tenant-link";
 
 export default function AgentReferralTab() {
   const [referralCode, setReferralCode] = useState("");
-  const [operatorId, setOperatorId] = useState("");
-  const [seasons, setSeasons] = useState<{ id: string; name: string; isActive: boolean }[]>([]);
+  const [operatorSlug, setOperatorSlug] = useState("");
+  const [seasons, setSeasons] = useState<{ id: string; name: string; isActive: boolean; slug: string }[]>([]);
   const [seasonId, setSeasonId] = useState("");
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     getMyAccessCached().then((access) => {
       setReferralCode(access.linkedAgent?.referralCode ?? "");
-      setOperatorId(access.operatorId ?? "");
+      setOperatorSlug(access.operatorSlug ?? "");
     });
     seasonClient.listSeasons({}).then((r) => {
       setSeasons(r.seasons);
@@ -23,8 +24,8 @@ export default function AgentReferralTab() {
     }).catch(() => {});
   }, []);
 
-  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-  const refLink = operatorId && seasonId ? `${baseUrl}/register/${operatorId}/${seasonId}?ref=${referralCode}` : "";
+  const selectedSeasonSlug = seasons.find((s) => s.id === seasonId)?.slug;
+  const refLink = operatorSlug && selectedSeasonSlug ? `${buildTenantLink(operatorSlug, `/register/${selectedSeasonSlug}`)}?ref=${referralCode}` : "";
 
   const copy = async () => {
     if (!refLink) return;

@@ -88,7 +88,12 @@ func (r *TripRepository) ListMovements(ctx context.Context, operatorID, kloterID
 	}
 	result := make([]*Movement, 0, len(rows))
 	for _, v := range rows {
-		result = append(result, &Movement{ID: uuidString(v.ID), SeasonID: uuidString(v.SeasonID), OperatorID: uuidString(v.OperatorID), Name: v.Name, Origin: v.Origin, Destination: v.Destination, ScheduledAt: v.ScheduledAt.Time, Status: v.Status, Mode: v.Mode, KloterID: nullableUUIDString(v.KloterID), CreatedAt: v.CreatedAt.Time, VehicleCount: v.VehicleCount, TotalCapacity: v.TotalCapacity, AssignedCount: v.AssignedCount})
+		result = append(result, &Movement{
+			ID: uuidString(v.ID), SeasonID: uuidString(v.SeasonID), OperatorID: uuidString(v.OperatorID), Name: v.Name, Origin: v.Origin, Destination: v.Destination,
+			ScheduledAt: v.ScheduledAt.Time, Status: v.Status, Mode: v.Mode, KloterID: nullableUUIDString(v.KloterID), CreatedAt: v.CreatedAt.Time,
+			VehicleCount: v.VehicleCount, TotalCapacity: v.TotalCapacity, AssignedCount: v.AssignedCount,
+			Airline: v.Airline, FlightNumber: v.FlightNumber, TripLeg: v.TripLeg,
+		})
 	}
 	return result, nil
 }

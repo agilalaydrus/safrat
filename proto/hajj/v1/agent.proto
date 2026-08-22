@@ -54,6 +54,18 @@ service AgentService {
   // Better Auth identity, same as GetMyWallet — never trusts an agent_id
   // from the request.
   rpc ListMyPilgrims(ListMyPilgrimsRequest) returns (ListMyPilgrimsResponse);
+
+  // --- KYC ---
+  // UpdateAgentKyc/VerifyAgentKyc are admin-facing (operator dashboard).
+  rpc UpdateAgentKyc(UpdateAgentKycRequest) returns (Agent);
+  rpc VerifyAgentKyc(VerifyAgentKycRequest) returns (Agent);
+  // SubmitMyAgentKyc is self-service, same "resolve from caller identity"
+  // pattern as GetMyWallet — works for both a real Agent and a Muttawwif
+  // (every leader has an agent row via EnsureAgentForLeader).
+  rpc SubmitMyAgentKyc(SubmitMyAgentKycRequest) returns (Agent);
+  rpc GetMyAgentKyc(GetMyAgentKycRequest) returns (Agent);
+  rpc ListAgentDocuments(ListAgentDocumentsRequest) returns (ListAgentDocumentsResponse);
+  rpc ListMyAgentDocuments(ListMyAgentDocumentsRequest) returns (ListAgentDocumentsResponse);
 }
 
 message Agent {
@@ -71,6 +83,24 @@ message Agent {
   string referral_code = 12;
   string tier = 13;
   string referred_by_agent_id = 14;
+  // KYC (Know Your Customer) — also covers Muttawwif (Group Leader), since
+  // every leader has an agent row via EnsureAgentForLeader. NPWP/bank
+  // fields exist for commission-payout compliance; a Muttawwif with no
+  // payout flow simply leaves them blank.
+  string nik = 15;
+  string npwp = 16;
+  string address = 17;
+  google.protobuf.Timestamp date_of_birth = 18;
+  string passport_number = 19;
+  google.protobuf.Timestamp passport_expiry_date = 20;
+  string bank_name = 21;
+  string bank_account_number = 22;
+  string bank_account_holder = 23;
+  string kyc_status = 24; // UNVERIFIED | PENDING_REVIEW | VERIFIED | REJECTED
+  string kyc_source = 25; // ADMIN | SELF
+  string kyc_verified_by = 26;
+  google.protobuf.Timestamp kyc_verified_at = 27;
+  string kyc_rejection_reason = 28;
 }
 
 message ApplyAsAgentRequest {
@@ -108,6 +138,59 @@ message AgentPayout {
 
 message ListAgentPayoutsRequest {}
 message ListAgentPayoutsResponse { repeated AgentPayout payouts = 1; }
+
+message UpdateAgentKycRequest {
+  string agent_id = 1 [(buf.validate.field).string.min_len = 1];
+  string nik = 2 [(buf.validate.field).string.max_len = 32];
+  string npwp = 3 [(buf.validate.field).string.max_len = 32];
+  string address = 4 [(buf.validate.field).string.max_len = 300];
+  google.protobuf.Timestamp date_of_birth = 5;
+  string passport_number = 6 [(buf.validate.field).string.max_len = 20];
+  google.protobuf.Timestamp passport_expiry_date = 7;
+  string bank_name = 8 [(buf.validate.field).string.max_len = 100];
+  string bank_account_number = 9 [(buf.validate.field).string.max_len = 40];
+  string bank_account_holder = 10 [(buf.validate.field).string.max_len = 100];
+}
+
+message VerifyAgentKycRequest {
+  string agent_id = 1 [(buf.validate.field).string.min_len = 1];
+  bool approve = 2;
+  string rejection_reason = 3 [(buf.validate.field).string.max_len = 300];
+}
+
+message SubmitMyAgentKycRequest {
+  string nik = 1 [(buf.validate.field).string.max_len = 32];
+  string npwp = 2 [(buf.validate.field).string.max_len = 32];
+  string address = 3 [(buf.validate.field).string.max_len = 300];
+  google.protobuf.Timestamp date_of_birth = 4;
+  string passport_number = 5 [(buf.validate.field).string.max_len = 20];
+  google.protobuf.Timestamp passport_expiry_date = 6;
+  string bank_name = 7 [(buf.validate.field).string.max_len = 100];
+  string bank_account_number = 8 [(buf.validate.field).string.max_len = 40];
+  string bank_account_holder = 9 [(buf.validate.field).string.max_len = 100];
+}
+
+message GetMyAgentKycRequest {}
+
+message AgentDocument {
+  string id = 1;
+  string agent_id = 2;
+  string doc_type = 3; // KTP | PASSPORT | SELFIE | NPWP | BANK_BOOK | OTHER
+  string file_url = 4;
+  string file_name = 5;
+  string uploaded_by = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message ListAgentDocumentsRequest {
+  string agent_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message ListAgentDocumentsResponse {
+  repeated AgentDocument documents = 1;
+}
+
+message ListMyAgentDocumentsRequest {}
 
 enum PayoutMethod {
   PAYOUT_METHOD_UNSPECIFIED = 0;

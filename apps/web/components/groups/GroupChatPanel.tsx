@@ -38,7 +38,7 @@ export default function GroupChatPanel({ open, groupId, groupName, onClose }: P)
   }
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={`Chat rombongan ${groupName}`} style={overlay}>
+    <div role="dialog" aria-modal="true" aria-label={`Chat grup ${groupName}`} style={overlay}>
       <aside style={sheet}>
         <header style={header}>
           <div><p style={eyebrow}>PANTAU OBROLAN</p><h2 style={{ margin: 0 }}>{groupName}</h2></div>
@@ -47,7 +47,7 @@ export default function GroupChatPanel({ open, groupId, groupName, onClose }: P)
         <div className="gold-divider" />
         {notice && <p style={{ color: "var(--color-danger-600)", padding: "0 4px" }}>{notice}</p>}
         <div style={list}>
-          {!messages.length && <p style={{ color: "var(--color-warm-400)", textAlign: "center", marginTop: 40 }}>Belum ada pesan di rombongan ini.</p>}
+          {!messages.length && <p style={{ color: "var(--color-warm-400)", textAlign: "center", marginTop: 40 }}>Belum ada pesan di grup ini.</p>}
           {messages.map((message) => (
             <div key={message.id} style={{ ...bubble, ...(message.fromPilgrim ? theirs : mine) }}>
               <p style={sender}>{message.fromPilgrim ? message.senderName : `${message.senderName} (Admin/Ketua)`}</p>
@@ -57,7 +57,7 @@ export default function GroupChatPanel({ open, groupId, groupName, onClose }: P)
           <div ref={bottomRef} />
         </div>
         <form onSubmit={submit} style={composer}>
-          <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Kirim pesan ke rombongan ini..." style={input} />
+          <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Kirim pesan ke grup ini..." style={input} />
           <button disabled={sending || !draft.trim()} style={sendButton} aria-label="Kirim"><IconSend size={18} /></button>
         </form>
       </aside>

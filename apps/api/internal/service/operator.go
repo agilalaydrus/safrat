@@ -12,11 +12,12 @@ import (
 )
 
 type OperatorService struct {
-	repository *repository.OperatorRepository
+	repository       *repository.OperatorRepository
+	seasonRepository *repository.SeasonRepository
 }
 
-func NewOperatorService(repository *repository.OperatorRepository) *OperatorService {
-	return &OperatorService{repository: repository}
+func NewOperatorService(repository *repository.OperatorRepository, seasonRepository *repository.SeasonRepository) *OperatorService {
+	return &OperatorService{repository: repository, seasonRepository: seasonRepository}
 }
 
 func (s *OperatorService) Create(ctx context.Context, authenticatedOrgID string, request *hajjv1.CreateOperatorRequest) (*hajjv1.Operator, error) {
@@ -97,6 +98,30 @@ func (s *OperatorService) ListAuditLogs(ctx context.Context, authenticatedOrgID 
 	return result, nil
 }
 
+// ResolveSlug is public (see publicProcedures in internal/middleware/auth.go)
+// — apps/web/middleware.ts calls it to turn a subdomain like
+// vacana.tawafiqhub.id into the operator ID the existing /register, /apply,
+// /waitlist path-based routes already expect. Deliberately returns only
+// id + name, nothing an anonymous caller shouldn't see.
+func (s *OperatorService) ResolveSlug(ctx context.Context, request *hajjv1.ResolveOperatorSlugRequest) (*hajjv1.ResolveOperatorSlugResponse, error) {
+	if request == nil || request.Slug == "" {
+		return nil, serviceError("OperatorService.ResolveSlug", apperror.ErrValidation)
+	}
+	operator, err := s.repository.GetBySlug(ctx, request.Slug)
+	if err != nil {
+		return nil, serviceError("OperatorService.ResolveSlug", err)
+	}
+	// No active season is a normal state (between seasons, or before the
+	// first one is created) — not an error for this call, just an empty
+	// field. apps/web/middleware.ts treats it as "no default season" for a
+	// bare /register or /waitlist subdomain request.
+	activeSeasonID, err := s.seasonRepository.GetActiveSeasonID(ctx, operator.ID)
+	if err != nil && !errors.Is(err, apperror.ErrNotFound) {
+		return nil, serviceError("OperatorService.ResolveSlug", err)
+	}
+	return &hajjv1.ResolveOperatorSlugResponse{OperatorId: operator.ID, Name: operator.Name, ActiveSeasonId: activeSeasonID}, nil
+}
+
 func operatorMessage(value *domain.Operator) *hajjv1.Operator {
 	return &hajjv1.Operator{
 		Id:              value.ID,
@@ -105,6 +130,7 @@ func operatorMessage(value *domain.Operator) *hajjv1.Operator {
 		Country:         value.Country,
 		Email:           value.Email,
 		LicenseNumber:   value.LicenseNumber,
+		Slug:            value.Slug,
 		CreatedAt:       timestamppb.New(value.CreatedAt),
 	}
 }

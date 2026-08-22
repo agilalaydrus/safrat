@@ -101,6 +101,25 @@ func (r *WaitlistRepository) Promote(ctx context.Context, operatorID, id string)
 	return toWaitlistEntry(entry), nil
 }
 
+// AdminConfirm is the staff-facing confirm — see the sqlc query comment for
+// why this skips the email match and expiry check the public
+// ConfirmWaitlistSlot enforces.
+func (r *WaitlistRepository) AdminConfirm(ctx context.Context, operatorID, id string) (*domain.WaitlistEntry, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	idUUID, err := pgUUID(id)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	entry, err := r.queries.AdminConfirmWaitlistEntry(ctx, db.AdminConfirmWaitlistEntryParams{ID: idUUID, OperatorID: opUUID})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toWaitlistEntry(entry), nil
+}
+
 // PromoteNextWaiting is called after a cancellation frees a slot. Returns
 // nil (not an error) when no one is waiting.
 func (r *WaitlistRepository) PromoteNextWaiting(ctx context.Context, operatorID, seasonID string) (*domain.WaitlistEntry, error) {

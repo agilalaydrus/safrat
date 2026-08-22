@@ -17,6 +17,12 @@ service KloterService {
   rpc CreateKloter(CreateKloterRequest) returns (Kloter);
   rpc UpdateKloter(UpdateKloterRequest) returns (Kloter);
   rpc DeleteKloter(DeleteKloterRequest) returns (google.protobuf.Empty);
+  // UpdateKloterStatus moves a kloter through its lifecycle stepper
+  // (DRAFT -> CONFIRMED -> DEPARTED -> IN_SAUDI -> DEPARTED_SAUDI ->
+  // COMPLETED). Forward-only except the explicit CONFIRMED -> DRAFT
+  // rollback. Triggers a bulk pilgrim_journey_status cascade for every
+  // pilgrim in the kloter (best-effort, never rolls back this call).
+  rpc UpdateKloterStatus(UpdateKloterStatusRequest) returns (Kloter);
 }
 
 message Kloter {
@@ -28,6 +34,8 @@ message Kloter {
   google.protobuf.Timestamp departure_date = 6;
   int32 capacity = 7;
   int32 pilgrim_count = 8;
+  string status = 9; // DRAFT | CONFIRMED | DEPARTED | IN_SAUDI | DEPARTED_SAUDI | COMPLETED
+  string notes = 10;
 }
 
 message ListKlotersRequest {
@@ -55,4 +63,9 @@ message UpdateKloterRequest {
 
 message DeleteKloterRequest {
   string kloter_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message UpdateKloterStatusRequest {
+  string kloter_id = 1 [(buf.validate.field).string.min_len = 1];
+  string status = 2 [(buf.validate.field).string.min_len = 1];
 }

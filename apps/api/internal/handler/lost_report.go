@@ -51,6 +51,17 @@ func (h *LostReportHandler) ResolveLostReport(ctx context.Context, req *connect.
 	return connect.NewResponse(result), nil
 }
 
+func (h *LostReportHandler) ResolveGroupLostReport(ctx context.Context, req *connect.Request[hajjv1.ResolveGroupLostReportRequest]) (*connect.Response[hajjv1.ResolveLostReportResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.lostReportService.ResolveForGroup(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *LostReportHandler) ListGroupLostReports(ctx context.Context, req *connect.Request[hajjv1.ListGroupLostReportsRequest]) (*connect.Response[hajjv1.ListGroupLostReportsResponse], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

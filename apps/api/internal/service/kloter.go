@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
@@ -18,10 +20,35 @@ type KloterService struct {
 	operatorRepository *repository.OperatorRepository
 	kloterRepository   *repository.KloterRepository
 	auditRepository    *repository.AuditRepository
+	journeyService     *JourneyService
 }
 
-func NewKloterService(operators *repository.OperatorRepository, kloters *repository.KloterRepository, audit *repository.AuditRepository) *KloterService {
-	return &KloterService{operatorRepository: operators, kloterRepository: kloters, auditRepository: audit}
+func NewKloterService(operators *repository.OperatorRepository, kloters *repository.KloterRepository, audit *repository.AuditRepository, journey *JourneyService) *KloterService {
+	return &KloterService{operatorRepository: operators, kloterRepository: kloters, auditRepository: audit, journeyService: journey}
+}
+
+// kloterStatusOrder is forward-only, except the one explicit rollback
+// business rule: CONFIRMED -> DRAFT (e.g. an operator undoes an early
+// confirmation before departure prep has really started).
+var kloterStatusOrder = []string{"DRAFT", "CONFIRMED", "DEPARTED", "IN_SAUDI", "DEPARTED_SAUDI", "COMPLETED"}
+
+func kloterStatusIndex(status string) int {
+	for i, s := range kloterStatusOrder {
+		if s == status {
+			return i
+		}
+	}
+	return -1
+}
+
+// kloterToJourneyStatus is the cascade map from section 4 of
+// SPEC_GROUP_KLOTER_MUTTAWWIF.md — only kloter transitions with a direct
+// 1:1 journey-status equivalent cascade; DRAFT/CONFIRMED don't.
+var kloterToJourneyStatus = map[string]string{
+	"DEPARTED":       "DEPARTED_INDONESIA",
+	"IN_SAUDI":       "ARRIVED_SAUDI",
+	"DEPARTED_SAUDI": "DEPARTED_SAUDI",
+	"COMPLETED":      "ARRIVED_INDONESIA",
 }
 
 func (s *KloterService) logActivity(ctx context.Context, operatorID, action, entityID, message string) {
@@ -79,6 +106,43 @@ func (s *KloterService) UpdateKloter(ctx context.Context, orgID string, req *haj
 	return kloterMessage(kloter), nil
 }
 
+func (s *KloterService) UpdateKloterStatus(ctx context.Context, orgID string, req *hajjv1.UpdateKloterStatusRequest) (*hajjv1.Kloter, error) {
+	if req == nil || strings.TrimSpace(req.KloterId) == "" || strings.TrimSpace(req.Status) == "" {
+		return nil, serviceError("KloterService.UpdateKloterStatus", apperror.ErrValidation)
+	}
+	targetIdx := kloterStatusIndex(req.Status)
+	if targetIdx == -1 {
+		return nil, serviceError("KloterService.UpdateKloterStatus", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("KloterService.UpdateKloterStatus", err)
+	}
+	current, err := s.kloterRepository.GetForOperator(ctx, op.ID, req.KloterId)
+	if err != nil {
+		return nil, serviceError("KloterService.UpdateKloterStatus", err)
+	}
+	currentIdx := kloterStatusIndex(current.Status)
+	isRollback := current.Status == "CONFIRMED" && req.Status == "DRAFT"
+	if !isRollback && targetIdx <= currentIdx {
+		return nil, serviceError("KloterService.UpdateKloterStatus", errors.New("status kloter hanya bisa maju"))
+	}
+	kloter, err := s.kloterRepository.UpdateStatus(ctx, op.ID, req.KloterId, req.Status)
+	if err != nil {
+		return nil, serviceError("KloterService.UpdateKloterStatus", err)
+	}
+	s.logActivity(ctx, op.ID, "kloter_status_changed", kloter.ID, fmt.Sprintf("Status kloter %s: %s -> %s", kloter.Code, current.Status, req.Status))
+	// Cascade: best-effort, never rolls back the status change itself —
+	// full async event-bus/SSE/push delivery is a later phase, but the
+	// core data effect (bulk journey status) happens synchronously now.
+	if journeyStatus, ok := kloterToJourneyStatus[req.Status]; ok && s.journeyService != nil {
+		if _, err := s.journeyService.bulkUpdateStatus(ctx, op.ID, kloter.ID, journeyStatus, fmt.Sprintf("Cascade dari kloter %s -> %s", kloter.Code, req.Status)); err != nil {
+			sentry.CaptureException(fmt.Errorf("KloterService.UpdateKloterStatus: journey cascade: %w", err))
+		}
+	}
+	return kloterMessage(kloter), nil
+}
+
 func (s *KloterService) DeleteKloter(ctx context.Context, orgID string, req *hajjv1.DeleteKloterRequest) (*emptypb.Empty, error) {
 	if req == nil || strings.TrimSpace(req.KloterId) == "" {
 		return nil, serviceError("KloterService.DeleteKloter", apperror.ErrValidation)
@@ -94,7 +158,7 @@ func (s *KloterService) DeleteKloter(ctx context.Context, orgID string, req *haj
 }
 
 func kloterMessage(k *domain.Kloter) *hajjv1.Kloter {
-	msg := &hajjv1.Kloter{Id: k.ID, SeasonId: k.SeasonID, Code: k.Code, Embarkation: k.Embarkation, FlightNumber: k.FlightNumber, Capacity: k.Capacity, PilgrimCount: k.PilgrimCount}
+	msg := &hajjv1.Kloter{Id: k.ID, SeasonId: k.SeasonID, Code: k.Code, Embarkation: k.Embarkation, FlightNumber: k.FlightNumber, Capacity: k.Capacity, PilgrimCount: k.PilgrimCount, Status: k.Status, Notes: k.Notes}
 	if k.DepartureDate != nil {
 		msg.DepartureDate = timestamppb.New(*k.DepartureDate)
 	}

@@ -191,11 +191,13 @@ export default function TransportDashboard() {
                 <div>
                   <strong style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{modeIcon(movement.mode)}{movement.name}</strong>
                   <p>{movement.origin} → {movement.destination}</p>
+                  {movement.mode === "FLIGHT" && (movement.airline || movement.flightNumber) && <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--color-warm-500)" }}>{[movement.airline, movement.flightNumber].filter(Boolean).join(" · ")}</p>}
                   <small>{movement.scheduledAt?.toDate().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small>
                 </div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <span style={badge(movement.status)}>{statusLabel(movement.status)}</span>
                   {movement.kloterId && <span style={kloterBadge}>{kloterCode(movement.kloterId)}</span>}
+                  {movement.tripLeg && <span style={kloterBadge}>{movement.tripLeg === "DEPARTURE" ? "Keberangkatan" : "Kepulangan"}</span>}
                 </div>
                 <div style={bar}><div style={{ ...fill, width: `${movement.totalCapacity ? (movement.assignedCount / movement.totalCapacity) * 100 : 0}%` }} /></div>
                 <small>{movement.assignedCount}/{movement.totalCapacity} kursi · {movement.vehicleCount} kendaraan</small>

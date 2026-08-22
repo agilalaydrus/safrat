@@ -88,6 +88,26 @@ func (s *LostReportService) Resolve(ctx context.Context, authenticatedOrgID stri
 	return &hajjv1.ResolveLostReportResponse{}, nil
 }
 
+// ResolveForGroup is the leader-facing resolve — EnsureLeaderOwnsGroup keeps
+// a leader from resolving another leader's report by guessing an id, and
+// ResolveForGroup's own group_id-scoped UPDATE enforces it at the DB level.
+func (s *LostReportService) ResolveForGroup(ctx context.Context, authenticatedOrgID string, req *hajjv1.ResolveGroupLostReportRequest) (*hajjv1.ResolveLostReportResponse, error) {
+	if req == nil || !isUUID(req.GroupId) || !isUUID(req.Id) {
+		return nil, serviceError("LostReportService.ResolveForGroup", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("LostReportService.ResolveForGroup", err)
+	}
+	if err := s.groupLeaderRepository.EnsureLeaderOwnsGroup(ctx, operator.ID, req.GroupId, middleware.UserIDFromCtx(ctx)); err != nil {
+		return nil, serviceError("LostReportService.ResolveForGroup", apperror.ErrForbidden)
+	}
+	if err := s.lostReportRepository.ResolveForGroup(ctx, req.GroupId, req.Id); err != nil {
+		return nil, serviceError("LostReportService.ResolveForGroup", err)
+	}
+	return &hajjv1.ResolveLostReportResponse{}, nil
+}
+
 // ListForGroup is the leader-facing view — EnsureLeaderOwnsGroup keeps a
 // leader from listing another leader's group by guessing a group_id.
 func (s *LostReportService) ListForGroup(ctx context.Context, authenticatedOrgID string, req *hajjv1.ListGroupLostReportsRequest) (*hajjv1.ListGroupLostReportsResponse, error) {

@@ -13,8 +13,9 @@ import (
 
 type Movement struct {
 	ID, OperatorID, SeasonID, Name, Origin, Destination, Status, Mode, KloterID string
-	ScheduledAt, CreatedAt                                                     time.Time
-	VehicleCount, TotalCapacity, AssignedCount                                 int32
+	Airline, FlightNumber, TripLeg                                              string
+	ScheduledAt, CreatedAt                                                      time.Time
+	VehicleCount, TotalCapacity, AssignedCount                                  int32
 }
 type Vehicle struct {
 	ID, MovementID, OperatorID, PlateNumber, DriverName, DriverPhone, Status string
@@ -43,7 +44,7 @@ func NewTransportRepository(q *db.Queries, pool *pgxpool.Pool) *TransportReposit
 func (r *TransportRepository) BeginTx(ctx context.Context) (pgx.Tx, error) {
 	return r.pool.BeginTx(ctx, pgx.TxOptions{})
 }
-func (r *TransportRepository) CreateMovement(ctx context.Context, op, season, name, origin, destination, mode, kloterID string, scheduled time.Time) (*Movement, error) {
+func (r *TransportRepository) CreateMovement(ctx context.Context, op, season, name, origin, destination, mode, kloterID, airline, flightNumber, tripLeg string, scheduled time.Time) (*Movement, error) {
 	o, e := pgUUID(op)
 	if e != nil {
 		return nil, e
@@ -52,7 +53,10 @@ func (r *TransportRepository) CreateMovement(ctx context.Context, op, season, na
 	if e != nil {
 		return nil, e
 	}
-	v, e := r.q.CreateMovement(ctx, db.CreateMovementParams{OperatorID: o, SeasonID: s, Name: name, Origin: origin, Destination: destination, ScheduledAt: pgTimestamp(scheduled), Mode: mode, Column8: kloterID})
+	v, e := r.q.CreateMovement(ctx, db.CreateMovementParams{
+		OperatorID: o, SeasonID: s, Name: name, Origin: origin, Destination: destination, ScheduledAt: pgTimestamp(scheduled), Mode: mode, Column8: kloterID,
+		Airline: airline, FlightNumber: flightNumber, TripLeg: tripLeg,
+	})
 	if e != nil {
 		return nil, databaseError(e)
 	}
@@ -88,7 +92,12 @@ func (r *TransportRepository) ListMovements(ctx context.Context, op, season stri
 	}
 	out := make([]*Movement, 0, len(vs))
 	for _, v := range vs {
-		out = append(out, &Movement{ID: uuidString(v.ID), SeasonID: uuidString(v.SeasonID), OperatorID: uuidString(v.OperatorID), Name: v.Name, Origin: v.Origin, Destination: v.Destination, ScheduledAt: v.ScheduledAt.Time, Status: v.Status, Mode: v.Mode, KloterID: nullableUUIDString(v.KloterID), CreatedAt: v.CreatedAt.Time, VehicleCount: v.VehicleCount, TotalCapacity: v.TotalCapacity, AssignedCount: v.AssignedCount})
+		out = append(out, &Movement{
+			ID: uuidString(v.ID), SeasonID: uuidString(v.SeasonID), OperatorID: uuidString(v.OperatorID), Name: v.Name, Origin: v.Origin, Destination: v.Destination,
+			ScheduledAt: v.ScheduledAt.Time, Status: v.Status, Mode: v.Mode, KloterID: nullableUUIDString(v.KloterID), CreatedAt: v.CreatedAt.Time,
+			VehicleCount: v.VehicleCount, TotalCapacity: v.TotalCapacity, AssignedCount: v.AssignedCount,
+			Airline: v.Airline, FlightNumber: v.FlightNumber, TripLeg: v.TripLeg,
+		})
 	}
 	return out, nil
 }
@@ -288,7 +297,11 @@ func (r *TransportRepository) Manifest(ctx context.Context, op, vehicleID string
 	return v, out, nil
 }
 func movement(v db.Movement) *Movement {
-	return &Movement{ID: uuidString(v.ID), SeasonID: uuidString(v.SeasonID), OperatorID: uuidString(v.OperatorID), Name: v.Name, Origin: v.Origin, Destination: v.Destination, ScheduledAt: v.ScheduledAt.Time, Status: v.Status, Mode: v.Mode, KloterID: nullableUUIDString(v.KloterID), CreatedAt: v.CreatedAt.Time}
+	return &Movement{
+		ID: uuidString(v.ID), SeasonID: uuidString(v.SeasonID), OperatorID: uuidString(v.OperatorID), Name: v.Name, Origin: v.Origin, Destination: v.Destination,
+		ScheduledAt: v.ScheduledAt.Time, Status: v.Status, Mode: v.Mode, KloterID: nullableUUIDString(v.KloterID), CreatedAt: v.CreatedAt.Time,
+		Airline: v.Airline, FlightNumber: v.FlightNumber, TripLeg: v.TripLeg,
+	}
 }
 func vehicle(v db.Vehicle) *Vehicle {
 	return &Vehicle{ID: uuidString(v.ID), MovementID: uuidString(v.MovementID), OperatorID: uuidString(v.OperatorID), PlateNumber: v.PlateNumber, Capacity: v.Capacity, DriverName: v.DriverName.String, DriverPhone: v.DriverPhone.String, Status: v.Status, DepartedAt: timestampPtr(v.DepartedAt), ArrivedAt: timestampPtr(v.ArrivedAt), CreatedAt: v.CreatedAt.Time}

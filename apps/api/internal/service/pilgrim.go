@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -214,7 +215,7 @@ func (s *PilgrimService) UpdatePayment(ctx context.Context, authenticatedOrgID s
 	if err != nil {
 		return nil, serviceError("PilgrimService.UpdatePayment", err)
 	}
-	pilgrim, err := s.pilgrimRepository.UpdatePayment(ctx, operator.ID, req.PilgrimId, req.PaymentStatus, req.PaymentReceiptUrl, req.PaymentNotes)
+	pilgrim, err := s.pilgrimRepository.UpdatePayment(ctx, operator.ID, req.PilgrimId, req.PaymentStatus, req.PaymentNotes)
 	if err != nil {
 		return nil, serviceError("PilgrimService.UpdatePayment", err)
 	}
@@ -230,16 +231,24 @@ func (s *PilgrimService) UpdateDocuments(ctx context.Context, authenticatedOrgID
 	if err != nil {
 		return nil, serviceError("PilgrimService.UpdateDocuments", err)
 	}
-	var passportExpiry, vaccineDate *time.Time
+	input := domain.PilgrimDocumentChecklistInput{
+		Passport: req.DocumentsPassport, Photo: req.DocumentsPhoto, Vaccine: req.DocumentsVaccine,
+		KTP: req.DocumentsKtp, KK: req.DocumentsKk, MahramProof: req.DocumentsMahramProof,
+		Visa: req.DocumentsVisa, VisaNumber: req.VisaNumber,
+	}
 	if req.PassportExpiryDate != nil {
 		t := req.PassportExpiryDate.AsTime()
-		passportExpiry = &t
+		input.PassportExpiry = &t
 	}
 	if req.VaccineMeningitisDate != nil {
 		t := req.VaccineMeningitisDate.AsTime()
-		vaccineDate = &t
+		input.VaccineDate = &t
 	}
-	pilgrim, err := s.pilgrimRepository.UpdateDocuments(ctx, operator.ID, req.PilgrimId, req.DocumentsPassport, req.DocumentsPhoto, req.DocumentsVaccine, passportExpiry, vaccineDate)
+	if req.VisaExpiryDate != nil {
+		t := req.VisaExpiryDate.AsTime()
+		input.VisaExpiry = &t
+	}
+	pilgrim, err := s.pilgrimRepository.UpdateDocuments(ctx, operator.ID, req.PilgrimId, input)
 	if err != nil {
 		return nil, serviceError("PilgrimService.UpdateDocuments", err)
 	}
@@ -269,7 +278,20 @@ func (s *PilgrimService) UpdateInsurance(ctx context.Context, authenticatedOrgID
 	if err != nil {
 		return nil, serviceError("PilgrimService.UpdateInsurance", err)
 	}
-	pilgrim, err := s.pilgrimRepository.UpdateInsurance(ctx, operator.ID, req.PilgrimId, req.InsuranceProvider, req.InsurancePolicyNo, req.InsuranceClass, req.BloodType, req.ChronicConditions, req.CurrentMedications)
+	input := domain.PilgrimInsuranceInput{
+		Provider: req.InsuranceProvider, PolicyNo: req.InsurancePolicyNo, Class: req.InsuranceClass,
+		BloodType: req.BloodType, ChronicConditions: req.ChronicConditions, CurrentMedications: req.CurrentMedications,
+		BeneficiaryName: req.InsuranceBeneficiaryName, BeneficiaryRelation: req.InsuranceBeneficiaryRelation,
+	}
+	if req.InsuranceStartDate != nil {
+		t := req.InsuranceStartDate.AsTime()
+		input.StartDate = &t
+	}
+	if req.InsuranceEndDate != nil {
+		t := req.InsuranceEndDate.AsTime()
+		input.EndDate = &t
+	}
+	pilgrim, err := s.pilgrimRepository.UpdateInsurance(ctx, operator.ID, req.PilgrimId, input)
 	if err != nil {
 		return nil, serviceError("PilgrimService.UpdateInsurance", err)
 	}
@@ -311,7 +333,7 @@ func (s *PilgrimService) ListWithExpiringPassports(ctx context.Context, authenti
 	return result, nil
 }
 
-var validDocTypes = map[string]bool{"PASSPORT": true, "PHOTO": true, "VACCINE": true, "OTHER": true}
+var validDocTypes = map[string]bool{"PASSPORT": true, "PHOTO": true, "VACCINE": true, "KTP": true, "SELFIE": true, "KK": true, "MAHRAM_PROOF": true, "VISA": true, "PAYMENT_RECEIPT": true, "OTHER": true}
 
 // CreateDocument is called from the plain HTTP multipart upload endpoint
 // (see main.go), not a Connect handler — it still goes through the service
@@ -330,6 +352,26 @@ func (s *PilgrimService) CreateDocument(ctx context.Context, authenticatedOrgID,
 	document, err := s.pilgrimRepository.CreateDocument(ctx, operator.ID, pilgrimID, docType, fileURL, fileName, "operator")
 	if err != nil {
 		return nil, serviceError("PilgrimService.CreateDocument", err)
+	}
+	return document, nil
+}
+
+// CreateDocumentSelf is the pilgrim self-upload counterpart to
+// CreateDocument — called from the plain HTTP multipart endpoint
+// authenticated by app_access_code (no session, no org), same as the rest
+// of the pilgrim-facing surface. uploaded_by is "pilgrim" so the admin
+// dashboard can tell self-submitted documents apart from operator uploads.
+func (s *PilgrimService) CreateDocumentSelf(ctx context.Context, appAccessCode, docType, fileURL, fileName string) (*domain.PilgrimDocument, error) {
+	if strings.TrimSpace(appAccessCode) == "" || !validDocTypes[docType] || fileURL == "" || fileName == "" {
+		return nil, serviceError("PilgrimService.CreateDocumentSelf", apperror.ErrValidation)
+	}
+	pilgrim, err := s.pilgrimRepository.GetByAppAccessCode(ctx, appAccessCode)
+	if err != nil {
+		return nil, serviceError("PilgrimService.CreateDocumentSelf", apperror.ErrNotFound)
+	}
+	document, err := s.pilgrimRepository.CreateDocument(ctx, pilgrim.OperatorID, pilgrim.ID, docType, fileURL, fileName, "pilgrim")
+	if err != nil {
+		return nil, serviceError("PilgrimService.CreateDocumentSelf", err)
 	}
 	return document, nil
 }
@@ -531,12 +573,19 @@ func pilgrimMessage(value *domain.Pilgrim) *hajjv1.Pilgrim {
 		gender = hajjv1.Gender_GENDER_FEMALE
 	}
 	result := &hajjv1.Pilgrim{Id: value.ID, SeasonId: value.SeasonID, OperatorId: value.OperatorID, GroupId: value.GroupID, FullName: value.FullName, PassportNumber: value.PassportNumber, Nationality: value.Nationality, DateOfBirth: timestamppb.New(value.DateOfBirth), Gender: gender, PhotoUrl: value.PhotoURL, Phone: value.Phone, EmergencyContact: value.EmergencyContact, PreferredLang: value.PreferredLang, MedicalNotes: value.MedicalNotes, RequiresWheelchair: value.RequiresWheelchair, MahramId: value.MahramID, IsSubstituted: value.IsSubstituted, SubstitutedById: value.SubstitutedByID, AppAccessCode: value.AppAccessCode, CreatedAt: timestamppb.New(value.CreatedAt), UpdatedAt: timestamppb.New(value.UpdatedAt), KloterId: value.KloterID, Email: value.Email, HasAccount: value.HasAccount,
-		PaymentStatus: value.PaymentStatus, PaymentReceiptUrl: value.PaymentReceiptURL, PaymentNotes: value.PaymentNotes,
+		PaymentStatus: value.PaymentStatus, PaymentNotes: value.PaymentNotes,
 		EmergencyContactName: value.EmergencyContactName, EmergencyContactPhone: value.EmergencyContactPhone,
 		HotelCheckedIn: value.HotelCheckedIn, DocumentsPassport: value.DocumentsPassport, DocumentsPhoto: value.DocumentsPhoto, DocumentsVaccine: value.DocumentsVaccine,
 		Status:            value.Status,
 		InsuranceProvider: value.InsuranceProvider, InsurancePolicyNo: value.InsurancePolicyNo, InsuranceClass: value.InsuranceClass,
 		BloodType: value.BloodType, ChronicConditions: value.ChronicConditions, CurrentMedications: value.CurrentMedications,
+		Nik: value.NIK, Address: value.Address, KycStatus: value.KYCStatus, KycSource: value.KYCSource,
+		KycVerifiedBy: value.KYCVerifiedBy, KycRejectionReason: value.KYCRejectionReason,
+		DocumentsKtp: value.DocumentsKTP, DocumentsSelfie: value.DocumentsSelfie,
+		PlaceOfBirth: value.PlaceOfBirth, MaritalStatus: value.MaritalStatus, Occupation: value.Occupation, FatherName: value.FatherName,
+		DocumentsKk: value.DocumentsKK, DocumentsMahramProof: value.DocumentsMahramProof,
+		InsuranceBeneficiaryName: value.InsuranceBeneficiaryName, InsuranceBeneficiaryRelation: value.InsuranceBeneficiaryRelation,
+		DocumentsVisa: value.DocumentsVisa, VisaNumber: value.VisaNumber,
 	}
 	if value.PassportExpiryDate != nil {
 		result.PassportExpiryDate = timestamppb.New(*value.PassportExpiryDate)
@@ -544,5 +593,48 @@ func pilgrimMessage(value *domain.Pilgrim) *hajjv1.Pilgrim {
 	if value.VaccineMeningitisDate != nil {
 		result.VaccineMeningitisDate = timestamppb.New(*value.VaccineMeningitisDate)
 	}
+	if value.InsuranceStartDate != nil {
+		result.InsuranceStartDate = timestamppb.New(*value.InsuranceStartDate)
+	}
+	if value.InsuranceEndDate != nil {
+		result.InsuranceEndDate = timestamppb.New(*value.InsuranceEndDate)
+	}
+	if value.VisaExpiryDate != nil {
+		result.VisaExpiryDate = timestamppb.New(*value.VisaExpiryDate)
+	}
+	if value.KYCVerifiedAt != nil {
+		result.KycVerifiedAt = timestamppb.New(*value.KYCVerifiedAt)
+	}
 	return result
+}
+
+func (s *PilgrimService) UpdateKyc(ctx context.Context, authenticatedOrgID string, req *hajjv1.UpdatePilgrimKycRequest) (*hajjv1.Pilgrim, error) {
+	if req == nil || !isUUID(req.PilgrimId) {
+		return nil, serviceError("PilgrimService.UpdateKyc", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("PilgrimService.UpdateKyc", err)
+	}
+	input := domain.PilgrimKYCInput{NIK: req.Nik, Address: req.Address, PlaceOfBirth: req.PlaceOfBirth, MaritalStatus: req.MaritalStatus, Occupation: req.Occupation, FatherName: req.FatherName}
+	pilgrim, err := s.pilgrimRepository.UpdateKYC(ctx, operator.ID, req.PilgrimId, input, "ADMIN")
+	if err != nil {
+		return nil, serviceError("PilgrimService.UpdateKyc", err)
+	}
+	return pilgrimMessage(pilgrim), nil
+}
+
+func (s *PilgrimService) VerifyKyc(ctx context.Context, authenticatedOrgID, verifiedBy string, req *hajjv1.VerifyPilgrimKycRequest) (*hajjv1.Pilgrim, error) {
+	if req == nil || !isUUID(req.PilgrimId) {
+		return nil, serviceError("PilgrimService.VerifyKyc", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("PilgrimService.VerifyKyc", err)
+	}
+	pilgrim, err := s.pilgrimRepository.VerifyKYC(ctx, operator.ID, req.PilgrimId, verifiedBy, req.Approve, req.RejectionReason)
+	if err != nil {
+		return nil, serviceError("PilgrimService.VerifyKyc", err)
+	}
+	return pilgrimMessage(pilgrim), nil
 }

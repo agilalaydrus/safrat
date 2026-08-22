@@ -17,6 +17,10 @@ service LostReportService {
   rpc ListActiveLostReports(ListActiveLostReportsRequest) returns (ListActiveLostReportsResponse);
   rpc ResolveLostReport(ResolveLostReportRequest) returns (ResolveLostReportResponse);
   rpc ListGroupLostReports(ListGroupLostReportsRequest) returns (ListGroupLostReportsResponse);
+
+  // ResolveGroupLostReport is the leader-facing resolve — scoped to a group
+  // the caller leads via EnsureLeaderOwnsGroup, mirroring ListGroupLostReports.
+  rpc ResolveGroupLostReport(ResolveGroupLostReportRequest) returns (ResolveLostReportResponse);
 }
 
 message LostReport {
@@ -53,4 +57,8 @@ message ListGroupLostReportsRequest {
 }
 message ListGroupLostReportsResponse {
   repeated LostReport reports = 1;
+}
+message ResolveGroupLostReportRequest {
+  string group_id = 1 [(buf.validate.field).string.uuid = true];
+  string id = 2 [(buf.validate.field).string.uuid = true];
 }

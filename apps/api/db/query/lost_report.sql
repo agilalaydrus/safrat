@@ -8,6 +8,11 @@ UPDATE lost_reports
 SET status = 'FOUND', resolved_at = NOW()
 WHERE id = $1 AND operator_id = $2;
 
+-- name: ResolveGroupLostReport :execrows
+UPDATE lost_reports
+SET status = 'FOUND', resolved_at = NOW()
+WHERE id = $1 AND group_id = $2;
+
 -- name: ListActiveLostReports :many
 SELECT lr.*, p.full_name, p.phone, g.name AS group_name
 FROM lost_reports lr

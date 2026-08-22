@@ -13,11 +13,11 @@ import RoomFormDialog from "./RoomFormDialog";
 export default function AccommodationRoomsDashboard({ hotelId }: { hotelId: string }) {
   const [hotel, setHotel] = useState<Hotel>(); const [rooms, setRooms] = useState<Room[]>([]); const [manifests, setManifests] = useState<Record<string, RoomManifest>>({}); const [selected, setSelected] = useState<Room | null>(null); const [roomOpen, setRoomOpen] = useState(false); const [bulkOpen, setBulkOpen] = useState(false); const [notice, setNotice] = useState(""); const [loading, setLoading] = useState(true); const [allocatedPilgrimIds, setAllocatedPilgrimIds] = useState<Set<string>>(new Set());
   const refresh = async () => { setLoading(true); try { const [hotelValue, roomsResponse] = await Promise.all([accommodationClient.getHotel({ hotelId }), accommodationClient.listRooms({ hotelId })]); setHotel(hotelValue); setRooms(roomsResponse.rooms); const pairs = await Promise.all(roomsResponse.rooms.map(async (room) => [room.id, await accommodationClient.getRoomManifest({ roomId: room.id })] as const)); setManifests(Object.fromEntries(pairs));
-    // A pilgrim can only ever hold one room total (DB-enforced), so "already
-    // has a room" must be checked season-wide, not just against this hotel's
-    // own rooms — otherwise someone housed at another hotel still shows up
-    // as an assignable candidate here.
-    if (hotelValue.seasonId) { const assignments = await accommodationClient.listPilgrimRoomAssignments({ seasonId: hotelValue.seasonId }); setAllocatedPilgrimIds(new Set(assignments.assignments.map((a) => a.pilgrimId))); }
+    // A pilgrim can hold one room PER HOTEL (Makkah + Madinah are both
+    // valid at once) — so "already has a room" only excludes them here if
+    // that room is in THIS hotel; being housed elsewhere doesn't disqualify
+    // them from also getting a room in this one.
+    if (hotelValue.seasonId) { const assignments = await accommodationClient.listPilgrimRoomAssignments({ seasonId: hotelValue.seasonId }); setAllocatedPilgrimIds(new Set(assignments.assignments.filter((a) => a.hotelId === hotelId).map((a) => a.pilgrimId))); }
   } catch { setNotice("Gagal memuat data kamar hotel."); } finally { setLoading(false); } };
   useEffect(() => { void refresh(); }, [hotelId]);
   const byFloor = useMemo(() => rooms.reduce<Record<string, Room[]>>((groups, room) => { const floor = room.floor ? `Lantai ${room.floor}` : "Lantai belum ditentukan"; (groups[floor] ??= []).push(room); return groups; }, {}), [rooms]);

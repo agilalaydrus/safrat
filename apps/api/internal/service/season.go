@@ -195,6 +195,19 @@ func seasonTypeMessage(value domain.SeasonType) hajjv1.SeasonType {
 	}
 }
 
+// ResolveSeasonSlug is public — see publicProcedures in
+// internal/middleware/auth.go. Same reasoning as OperatorService.ResolveSlug.
+func (s *SeasonService) ResolveSeasonSlug(ctx context.Context, request *hajjv1.ResolveSeasonSlugRequest) (*hajjv1.ResolveSeasonSlugResponse, error) {
+	if request == nil || request.OperatorId == "" || request.Slug == "" {
+		return nil, serviceError("SeasonService.ResolveSeasonSlug", apperror.ErrValidation)
+	}
+	season, err := s.seasonRepository.GetBySlug(ctx, request.OperatorId, request.Slug)
+	if err != nil {
+		return nil, serviceError("SeasonService.ResolveSeasonSlug", err)
+	}
+	return &hajjv1.ResolveSeasonSlugResponse{SeasonId: season.ID, Name: season.Name}, nil
+}
+
 func seasonMessage(value *domain.Season) *hajjv1.Season {
 	return &hajjv1.Season{
 		Id:         value.ID,
@@ -206,5 +219,6 @@ func seasonMessage(value *domain.Season) *hajjv1.Season {
 		IsActive:   value.IsActive,
 		CreatedAt:  timestamppb.New(value.CreatedAt),
 		Capacity:   value.Capacity,
+		Slug:       value.Slug,
 	}
 }

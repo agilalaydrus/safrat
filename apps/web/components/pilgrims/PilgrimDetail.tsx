@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { IconAward, IconEdit, IconReceipt2, IconShare, IconUser } from "@tabler/icons-react";
+import { IconAward, IconEdit, IconShare, IconUser } from "@tabler/icons-react";
 import { Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { pilgrimClient, groupClient } from "@/lib/rpc";
 import PilgrimFormDialog from "./PilgrimFormDialog";
 import PilgrimDocumentsPanel from "./PilgrimDocumentsPanel";
+import ShareLinkDialog from "./ShareLinkDialog";
 import { RoleGate } from "@/components/auth/RoleGate";
 
 export default function PilgrimDetail({ id }: { id: string }) {
@@ -22,6 +23,7 @@ export default function PilgrimDetail({ id }: { id: string }) {
   const [substitutionReason, setSubstitutionReason] = useState("");
   const [substituting, setSubstituting] = useState(false);
   const [notice, setNotice] = useState("");
+  const [shareLink, setShareLink] = useState<{ title: string; url: string }>();
 
   useEffect(() => {
     pilgrimClient.getPilgrim({ pilgrimId: id }).then(setPilgrim).catch(() => setNotice("Gagal memuat data jamaah."));
@@ -69,9 +71,8 @@ export default function PilgrimDetail({ id }: { id: string }) {
     <header style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", marginTop: 20 }}>
       <div><p style={eyebrow}>PROFIL JAMAAH</p><h1 style={{ margin: 0, fontSize: 40 }}>{pilgrim.fullName}</h1></div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/track/${pilgrim.appAccessCode}`); setNotice("Tautan pelacak keluarga disalin!"); }} style={ghostBtn}><IconShare size={18} />Bagikan ke Keluarga</button>
-        <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/certificate/${pilgrim.appAccessCode}`); setNotice("Tautan sertifikat disalin!"); }} style={ghostBtn}><IconAward size={18} />Bagikan Sertifikat</button>
-        <Link href={`/dashboard/pilgrims/${id}/invoice`} target="_blank" style={{ ...gold, textDecoration: "none" }}><IconReceipt2 size={18} />Cetak Invoice</Link>
+        <button onClick={() => setShareLink({ title: "Bagikan ke Keluarga", url: `${window.location.origin}/track/${pilgrim.appAccessCode}` })} style={ghostBtn}><IconShare size={18} />Bagikan ke Keluarga</button>
+        <button onClick={() => setShareLink({ title: "Bagikan Sertifikat", url: `${window.location.origin}/certificate/${pilgrim.appAccessCode}` })} style={ghostBtn}><IconAward size={18} />Bagikan Sertifikat</button>
         <button onClick={() => setEdit(true)} style={emerald}><IconEdit size={18} />Ubah</button>
       </div>
     </header>
@@ -89,7 +90,7 @@ export default function PilgrimDetail({ id }: { id: string }) {
       </section>
       <aside style={card}>
         <h2>Penempatan</h2>
-        <Details values={[["Rombongan", pilgrim.groupId ? (group?.name ?? "Memuat...") : "Belum ditentukan"], ["Muttawwif", pilgrim.groupId ? (group?.leaderName || "Belum ada Muttawwif") : "-"], ["Kamar", "Belum ditentukan"], ["Kendaraan", "Belum ditentukan"]]} />
+        <Details values={[["Grup", pilgrim.groupId ? (group?.name ?? "Memuat...") : "Belum ditentukan"], ["Muttawwif", pilgrim.groupId ? (group?.leaderName || "Belum ada Muttawwif") : "-"], ["Kamar", "Belum ditentukan"], ["Kendaraan", "Belum ditentukan"]]} />
         <div className="gold-divider" />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0 }}>Penggantian Jamaah</h2>
@@ -121,6 +122,7 @@ export default function PilgrimDetail({ id }: { id: string }) {
     </div> : <PilgrimDocumentsPanel pilgrim={pilgrim} onUpdated={setPilgrim} />}
     {notice && <p role="status">{notice}</p>}
     <PilgrimFormDialog open={edit} onClose={() => setEdit(false)} seasonId={pilgrim.seasonId} pilgrims={[pilgrim]} initial={pilgrim} onSaved={() => { setNotice("Data jamaah diperbarui"); pilgrimClient.getPilgrim({ pilgrimId: id }).then(setPilgrim); }} />
+    {shareLink && <ShareLinkDialog title={shareLink.title} url={shareLink.url} onClose={() => setShareLink(undefined)} />}
   </main>;
 }
 
@@ -134,7 +136,6 @@ const card: React.CSSProperties = { background: "var(--color-cream-200)", border
 const avatar: React.CSSProperties = { width: 80, height: 80, borderRadius: "50%", display: "grid", placeItems: "center", background: "var(--color-emerald-50)", color: "var(--color-emerald-900)" };
 const eyebrow: React.CSSProperties = { margin: "0 0 6px", fontSize: 11, fontWeight: 700, color: "var(--color-gold-800)", letterSpacing: ".08em" };
 const emerald: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, background: "var(--color-emerald-900)", color: "white", fontWeight: 700, padding: "0 18px", display: "inline-flex", gap: 8, alignItems: "center" };
-const gold: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, background: "var(--color-gold-500)", color: "white", fontWeight: 700, padding: "0 18px", display: "inline-flex", gap: 8, alignItems: "center" };
 const ghostBtn: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-emerald-800)", borderRadius: 8, background: "transparent", color: "var(--color-emerald-900)", fontWeight: 600, padding: "0 16px", display: "inline-flex", gap: 8, alignItems: "center" };
 const disabled: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-cream-400)", borderRadius: 8, background: "var(--color-cream-300)", color: "var(--color-warm-400)", padding: "0 14px" };
 const danger: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, background: "var(--color-danger-600)", color: "white", fontWeight: 700, padding: "0 14px" };

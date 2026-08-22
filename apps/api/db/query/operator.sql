@@ -1,8 +1,14 @@
 -- name: CreateOperator :one
-INSERT INTO operators (better_auth_org_id, name, country, email, license_number)
-VALUES ($1, $2, $3, $4, NULLIF($5, ''))
+INSERT INTO operators (better_auth_org_id, name, country, email, license_number, slug)
+VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6)
 ON CONFLICT (better_auth_org_id) DO NOTHING
 RETURNING *;
+
+-- name: OperatorSlugExists :one
+SELECT EXISTS(SELECT 1 FROM operators WHERE slug = $1);
+
+-- name: GetOperatorBySlug :one
+SELECT * FROM operators WHERE slug = $1;
 
 -- name: UpdateOperator :one
 UPDATE operators

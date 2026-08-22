@@ -61,7 +61,7 @@ export default function PilgrimChatPage() {
     <main style={page}>
       {offline && <p style={offlineBanner}><IconWifiOff size={16} />Menampilkan pesan tersimpan — Anda sedang offline</p>}
       <div style={list}>
-        {messages.length === 0 && <p style={{ color: "var(--color-warm-400)", textAlign: "center", marginTop: 40 }}>Belum ada pesan. Sapa rombongan Anda.</p>}
+        {messages.length === 0 && <p style={{ color: "var(--color-warm-400)", textAlign: "center", marginTop: 40 }}>Belum ada pesan. Sapa grup Anda.</p>}
         {messages.map((message) => (
           <div key={message.id} style={{ ...bubble, ...(message.fromPilgrim ? mine : theirs) }}>
             {!message.fromPilgrim && <p style={sender}>{message.senderName}</p>}
@@ -71,7 +71,7 @@ export default function PilgrimChatPage() {
         <div ref={bottomRef} />
       </div>
       <form onSubmit={submit} style={composer}>
-        <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Kirim pesan ke rombongan Anda..." style={input} />
+        <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Kirim pesan ke grup Anda..." style={input} />
         <button disabled={sending || !draft.trim()} style={sendButton} aria-label="Send"><IconSend size={20} /></button>
       </form>
     </main>

@@ -483,5 +483,187 @@ func (s *AgentService) Delete(ctx context.Context, orgID string, req *hajjv1.Del
 	return &hajjv1.DeleteAgentResponse{}, nil
 }
 func agentMessage(agent *domain.Agent) *hajjv1.Agent {
-	return &hajjv1.Agent{Id: agent.ID, OperatorId: agent.OperatorID, Name: agent.Name, Phone: agent.Phone, Email: agent.Email, CommissionRate: agent.CommissionRate, Notes: agent.Notes, IsActive: agent.IsActive, PilgrimCount: agent.PilgrimCount, ReferralCode: agent.ReferralCode, Tier: agent.Tier, ReferredByAgentId: agent.ReferredByAgentID, CreatedAt: timestamppb.New(agent.CreatedAt), UpdatedAt: timestamppb.New(agent.UpdatedAt)}
+	result := &hajjv1.Agent{
+		Id: agent.ID, OperatorId: agent.OperatorID, Name: agent.Name, Phone: agent.Phone, Email: agent.Email, CommissionRate: agent.CommissionRate,
+		Notes: agent.Notes, IsActive: agent.IsActive, PilgrimCount: agent.PilgrimCount, ReferralCode: agent.ReferralCode, Tier: agent.Tier,
+		ReferredByAgentId: agent.ReferredByAgentID, CreatedAt: timestamppb.New(agent.CreatedAt), UpdatedAt: timestamppb.New(agent.UpdatedAt),
+		Nik: agent.NIK, Npwp: agent.NPWP, Address: agent.Address, PassportNumber: agent.PassportNumber,
+		BankName: agent.BankName, BankAccountNumber: agent.BankAccountNumber, BankAccountHolder: agent.BankAccountHolder,
+		KycStatus: agent.KYCStatus, KycSource: agent.KYCSource, KycVerifiedBy: agent.KYCVerifiedBy, KycRejectionReason: agent.KYCRejectionReason,
+	}
+	if agent.DateOfBirth != nil {
+		result.DateOfBirth = timestamppb.New(*agent.DateOfBirth)
+	}
+	if agent.PassportExpiryDate != nil {
+		result.PassportExpiryDate = timestamppb.New(*agent.PassportExpiryDate)
+	}
+	if agent.KYCVerifiedAt != nil {
+		result.KycVerifiedAt = timestamppb.New(*agent.KYCVerifiedAt)
+	}
+	return result
+}
+
+func agentKycInputFromRequest(nik, npwp, address string, dateOfBirth *timestamppb.Timestamp, passportNumber string, passportExpiryDate *timestamppb.Timestamp, bankName, bankAccountNumber, bankAccountHolder string) domain.AgentKYCInput {
+	input := domain.AgentKYCInput{NIK: nik, NPWP: npwp, Address: address, PassportNumber: passportNumber, BankName: bankName, BankAccountNumber: bankAccountNumber, BankAccountHolder: bankAccountHolder}
+	if dateOfBirth != nil {
+		t := dateOfBirth.AsTime()
+		input.DateOfBirth = &t
+	}
+	if passportExpiryDate != nil {
+		t := passportExpiryDate.AsTime()
+		input.PassportExpiryDate = &t
+	}
+	return input
+}
+
+func (s *AgentService) UpdateKyc(ctx context.Context, authenticatedOrgID string, req *hajjv1.UpdateAgentKycRequest) (*hajjv1.Agent, error) {
+	if req == nil || req.AgentId == "" {
+		return nil, serviceError("AgentService.UpdateKyc", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("AgentService.UpdateKyc", err)
+	}
+	input := agentKycInputFromRequest(req.Nik, req.Npwp, req.Address, req.DateOfBirth, req.PassportNumber, req.PassportExpiryDate, req.BankName, req.BankAccountNumber, req.BankAccountHolder)
+	agent, err := s.agentRepository.UpdateKYC(ctx, op.ID, req.AgentId, input, "ADMIN")
+	if err != nil {
+		return nil, serviceError("AgentService.UpdateKyc", err)
+	}
+	return agentMessage(agent), nil
+}
+
+func (s *AgentService) VerifyKyc(ctx context.Context, authenticatedOrgID, verifiedBy string, req *hajjv1.VerifyAgentKycRequest) (*hajjv1.Agent, error) {
+	if req == nil || req.AgentId == "" {
+		return nil, serviceError("AgentService.VerifyKyc", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("AgentService.VerifyKyc", err)
+	}
+	agent, err := s.agentRepository.VerifyKYC(ctx, op.ID, req.AgentId, verifiedBy, req.Approve, req.RejectionReason)
+	if err != nil {
+		return nil, serviceError("AgentService.VerifyKyc", err)
+	}
+	return agentMessage(agent), nil
+}
+
+// SubmitMyKyc and GetMyKyc resolve "which agent" from the caller's own
+// Better Auth identity, same as GetMyWallet — never trust an agent_id from
+// the request. Works for both a real Agent and a Muttawwif (every leader
+// has an agent row via EnsureAgentForLeader).
+func (s *AgentService) SubmitMyKyc(ctx context.Context, orgID, userID string, req *hajjv1.SubmitMyAgentKycRequest) (*hajjv1.Agent, error) {
+	if req == nil {
+		return nil, serviceError("AgentService.SubmitMyKyc", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("AgentService.SubmitMyKyc", err)
+	}
+	self, err := s.agentRepository.GetByLinkedUser(ctx, op.ID, userID)
+	if err != nil {
+		return nil, serviceError("AgentService.SubmitMyKyc", err)
+	}
+	input := agentKycInputFromRequest(req.Nik, req.Npwp, req.Address, req.DateOfBirth, req.PassportNumber, req.PassportExpiryDate, req.BankName, req.BankAccountNumber, req.BankAccountHolder)
+	agent, err := s.agentRepository.UpdateKYC(ctx, op.ID, self.ID, input, "SELF")
+	if err != nil {
+		return nil, serviceError("AgentService.SubmitMyKyc", err)
+	}
+	return agentMessage(agent), nil
+}
+
+func (s *AgentService) GetMyKyc(ctx context.Context, orgID, userID string) (*hajjv1.Agent, error) {
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("AgentService.GetMyKyc", err)
+	}
+	self, err := s.agentRepository.GetByLinkedUser(ctx, op.ID, userID)
+	if err != nil {
+		return nil, serviceError("AgentService.GetMyKyc", err)
+	}
+	return agentMessage(self), nil
+}
+
+var validAgentDocTypes = map[string]bool{"KTP": true, "PASSPORT": true, "SELFIE": true, "NPWP": true, "BANK_BOOK": true, "OTHER": true}
+
+// CreateDocument is called from the plain HTTP multipart upload endpoint
+// (see main.go) by an admin, uploaded_by "operator".
+func (s *AgentService) CreateDocument(ctx context.Context, authenticatedOrgID, agentID, docType, fileURL, fileName string) (*domain.AgentDocument, error) {
+	if agentID == "" || !validAgentDocTypes[docType] || fileURL == "" || fileName == "" {
+		return nil, serviceError("AgentService.CreateDocument", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("AgentService.CreateDocument", err)
+	}
+	document, err := s.agentRepository.CreateDocument(ctx, op.ID, agentID, docType, fileURL, fileName, "operator")
+	if err != nil {
+		return nil, serviceError("AgentService.CreateDocument", err)
+	}
+	return document, nil
+}
+
+// CreateDocumentSelf is the Agent/Muttawwif self-upload counterpart —
+// resolves "which agent" from the caller's own identity, same as
+// GetMyWallet, uploaded_by "self".
+func (s *AgentService) CreateDocumentSelf(ctx context.Context, orgID, userID, docType, fileURL, fileName string) (*domain.AgentDocument, error) {
+	if !validAgentDocTypes[docType] || fileURL == "" || fileName == "" {
+		return nil, serviceError("AgentService.CreateDocumentSelf", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("AgentService.CreateDocumentSelf", err)
+	}
+	self, err := s.agentRepository.GetByLinkedUser(ctx, op.ID, userID)
+	if err != nil {
+		return nil, serviceError("AgentService.CreateDocumentSelf", err)
+	}
+	document, err := s.agentRepository.CreateDocument(ctx, op.ID, self.ID, docType, fileURL, fileName, "self")
+	if err != nil {
+		return nil, serviceError("AgentService.CreateDocumentSelf", err)
+	}
+	return document, nil
+}
+
+func agentDocumentMessage(doc *domain.AgentDocument) *hajjv1.AgentDocument {
+	return &hajjv1.AgentDocument{Id: doc.ID, AgentId: doc.AgentID, DocType: doc.DocType, FileUrl: doc.FileURL, FileName: doc.FileName, UploadedBy: doc.UploadedBy, CreatedAt: timestamppb.New(doc.CreatedAt)}
+}
+
+func (s *AgentService) ListDocuments(ctx context.Context, authenticatedOrgID string, req *hajjv1.ListAgentDocumentsRequest) (*hajjv1.ListAgentDocumentsResponse, error) {
+	if req == nil || req.AgentId == "" {
+		return nil, serviceError("AgentService.ListDocuments", apperror.ErrValidation)
+	}
+	if _, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID); err != nil {
+		return nil, serviceError("AgentService.ListDocuments", err)
+	}
+	documents, err := s.agentRepository.ListDocuments(ctx, req.AgentId)
+	if err != nil {
+		return nil, serviceError("AgentService.ListDocuments", err)
+	}
+	result := &hajjv1.ListAgentDocumentsResponse{Documents: make([]*hajjv1.AgentDocument, 0, len(documents))}
+	for _, doc := range documents {
+		result.Documents = append(result.Documents, agentDocumentMessage(doc))
+	}
+	return result, nil
+}
+
+// ListMyDocuments resolves "which agent" from the caller's own identity,
+// same as GetMyWallet.
+func (s *AgentService) ListMyDocuments(ctx context.Context, orgID, userID string) (*hajjv1.ListAgentDocumentsResponse, error) {
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("AgentService.ListMyDocuments", err)
+	}
+	self, err := s.agentRepository.GetByLinkedUser(ctx, op.ID, userID)
+	if err != nil {
+		return nil, serviceError("AgentService.ListMyDocuments", err)
+	}
+	documents, err := s.agentRepository.ListDocuments(ctx, self.ID)
+	if err != nil {
+		return nil, serviceError("AgentService.ListMyDocuments", err)
+	}
+	result := &hajjv1.ListAgentDocumentsResponse{Documents: make([]*hajjv1.AgentDocument, 0, len(documents))}
+	for _, doc := range documents {
+		result.Documents = append(result.Documents, agentDocumentMessage(doc))
+	}
+	return result, nil
 }

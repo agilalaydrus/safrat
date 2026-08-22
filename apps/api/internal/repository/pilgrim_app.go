@@ -31,7 +31,36 @@ func (r *PilgrimRepository) GetAppInfo(ctx context.Context, appAccessCode string
 		KloterFlightNumber:  row.KloterFlightNumber.String,
 		KloterDepartureDate: timestamptzPtr(row.KloterDepartureDate),
 		LinkedGoogleEmail:   row.LinkedGoogleEmail.String,
+		Phone:               row.Phone.String,
+		NIK:                 row.Nik,
+		Address:             row.Address,
+		KYCStatus:           row.KycStatus,
+		KYCRejectionReason:  row.KycRejectionReason,
+		PlaceOfBirth:        row.PlaceOfBirth,
+		MaritalStatus:       row.MaritalStatus,
+		Occupation:          row.Occupation,
+		FatherName:          row.FatherName,
+		Status:              row.Status,
+		PaymentStatus:       row.PaymentStatus,
 	}, nil
+}
+
+// ListHotelStays returns every hotel this pilgrim has a room in — GetAppInfo's
+// HotelName/RoomNumber is just a "most recent" display summary.
+func (r *PilgrimRepository) ListHotelStays(ctx context.Context, appAccessCode string) ([]domain.HotelStay, error) {
+	rows, err := r.queries.ListPilgrimHotelStays(ctx, appAccessCode)
+	if err != nil {
+		return nil, err
+	}
+	stays := make([]domain.HotelStay, 0, len(rows))
+	for _, row := range rows {
+		stays = append(stays, domain.HotelStay{
+			HotelName:  row.HotelName,
+			RoomNumber: row.RoomNumber,
+			RoomType:   row.RoomType,
+		})
+	}
+	return stays, nil
 }
 
 // LinkGoogleAccount ties the pilgrim behind app_access_code to a real
@@ -110,7 +139,11 @@ func (r *PilgrimRepository) ListUpcomingMovements(ctx context.Context, operatorI
 	}
 	result := make([]*Movement, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, &Movement{ID: uuidString(row.ID), SeasonID: uuidString(row.SeasonID), OperatorID: uuidString(row.OperatorID), Name: row.Name, Origin: row.Origin, Destination: row.Destination, ScheduledAt: row.ScheduledAt.Time, Status: row.Status, Mode: row.Mode, KloterID: nullableUUIDString(row.KloterID), CreatedAt: row.CreatedAt.Time})
+		result = append(result, &Movement{
+			ID: uuidString(row.ID), SeasonID: uuidString(row.SeasonID), OperatorID: uuidString(row.OperatorID), Name: row.Name, Origin: row.Origin, Destination: row.Destination,
+			ScheduledAt: row.ScheduledAt.Time, Status: row.Status, Mode: row.Mode, KloterID: nullableUUIDString(row.KloterID), CreatedAt: row.CreatedAt.Time,
+			Airline: row.Airline, FlightNumber: row.FlightNumber, TripLeg: row.TripLeg,
+		})
 	}
 	return result, nil
 }

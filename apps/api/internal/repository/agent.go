@@ -36,6 +36,93 @@ func (r *AgentRepository) Create(ctx context.Context, operatorID, name, phone, e
 // group's leader) never creates a duplicate. Pre-fills name/email from
 // their real account instead of a blank form; commission_rate/tier/
 // referral_code all take the same column defaults CreateAgent relies on.
+// UpdateKYC is used both by an admin editing an agent/Muttawwif's KYC
+// fields and by the caller submitting their own (kycSource distinguishes
+// which) — resets status to PENDING_REVIEW and clears prior verification.
+func (r *AgentRepository) UpdateKYC(ctx context.Context, operatorID, agentID string, input domain.AgentKYCInput, kycSource string) (*domain.Agent, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	agentUUID, err := pgUUID(agentID)
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.queries.UpdateAgentKyc(ctx, db.UpdateAgentKycParams{
+		ID: agentUUID, OperatorID: opUUID, Nik: input.NIK, Npwp: input.NPWP, Address: input.Address,
+		DateOfBirth: pgDate(input.DateOfBirth), PassportNumber: input.PassportNumber, PassportExpiryDate: pgDate(input.PassportExpiryDate),
+		BankName: input.BankName, BankAccountNumber: input.BankAccountNumber, BankAccountHolder: input.BankAccountHolder,
+		KycStatus: "PENDING_REVIEW", KycSource: kycSource,
+	})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toAgent(row, 0), nil
+}
+
+func (r *AgentRepository) VerifyKYC(ctx context.Context, operatorID, agentID, verifiedBy string, approve bool, rejectionReason string) (*domain.Agent, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	agentUUID, err := pgUUID(agentID)
+	if err != nil {
+		return nil, err
+	}
+	status := "VERIFIED"
+	if !approve {
+		status = "REJECTED"
+	}
+	row, err := r.queries.VerifyAgentKyc(ctx, db.VerifyAgentKycParams{
+		ID: agentUUID, OperatorID: opUUID, KycStatus: status, KycVerifiedBy: verifiedBy, KycRejectionReason: rejectionReason,
+	})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toAgent(row, 0), nil
+}
+
+func (r *AgentRepository) CreateDocument(ctx context.Context, operatorID, agentID, docType, fileURL, fileName, uploadedBy string) (*domain.AgentDocument, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	agentUUID, err := pgUUID(agentID)
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.queries.CreateAgentDocument(ctx, db.CreateAgentDocumentParams{
+		AgentID: agentUUID, OperatorID: opUUID, DocType: docType, FileUrl: fileURL, FileName: fileName, UploadedBy: uploadedBy,
+	})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toAgentDocument(row), nil
+}
+
+func (r *AgentRepository) ListDocuments(ctx context.Context, agentID string) ([]*domain.AgentDocument, error) {
+	agentUUID, err := pgUUID(agentID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListAgentDocuments(ctx, agentUUID)
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	result := make([]*domain.AgentDocument, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, toAgentDocument(row))
+	}
+	return result, nil
+}
+
+func toAgentDocument(value db.AgentDocument) *domain.AgentDocument {
+	return &domain.AgentDocument{
+		ID: uuid.UUID(value.ID.Bytes).String(), AgentID: uuid.UUID(value.AgentID.Bytes).String(),
+		DocType: value.DocType, FileURL: value.FileUrl, FileName: value.FileName, UploadedBy: value.UploadedBy, CreatedAt: value.CreatedAt.Time,
+	}
+}
+
 func (r *AgentRepository) EnsureAgentForLeader(ctx context.Context, operatorID, userID string) error {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
@@ -461,5 +548,12 @@ func toAgent(agent db.Agent, pilgrimCount int32) *domain.Agent {
 	if agent.ReferredByAgentID.Valid {
 		referredBy = uuid.UUID(agent.ReferredByAgentID.Bytes).String()
 	}
-	return &domain.Agent{ID: uuid.UUID(agent.ID.Bytes).String(), OperatorID: uuid.UUID(agent.OperatorID.Bytes).String(), Name: agent.Name, Phone: agent.Phone, Email: agent.Email, CommissionRate: agent.CommissionRate, Notes: agent.Notes, IsActive: agent.IsActive, PilgrimCount: pilgrimCount, ReferralCode: agent.ReferralCode, Tier: agent.Tier, ReferredByAgentID: referredBy, CreatedAt: agent.CreatedAt.Time, UpdatedAt: agent.UpdatedAt.Time}
+	return &domain.Agent{
+		ID: uuid.UUID(agent.ID.Bytes).String(), OperatorID: uuid.UUID(agent.OperatorID.Bytes).String(), Name: agent.Name, Phone: agent.Phone, Email: agent.Email,
+		CommissionRate: agent.CommissionRate, Notes: agent.Notes, IsActive: agent.IsActive, PilgrimCount: pilgrimCount, ReferralCode: agent.ReferralCode, Tier: agent.Tier,
+		ReferredByAgentID: referredBy, CreatedAt: agent.CreatedAt.Time, UpdatedAt: agent.UpdatedAt.Time,
+		NIK: agent.Nik, NPWP: agent.Npwp, Address: agent.Address, DateOfBirth: datePtr(agent.DateOfBirth), PassportNumber: agent.PassportNumber,
+		PassportExpiryDate: datePtr(agent.PassportExpiryDate), BankName: agent.BankName, BankAccountNumber: agent.BankAccountNumber, BankAccountHolder: agent.BankAccountHolder,
+		KYCStatus: agent.KycStatus, KYCSource: agent.KycSource, KYCVerifiedBy: agent.KycVerifiedBy, KYCVerifiedAt: timestamptzPtr(agent.KycVerifiedAt), KYCRejectionReason: agent.KycRejectionReason,
+	}
 }

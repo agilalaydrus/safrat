@@ -71,7 +71,7 @@ export default function LeaderChatPage() {
         <div ref={bottomRef} />
       </div>
       <form onSubmit={submit} style={composer}>
-        <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Kirim pesan ke rombongan ini..." style={input} />
+        <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Kirim pesan ke grup ini..." style={input} />
         <button disabled={sending || !draft.trim()} style={sendButton} aria-label="Send"><IconSend size={20} /></button>
       </form>
     </main>

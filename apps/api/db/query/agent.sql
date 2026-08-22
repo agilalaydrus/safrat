@@ -66,6 +66,29 @@ RETURNING *;
 -- name: GetUserForAgent :one
 SELECT id, name, email FROM "user" WHERE id = $1;
 
+-- name: UpdateAgentKyc :one
+UPDATE agents
+SET nik = $3, npwp = $4, address = $5, date_of_birth = $6, passport_number = $7,
+    passport_expiry_date = $8, bank_name = $9, bank_account_number = $10, bank_account_holder = $11,
+    kyc_status = $12, kyc_source = $13, kyc_verified_by = '', kyc_verified_at = NULL, kyc_rejection_reason = '',
+    updated_at = NOW()
+WHERE id = $1 AND operator_id = $2
+RETURNING *;
+
+-- name: VerifyAgentKyc :one
+UPDATE agents
+SET kyc_status = $3, kyc_verified_by = $4, kyc_verified_at = NOW(), kyc_rejection_reason = $5, updated_at = NOW()
+WHERE id = $1 AND operator_id = $2
+RETURNING *;
+
+-- name: CreateAgentDocument :one
+INSERT INTO agent_documents (agent_id, operator_id, doc_type, file_url, file_name, uploaded_by)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING *;
+
+-- name: ListAgentDocuments :many
+SELECT * FROM agent_documents WHERE agent_id = $1 ORDER BY created_at DESC;
+
 -- name: ListMyPilgrims :many
 -- Agent-facing: list pilgrims referred by this agent, across all seasons.
 SELECT

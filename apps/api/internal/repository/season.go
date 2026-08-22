@@ -2,14 +2,33 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	"github.com/hajj-saas/api/internal/gen/db"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+var (
+	seasonSlugStripPattern = regexp.MustCompile(`[^a-z0-9]+`)
+	seasonSlugTrimHyphens  = regexp.MustCompile(`(^-|-$)`)
+)
+
+// seasonSlugBase slugifies the FULL season name (unlike operator slugs,
+// which use only the first word) — a season's full name is what actually
+// distinguishes it, e.g. "Musim Haji 2025" vs "Musim Haji 2026" would
+// otherwise both collide on "musim".
+func seasonSlugBase(name string) string {
+	lowered := seasonSlugStripPattern.ReplaceAllString(strings.ToLower(strings.TrimSpace(name)), "-")
+	return seasonSlugTrimHyphens.ReplaceAllString(lowered, "")
+}
 
 type SeasonRepository struct {
 	queries *db.Queries
@@ -24,6 +43,10 @@ func (r *SeasonRepository) Create(ctx context.Context, operatorID, name string, 
 	if err != nil {
 		return nil, err
 	}
+	slug, err := r.uniqueSlug(ctx, operatorUUID, name)
+	if err != nil {
+		return nil, err
+	}
 	season, err := r.queries.CreateSeason(ctx, db.CreateSeasonParams{
 		OperatorID: operatorUUID,
 		Name:       name,
@@ -31,7 +54,61 @@ func (r *SeasonRepository) Create(ctx context.Context, operatorID, name string, 
 		StartDate:  pgTimestamp(startDate),
 		EndDate:    pgTimestamp(endDate),
 		Capacity:   capacity,
+		Slug:       pgtype.Text{String: slug, Valid: slug != ""},
 	})
+	if err != nil {
+		return nil, err
+	}
+	return toSeason(season), nil
+}
+
+// uniqueSlug mirrors OperatorRepository.uniqueSlug — same bounded-retry
+// approach, scoped per operator instead of globally.
+func (r *SeasonRepository) uniqueSlug(ctx context.Context, operatorUUID pgtype.UUID, name string) (string, error) {
+	base := seasonSlugBase(name)
+	if base == "" {
+		return "", nil
+	}
+	for attempt := 1; attempt <= 50; attempt++ {
+		candidate := base
+		if attempt > 1 {
+			candidate = fmt.Sprintf("%s-%d", base, attempt)
+		}
+		exists, err := r.queries.SeasonSlugExists(ctx, db.SeasonSlugExistsParams{OperatorID: operatorUUID, Slug: pgtype.Text{String: candidate, Valid: true}})
+		if err != nil {
+			return "", err
+		}
+		if !exists {
+			return candidate, nil
+		}
+	}
+	return "", nil
+}
+
+func (r *SeasonRepository) GetActiveSeasonID(ctx context.Context, operatorID string) (string, error) {
+	operatorUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return "", err
+	}
+	id, err := r.queries.GetActiveSeasonIDForOperator(ctx, operatorUUID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", apperror.ErrNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	return uuid.UUID(id.Bytes).String(), nil
+}
+
+func (r *SeasonRepository) GetBySlug(ctx context.Context, operatorID, slug string) (*domain.Season, error) {
+	operatorUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	season, err := r.queries.GetSeasonBySlug(ctx, db.GetSeasonBySlugParams{OperatorID: operatorUUID, Slug: pgtype.Text{String: slug, Valid: true}})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperror.ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -234,5 +311,6 @@ func toSeason(value db.Season) *domain.Season {
 		IsActive:   value.IsActive,
 		CreatedAt:  value.CreatedAt.Time,
 		Capacity:   value.Capacity,
+		Slug:       value.Slug.String,
 	}
 }

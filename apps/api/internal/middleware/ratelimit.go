@@ -56,6 +56,14 @@ var rateLimitedProcedures = map[string]rate.Limit{
 	"/hajj.v1.LostReportService/ReportLost": rate.Every(time.Hour / 3), // 3 per hour per IP
 	// Loose — a jamaah might share and view their certificate multiple times.
 	"/hajj.v1.PilgrimAppService/GetMyCertificate": rate.Every(time.Minute / 4),
+	// A pilgrim filling in KYC fields might retry a typo a few times.
+	"/hajj.v1.PilgrimAppService/SubmitMyPilgrimKyc": rate.Every(time.Minute / 6),
+	// Called from apps/web/middleware.ts (server-side, not the visitor's own
+	// browser) on every subdomain page load, so this needs a much looser
+	// ceiling than a real per-visitor endpoint — middleware.ts also caches
+	// the slug->operatorId mapping in-memory to keep actual call volume low.
+	"/hajj.v1.OperatorService/ResolveOperatorSlug": rate.Every(time.Second / 5), // 5 per second per IP
+	"/hajj.v1.SeasonService/ResolveSeasonSlug":     rate.Every(time.Second / 5),
 }
 
 type ipLimiter struct {

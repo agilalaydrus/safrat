@@ -56,6 +56,48 @@ func (h *AgentHandler) ListAgentPayoutHistory(ctx context.Context, req *connect.
 	}
 	return connect.NewResponse(result), nil
 }
+func (h *AgentHandler) UpdateAgentKyc(ctx context.Context, req *connect.Request[hajjv1.UpdateAgentKycRequest]) (*connect.Response[hajjv1.Agent], error) {
+	result, err := h.agentService.UpdateKyc(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+func (h *AgentHandler) VerifyAgentKyc(ctx context.Context, req *connect.Request[hajjv1.VerifyAgentKycRequest]) (*connect.Response[hajjv1.Agent], error) {
+	result, err := h.agentService.VerifyKyc(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+func (h *AgentHandler) SubmitMyAgentKyc(ctx context.Context, req *connect.Request[hajjv1.SubmitMyAgentKycRequest]) (*connect.Response[hajjv1.Agent], error) {
+	result, err := h.agentService.SubmitMyKyc(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+func (h *AgentHandler) GetMyAgentKyc(ctx context.Context, _ *connect.Request[hajjv1.GetMyAgentKycRequest]) (*connect.Response[hajjv1.Agent], error) {
+	result, err := h.agentService.GetMyKyc(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx))
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+func (h *AgentHandler) ListAgentDocuments(ctx context.Context, req *connect.Request[hajjv1.ListAgentDocumentsRequest]) (*connect.Response[hajjv1.ListAgentDocumentsResponse], error) {
+	result, err := h.agentService.ListDocuments(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+func (h *AgentHandler) ListMyAgentDocuments(ctx context.Context, _ *connect.Request[hajjv1.ListMyAgentDocumentsRequest]) (*connect.Response[hajjv1.ListAgentDocumentsResponse], error) {
+	result, err := h.agentService.ListMyDocuments(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx))
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
 func (h *AgentHandler) GetMyWallet(ctx context.Context, _ *connect.Request[hajjv1.GetMyWalletRequest]) (*connect.Response[hajjv1.AgentWallet], error) {
 	result, err := h.agentService.GetMyWallet(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx))
 	if err != nil {

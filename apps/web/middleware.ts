@@ -17,8 +17,130 @@ const PUBLIC_PATHS = [
   "/firebase-messaging-sw.js",
 ];
 
-export function middleware(request: NextRequest) {
+// Every /register, /apply, /waitlist route already takes operatorId (and,
+// for register/waitlist, seasonId) as path segments — a tenant subdomain
+// (vacana.tawafiqhub.id/register/musim-haji-2026) rewrites onto that same
+// route with the resolved operatorId/seasonId injected, so the page
+// components underneath need zero changes. Routes in SEASON_AWARE_ROUTES
+// additionally resolve a bare request (no season segment at all) to the
+// operator's current active season, and treat any segment that IS present
+// as a season *slug* rather than a raw ID — nothing UUID-shaped ever
+// appears in a URL a visitor sees.
+const SUBDOMAIN_ROUTES = ["/register", "/apply", "/waitlist"];
+const SEASON_AWARE_ROUTES = new Set(["/register", "/waitlist"]);
+
+// Hostnames that are the platform itself, never a tenant's operator slug.
+const RESERVED_SUBDOMAINS = new Set(["app", "api", "www"]);
+// Base domains a subdomain can sit in front of — extend when a new base
+// domain goes live (e.g. once tawafiqhub.id's own Safe Browsing flag clears
+// and it becomes the canonical root again).
+const BASE_HOSTS = ["tawafiqhub.id", "safrat.com", "localhost"];
+
+function extractSlug(host: string): string | null {
+  const hostname = host.split(":")[0] ?? ""; // strip port (e.g. vacana.localhost:3131)
+  for (const base of BASE_HOSTS) {
+    if (hostname === base) return null; // bare root domain — not a tenant
+    if (hostname.endsWith(`.${base}`)) {
+      const sub = hostname.slice(0, -(base.length + 1));
+      if (sub === "" || sub.includes(".") || RESERVED_SUBDOMAINS.has(sub)) return null;
+      return sub;
+    }
+  }
+  return null;
+}
+
+// In-memory, per-process — same tradeoff as every other cache in this
+// codebase (operatorCacheTTL, MyAccess cache, ...), fine for the
+// single-instance deployment. Keeps Resolve*Slug (called on every subdomain
+// page load) from hitting the API on every single request.
+const CACHE_TTL_MS = 5 * 60_000;
+
+async function connectFetch<T>(procedure: string, body: Record<string, string>): Promise<T | null> {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${procedure}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Connect-Protocol-Version": "1" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+const operatorCache = new Map<string, { operatorId: string | null; activeSeasonId: string | null; expiresAt: number }>();
+
+async function resolveOperator(slug: string): Promise<{ operatorId: string | null; activeSeasonId: string | null }> {
+  const cached = operatorCache.get(slug);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) return cached;
+
+  const data = await connectFetch<{ operatorId?: string; activeSeasonId?: string }>(
+    "/hajj.v1.OperatorService/ResolveOperatorSlug",
+    { slug },
+  );
+  const result = {
+    operatorId: data?.operatorId || null,
+    activeSeasonId: data?.activeSeasonId || null,
+  };
+  // A network/API error must not cache a false negative for the full TTL —
+  // the next request should try again immediately.
+  if (data) operatorCache.set(slug, { ...result, expiresAt: now + CACHE_TTL_MS });
+  return result;
+}
+
+const seasonCache = new Map<string, { seasonId: string | null; expiresAt: number }>();
+
+async function resolveSeason(operatorId: string, seasonSlug: string): Promise<string | null> {
+  const key = `${operatorId}:${seasonSlug}`;
+  const cached = seasonCache.get(key);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) return cached.seasonId;
+
+  const data = await connectFetch<{ seasonId?: string }>("/hajj.v1.SeasonService/ResolveSeasonSlug", {
+    operatorId,
+    slug: seasonSlug,
+  });
+  const seasonId = data?.seasonId || null;
+  if (data) seasonCache.set(key, { seasonId, expiresAt: now + CACHE_TTL_MS });
+  return seasonId;
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const slug = extractSlug(request.headers.get("host") ?? "");
+  const subdomainRoute = slug && SUBDOMAIN_ROUTES.find((route) => pathname === route || pathname.startsWith(`${route}/`));
+  if (slug && subdomainRoute) {
+    const { operatorId, activeSeasonId } = await resolveOperator(slug);
+    if (!operatorId) {
+      return new NextResponse("Operator not found", { status: 404 });
+    }
+
+    let rest = pathname.slice(subdomainRoute.length); // "" or "/some-slug" etc.
+
+    if (SEASON_AWARE_ROUTES.has(subdomainRoute)) {
+      if (rest === "" || rest === "/") {
+        if (!activeSeasonId) {
+          return new NextResponse("No active season", { status: 404 });
+        }
+        rest = `/${activeSeasonId}`;
+      } else {
+        const seasonSlug = rest.slice(1).split("/")[0] ?? "";
+        const seasonId = await resolveSeason(operatorId, seasonSlug);
+        if (!seasonId) {
+          return new NextResponse("Season not found", { status: 404 });
+        }
+        rest = `/${seasonId}${rest.slice(seasonSlug.length + 1)}`;
+      }
+    }
+
+    const rewritten = request.nextUrl.clone();
+    rewritten.pathname = `${subdomainRoute}/${operatorId}${rest}`;
+    return NextResponse.rewrite(rewritten);
+  }
+
   const isPublic =
     pathname === "/" || PUBLIC_PATHS.some((path) => pathname.startsWith(path));
 

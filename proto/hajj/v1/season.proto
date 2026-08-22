@@ -18,6 +18,12 @@ service SeasonService {
   rpc DeleteSeason(DeleteSeasonRequest) returns (DeleteSeasonResponse);
   rpc SetActiveSeason(SetActiveSeasonRequest) returns (Season);
   rpc GetSeasonAnalytics(GetSeasonAnalyticsRequest) returns (SeasonAnalytics);
+  // Public — resolves a season's slug (e.g. "musim-haji-2026", scoped to one
+  // operator) to its real ID, for apps/web/middleware.ts to rewrite an
+  // explicit-season subdomain link (vacana.tawafiqhub.id/register/musim-
+  // haji-2026) the same way ResolveOperatorSlug does for the operator
+  // itself. Deliberately returns only id + name.
+  rpc ResolveSeasonSlug(ResolveSeasonSlugRequest) returns (ResolveSeasonSlugResponse);
 }
 
 // Musim dijual per periode kalender Hijriah, bukan cuma Haji/Umrah datar —
@@ -46,6 +52,10 @@ message Season {
   // Maximum pilgrims accepted. 0 = unlimited — JoinWaitlist always
   // redirects to registration instead of queuing when this is 0.
   int32 capacity = 9;
+  // Human-readable, unique per operator (not globally) — used to build
+  // public links like vacana.tawafiqhub.id/register/musim-haji-2026. See
+  // apps/web/lib/tenant-link.ts.
+  string slug = 10;
 }
 
 message CreateSeasonRequest {
@@ -80,6 +90,15 @@ message SetActiveSeasonRequest {
 
 message GetSeasonAnalyticsRequest {
   string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message ResolveSeasonSlugRequest {
+  string operator_id = 1 [(buf.validate.field).string.uuid = true];
+  string slug = 2 [(buf.validate.field).string.min_len = 1];
+}
+message ResolveSeasonSlugResponse {
+  string season_id = 1;
+  string name = 2;
 }
 
 message SeasonAnalytics {

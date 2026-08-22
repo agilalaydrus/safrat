@@ -27,7 +27,7 @@ export default function CertificatePage({ params }: { params: Promise<{ code: st
   const rows = [
     { label: "Tanggal Berangkat", value: startStr },
     { label: "Tanggal Kembali", value: endStr },
-    { label: "Rombongan", value: data.groupName || "-" },
+    { label: "Grup", value: data.groupName || "-" },
     { label: "Pembimbing", value: data.leaderName || "-" },
     { label: "Hotel Makkah", value: data.makkahHotels || "-" },
     { label: "Hotel Madinah", value: data.madinahHotels || "-" },

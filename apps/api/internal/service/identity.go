@@ -35,6 +35,7 @@ func (s *IdentityService) GetMyAccess(ctx context.Context, _ *hajjv1.GetMyAccess
 		OrgRole:      access.OrgRole,
 		OperatorId:   access.OperatorID,
 		OperatorName: access.OperatorName,
+		OperatorSlug: access.OperatorSlug,
 		LeaderGroups: make([]*hajjv1.LeaderGroupSummary, 0, len(access.LeaderGroups)),
 	}
 	for _, g := range access.LeaderGroups {
@@ -44,7 +45,7 @@ func (s *IdentityService) GetMyAccess(ctx context.Context, _ *hajjv1.GetMyAccess
 		result.LinkedPilgrim = &hajjv1.PilgrimSummary{Id: access.LinkedPilgrim.ID, AppAccessCode: access.LinkedPilgrim.AppAccessCode, FullName: access.LinkedPilgrim.FullName}
 	}
 	if access.LinkedAgent != nil {
-		result.LinkedAgent = &hajjv1.AgentSummary{Id: access.LinkedAgent.ID, Name: access.LinkedAgent.Name, ReferralCode: access.LinkedAgent.ReferralCode, IsActive: access.LinkedAgent.IsActive}
+		result.LinkedAgent = &hajjv1.AgentSummary{Id: access.LinkedAgent.ID, Name: access.LinkedAgent.Name, ReferralCode: access.LinkedAgent.ReferralCode, IsActive: access.LinkedAgent.IsActive, Phone: access.LinkedAgent.Phone}
 	}
 	return result, nil
 }

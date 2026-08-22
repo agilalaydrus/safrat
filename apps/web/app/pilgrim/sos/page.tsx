@@ -14,7 +14,7 @@ const HISTORY_KEY = "safrat:sos-sent-log";
 
 type SentEntry = { at: string; delivered: boolean };
 
-const STATUS_LABEL: Record<string, string> = { ACTIVE: "Menunggu konfirmasi", ACKNOWLEDGED: "Ketua rombongan menuju lokasi Anda", ESCALATED: "Diteruskan ke petugas operator", RESOLVED: "Selesai" };
+const STATUS_LABEL: Record<string, string> = { ACTIVE: "Menunggu konfirmasi", ACKNOWLEDGED: "Ketua grup menuju lokasi Anda", ESCALATED: "Diteruskan ke petugas operator", RESOLVED: "Selesai" };
 
 export default function PilgrimSOSPage() {
   const code = usePilgrimCode();
@@ -115,7 +115,7 @@ export default function PilgrimSOSPage() {
       {confirming && (
         <div style={confirmBox}>
           <p style={{ fontSize: 18, fontWeight: 700, margin: "0 0 4px" }}>Kirim sinyal SOS?</p>
-          <p style={{ color: "var(--color-warm-500)", margin: "0 0 20px" }}>Ketua rombongan dan petugas akan segera diberi tahu.</p>
+          <p style={{ color: "var(--color-warm-500)", margin: "0 0 20px" }}>Ketua grup dan petugas akan segera diberi tahu.</p>
           <button onClick={send} style={confirmButton}>Ya, kirim SOS sekarang</button>
           <button onClick={() => setConfirming(false)} style={cancelButton}>Batal</button>
         </div>
@@ -162,7 +162,7 @@ const confirmBox: React.CSSProperties = { width: "100%", textAlign: "center", ba
 const confirmButton: React.CSSProperties = { width: "100%", minHeight: 52, border: 0, borderRadius: 10, background: "var(--color-danger-600)", color: "#fff", fontWeight: 700, fontSize: 16, marginBottom: 10 };
 const cancelButton: React.CSSProperties = { width: "100%", minHeight: 48, border: "1px solid var(--color-cream-500)", borderRadius: 10, background: "transparent", color: "var(--color-warm-500)" };
 const resultBox: React.CSSProperties = { width: "100%", textAlign: "center", background: "#fff", border: "1px solid var(--color-cream-400)", borderRadius: 16, padding: 28, display: "grid", gap: 10, justifyItems: "center" };
-const ackBox: React.CSSProperties = { background: "var(--color-emerald-50)", borderColor: "var(--color-emerald-200)" };
+const ackBox: React.CSSProperties = { background: "var(--color-emerald-50)", border: "1px solid var(--color-emerald-200)" };
 const notifButton: React.CSSProperties = { minHeight: 40, border: "1px solid var(--color-cream-500)", borderRadius: 8, padding: "0 14px", background: "transparent", color: "var(--color-warm-700)", fontSize: 13 };
 const historySection: React.CSSProperties = { width: "100%", marginTop: 12 };
 const historyRow: React.CSSProperties = { margin: "6px 0", fontSize: 13, color: "var(--color-warm-500)" };

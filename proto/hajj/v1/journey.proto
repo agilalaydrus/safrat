@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// JourneyService tracks each pilgrim's position in the end-to-end trip
+// lifecycle (REGISTERED -> ... -> COMPLETED). Individual updates are
+// forward-only; BulkUpdateStatus is the kloter-wide cascade action used by
+// KloterService.UpdateKloterStatus and GroupService.UpdateGroupCity.
+service JourneyService {
+  rpc UpdatePilgrimStatus(UpdatePilgrimStatusRequest) returns (PilgrimJourneyStatus);
+  rpc BulkUpdateStatus(BulkUpdateStatusRequest) returns (BulkUpdateStatusResponse);
+  rpc GetPilgrimStatus(GetPilgrimStatusRequest) returns (PilgrimJourneyStatus);
+  rpc GetKloterJourneyOverview(GetKloterJourneyOverviewRequest) returns (KloterJourneyOverview);
+}
+
+message PilgrimJourneyStatus {
+  string pilgrim_id = 1;
+  string status = 2;
+  string updated_by_name = 3;
+  google.protobuf.Timestamp updated_at = 4;
+  string notes = 5;
+}
+
+message UpdatePilgrimStatusRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.min_len = 1];
+  string status = 2 [(buf.validate.field).string.min_len = 1];
+  string notes = 3;
+}
+
+message BulkUpdateStatusRequest {
+  string kloter_id = 1 [(buf.validate.field).string.min_len = 1];
+  string status = 2 [(buf.validate.field).string.min_len = 1];
+  string notes = 3;
+}
+message BulkUpdateStatusResponse { int32 updated_count = 1; }
+
+message GetPilgrimStatusRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message GetKloterJourneyOverviewRequest {
+  string kloter_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+message KloterJourneyOverview {
+  string kloter_id = 1;
+  map<string, int32> status_counts = 2;
+}

@@ -21,6 +21,12 @@ SET code = $3, embarkation = $4, flight_number = $5, departure_date = $6, capaci
 WHERE id = $1 AND operator_id = $2
 RETURNING *;
 
+-- name: UpdateKloterStatus :one
+UPDATE kloters
+SET status = $3
+WHERE id = $1 AND operator_id = $2
+RETURNING *;
+
 -- name: UnassignKloterPilgrims :exec
 UPDATE pilgrims SET kloter_id = NULL WHERE kloter_id = $1 AND operator_id = $2;
 

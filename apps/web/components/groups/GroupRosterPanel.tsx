@@ -17,24 +17,24 @@ export default function GroupRosterPanel({ open, groupId, groupName, onClose }: 
     setLoading(true); setNotice("");
     groupClient.getGroupRoster({ groupId })
       .then((r) => setPilgrims(r.pilgrims))
-      .catch(() => setNotice("Gagal memuat daftar jamaah rombongan ini."))
+      .catch(() => setNotice("Gagal memuat daftar jamaah grup ini."))
       .finally(() => setLoading(false));
   }, [open, groupId]);
 
   if (!open) return null;
 
   return (
-    <div role="dialog" aria-modal="true" aria-label={`Anggota rombongan ${groupName}`} style={overlay}>
+    <div role="dialog" aria-modal="true" aria-label={`Anggota grup ${groupName}`} style={overlay}>
       <aside style={sheet}>
         <header style={header}>
-          <div><p style={eyebrow}>ANGGOTA ROMBONGAN</p><h2 style={{ margin: 0 }}>{groupName}</h2></div>
+          <div><p style={eyebrow}>ANGGOTA GRUP</p><h2 style={{ margin: 0 }}>{groupName}</h2></div>
           <button onClick={onClose} style={closeBtn} aria-label="Tutup"><IconX size={18} /></button>
         </header>
         <div className="gold-divider" />
         {notice && <p style={{ color: "var(--color-danger-600)", padding: "0 4px" }}>{notice}</p>}
         <div style={list}>
           {loading && <p style={{ color: "var(--color-warm-400)", textAlign: "center", marginTop: 40 }}>Memuat...</p>}
-          {!loading && !pilgrims.length && !notice && <p style={{ color: "var(--color-warm-400)", textAlign: "center", marginTop: 40 }}>Belum ada jamaah di rombongan ini.</p>}
+          {!loading && !pilgrims.length && !notice && <p style={{ color: "var(--color-warm-400)", textAlign: "center", marginTop: 40 }}>Belum ada jamaah di grup ini.</p>}
           {pilgrims.map((pilgrim) => (
             <Link key={pilgrim.id} href={`/dashboard/pilgrims/${pilgrim.id}`} style={card}>
               <div>

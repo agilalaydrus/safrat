@@ -32,9 +32,14 @@ message BulkCreateRoomsResponse { repeated Room rooms=1; }
 message ListRoomsRequest { string hotel_id=1; }
 message ListRoomsResponse { repeated Room rooms=1; }
 message AllocatePilgrimRequest { string room_id=1; string pilgrim_id=2; }
-message DeallocatePilgrimRequest { string pilgrim_id=1; }
+// room_id targets the specific allocation to remove — a pilgrim can hold
+// one room per hotel (Makkah + Madinah) at once, so pilgrim_id alone is no
+// longer enough to say which one to deallocate.
+message DeallocatePilgrimRequest { string pilgrim_id=1; string room_id=2; }
 message GetRoomManifestRequest { string room_id=1; }
 message RoomManifest { Room room=1; repeated Pilgrim pilgrims=2; int32 available_capacity=3; }
 message ListPilgrimRoomAssignmentsRequest { string season_id=1; }
-message PilgrimRoomAssignment { string pilgrim_id=1; string hotel_name=2; string room_number=3; string room_type=4; }
+// One row per (pilgrim, hotel) — a pilgrim legitimately holds more than
+// one room across a season (Makkah + Madinah).
+message PilgrimRoomAssignment { string pilgrim_id=1; string hotel_name=2; string room_number=3; string room_type=4; string room_id=5; string hotel_id=6; }
 message ListPilgrimRoomAssignmentsResponse { repeated PilgrimRoomAssignment assignments=1; }

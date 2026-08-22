@@ -96,7 +96,7 @@ export function usePilgrimSOSAckNotify(alerts: { id: string; status: string }[])
     for (const alert of alerts) {
       const previous = lastStatus.current.get(alert.id);
       if (previous !== "ACKNOWLEDGED" && alert.status === "ACKNOWLEDGED") {
-        notifyBrowser("Bantuan Sedang Menuju Lokasi Anda", "Ketua rombongan Anda telah mengonfirmasi dan sedang menuju ke lokasi Anda.");
+        notifyBrowser("Bantuan Sedang Menuju Lokasi Anda", "Ketua grup Anda telah mengonfirmasi dan sedang menuju ke lokasi Anda.");
       }
       lastStatus.current.set(alert.id, alert.status);
     }

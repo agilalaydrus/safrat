@@ -1,14 +1,22 @@
 "use client";
 import { useEffect, useState } from "react";
-import { IconCheck, IconClockHour4, IconCopy, IconMail, IconPencil, IconPhone, IconPlus, IconTrash, IconUserDollar, IconX } from "@tabler/icons-react";
+import { IconCheck, IconClockHour4, IconCopy, IconMail, IconPencil, IconPhone, IconPlus, IconShieldCheck, IconTrash, IconUserDollar, IconX } from "@tabler/icons-react";
 import { Agent, AgentPayout, PayoutMethod, PayoutRequest } from "@hajj-saas/proto-gen/hajj/v1/agent_pb";
 import { agentClient, operatorClient } from "@/lib/rpc";
 import AgentFormDialog from "./AgentFormDialog";
 import AgentPayoutDialog from "./AgentPayoutDialog";
+import AgentKycDialog from "./AgentKycDialog";
 import { RoleGate } from "@/components/auth/RoleGate";
+import { buildTenantLink } from "@/lib/tenant-link";
 
 const rupiah = (n: number) => `Rp${n.toLocaleString("id-ID")}`;
 const tierBadge: Record<string, React.CSSProperties> = { GOLD: { background: "var(--color-gold-50)", color: "var(--color-gold-800)" }, SILVER: { background: "var(--color-cream-200)", color: "var(--color-warm-700)" }, BRONZE: { background: "var(--color-emerald-50)", color: "var(--color-emerald-900)" } };
+const KYC_LABEL: Record<string, string> = { UNVERIFIED: "Belum Diisi", PENDING_REVIEW: "Menunggu Verifikasi", VERIFIED: "Terverifikasi", REJECTED: "Ditolak" };
+function kycBadge(status: string): React.CSSProperties {
+  const map: Record<string, [string, string]> = { PENDING_REVIEW: ["var(--color-gold-50)", "var(--color-gold-800)"], VERIFIED: ["var(--color-emerald-50)", "var(--color-emerald-900)"], REJECTED: ["var(--color-danger-100)", "var(--color-danger-600)"] };
+  const [bg, color] = map[status] ?? ["var(--color-cream-200)", "var(--color-warm-500)"];
+  return { background: bg, color, borderRadius: 8, padding: "6px 10px", justifySelf: "start" };
+}
 
 export default function AgentsDashboard() {
   const [a, setA] = useState<Agent[]>([]);
@@ -17,6 +25,7 @@ export default function AgentsDashboard() {
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<Agent | undefined>();
   const [payoutTarget, setPayoutTarget] = useState<Agent | undefined>();
+  const [kycTarget, setKycTarget] = useState<Agent | undefined>();
   const [note, setNote] = useState("");
   const [applyLink, setApplyLink] = useState("");
   const [workingRequestId, setWorkingRequestId] = useState("");
@@ -31,7 +40,7 @@ export default function AgentsDashboard() {
     void load();
     void loadPayouts();
     void loadRequests();
-    operatorClient.getMyOperator({}).then((op) => setApplyLink(`${window.location.origin}/apply/${op.id}`)).catch(() => {});
+    operatorClient.getMyOperator({}).then((op) => setApplyLink(buildTenantLink(op.slug, "/apply"))).catch(() => {});
   }, []);
 
   const pending = a.filter((x) => !x.isActive);
@@ -160,6 +169,7 @@ export default function AgentsDashboard() {
                 <p style={{ color: "var(--color-warm-500)", fontSize: 13 }}>{rupiah(Number(payout?.totalDisbursedIdr ?? 0))} sudah dibayar · <b style={{ color: "var(--color-danger-600)" }}>{rupiah(Number(payout?.outstandingIdr ?? 0))} tertunda</b></p>
                 {!!agentRequests.length && <p style={requestFlag}><IconClockHour4 size={14} />{agentRequests.length} permintaan pencairan menunggu ({rupiah(agentRequests.reduce((n, r) => n + Number(r.amountIdr), 0))})</p>}
                 <div style={row}><span style={{ ...badge, ...tierBadge[x.tier] }}>{x.tier} · {x.referralCode}</span><span style={active}>Aktif</span></div>
+                <button style={{ ...ghost, ...kycBadge(x.kycStatus) }} onClick={() => setKycTarget(x)}><IconShieldCheck size={15} />KYC: {KYC_LABEL[x.kycStatus] ?? "Belum Diisi"}</button>
                 <div style={row}>
                   <span>
                     <button style={ghost} onClick={() => { setEdit(x); setOpen(true); }}><IconPencil size={15} />Ubah</button>
@@ -184,6 +194,7 @@ export default function AgentsDashboard() {
 
       <AgentFormDialog open={open} initial={edit} onClose={() => setOpen(false)} onSaved={(n) => { setNote(`${n} berhasil disimpan.`); void load(); }} />
       <AgentPayoutDialog open={!!payoutTarget} agent={payoutTarget} summary={payoutTarget ? payoutByAgent.get(payoutTarget.id) : undefined} onClose={() => setPayoutTarget(undefined)} onPaid={(amount) => { setNote(`Pembayaran ${rupiah(amount)} untuk ${payoutTarget?.name} dicatat.`); void loadPayouts(); }} onRequestsChanged={() => void loadRequests()} />
+      <AgentKycDialog open={!!kycTarget} agent={kycTarget} onClose={() => setKycTarget(undefined)} onUpdated={(updated) => { setKycTarget(updated); void load(); }} />
     </main>
   );
 }

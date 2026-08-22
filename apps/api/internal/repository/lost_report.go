@@ -56,6 +56,30 @@ func (r *LostReportRepository) Resolve(ctx context.Context, operatorID, id strin
 	return databaseError(r.queries.ResolveLostReport(ctx, db.ResolveLostReportParams{ID: idUUID, OperatorID: opUUID}))
 }
 
+// ResolveForGroup scopes the resolve by group_id instead of operator_id —
+// the caller (service layer) has already confirmed leader ownership of the
+// group via EnsureLeaderOwnsGroup, but this scoping is what actually
+// prevents resolving a report outside that group at the DB level. Zero rows
+// affected means the report doesn't exist or isn't LOST in this group.
+func (r *LostReportRepository) ResolveForGroup(ctx context.Context, groupID, id string) error {
+	groupUUID, err := pgUUID(groupID)
+	if err != nil {
+		return apperror.ErrValidation
+	}
+	idUUID, err := pgUUID(id)
+	if err != nil {
+		return apperror.ErrValidation
+	}
+	rows, err := r.queries.ResolveGroupLostReport(ctx, db.ResolveGroupLostReportParams{ID: idUUID, GroupID: groupUUID})
+	if err != nil {
+		return databaseError(err)
+	}
+	if rows == 0 {
+		return apperror.ErrNotFound
+	}
+	return nil
+}
+
 func (r *LostReportRepository) ListActive(ctx context.Context, operatorID string) ([]*domain.LostReport, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {

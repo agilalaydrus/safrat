@@ -73,6 +73,17 @@ func (h *WaitlistHandler) PromoteFromWaitlist(ctx context.Context, req *connect.
 	return connect.NewResponse(result), nil
 }
 
+func (h *WaitlistHandler) ConfirmWaitlistEntry(ctx context.Context, req *connect.Request[hajjv1.ConfirmWaitlistEntryRequest]) (*connect.Response[hajjv1.WaitlistEntry], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.waitlistService.ConfirmWaitlistEntry(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *WaitlistHandler) RemoveFromWaitlist(ctx context.Context, req *connect.Request[hajjv1.RemoveFromWaitlistRequest]) (*connect.Response[hajjv1.RemoveFromWaitlistResponse], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

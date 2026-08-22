@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { IconBuildingHospital, IconBus, IconCalendar, IconCalendarEvent, IconCash, IconChartBar, IconChecklist, IconClipboardList, IconClock, IconFileAnalytics, IconFiles, IconHeartHandshake, IconLayoutDashboard, IconLogout, IconMapPinExclamation, IconMenu2, IconPlane, IconReceipt2, IconSettings, IconShieldCheck, IconShoppingCart, IconSos, IconSpeakerphone, IconUserDollar, IconUsers, IconUsersGroup } from "@tabler/icons-react";
+import { IconBuildingHospital, IconBus, IconCalendar, IconCalendarEvent, IconCash, IconChartBar, IconChecklist, IconClipboardList, IconClock, IconFileAnalytics, IconFiles, IconHeartHandshake, IconLayoutDashboard, IconLogout, IconMapPinExclamation, IconMenu2, IconPlane, IconReceipt2, IconSettings, IconShieldCheck, IconShoppingCart, IconSos, IconSpeakerphone, IconUserCheck, IconUserDollar, IconUsers, IconUsersGroup } from "@tabler/icons-react";
 import { authClient } from "@/lib/auth-client";
 import { operatorClient, seasonClient } from "@/lib/rpc";
 import { RequireAccess } from "@/components/auth/RequireAccess";
@@ -19,7 +19,8 @@ const nav = [
       ["Dokumen", "/dashboard/documents", IconFiles],
       ["Pendaftaran", "/dashboard/registrations", IconClipboardList],
       ["Daftar Tunggu", "/dashboard/waitlist", IconClock],
-      ["Rombongan", "/dashboard/groups", IconUsersGroup],
+      ["Grup", "/dashboard/groups", IconUsersGroup],
+      ["Muttawwif", "/dashboard/muttawwif", IconUserCheck],
       ["Kloter", "/dashboard/kloter", IconPlane],
       ["Asuransi", "/dashboard/insurance", IconShieldCheck],
     ],

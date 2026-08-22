@@ -5,12 +5,17 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 // mode is one of BUS, FLIGHT, TRAIN — changes what "vehicle" means (plate/driver
 // vs flight number/airline vs train number/operator) but not the Vehicle schema itself.
-message Movement { string id=1; string operator_id=2; string season_id=3; string name=4; string origin=5; string destination=6; google.protobuf.Timestamp scheduled_at=7; string status=8; int32 vehicle_count=9; int32 total_capacity=10; int32 assigned_count=11; google.protobuf.Timestamp created_at=12; string mode=13; string kloter_id=14; }
+// airline/flight_number/trip_leg only apply when mode=FLIGHT. trip_leg is
+// '' (not part of the international itinerary, e.g. a local Makkah<->
+// Madinah shuttle), 'DEPARTURE', or 'RETURN' — more than one movement
+// tagged the same trip_leg, ordered by scheduled_at, is how a transit leg
+// shows up; there's no separate TRANSIT value.
+message Movement { string id=1; string operator_id=2; string season_id=3; string name=4; string origin=5; string destination=6; google.protobuf.Timestamp scheduled_at=7; string status=8; int32 vehicle_count=9; int32 total_capacity=10; int32 assigned_count=11; google.protobuf.Timestamp created_at=12; string mode=13; string kloter_id=14; string airline=15; string flight_number=16; string trip_leg=17; }
 message Vehicle { string id=1; string movement_id=2; string operator_id=3; string plate_number=4; int32 capacity=5; string driver_name=6; string driver_phone=7; string status=8; int32 assigned_count=9; google.protobuf.Timestamp departed_at=10; google.protobuf.Timestamp arrived_at=11; google.protobuf.Timestamp created_at=12; }
 message PilgrimOnVehicle { string id=1; string full_name=2; string gender=3; string passport_number=4; bool requires_wheelchair=5; int32 seat_number=6; }
 message VehicleManifest { Vehicle vehicle=1; repeated PilgrimOnVehicle pilgrims=2; }
 message SeatAssignment { string id=1; string vehicle_id=2; string pilgrim_id=3; int32 seat_number=4; google.protobuf.Timestamp assigned_at=5; }
-message CreateMovementRequest { string season_id=1; string name=2; string origin=3; string destination=4; google.protobuf.Timestamp scheduled_at=5; string mode=6; string kloter_id=7; }
+message CreateMovementRequest { string season_id=1; string name=2; string origin=3; string destination=4; google.protobuf.Timestamp scheduled_at=5; string mode=6; string kloter_id=7; string airline=8; string flight_number=9; string trip_leg=10; }
 message GetMovementRequest { string movement_id=1; } message ListMovementsRequest { string season_id=1; } message ListMovementsResponse { repeated Movement movements=1; }
 message UpdateMovementStatusRequest { string movement_id=1; string status=2; } message DeleteMovementRequest { string movement_id=1; }
 message CreateVehicleRequest { string movement_id=1; string plate_number=2; int32 capacity=3; string driver_name=4; string driver_phone=5; }

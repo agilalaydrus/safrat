@@ -12,6 +12,7 @@ import (
 	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/repository"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type GroupService struct {
@@ -19,10 +20,23 @@ type GroupService struct {
 	groupRepository    *repository.GroupRepository
 	auditRepository    *repository.AuditRepository
 	agentRepository    *repository.AgentRepository
+	journeyService     *JourneyService
 }
 
-func NewGroupService(operators *repository.OperatorRepository, groups *repository.GroupRepository, audit *repository.AuditRepository, agents *repository.AgentRepository) *GroupService {
-	return &GroupService{operatorRepository: operators, groupRepository: groups, auditRepository: audit, agentRepository: agents}
+func NewGroupService(operators *repository.OperatorRepository, groups *repository.GroupRepository, audit *repository.AuditRepository, agents *repository.AgentRepository, journey *JourneyService) *GroupService {
+	return &GroupService{operatorRepository: operators, groupRepository: groups, auditRepository: audit, agentRepository: agents, journeyService: journey}
+}
+
+// cityToJourneyStatus cascades a Muttawwif's location update to every
+// pilgrim in the group — only cities with a direct 1:1 journey-status
+// equivalent cascade (INDONESIA/TRANSIT/DEPARTED are ambiguous — could be
+// outbound or return — so they don't).
+var cityToJourneyStatus = map[string]string{
+	"MADINAH":    "IN_MADINAH",
+	"MAKKAH":     "IN_MAKKAH",
+	"ARAFAH":     "IN_ARAFAH",
+	"MUZDALIFAH": "IN_MUZDALIFAH",
+	"MINA":       "IN_MINA",
 }
 
 func (s *GroupService) logActivity(ctx context.Context, operatorID, action, entityID, message string) {
@@ -119,6 +133,28 @@ func (s *GroupService) ListOperatorMembers(ctx context.Context, orgID string) (*
 	return result, nil
 }
 
+// ListMuttawwif is the operator-wide roster (one entry per leader, not per
+// group) — contrast with ListGroups/ListForOperator, which lists groups.
+func (s *GroupService) ListMuttawwif(ctx context.Context, orgID string) (*hajjv1.ListMuttawwifResponse, error) {
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("GroupService.ListMuttawwif", err)
+	}
+	rows, err := s.groupRepository.ListMuttawwif(ctx, op.ID)
+	if err != nil {
+		return nil, serviceError("GroupService.ListMuttawwif", err)
+	}
+	result := &hajjv1.ListMuttawwifResponse{Muttawwif: make([]*hajjv1.Muttawwif, 0, len(rows))}
+	for _, row := range rows {
+		groups := make([]*hajjv1.LeaderGroup, 0, len(row.Groups))
+		for _, g := range row.Groups {
+			groups = append(groups, &hajjv1.LeaderGroup{Id: g.ID, Name: g.Name, Capacity: g.Capacity, PilgrimCount: g.PilgrimCount, SeasonId: g.SeasonID})
+		}
+		result.Muttawwif = append(result.Muttawwif, &hajjv1.Muttawwif{UserId: row.UserID, Name: row.Name, Email: row.Email, Phone: row.Phone, Groups: groups})
+	}
+	return result, nil
+}
+
 // GetGroupRoster lets an admin/coordinator inspect any of the operator's
 // groups' member lists from the Groups dashboard — operator-scoped like the
 // rest of GroupService, not leader-scoped like GroupLeaderService.GetGroupRoster.
@@ -141,6 +177,54 @@ func (s *GroupService) GetGroupRoster(ctx context.Context, orgID string, req *ha
 	return result, nil
 }
 
+// ListGroupsByKloter powers the Kloter Detail "Rombongan" tab.
+func (s *GroupService) ListGroupsByKloter(ctx context.Context, orgID string, req *hajjv1.ListGroupsByKloterRequest) (*hajjv1.ListGroupsResponse, error) {
+	if req == nil || strings.TrimSpace(req.KloterId) == "" {
+		return nil, serviceError("GroupService.ListGroupsByKloter", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("GroupService.ListGroupsByKloter", err)
+	}
+	groups, err := s.groupRepository.ListByKloter(ctx, op.ID, req.KloterId)
+	if err != nil {
+		return nil, serviceError("GroupService.ListGroupsByKloter", err)
+	}
+	result := &hajjv1.ListGroupsResponse{Groups: make([]*hajjv1.Group, 0, len(groups))}
+	for _, group := range groups {
+		result.Groups = append(result.Groups, groupMessage(group))
+	}
+	return result, nil
+}
+
+// UpdateGroupCity is the Muttawwif's one-tap "we're at X now" action.
+func (s *GroupService) UpdateGroupCity(ctx context.Context, orgID string, req *hajjv1.UpdateGroupCityRequest) (*hajjv1.Group, error) {
+	if req == nil || strings.TrimSpace(req.GroupId) == "" || strings.TrimSpace(req.City) == "" {
+		return nil, serviceError("GroupService.UpdateGroupCity", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("GroupService.UpdateGroupCity", err)
+	}
+	group, err := s.groupRepository.UpdateCity(ctx, op.ID, req.GroupId, req.City, req.Location, middleware.UserIDFromCtx(ctx))
+	if err != nil {
+		return nil, serviceError("GroupService.UpdateGroupCity", err)
+	}
+	s.logActivity(ctx, op.ID, "group_city_updated", group.ID, fmt.Sprintf("Rombongan %s kini di %s", group.Name, req.City))
+	// Cascade: best-effort, never rolls back the location update itself —
+	// see kloterToJourneyStatus for the same pattern.
+	if journeyStatus, ok := cityToJourneyStatus[req.City]; ok && s.journeyService != nil {
+		if _, err := s.journeyService.BulkUpdateForGroup(ctx, op.ID, group.ID, journeyStatus, req.Notes); err != nil {
+			sentry.CaptureException(fmt.Errorf("GroupService.UpdateGroupCity: journey cascade: %w", err))
+		}
+	}
+	return groupMessage(group), nil
+}
+
 func groupMessage(group *domain.Group) *hajjv1.Group {
-	return &hajjv1.Group{Id: group.ID, SeasonId: group.SeasonID, Name: group.Name, Capacity: group.Capacity, PilgrimCount: group.PilgrimCount, LeaderId: group.LeaderID, LeaderName: group.LeaderName}
+	msg := &hajjv1.Group{Id: group.ID, SeasonId: group.SeasonID, Name: group.Name, Capacity: group.Capacity, PilgrimCount: group.PilgrimCount, LeaderId: group.LeaderID, LeaderName: group.LeaderName, KloterId: group.KloterID, CurrentCity: group.CurrentCity, Status: group.Status}
+	if group.LastUpdate != nil {
+		msg.LastUpdate = timestamppb.New(*group.LastUpdate)
+	}
+	return msg
 }

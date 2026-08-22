@@ -314,7 +314,7 @@ func (r *PilgrimRepository) GetStatsByKloter(ctx context.Context, operatorID, se
 	return domain.PilgrimStats{Total: stats.Total, Substituted: stats.Substituted, RequiresWheelchair: stats.RequiresWheelchair, UnassignedGroup: stats.UnassignedGroup, UnassignedKloter: stats.UnassignedKloter}, nil
 }
 
-func (r *PilgrimRepository) UpdatePayment(ctx context.Context, operatorID, pilgrimID, paymentStatus, receiptURL, notes string) (*domain.Pilgrim, error) {
+func (r *PilgrimRepository) UpdatePayment(ctx context.Context, operatorID, pilgrimID, paymentStatus, notes string) (*domain.Pilgrim, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -324,7 +324,7 @@ func (r *PilgrimRepository) UpdatePayment(ctx context.Context, operatorID, pilgr
 		return nil, err
 	}
 	pilgrim, err := r.queries.UpdatePilgrimPayment(ctx, db.UpdatePilgrimPaymentParams{
-		ID: pilgrimUUID, OperatorID: opUUID, PaymentStatus: paymentStatus, PaymentReceiptUrl: receiptURL, PaymentNotes: notes,
+		ID: pilgrimUUID, OperatorID: opUUID, PaymentStatus: paymentStatus, PaymentNotes: notes,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -332,7 +332,7 @@ func (r *PilgrimRepository) UpdatePayment(ctx context.Context, operatorID, pilgr
 	return toPilgrim(pilgrim), nil
 }
 
-func (r *PilgrimRepository) UpdateDocuments(ctx context.Context, operatorID, pilgrimID string, passport, photo, vaccine bool, passportExpiry, vaccineDate *time.Time) (*domain.Pilgrim, error) {
+func (r *PilgrimRepository) UpdateDocuments(ctx context.Context, operatorID, pilgrimID string, input domain.PilgrimDocumentChecklistInput) (*domain.Pilgrim, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -342,8 +342,10 @@ func (r *PilgrimRepository) UpdateDocuments(ctx context.Context, operatorID, pil
 		return nil, err
 	}
 	pilgrim, err := r.queries.UpdatePilgrimDocuments(ctx, db.UpdatePilgrimDocumentsParams{
-		ID: pilgrimUUID, OperatorID: opUUID, DocumentsPassport: passport, DocumentsPhoto: photo, DocumentsVaccine: vaccine,
-		PassportExpiryDate: pgDate(passportExpiry), VaccineMeningitisDate: pgDate(vaccineDate),
+		ID: pilgrimUUID, OperatorID: opUUID, DocumentsPassport: input.Passport, DocumentsPhoto: input.Photo, DocumentsVaccine: input.Vaccine,
+		PassportExpiryDate: pgDate(input.PassportExpiry), VaccineMeningitisDate: pgDate(input.VaccineDate),
+		DocumentsKtp: input.KTP, DocumentsKk: input.KK, DocumentsMahramProof: input.MahramProof,
+		DocumentsVisa: input.Visa, VisaNumber: input.VisaNumber, VisaExpiryDate: pgDate(input.VisaExpiry),
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -369,7 +371,7 @@ func (r *PilgrimRepository) UpdateEmergencyContact(ctx context.Context, operator
 	return toPilgrim(pilgrim), nil
 }
 
-func (r *PilgrimRepository) UpdateInsurance(ctx context.Context, operatorID, pilgrimID, provider, policyNo, class, bloodType, chronicConditions, medications string) (*domain.Pilgrim, error) {
+func (r *PilgrimRepository) UpdateInsurance(ctx context.Context, operatorID, pilgrimID string, input domain.PilgrimInsuranceInput) (*domain.Pilgrim, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -379,8 +381,10 @@ func (r *PilgrimRepository) UpdateInsurance(ctx context.Context, operatorID, pil
 		return nil, err
 	}
 	pilgrim, err := r.queries.UpdatePilgrimInsurance(ctx, db.UpdatePilgrimInsuranceParams{
-		ID: pilgrimUUID, OperatorID: opUUID, InsuranceProvider: provider, InsurancePolicyNo: policyNo,
-		InsuranceClass: class, BloodType: bloodType, ChronicConditions: chronicConditions, CurrentMedications: medications,
+		ID: pilgrimUUID, OperatorID: opUUID, InsuranceProvider: input.Provider, InsurancePolicyNo: input.PolicyNo,
+		InsuranceClass: input.Class, BloodType: input.BloodType, ChronicConditions: input.ChronicConditions, CurrentMedications: input.CurrentMedications,
+		InsuranceStartDate: pgDate(input.StartDate), InsuranceEndDate: pgDate(input.EndDate),
+		InsuranceBeneficiaryName: input.BeneficiaryName, InsuranceBeneficiaryRelation: input.BeneficiaryRelation,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -442,6 +446,52 @@ func (r *PilgrimRepository) CreateDocument(ctx context.Context, operatorID, pilg
 		return nil, databaseError(err)
 	}
 	return toPilgrimDocument(row), nil
+}
+
+// UpdateKYC is used both by an admin editing a pilgrim's KYC fields and by
+// the pilgrim submitting their own (kycSource distinguishes which) — either
+// way it resets status to PENDING_REVIEW and clears any prior verification,
+// since the data just changed and needs a fresh look.
+func (r *PilgrimRepository) UpdateKYC(ctx context.Context, operatorID, pilgrimID string, input domain.PilgrimKYCInput, kycSource string) (*domain.Pilgrim, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrimUUID, err := pgUUID(pilgrimID)
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.queries.UpdatePilgrimKyc(ctx, db.UpdatePilgrimKycParams{
+		ID: pilgrimUUID, OperatorID: opUUID, Nik: input.NIK, Address: input.Address,
+		PlaceOfBirth: input.PlaceOfBirth, MaritalStatus: input.MaritalStatus, Occupation: input.Occupation, FatherName: input.FatherName,
+		KycStatus: "PENDING_REVIEW", KycSource: kycSource,
+	})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toPilgrim(row), nil
+}
+
+func (r *PilgrimRepository) VerifyKYC(ctx context.Context, operatorID, pilgrimID, verifiedBy string, approve bool, rejectionReason string) (*domain.Pilgrim, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrimUUID, err := pgUUID(pilgrimID)
+	if err != nil {
+		return nil, err
+	}
+	status := "VERIFIED"
+	if !approve {
+		status = "REJECTED"
+	}
+	row, err := r.queries.VerifyPilgrimKyc(ctx, db.VerifyPilgrimKycParams{
+		ID: pilgrimUUID, OperatorID: opUUID, KycStatus: status, KycVerifiedBy: verifiedBy, KycRejectionReason: rejectionReason,
+	})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toPilgrim(row), nil
 }
 
 func (r *PilgrimRepository) ListDocuments(ctx context.Context, pilgrimID string) ([]*domain.PilgrimDocument, error) {
@@ -534,51 +584,72 @@ func databaseError(err error) error {
 
 func toPilgrim(value db.Pilgrim) *domain.Pilgrim {
 	return &domain.Pilgrim{
-		ID:                    uuidString(value.ID),
-		SeasonID:              uuidString(value.SeasonID),
-		OperatorID:            uuidString(value.OperatorID),
-		GroupID:               nullableUUIDString(value.GroupID),
-		FullName:              value.FullName,
-		PassportNumber:        value.PassportNumber,
-		Nationality:           value.Nationality,
-		DateOfBirth:           value.DateOfBirth.Time,
-		Gender:                value.Gender,
-		PhotoURL:              value.PhotoUrl.String,
-		Phone:                 value.Phone.String,
-		EmergencyContact:      value.EmergencyContact.String,
-		PreferredLang:         value.PreferredLang,
-		MedicalNotes:          value.MedicalNotes.String,
-		RequiresWheelchair:    value.RequiresWheelchair,
-		MahramID:              nullableUUIDString(value.MahramID),
-		IsSubstituted:         value.IsSubstituted,
-		SubstitutedByID:       nullableUUIDString(value.SubstitutedByID),
-		AppAccessCode:         value.AppAccessCode,
-		CreatedAt:             value.CreatedAt.Time,
-		UpdatedAt:             value.UpdatedAt.Time,
-		LastLat:               float8Ptr(value.LastLat),
-		LastLng:               float8Ptr(value.LastLng),
-		LastLocationAt:        timestamptzPtr(value.LastLocationAt),
-		KloterID:              nullableUUIDString(value.KloterID),
-		Email:                 value.Email.String,
-		HasAccount:            value.LinkedUserID.Valid,
-		PaymentStatus:         value.PaymentStatus,
-		PaymentReceiptURL:     value.PaymentReceiptUrl,
-		PaymentNotes:          value.PaymentNotes,
-		EmergencyContactName:  value.EmergencyContactName,
-		EmergencyContactPhone: value.EmergencyContactPhone,
-		PassportExpiryDate:    datePtr(value.PassportExpiryDate),
-		VaccineMeningitisDate: datePtr(value.VaccineMeningitisDate),
-		HotelCheckedIn:        value.HotelCheckedIn,
-		DocumentsPassport:     value.DocumentsPassport,
-		DocumentsPhoto:        value.DocumentsPhoto,
-		DocumentsVaccine:      value.DocumentsVaccine,
-		Status:                value.Status,
-		InsuranceProvider:     value.InsuranceProvider,
-		InsurancePolicyNo:     value.InsurancePolicyNo,
-		InsuranceClass:        value.InsuranceClass,
-		BloodType:             value.BloodType,
-		ChronicConditions:     value.ChronicConditions,
-		CurrentMedications:    value.CurrentMedications,
+		ID:                           uuidString(value.ID),
+		SeasonID:                     uuidString(value.SeasonID),
+		OperatorID:                   uuidString(value.OperatorID),
+		GroupID:                      nullableUUIDString(value.GroupID),
+		FullName:                     value.FullName,
+		PassportNumber:               value.PassportNumber,
+		Nationality:                  value.Nationality,
+		DateOfBirth:                  value.DateOfBirth.Time,
+		Gender:                       value.Gender,
+		PhotoURL:                     value.PhotoUrl.String,
+		Phone:                        value.Phone.String,
+		EmergencyContact:             value.EmergencyContact.String,
+		PreferredLang:                value.PreferredLang,
+		MedicalNotes:                 value.MedicalNotes.String,
+		RequiresWheelchair:           value.RequiresWheelchair,
+		MahramID:                     nullableUUIDString(value.MahramID),
+		IsSubstituted:                value.IsSubstituted,
+		SubstitutedByID:              nullableUUIDString(value.SubstitutedByID),
+		AppAccessCode:                value.AppAccessCode,
+		CreatedAt:                    value.CreatedAt.Time,
+		UpdatedAt:                    value.UpdatedAt.Time,
+		LastLat:                      float8Ptr(value.LastLat),
+		LastLng:                      float8Ptr(value.LastLng),
+		LastLocationAt:               timestamptzPtr(value.LastLocationAt),
+		KloterID:                     nullableUUIDString(value.KloterID),
+		Email:                        value.Email.String,
+		HasAccount:                   value.LinkedUserID.Valid,
+		PaymentStatus:                value.PaymentStatus,
+		PaymentNotes:                 value.PaymentNotes,
+		EmergencyContactName:         value.EmergencyContactName,
+		EmergencyContactPhone:        value.EmergencyContactPhone,
+		PassportExpiryDate:           datePtr(value.PassportExpiryDate),
+		VaccineMeningitisDate:        datePtr(value.VaccineMeningitisDate),
+		HotelCheckedIn:               value.HotelCheckedIn,
+		DocumentsPassport:            value.DocumentsPassport,
+		DocumentsPhoto:               value.DocumentsPhoto,
+		DocumentsVaccine:             value.DocumentsVaccine,
+		Status:                       value.Status,
+		InsuranceProvider:            value.InsuranceProvider,
+		InsurancePolicyNo:            value.InsurancePolicyNo,
+		InsuranceClass:               value.InsuranceClass,
+		BloodType:                    value.BloodType,
+		ChronicConditions:            value.ChronicConditions,
+		CurrentMedications:           value.CurrentMedications,
+		NIK:                          value.Nik,
+		Address:                      value.Address,
+		KYCStatus:                    value.KycStatus,
+		KYCSource:                    value.KycSource,
+		KYCVerifiedBy:                value.KycVerifiedBy,
+		KYCVerifiedAt:                timestamptzPtr(value.KycVerifiedAt),
+		KYCRejectionReason:           value.KycRejectionReason,
+		DocumentsKTP:                 value.DocumentsKtp,
+		DocumentsSelfie:              value.DocumentsSelfie,
+		PlaceOfBirth:                 value.PlaceOfBirth,
+		MaritalStatus:                value.MaritalStatus,
+		Occupation:                   value.Occupation,
+		FatherName:                   value.FatherName,
+		DocumentsKK:                  value.DocumentsKk,
+		DocumentsMahramProof:         value.DocumentsMahramProof,
+		InsuranceStartDate:           datePtr(value.InsuranceStartDate),
+		InsuranceEndDate:             datePtr(value.InsuranceEndDate),
+		InsuranceBeneficiaryName:     value.InsuranceBeneficiaryName,
+		InsuranceBeneficiaryRelation: value.InsuranceBeneficiaryRelation,
+		DocumentsVisa:                value.DocumentsVisa,
+		VisaNumber:                   value.VisaNumber,
+		VisaExpiryDate:               datePtr(value.VisaExpiryDate),
 	}
 }
 

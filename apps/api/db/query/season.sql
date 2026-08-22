@@ -1,7 +1,13 @@
 -- name: CreateSeason :one
-INSERT INTO seasons (operator_id, name, type, start_date, end_date, capacity)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO seasons (operator_id, name, type, start_date, end_date, capacity, slug)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
+
+-- name: SeasonSlugExists :one
+SELECT EXISTS(SELECT 1 FROM seasons WHERE operator_id = $1 AND slug = $2);
+
+-- name: GetSeasonBySlug :one
+SELECT * FROM seasons WHERE operator_id = $1 AND slug = $2;
 
 -- name: ListSeasonsByOperatorID :many
 SELECT * FROM seasons
@@ -11,6 +17,15 @@ ORDER BY start_date DESC;
 -- name: GetSeasonByID :one
 SELECT * FROM seasons
 WHERE id = $1 AND operator_id = $2;
+
+-- name: GetActiveSeasonIDForOperator :one
+-- Nothing enforces at most one active season per operator (is_active is a
+-- plain boolean, not a partial unique index) — in the rare case more than
+-- one is active, most-recently-started wins, deterministically.
+SELECT id FROM seasons
+WHERE operator_id = $1 AND is_active = true
+ORDER BY start_date DESC
+LIMIT 1;
 
 -- name: UpdateSeason :one
 UPDATE seasons

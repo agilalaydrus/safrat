@@ -28,6 +28,25 @@ WHERE g.operator_id = $1 AND g.season_id = $2
 GROUP BY g.id, u.name
 ORDER BY g.name ASC;
 
+-- name: ListGroupsByKloter :many
+SELECT g.*, COUNT(p.id)::int AS pilgrim_count, u.name AS leader_name
+FROM groups g
+LEFT JOIN pilgrims p ON p.group_id = g.id AND p.is_substituted = false
+LEFT JOIN "user" u ON u.id = g.leader_id
+WHERE g.operator_id = $1 AND g.kloter_id = $2
+GROUP BY g.id, u.name
+ORDER BY g.name ASC;
+
+-- name: UpdateGroupCity :one
+UPDATE groups
+SET current_city = $3, last_update = NOW()
+WHERE id = $1 AND operator_id = $2
+RETURNING *;
+
+-- name: InsertGroupLocationLog :exec
+INSERT INTO group_location_log (operator_id, group_id, city, location, updated_by)
+VALUES ($1, $2, $3, $4, $5);
+
 -- name: CreateGroup :one
 INSERT INTO groups (operator_id, season_id, name, capacity)
 VALUES ($1, $2, $3, $4)
@@ -44,6 +63,24 @@ UPDATE pilgrims SET group_id = NULL WHERE group_id = $1 AND operator_id = $2;
 
 -- name: DeleteGroup :exec
 DELETE FROM groups WHERE id = $1 AND operator_id = $2;
+
+-- name: ListMuttawwif :many
+-- One row per (leader, group) pair, operator-wide (not season-scoped,
+-- unlike ListGroupsForOperator) — the service layer aggregates rows sharing
+-- a user_id into one Muttawwif with multiple groups.
+SELECT g.id AS group_id, g.name AS group_name, g.capacity, g.season_id,
+       COUNT(p.id)::int AS pilgrim_count,
+       u.id AS user_id, u.name AS user_name, u.email AS user_email,
+       COALESCE(a.phone, '') AS phone,
+       a.id AS agent_id,
+       COALESCE(a.kyc_status, 'UNVERIFIED') AS kyc_status
+FROM groups g
+JOIN "user" u ON u.id = g.leader_id
+LEFT JOIN pilgrims p ON p.group_id = g.id AND p.is_substituted = false
+LEFT JOIN agents a ON a.linked_user_id = g.leader_id AND a.operator_id = g.operator_id
+WHERE g.operator_id = $1
+GROUP BY g.id, u.id, u.name, u.email, a.phone, a.id, a.kyc_status
+ORDER BY u.name ASC, g.name ASC;
 
 -- name: ListOperatorMembers :many
 SELECT u.id, u.name, u.email

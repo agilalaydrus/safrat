@@ -1,29 +1,46 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { IconPencil, IconPlane, IconPlus, IconTrash } from "@tabler/icons-react";
 import { Kloter } from "@hajj-saas/proto-gen/hajj/v1/kloter_pb";
-import { kloterClient, seasonClient } from "@/lib/rpc";
+import { Movement } from "@hajj-saas/proto-gen/hajj/v1/transport_pb";
+import { kloterClient, seasonClient, transportClient } from "@/lib/rpc";
 import KloterFormDialog from "./KloterFormDialog";
 import { RoleGate } from "@/components/auth/RoleGate";
 
+const TRIP_LEG_LABEL: Record<string, string> = { DEPARTURE: "Keberangkatan", RETURN: "Kepulangan" };
+
 export default function KloterDashboard() {
+  const router = useRouter();
   const [seasons, setSeasons] = useState<{ id: string; name: string; isActive: boolean }[]>([]);
   const [seasonId, setSeasonId] = useState("");
   const [kloters, setKloters] = useState<Kloter[]>([]);
+  const [movements, setMovements] = useState<Movement[]>([]);
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<Kloter | undefined>();
   const [notice, setNotice] = useState("");
 
   const load = async (id = seasonId) => {
     if (!id) return;
-    try { setKloters((await kloterClient.listKloters({ seasonId: id })).kloters); }
-    catch { setNotice("Gagal memuat data kloter."); }
+    try {
+      const [klotersResponse, movementsResponse] = await Promise.all([kloterClient.listKloters({ seasonId: id }), transportClient.listMovements({ seasonId: id })]);
+      setKloters(klotersResponse.kloters);
+      setMovements(movementsResponse.movements);
+    } catch { setNotice("Gagal memuat data kloter."); }
   };
 
   useEffect(() => {
     seasonClient.listSeasons({}).then((r) => { setSeasons(r.seasons); setSeasonId(r.seasons.find((s) => s.isActive)?.id ?? r.seasons[0]?.id ?? ""); }).catch(() => setNotice("Gagal memuat data musim."));
   }, []);
   useEffect(() => { void load(); }, [seasonId]);
+
+  // The full flight itinerary for a kloter — departure leg(s), any transit,
+  // and the return leg(s) — is whatever FLIGHT movements are scoped to it,
+  // sorted chronologically. Consecutive legs tagged the same trip_leg is
+  // how a transit shows up, without a separate TRANSIT value.
+  const flightLegsFor = (kloterId: string) => movements
+    .filter((m) => m.kloterId === kloterId && m.mode === "FLIGHT")
+    .sort((a, b) => (a.scheduledAt?.toDate().getTime() ?? 0) - (b.scheduledAt?.toDate().getTime() ?? 0));
 
   async function remove(kloter: Kloter) {
     if (!window.confirm(`Hapus kloter ${kloter.code}? Jamaah akan dilepas dari kloter ini, bukan dihapus.`)) return;
@@ -46,20 +63,37 @@ export default function KloterDashboard() {
       {notice && <p style={{ color: "var(--color-danger-600)" }}>{notice}</p>}
       {kloters.length ? (
         <div style={grid}>
-          {kloters.map((k) => (
-            <article style={card} key={k.id}>
+          {kloters.map((k) => {
+            const legs = flightLegsFor(k.id);
+            return (
+            <article style={{ ...card, cursor: "pointer" }} key={k.id} onClick={() => router.push(`/dashboard/kloter/${k.id}?seasonId=${seasonId}`)}>
               <div style={row}><h2 style={{ margin: 0, fontSize: 18 }}>{k.code}</h2><span style={capBadge}>{k.pilgrimCount}{k.capacity ? `/${k.capacity}` : ""}</span></div>
               <p style={meta}>{k.embarkation || "Embarkasi belum ditentukan"}</p>
-              <p style={meta}><IconPlane size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />{k.flightNumber || "Nomor penerbangan belum ditentukan"}</p>
               {k.departureDate && <p style={meta}>{k.departureDate.toDate().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}</p>}
-              <div style={row}>
+              {legs.length ? (
+                <div style={{ display: "grid", gap: 6, marginTop: 4 }}>
+                  {legs.map((leg) => (
+                    <div key={leg.id} style={legRow}>
+                      <span style={legBadge}>{TRIP_LEG_LABEL[leg.tripLeg] ?? (leg.tripLeg || "Penerbangan")}</span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: "flex", alignItems: "center", gap: 4 }}><IconPlane size={13} />{leg.origin} → {leg.destination}</span>
+                        <span style={{ display: "block", fontSize: 11, color: "var(--color-warm-400)" }}>{[leg.airline, leg.flightNumber].filter(Boolean).join(" · ") || "Maskapai belum ditentukan"}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={meta}><IconPlane size={14} style={{ verticalAlign: "-2px", marginRight: 4 }} />{k.flightNumber || "Belum ada jadwal penerbangan — tambahkan di menu Transportasi"}</p>
+              )}
+              <div style={row} onClick={(e) => e.stopPropagation()}>
                 <button style={ghost} onClick={() => { setEdit(k); setOpen(true); }}><IconPencil size={15} />Ubah</button>
                 <RoleGate require={["owner", "admin"]}>
                   <button style={{ ...ghost, color: "var(--color-danger-600)" }} onClick={() => void remove(k)}><IconTrash size={15} />Hapus</button>
                 </RoleGate>
               </div>
             </article>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <section style={empty}>
@@ -87,5 +121,7 @@ const card: React.CSSProperties = { background: "white", border: "1px solid var(
 const row: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 };
 const capBadge: React.CSSProperties = { padding: "4px 8px", borderRadius: 99, background: "var(--color-gold-50)", color: "var(--color-gold-800)", fontSize: 12 };
 const meta: React.CSSProperties = { margin: 0, color: "var(--color-warm-500)", fontSize: 13 };
+const legRow: React.CSSProperties = { display: "flex", gap: 8, alignItems: "flex-start", padding: "6px 8px", background: "var(--color-cream-100)", borderRadius: 8, fontSize: 13 };
+const legBadge: React.CSSProperties = { flexShrink: 0, padding: "3px 8px", borderRadius: 99, background: "var(--color-emerald-50)", color: "var(--color-emerald-900)", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" };
 const ghost: React.CSSProperties = { border: 0, background: "transparent", display: "inline-flex", alignItems: "center", gap: 4, color: "var(--color-warm-500)", marginRight: 8 };
 const empty: React.CSSProperties = { minHeight: 280, display: "grid", placeItems: "center", alignContent: "center", gap: 12, border: "1px dashed var(--color-cream-400)", borderRadius: 12, textAlign: "center", padding: 24 };

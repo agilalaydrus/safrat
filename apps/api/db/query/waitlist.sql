@@ -42,6 +42,15 @@ SET status = 'CONFIRMED'
 WHERE id = $1 AND season_id = $2 AND email = $3 AND status = 'PROMOTED' AND expires_at > NOW()
 RETURNING *;
 
+-- name: AdminConfirmWaitlistEntry :one
+-- Staff-facing confirm — no email match, no expiry check (a trusted staff
+-- action after calling/WhatsApping the person directly, not an unattended
+-- public link). Works from WAITING or PROMOTED.
+UPDATE season_waitlists
+SET status = 'CONFIRMED'
+WHERE id = $1 AND operator_id = $2 AND status IN ('WAITING', 'PROMOTED')
+RETURNING *;
+
 -- name: ExpirePromotedEntries :many
 -- Bulk sweep for the worker — flips every stale PROMOTED entry to EXPIRED
 -- and returns the affected season_ids so the caller can promote the next

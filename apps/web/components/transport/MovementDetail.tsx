@@ -78,7 +78,7 @@ export default function MovementDetail({ movementId }: { movementId: string }) {
       const scheduled = movement?.scheduledAt?.toDate().toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) ?? "";
       const pilgrimsResponse = movement?.seasonId ? await pilgrimClient.listPilgrims({ seasonId: movement.seasonId, limit: 1000, offset: 0 }) : undefined;
       const pilgrimById = new Map((pilgrimsResponse?.pilgrims ?? []).map((p) => [p.id, p]));
-      const headers = ["Jadwal", "Asal", "Tujuan", "Terjadwal", modeCopy.number, modeCopy.operator, modeCopy.contact, "No. Kursi", "Nama Lengkap", "No. Paspor", "Kewarganegaraan", "Jenis Kelamin", "Tanggal Lahir", "Telepon", "Kode Rombongan", "Kursi Roda", "Kontak Darurat"];
+      const headers = ["Jadwal", "Asal", "Tujuan", "Terjadwal", modeCopy.number, modeCopy.operator, modeCopy.contact, "No. Kursi", "Nama Lengkap", "No. Paspor", "Kewarganegaraan", "Jenis Kelamin", "Tanggal Lahir", "Telepon", "Kode Grup", "Kursi Roda", "Kontak Darurat"];
       const rows: string[][] = [];
       for (const vehicle of vehicles) {
         const manifest = await transportClient.getVehicleManifest({ vehicleId: vehicle.id });
@@ -101,6 +101,7 @@ export default function MovementDetail({ movementId }: { movementId: string }) {
           <p style={eyebrow}>TRANSPORTASI / JADWAL</p>
           <h1 style={title}>{movement?.name ?? "Kendaraan jadwal"}</h1>
           <p style={{ color: "var(--color-warm-500)" }}>{movement?.origin} → {movement?.destination}</p>
+          {movement?.mode === "FLIGHT" && (movement.airline || movement.flightNumber) && <p style={{ margin: "2px 0 0", color: "var(--color-warm-500)", fontSize: 13 }}>{[movement.airline, movement.flightNumber].filter(Boolean).join(" · ")}{movement.tripLeg && ` · ${movement.tripLeg === "DEPARTURE" ? "Keberangkatan" : "Kepulangan"}`}</p>}
           {movement && <div style={statusRow}>
             <span style={badge(movement.status)}>{statusLabel(movement.status)}</span>
             {movement.status === "scheduled" && <>

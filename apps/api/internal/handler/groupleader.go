@@ -28,6 +28,13 @@ func (h *GroupLeaderHandler) GetGroupRoster(ctx context.Context, req *connect.Re
 	}
 	return connect.NewResponse(result), nil
 }
+func (h *GroupLeaderHandler) UpdateMyGroupCity(ctx context.Context, req *connect.Request[hajjv1.UpdateMyGroupCityRequest]) (*connect.Response[hajjv1.LeaderGroup], error) {
+	result, err := h.groupLeaderService.UpdateMyGroupCity(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
 func (h *GroupLeaderHandler) ListCheckIns(ctx context.Context, req *connect.Request[hajjv1.ListCheckInsRequest]) (*connect.Response[hajjv1.ListCheckInsResponse], error) {
 	result, err := h.groupLeaderService.ListCheckIns(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
 	if err != nil {

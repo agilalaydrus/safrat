@@ -160,9 +160,9 @@ func (s *AccommodationService) AllocatePilgrim(ctx context.Context, org string, 
 	if count >= int64(room.Capacity) {
 		return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("room capacity exceeded"))
 	}
-	_, e = s.repo.GetAllocation(ctx, op, p.ID)
+	_, e = s.repo.GetAllocationForHotel(ctx, op, p.ID, room.HotelID)
 	if e == nil {
-		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("pilgrim already has a room"))
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("pilgrim already has a room in this hotel"))
 	}
 	if !errors.Is(e, apperror.ErrNotFound) {
 		return nil, serviceError("AccommodationService.AllocatePilgrim", e)
@@ -170,7 +170,7 @@ func (s *AccommodationService) AllocatePilgrim(ctx context.Context, org string, 
 	if room.Gender != "family" && strings.ToLower(p.Gender) != room.Gender {
 		return nil, connect.NewError(connect.CodeFailedPrecondition, fmt.Errorf("room is designated %s only", room.Gender))
 	}
-	v, e := s.repo.Allocate(ctx, op, room.ID, p.ID, middleware.UserIDFromCtx(ctx))
+	v, e := s.repo.Allocate(ctx, op, room.ID, room.HotelID, p.ID, middleware.UserIDFromCtx(ctx))
 	if e != nil {
 		return nil, serviceError("AccommodationService.AllocatePilgrim", e)
 	}
@@ -178,6 +178,9 @@ func (s *AccommodationService) AllocatePilgrim(ctx context.Context, org string, 
 	return allocationMessage(v), nil
 }
 func (s *AccommodationService) DeallocatePilgrim(ctx context.Context, org string, r *hajjv1.DeallocatePilgrimRequest) (*emptypb.Empty, error) {
+	if r == nil || r.PilgrimId == "" || r.RoomId == "" {
+		return nil, serviceError("AccommodationService.DeallocatePilgrim", apperror.ErrValidation)
+	}
 	op, e := s.operator(ctx, org)
 	if e != nil {
 		return nil, serviceError("AccommodationService.DeallocatePilgrim", e)
@@ -186,7 +189,7 @@ func (s *AccommodationService) DeallocatePilgrim(ctx context.Context, org string
 	if e != nil {
 		return nil, serviceError("AccommodationService.DeallocatePilgrim", e)
 	}
-	if e = s.repo.Deallocate(ctx, op, r.PilgrimId); e != nil {
+	if e = s.repo.Deallocate(ctx, op, r.PilgrimId, r.RoomId); e != nil {
 		return nil, serviceError("AccommodationService.DeallocatePilgrim", e)
 	}
 	s.logActivity(ctx, op, "room_deallocated", p.ID, fmt.Sprintf("%s dikeluarkan dari kamar", p.FullName))
@@ -206,7 +209,7 @@ func (s *AccommodationService) ListPilgrimRoomAssignments(ctx context.Context, o
 	}
 	out := &hajjv1.ListPilgrimRoomAssignmentsResponse{Assignments: make([]*hajjv1.PilgrimRoomAssignment, 0, len(rows))}
 	for _, row := range rows {
-		out.Assignments = append(out.Assignments, &hajjv1.PilgrimRoomAssignment{PilgrimId: row.PilgrimID, HotelName: row.HotelName, RoomNumber: row.RoomNumber, RoomType: row.RoomType})
+		out.Assignments = append(out.Assignments, &hajjv1.PilgrimRoomAssignment{PilgrimId: row.PilgrimID, HotelName: row.HotelName, RoomNumber: row.RoomNumber, RoomType: row.RoomType, RoomId: row.RoomID, HotelId: row.HotelID})
 	}
 	return out, nil
 }

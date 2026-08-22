@@ -34,6 +34,7 @@ export default function PilgrimSchedulePage() {
             <p style={date}>{toDateSafe(movement.scheduledAt)?.toLocaleDateString("id-ID", { weekday: "short", day: "2-digit", month: "short" })}</p>
             <h2 style={{ margin: "4px 0 8px", fontSize: 18 }}>{movement.name}</h2>
             <p style={route}>{movement.origin}<IconArrowRight size={14} />{movement.destination}</p>
+            {movement.mode === "FLIGHT" && (movement.airline || movement.flightNumber) && <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--color-warm-500)" }}>{[movement.airline, movement.flightNumber].filter(Boolean).join(" · ")}{movement.tripLeg && ` · ${movement.tripLeg === "DEPARTURE" ? "Keberangkatan" : "Kepulangan"}`}</p>}
             <p style={time}>{toDateSafe(movement.scheduledAt)?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
           </article>
         ))}

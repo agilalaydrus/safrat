@@ -3,6 +3,9 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,7 +14,19 @@ import (
 	"github.com/hajj-saas/api/internal/domain"
 	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+var slugStripPattern = regexp.MustCompile(`[^a-z0-9]`)
+
+// slugBase derives a subdomain-safe candidate from an operator name's first
+// word — e.g. "Vacana Tour" -> "vacana". Empty when the first word has no
+// alphanumeric characters at all (e.g. punctuation-only), in which case the
+// caller falls back to not setting a slug rather than inserting "".
+func slugBase(name string) string {
+	firstWord, _, _ := strings.Cut(strings.TrimSpace(name), " ")
+	return slugStripPattern.ReplaceAllString(strings.ToLower(firstWord), "")
+}
 
 // operatorCacheTTL is generous — operator rows (name/country/license) change
 // essentially never after onboarding, and GetByBetterAuthOrgID is the
@@ -39,15 +54,57 @@ func NewOperatorRepository(queries *db.Queries) *OperatorRepository {
 }
 
 func (r *OperatorRepository) Create(ctx context.Context, betterAuthOrgID, name, country, email, licenseNumber string) (*domain.Operator, error) {
+	slug, err := r.uniqueSlug(ctx, name)
+	if err != nil {
+		return nil, err
+	}
 	operator, err := r.queries.CreateOperator(ctx, db.CreateOperatorParams{
 		BetterAuthOrgID: betterAuthOrgID,
 		Name:            name,
 		Country:         country,
 		Email:           email,
 		Column5:         licenseNumber,
+		Slug:            pgtype.Text{String: slug, Valid: slug != ""},
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return r.GetByBetterAuthOrgID(ctx, betterAuthOrgID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toOperator(operator), nil
+}
+
+// uniqueSlug tries the bare first-word candidate, then -2, -3, ... until it
+// finds one not already taken. Bounded at 50 attempts — if the name's first
+// word is generic enough to collide 50 times, something else is wrong; the
+// operator still gets created (Create's slug ends up empty, not a hard
+// failure), just without a subdomain until someone sets one manually.
+func (r *OperatorRepository) uniqueSlug(ctx context.Context, name string) (string, error) {
+	base := slugBase(name)
+	if base == "" {
+		return "", nil
+	}
+	for attempt := 1; attempt <= 50; attempt++ {
+		candidate := base
+		if attempt > 1 {
+			candidate = fmt.Sprintf("%s-%d", base, attempt)
+		}
+		exists, err := r.queries.OperatorSlugExists(ctx, pgtype.Text{String: candidate, Valid: true})
+		if err != nil {
+			return "", err
+		}
+		if !exists {
+			return candidate, nil
+		}
+	}
+	return "", nil
+}
+
+func (r *OperatorRepository) GetBySlug(ctx context.Context, slug string) (*domain.Operator, error) {
+	operator, err := r.queries.GetOperatorBySlug(ctx, pgtype.Text{String: slug, Valid: true})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperror.ErrNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -159,6 +216,7 @@ func toOperator(value db.Operator) *domain.Operator {
 		Country:         value.Country,
 		Email:           value.Email,
 		LicenseNumber:   value.LicenseNumber.String,
+		Slug:            value.Slug.String,
 		CreatedAt:       value.CreatedAt.Time,
 	}
 }

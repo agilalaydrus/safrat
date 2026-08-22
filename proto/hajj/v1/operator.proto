@@ -12,6 +12,11 @@ service OperatorService {
   rpc GetMyOperator(GetMyOperatorRequest) returns (Operator);
   rpc UpdateOperator(UpdateOperatorRequest) returns (Operator);
   rpc ListAuditLogs(ListAuditLogsRequest) returns (ListAuditLogsResponse);
+  // Public — resolves a subdomain slug (e.g. "vacana" from vacana.tawafiqhub.id)
+  // to the operator it belongs to, for apps/web/middleware.ts to rewrite
+  // subdomain requests to the existing /register, /apply, /waitlist path-based
+  // routes. Deliberately returns only id + name, nothing sensitive.
+  rpc ResolveOperatorSlug(ResolveOperatorSlugRequest) returns (ResolveOperatorSlugResponse);
 }
 
 message Operator {
@@ -22,6 +27,7 @@ message Operator {
   string email = 5;
   string license_number = 6;
   google.protobuf.Timestamp created_at = 7;
+  string slug = 8;
 }
 
 message CreateOperatorRequest {
@@ -53,3 +59,15 @@ message AuditLog {
 
 message ListAuditLogsRequest { int32 limit = 1; }
 message ListAuditLogsResponse { repeated AuditLog logs = 1; }
+
+message ResolveOperatorSlugRequest {
+  string slug = 1 [(buf.validate.field).string.min_len = 1];
+}
+message ResolveOperatorSlugResponse {
+  string operator_id = 1;
+  string name = 2;
+  // Empty when the operator has no active season — apps/web/middleware.ts
+  // falls back to a "not found" response for /register and /waitlist
+  // subdomain requests that don't specify a season explicitly.
+  string active_season_id = 3;
+}

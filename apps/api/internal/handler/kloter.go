@@ -36,6 +36,13 @@ func (h *KloterHandler) UpdateKloter(ctx context.Context, req *connect.Request[h
 	}
 	return connect.NewResponse(result), nil
 }
+func (h *KloterHandler) UpdateKloterStatus(ctx context.Context, req *connect.Request[hajjv1.UpdateKloterStatusRequest]) (*connect.Response[hajjv1.Kloter], error) {
+	result, err := h.kloterService.UpdateKloterStatus(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
 func (h *KloterHandler) DeleteKloter(ctx context.Context, req *connect.Request[hajjv1.DeleteKloterRequest]) (*connect.Response[emptypb.Empty], error) {
 	result, err := h.kloterService.DeleteKloter(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
 	if err != nil {

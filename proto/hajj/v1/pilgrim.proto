@@ -26,6 +26,10 @@ service PilgrimService {
   rpc ListSubstitutions(ListSubstitutionsRequest) returns (ListSubstitutionsResponse);
   rpc ListSeasonDocuments(ListSeasonDocumentsRequest) returns (ListSeasonDocumentsResponse);
   rpc UpdatePilgrimInsurance(UpdatePilgrimInsuranceRequest) returns (Pilgrim);
+  // KYC — admin-facing. See PilgrimAppService.SubmitMyPilgrimKyc for the
+  // pilgrim self-service equivalent (public, app_access_code authenticated).
+  rpc UpdatePilgrimKyc(UpdatePilgrimKycRequest) returns (Pilgrim);
+  rpc VerifyPilgrimKyc(VerifyPilgrimKycRequest) returns (Pilgrim);
 }
 
 enum Gender {
@@ -66,8 +70,8 @@ message Pilgrim {
   // confirm the pilgrim has actually claimed access, not just that an email
   // was entered for them.
   bool has_account = 24;
+  reserved 26; // was payment_receipt_url — receipts are now pilgrim_documents (PAYMENT_RECEIPT), not a pasted link
   string payment_status = 25; // UNPAID | DP | PAID
-  string payment_receipt_url = 26;
   string payment_notes = 27;
   string emergency_contact_name = 28;
   string emergency_contact_phone = 29;
@@ -85,6 +89,34 @@ message Pilgrim {
   string blood_type = 40;
   string chronic_conditions = 41;
   string current_medications = 42;
+  // KYC (Know Your Customer) — NIK + address collected either by the
+  // operator's admin or the pilgrim themselves (kyc_source); either way,
+  // kyc_status starts/returns to PENDING_REVIEW until an admin explicitly
+  // verifies it (see VerifyPilgrimKyc). Never gates pilgrim-facing features.
+  string nik = 43;
+  string address = 44;
+  string kyc_status = 45; // UNVERIFIED | PENDING_REVIEW | VERIFIED | REJECTED
+  string kyc_source = 46; // ADMIN | SELF
+  string kyc_verified_by = 47;
+  google.protobuf.Timestamp kyc_verified_at = 48;
+  string kyc_rejection_reason = 49;
+  bool documents_ktp = 50;
+  bool documents_selfie = 51;
+  string place_of_birth = 52;
+  string marital_status = 53;
+  string occupation = 54;
+  string father_name = 55;
+  bool documents_kk = 56;
+  bool documents_mahram_proof = 57;
+  google.protobuf.Timestamp insurance_start_date = 58;
+  google.protobuf.Timestamp insurance_end_date = 59;
+  string insurance_beneficiary_name = 60;
+  string insurance_beneficiary_relation = 61;
+  // Visa (Umrah/Hajj visa, issued via Nusuk/eHajj) — a separate document
+  // from the passport itself.
+  bool documents_visa = 62;
+  string visa_number = 63;
+  google.protobuf.Timestamp visa_expiry_date = 64;
 }
 
 message CreatePilgrimRequest {
@@ -194,9 +226,9 @@ message PilgrimStats {
 }
 
 message UpdatePilgrimPaymentRequest {
+  reserved 3; // was payment_receipt_url — receipts are now pilgrim_documents (PAYMENT_RECEIPT), not a pasted link
   string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
   string payment_status = 2 [(buf.validate.field).string = {in: ["UNPAID", "DP", "PAID"]}];
-  string payment_receipt_url = 3;
   string payment_notes = 4 [(buf.validate.field).string.max_len = 1000];
 }
 
@@ -207,6 +239,34 @@ message UpdatePilgrimDocumentsRequest {
   bool documents_vaccine = 4;
   google.protobuf.Timestamp passport_expiry_date = 5;
   google.protobuf.Timestamp vaccine_meningitis_date = 6;
+  // KTP/KK/mahram-proof (akta nikah/kelahiran) — the rest of the PPIU +
+  // Saudi entry document checklist, alongside passport/photo/vaccine.
+  bool documents_ktp = 7;
+  bool documents_kk = 8;
+  bool documents_mahram_proof = 9;
+  bool documents_visa = 10;
+  string visa_number = 11 [(buf.validate.field).string.max_len = 50];
+  google.protobuf.Timestamp visa_expiry_date = 12;
+}
+
+message UpdatePilgrimKycRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+  string nik = 2 [(buf.validate.field).string.max_len = 32];
+  string address = 3 [(buf.validate.field).string.max_len = 300];
+  // place_of_birth, marital_status, occupation, father_name are all part of
+  // the Saudi visa/manifest submission data set, not just NIK+address —
+  // KYC is meant to be the pilgrim's complete identity record, not a
+  // partial one.
+  string place_of_birth = 4 [(buf.validate.field).string.max_len = 100];
+  string marital_status = 5 [(buf.validate.field).string = {in: ["", "SINGLE", "MARRIED", "DIVORCED", "WIDOWED"]}];
+  string occupation = 6 [(buf.validate.field).string.max_len = 100];
+  string father_name = 7 [(buf.validate.field).string.max_len = 100];
+}
+
+message VerifyPilgrimKycRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+  bool approve = 2;
+  string rejection_reason = 3 [(buf.validate.field).string.max_len = 300];
 }
 
 message UpdatePilgrimEmergencyContactRequest {
@@ -271,4 +331,13 @@ message UpdatePilgrimInsuranceRequest {
   string blood_type = 5 [(buf.validate.field).string.max_len = 10];
   string chronic_conditions = 6 [(buf.validate.field).string.max_len = 500];
   string current_medications = 7 [(buf.validate.field).string.max_len = 500];
+  // Coverage period — a claim filed outside this window is void, so this
+  // matters as much as the policy number itself.
+  google.protobuf.Timestamp insurance_start_date = 8;
+  google.protobuf.Timestamp insurance_end_date = 9;
+  // Who the accidental-death benefit pays out to, and how they're related
+  // to the pilgrim — standard on every umrah/hajj travel policy (Allianz,
+  // Sompo, Jasindo, AXA Mandiri, Chubb, ...).
+  string insurance_beneficiary_name = 10 [(buf.validate.field).string.max_len = 100];
+  string insurance_beneficiary_relation = 11 [(buf.validate.field).string.max_len = 50];
 }

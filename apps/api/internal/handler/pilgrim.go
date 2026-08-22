@@ -117,6 +117,28 @@ func (h *PilgrimHandler) UpdatePilgrimDocuments(ctx context.Context, req *connec
 	return connect.NewResponse(result), nil
 }
 
+func (h *PilgrimHandler) UpdatePilgrimKyc(ctx context.Context, req *connect.Request[hajjv1.UpdatePilgrimKycRequest]) (*connect.Response[hajjv1.Pilgrim], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimService.UpdateKyc(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PilgrimHandler) VerifyPilgrimKyc(ctx context.Context, req *connect.Request[hajjv1.VerifyPilgrimKycRequest]) (*connect.Response[hajjv1.Pilgrim], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimService.VerifyKyc(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *PilgrimHandler) UpdatePilgrimEmergencyContact(ctx context.Context, req *connect.Request[hajjv1.UpdatePilgrimEmergencyContactRequest]) (*connect.Response[hajjv1.Pilgrim], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

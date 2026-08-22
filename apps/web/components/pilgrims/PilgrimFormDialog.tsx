@@ -32,7 +32,7 @@ type Props = {
   pilgrims: Pilgrim[];
   onSaved: (name: string) => void;
   initial?: Pilgrim;
-  /** Pre-selects a group when adding a new pilgrim from the Rombongan page — ignored in edit mode. */
+  /** Pre-selects a group when adding a new pilgrim from the Grup page — ignored in edit mode. */
   defaultGroupId?: string;
 };
 
@@ -323,14 +323,14 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
           </div>
 
           <div style={sectionDivider}>
-            <Section title="Rombongan & Mahram">
+            <Section title="Grup & Mahram">
               <Field fieldKey="kloterId" label="Kloter Keberangkatan" hint="Biarkan kosong untuk ditentukan nanti dari halaman Kloter.">
                 <select className="safrat-input" value={form.kloterId} onChange={(event) => update("kloterId", event.target.value)} style={input}>
                   <option value="">Belum ditentukan</option>
                   {kloters.map((kloter) => <option key={kloter.id} value={kloter.id}>{kloter.code}{kloter.embarkation ? ` · ${kloter.embarkation}` : ""}</option>)}
                 </select>
               </Field>
-              <Field fieldKey="groupId" label="Rombongan" hint="Biarkan kosong untuk ditentukan nanti dari halaman Rombongan.">
+              <Field fieldKey="groupId" label="Grup" hint="Biarkan kosong untuk ditentukan nanti dari halaman Grup.">
                 <select className="safrat-input" value={form.groupId} onChange={(event) => update("groupId", event.target.value)} style={input}>
                   <option value="">Belum ditentukan</option>
                   {groups.map((group) => <option key={group.id} value={group.id}>{group.name} ({group.pilgrimCount}/{group.capacity})</option>)}

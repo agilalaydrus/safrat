@@ -92,6 +92,7 @@ func (r *IdentityRepository) fetchMyAccess(ctx context.Context, userID string) (
 		result.OrgRole = membership.Role
 		result.OperatorID = uuidString(membership.OperatorID)
 		result.OperatorName = membership.OperatorName
+		result.OperatorSlug = membership.OperatorSlug.String
 	case errors.Is(err, pgx.ErrNoRows):
 		// not staff — expected for leaders/pilgrims
 	default:

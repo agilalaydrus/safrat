@@ -17,6 +17,43 @@ type Agent struct {
 	ReferredByAgentID string
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+
+	NIK                string
+	NPWP               string
+	Address            string
+	DateOfBirth        *time.Time
+	PassportNumber     string
+	PassportExpiryDate *time.Time
+	BankName           string
+	BankAccountNumber  string
+	BankAccountHolder  string
+	KYCStatus          string
+	KYCSource          string
+	KYCVerifiedBy      string
+	KYCVerifiedAt      *time.Time
+	KYCRejectionReason string
+}
+
+type AgentKYCInput struct {
+	NIK                string
+	NPWP               string
+	Address            string
+	DateOfBirth        *time.Time
+	PassportNumber     string
+	PassportExpiryDate *time.Time
+	BankName           string
+	BankAccountNumber  string
+	BankAccountHolder  string
+}
+
+type AgentDocument struct {
+	ID         string
+	AgentID    string
+	DocType    string
+	FileURL    string
+	FileName   string
+	UploadedBy string
+	CreatedAt  time.Time
 }
 
 type AgentPayout struct {

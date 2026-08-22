@@ -74,6 +74,17 @@ var publicProcedures = map[string]bool{
 	// PilgrimAppService/GetMyCertificate — same public, code-authenticated
 	// pattern as the rest of this service.
 	"/hajj.v1.PilgrimAppService/GetMyCertificate": true,
+	// PilgrimAppService/SubmitMyPilgrimKyc — same public, code-authenticated
+	// pattern as the rest of this service; pilgrim_id/operator_id are always
+	// derived server-side from app_access_code, never trusted from the body.
+	"/hajj.v1.PilgrimAppService/SubmitMyPilgrimKyc": true,
+	// OperatorService/ResolveOperatorSlug — apps/web/middleware.ts calls this
+	// on every subdomain request (before any session exists) to map a slug
+	// like "vacana" to an operator ID. Returns only id + name.
+	"/hajj.v1.OperatorService/ResolveOperatorSlug": true,
+	// SeasonService/ResolveSeasonSlug — same pattern, for an explicit-season
+	// subdomain link (vacana.tawafiqhub.id/register/musim-haji-2026).
+	"/hajj.v1.SeasonService/ResolveSeasonSlug": true,
 }
 
 // sessionOnlyProcedures lists RPCs that require a real, server-validated
@@ -135,6 +146,11 @@ var restrictedMemberProcedures = map[string]bool{
 	"/hajj.v1.AgentService/GetMyWallet":        true,
 	"/hajj.v1.AgentService/RequestAgentPayout": true,
 	"/hajj.v1.AgentService/ListMyPilgrims":     true,
+	// KYC self-service — same "resolve own agent from identity" scoping as
+	// GetMyWallet. Works for a Muttawwif too (EnsureAgentForLeader).
+	"/hajj.v1.AgentService/SubmitMyAgentKyc":     true,
+	"/hajj.v1.AgentService/GetMyAgentKyc":        true,
+	"/hajj.v1.AgentService/ListMyAgentDocuments": true,
 	// StaffScheduleService — read-only, own assignments only.
 	"/hajj.v1.StaffScheduleService/ListMyAssignments": true,
 	// ChatService — group_id-scoped; ChatService itself additionally
@@ -144,7 +160,8 @@ var restrictedMemberProcedures = map[string]bool{
 	"/hajj.v1.ChatService/ListGroupMessages": true,
 	"/hajj.v1.ChatService/SendGroupMessage":  true,
 	// LostReportService — already scoped via EnsureLeaderOwnsGroup.
-	"/hajj.v1.LostReportService/ListGroupLostReports": true,
+	"/hajj.v1.LostReportService/ListGroupLostReports":   true,
+	"/hajj.v1.LostReportService/ResolveGroupLostReport": true,
 	// NotificationService — registers only the caller's own push token.
 	"/hajj.v1.NotificationService/RegisterPushSubscription": true,
 	// Low-sensitivity, read-only, operator-wide listings with no

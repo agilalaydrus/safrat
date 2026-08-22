@@ -30,7 +30,7 @@ export default function FamilyTrackerPage({ code }: { code: string }) {
     ["Musim", status.seasonName],
     ["Tanggal Berangkat", departureStr],
     ["Check-in Hotel", status.hotelCheckedIn ? "Sudah" : "Belum"],
-    ["Rombongan", status.groupName || "-"],
+    ["Grup", status.groupName || "-"],
     ["Koordinator", status.leaderName || "-"],
     ["Pembaruan Lokasi Terakhir", lastSeenStr],
   ];

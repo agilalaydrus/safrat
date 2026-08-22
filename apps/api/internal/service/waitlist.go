@@ -101,6 +101,22 @@ func (s *WaitlistService) PromoteFromWaitlist(ctx context.Context, authenticated
 	return waitlistMessage(entry), nil
 }
 
+func (s *WaitlistService) ConfirmWaitlistEntry(ctx context.Context, authenticatedOrgID string, req *hajjv1.ConfirmWaitlistEntryRequest) (*hajjv1.WaitlistEntry, error) {
+	if req == nil || !isUUID(req.Id) {
+		return nil, serviceError("WaitlistService.ConfirmWaitlistEntry", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("WaitlistService.ConfirmWaitlistEntry", err)
+	}
+	entry, err := s.waitlistRepository.AdminConfirm(ctx, operator.ID, req.Id)
+	if err != nil {
+		return nil, serviceError("WaitlistService.ConfirmWaitlistEntry", err)
+	}
+	_ = s.auditRepository.Write(ctx, operator.ID, middleware.UserIDFromCtx(ctx), "waitlist_confirmed", "season_waitlist", entry.ID, entry.FullName)
+	return waitlistMessage(entry), nil
+}
+
 func (s *WaitlistService) RemoveFromWaitlist(ctx context.Context, authenticatedOrgID string, req *hajjv1.RemoveFromWaitlistRequest) (*hajjv1.RemoveFromWaitlistResponse, error) {
 	if req == nil || !isUUID(req.Id) {
 		return nil, serviceError("WaitlistService.RemoveFromWaitlist", apperror.ErrValidation)

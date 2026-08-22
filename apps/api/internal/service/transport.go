@@ -35,7 +35,9 @@ func (s *TransportService) operator(ctx context.Context, org string) (string, er
 	}
 	return o.ID, nil
 }
+
 var validMovementModes = map[string]bool{"BUS": true, "FLIGHT": true, "TRAIN": true}
+var validTripLegs = map[string]bool{"": true, "DEPARTURE": true, "RETURN": true}
 
 func (s *TransportService) CreateMovement(ctx context.Context, org string, r *hajjv1.CreateMovementRequest) (*hajjv1.Movement, error) {
 	if r == nil || r.SeasonId == "" || r.Name == "" || r.Origin == "" || r.Destination == "" || r.ScheduledAt == nil {
@@ -48,11 +50,14 @@ func (s *TransportService) CreateMovement(ctx context.Context, org string, r *ha
 	if !validMovementModes[mode] {
 		return nil, serviceError("TransportService.CreateMovement", apperror.ErrValidation)
 	}
+	if !validTripLegs[r.TripLeg] {
+		return nil, serviceError("TransportService.CreateMovement", apperror.ErrValidation)
+	}
 	op, e := s.operator(ctx, org)
 	if e != nil {
 		return nil, serviceError("TransportService.CreateMovement", e)
 	}
-	v, e := s.transportRepo.CreateMovement(ctx, op, r.SeasonId, r.Name, r.Origin, r.Destination, mode, r.KloterId, r.ScheduledAt.AsTime())
+	v, e := s.transportRepo.CreateMovement(ctx, op, r.SeasonId, r.Name, r.Origin, r.Destination, mode, r.KloterId, r.Airline, r.FlightNumber, r.TripLeg, r.ScheduledAt.AsTime())
 	if e != nil {
 		return nil, serviceError("TransportService.CreateMovement", e)
 	}
@@ -256,7 +261,12 @@ func transitionAllowed(from, to string) bool {
 	return m[from][to]
 }
 func movementMessage(v *repository.Movement) *hajjv1.Movement {
-	return &hajjv1.Movement{Id: v.ID, OperatorId: v.OperatorID, SeasonId: v.SeasonID, Name: v.Name, Origin: v.Origin, Destination: v.Destination, ScheduledAt: timestamppb.New(v.ScheduledAt), Status: v.Status, Mode: v.Mode, KloterId: v.KloterID, VehicleCount: v.VehicleCount, TotalCapacity: v.TotalCapacity, AssignedCount: v.AssignedCount, CreatedAt: timestamppb.New(v.CreatedAt)}
+	return &hajjv1.Movement{
+		Id: v.ID, OperatorId: v.OperatorID, SeasonId: v.SeasonID, Name: v.Name, Origin: v.Origin, Destination: v.Destination,
+		ScheduledAt: timestamppb.New(v.ScheduledAt), Status: v.Status, Mode: v.Mode, KloterId: v.KloterID,
+		VehicleCount: v.VehicleCount, TotalCapacity: v.TotalCapacity, AssignedCount: v.AssignedCount, CreatedAt: timestamppb.New(v.CreatedAt),
+		Airline: v.Airline, FlightNumber: v.FlightNumber, TripLeg: v.TripLeg,
+	}
 }
 func vehicleMessage(v *repository.Vehicle) *hajjv1.Vehicle {
 	return &hajjv1.Vehicle{Id: v.ID, MovementId: v.MovementID, OperatorId: v.OperatorID, PlateNumber: v.PlateNumber, Capacity: v.Capacity, DriverName: v.DriverName, DriverPhone: v.DriverPhone, Status: v.Status, AssignedCount: v.AssignedCount, DepartedAt: timeMessage(v.DepartedAt), ArrivedAt: timeMessage(v.ArrivedAt), CreatedAt: timestamppb.New(v.CreatedAt)}

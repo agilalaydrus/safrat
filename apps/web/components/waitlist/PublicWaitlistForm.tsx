@@ -36,7 +36,7 @@ export default function PublicWaitlistForm({ operatorId, seasonId }: { operatorI
       <IconCheck size={40} color="var(--color-emerald-900)" />
       <h1 style={title}>Anda Masuk Daftar Tunggu</h1>
       <p style={{ color: "var(--color-warm-500)", margin: "0 0 20px" }}>Posisi antrian Anda: <strong style={{ color: "var(--color-emerald-900)" }}>#{result.position}</strong></p>
-      <p style={{ color: "var(--color-warm-400)", fontSize: 13 }}>Kami akan menghubungi <strong>{result.email}</strong> jika ada slot yang tersedia. Anda memiliki 48 jam untuk mengkonfirmasi setelah slot ditawarkan.</p>
+      <p style={{ color: "var(--color-warm-400)", fontSize: 13 }}>Tim kami akan menghubungi Anda langsung (telepon/WhatsApp ke nomor yang Anda daftarkan) begitu ada slot tersedia — tidak perlu tindakan apa pun dari Anda sampai saat itu.</p>
     </div></main>;
   }
 

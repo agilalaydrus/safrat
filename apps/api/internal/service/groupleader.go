@@ -2,9 +2,13 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"time"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/apperror"
+	"github.com/hajj-saas/api/internal/domain"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/repository"
@@ -16,10 +20,12 @@ type GroupLeaderService struct {
 	groupLeaderRepository *repository.GroupLeaderRepository
 	sosRepository         *repository.SOSRepository
 	pilgrimRepository     *repository.PilgrimRepository
+	groupRepository       *repository.GroupRepository
+	journeyService        *JourneyService
 }
 
-func NewGroupLeaderService(operators *repository.OperatorRepository, groupLeaders *repository.GroupLeaderRepository, sos *repository.SOSRepository, pilgrims *repository.PilgrimRepository) *GroupLeaderService {
-	return &GroupLeaderService{operatorRepository: operators, groupLeaderRepository: groupLeaders, sosRepository: sos, pilgrimRepository: pilgrims}
+func NewGroupLeaderService(operators *repository.OperatorRepository, groupLeaders *repository.GroupLeaderRepository, sos *repository.SOSRepository, pilgrims *repository.PilgrimRepository, groups *repository.GroupRepository, journey *JourneyService) *GroupLeaderService {
+	return &GroupLeaderService{operatorRepository: operators, groupLeaderRepository: groupLeaders, sosRepository: sos, pilgrimRepository: pilgrims, groupRepository: groups, journeyService: journey}
 }
 
 // ListMySOSAlerts scopes the coordinator-wide SOS surface down to only
@@ -51,9 +57,41 @@ func (s *GroupLeaderService) ListMyGroups(ctx context.Context, orgID string) (*h
 	}
 	result := &hajjv1.ListMyGroupsResponse{Groups: make([]*hajjv1.LeaderGroup, 0, len(groups))}
 	for _, group := range groups {
-		result.Groups = append(result.Groups, &hajjv1.LeaderGroup{Id: group.ID, Name: group.Name, Capacity: group.Capacity, PilgrimCount: group.PilgrimCount, SeasonId: group.SeasonID})
+		result.Groups = append(result.Groups, leaderGroupMessage(group))
 	}
 	return result, nil
+}
+
+// UpdateMyGroupCity is the Muttawwif's Tab Lokasi one-tap action.
+func (s *GroupLeaderService) UpdateMyGroupCity(ctx context.Context, orgID string, req *hajjv1.UpdateMyGroupCityRequest) (*hajjv1.LeaderGroup, error) {
+	if req == nil || strings.TrimSpace(req.GroupId) == "" || strings.TrimSpace(req.City) == "" {
+		return nil, serviceError("GroupLeaderService.UpdateMyGroupCity", apperror.ErrValidation)
+	}
+	op, err := s.authorizeGroup(ctx, orgID, req.GroupId)
+	if err != nil {
+		return nil, err
+	}
+	group, err := s.groupRepository.UpdateCity(ctx, op, req.GroupId, req.City, req.Location, middleware.UserIDFromCtx(ctx))
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.UpdateMyGroupCity", err)
+	}
+	if journeyStatus, ok := cityToJourneyStatus[req.City]; ok && s.journeyService != nil {
+		if _, err := s.journeyService.BulkUpdateForGroup(ctx, op, group.ID, journeyStatus, req.Notes); err != nil {
+			sentry.CaptureException(fmt.Errorf("GroupLeaderService.UpdateMyGroupCity: journey cascade: %w", err))
+		}
+	}
+	return &hajjv1.LeaderGroup{Id: group.ID, Name: group.Name, Capacity: group.Capacity, SeasonId: group.SeasonID, CurrentCity: group.CurrentCity, LastUpdate: timestampOrNil(group.LastUpdate)}, nil
+}
+
+func leaderGroupMessage(group *domain.LeaderGroup) *hajjv1.LeaderGroup {
+	return &hajjv1.LeaderGroup{Id: group.ID, Name: group.Name, Capacity: group.Capacity, PilgrimCount: group.PilgrimCount, SeasonId: group.SeasonID, CurrentCity: group.CurrentCity, LastUpdate: timestampOrNil(group.LastUpdate)}
+}
+
+func timestampOrNil(t *time.Time) *timestamppb.Timestamp {
+	if t == nil {
+		return nil
+	}
+	return timestamppb.New(*t)
 }
 
 func (s *GroupLeaderService) GetGroupRoster(ctx context.Context, orgID string, req *hajjv1.GetGroupRosterRequest) (*hajjv1.GetGroupRosterResponse, error) {

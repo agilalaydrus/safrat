@@ -1,17 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { IconArrowUp, IconClock, IconLink, IconTrash } from "@tabler/icons-react";
+import { IconArrowUp, IconCheck, IconClock, IconLink, IconTrash } from "@tabler/icons-react";
 import { WaitlistEntry } from "@hajj-saas/proto-gen/hajj/v1/waitlist_pb";
 import { operatorClient, seasonClient, waitlistClient } from "@/lib/rpc";
-import { RoleGate } from "@/components/auth/RoleGate";
+import { buildTenantLink } from "@/lib/tenant-link";
 
 const STATUS_LABEL: Record<string, string> = { WAITING: "Menunggu", PROMOTED: "Ditawarkan", CONFIRMED: "Dikonfirmasi", EXPIRED: "Kedaluwarsa", REMOVED: "Dihapus" };
 const STATUS_COLOR: Record<string, string> = { WAITING: "var(--color-gold-800)", PROMOTED: "var(--color-emerald-800)", CONFIRMED: "var(--color-emerald-900)", EXPIRED: "var(--color-danger-600)", REMOVED: "var(--color-warm-400)" };
 
+// Indonesian jamaah generally don't want a self-service "click this link to
+// confirm" flow, so there's no public confirmation page — the operator (or
+// Muttawwif) calls/WhatsApps the person directly and confirms on their
+// behalf right here, from either Menunggu or Ditawarkan. "Tawarkan" stays
+// as an optional "hold this slot for them" step, not a required one.
 export default function WaitlistDashboard() {
-  const [operatorId, setOperatorId] = useState("");
-  const [seasons, setSeasons] = useState<{ id: string; name: string; isActive: boolean }[]>([]);
+  const [operatorSlug, setOperatorSlug] = useState("");
+  const [seasons, setSeasons] = useState<{ id: string; name: string; isActive: boolean; slug: string }[]>([]);
   const [seasonId, setSeasonId] = useState("");
   const [entries, setEntries] = useState<WaitlistEntry[]>([]);
   const [totalWaiting, setTotalWaiting] = useState(0);
@@ -21,7 +26,7 @@ export default function WaitlistDashboard() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    operatorClient.getMyOperator({}).then((response) => setOperatorId(response.id)).catch(() => {});
+    operatorClient.getMyOperator({}).then((response) => setOperatorSlug(response.slug)).catch(() => {});
     seasonClient.listSeasons({}).then((response) => {
       setSeasons(response.seasons);
       setSeasonId(response.seasons.find((s) => s.isActive)?.id ?? response.seasons[0]?.id ?? "");
@@ -35,8 +40,9 @@ export default function WaitlistDashboard() {
   };
   useEffect(refresh, [seasonId]);
 
-  const activeName = seasons.find((s) => s.id === seasonId)?.name ?? "Pilih musim";
-  const publicLink = operatorId && seasonId ? `${typeof window !== "undefined" ? window.location.origin : ""}/waitlist/${operatorId}/${seasonId}` : "";
+  const selectedSeason = seasons.find((s) => s.id === seasonId);
+  const activeName = selectedSeason?.name ?? "Pilih musim";
+  const publicLink = operatorSlug && selectedSeason?.slug ? buildTenantLink(operatorSlug, `/waitlist/${selectedSeason.slug}`) : "";
 
   const copyLink = async () => {
     if (!publicLink) return;
@@ -50,7 +56,22 @@ export default function WaitlistDashboard() {
     setNotice("");
     try {
       await waitlistClient.promoteFromWaitlist({ id: entry.id });
-      setNotice(`${entry.fullName} ditawarkan slot. Menunggu konfirmasi dalam 48 jam.`);
+      setNotice(`${entry.fullName} ditawarkan slot — hubungi jamaah untuk konfirmasi, lalu tekan "Konfirmasi".`);
+      refresh();
+    } catch (error) {
+      setNotice(`Gagal: ${error instanceof Error ? error.message : "tidak diketahui"}`);
+    } finally {
+      setWorking("");
+    }
+  };
+
+  const confirmEntry = async (entry: WaitlistEntry) => {
+    if (!window.confirm(`Konfirmasi slot untuk ${entry.fullName}? Pastikan Anda sudah menghubungi jamaah dan mereka setuju.`)) return;
+    setWorking(entry.id);
+    setNotice("");
+    try {
+      await waitlistClient.confirmWaitlistEntry({ id: entry.id });
+      setNotice(`${entry.fullName} dikonfirmasi. Lanjutkan ke pendaftaran jamaah.`);
       refresh();
     } catch (error) {
       setNotice(`Gagal: ${error instanceof Error ? error.message : "tidak diketahui"}`);
@@ -98,14 +119,13 @@ export default function WaitlistDashboard() {
               <td style={td}><strong>{entry.fullName}</strong></td>
               <td style={{ ...td, color: "var(--color-warm-500)" }}>{entry.email}</td>
               <td style={{ ...td, color: "var(--color-warm-500)" }}>{entry.phone || "-"}</td>
-              <td style={td}><span style={{ color: STATUS_COLOR[entry.status] ?? "var(--color-warm-500)", fontWeight: 700, fontSize: 12 }}>{STATUS_LABEL[entry.status] ?? entry.status}</span>{entry.status === "PROMOTED" && entry.expiresAt && <span style={{ display: "block", fontSize: 11, color: "var(--color-warm-400)" }}>s.d. {entry.expiresAt.toDate().toLocaleString("id-ID")}</span>}</td>
+              <td style={td}><span style={{ color: STATUS_COLOR[entry.status] ?? "var(--color-warm-500)", fontWeight: 700, fontSize: 12 }}>{STATUS_LABEL[entry.status] ?? entry.status}</span></td>
               <td style={td}>
-                <RoleGate require={["owner", "admin"]}>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    {entry.status === "WAITING" && <button disabled={working === entry.id} onClick={() => promote(entry)} style={promoteBtn}><IconArrowUp size={14} />Tawarkan</button>}
-                    {(entry.status === "WAITING" || entry.status === "PROMOTED") && <button disabled={working === entry.id} onClick={() => remove(entry)} style={removeBtn}><IconTrash size={14} /></button>}
-                  </div>
-                </RoleGate>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {entry.status === "WAITING" && <button disabled={working === entry.id} onClick={() => promote(entry)} style={ghostActionBtn}><IconArrowUp size={14} />Tawarkan</button>}
+                  {(entry.status === "WAITING" || entry.status === "PROMOTED") && <button disabled={working === entry.id} onClick={() => confirmEntry(entry)} style={promoteBtn}><IconCheck size={14} />Konfirmasi</button>}
+                  {(entry.status === "WAITING" || entry.status === "PROMOTED") && <button disabled={working === entry.id} onClick={() => remove(entry)} style={removeBtn}><IconTrash size={14} /></button>}
+                </div>
               </td>
             </tr>)}
           </tbody>
@@ -127,5 +147,6 @@ const th: React.CSSProperties = { background: "var(--color-cream-200)", padding:
 const tr: React.CSSProperties = { borderTop: "1px solid var(--color-cream-300)" };
 const td: React.CSSProperties = { padding: "14px 16px", fontSize: 14 };
 const promoteBtn: React.CSSProperties = { minHeight: 36, border: 0, borderRadius: 8, background: "var(--color-emerald-900)", color: "white", fontWeight: 700, padding: "0 12px", fontSize: 12, display: "inline-flex", gap: 4, alignItems: "center" };
+const ghostActionBtn: React.CSSProperties = { minHeight: 36, border: "1px solid var(--color-cream-500)", borderRadius: 8, background: "transparent", color: "var(--color-warm-700)", fontWeight: 600, padding: "0 12px", fontSize: 12, display: "inline-flex", gap: 4, alignItems: "center" };
 const removeBtn: React.CSSProperties = { minHeight: 36, minWidth: 36, border: "1px solid var(--color-danger-600)", borderRadius: 8, background: "transparent", color: "var(--color-danger-600)", display: "grid", placeItems: "center" };
 const empty: React.CSSProperties = { padding: "64px 24px", textAlign: "center", display: "grid", justifyItems: "center", gap: 12, border: "1px dashed var(--color-cream-400)", borderRadius: 12 };

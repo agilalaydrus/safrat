@@ -31,6 +31,9 @@ service GroupLeaderService {
   // pilgrims) can be acted on.
   rpc AcknowledgeMySOSAlert(AcknowledgeMySOSAlertRequest) returns (SOSAlert);
   rpc ResolveMySOSAlert(ResolveMySOSAlertRequest) returns (SOSAlert);
+  // UpdateMyGroupCity is the Muttawwif's Tab Lokasi one-tap action —
+  // cascades to every pilgrim's journey status (best-effort).
+  rpc UpdateMyGroupCity(UpdateMyGroupCityRequest) returns (LeaderGroup);
 }
 
 message LeaderGroup {
@@ -39,6 +42,15 @@ message LeaderGroup {
   int32 capacity = 3;
   int32 pilgrim_count = 4;
   string season_id = 5;
+  string current_city = 6; // INDONESIA | MADINAH | MAKKAH | ARAFAH | MUZDALIFAH | MINA | TRANSIT | DEPARTED
+  google.protobuf.Timestamp last_update = 7;
+}
+
+message UpdateMyGroupCityRequest {
+  string group_id = 1 [(buf.validate.field).string.min_len = 1];
+  string city = 2 [(buf.validate.field).string.min_len = 1];
+  string location = 3;
+  string notes = 4;
 }
 
 message ListMyGroupsRequest {}

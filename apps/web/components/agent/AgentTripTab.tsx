@@ -114,7 +114,7 @@ export default function AgentTripTab() {
       {notice && <p style={{ color: "var(--color-gold-800)", fontSize: 13 }}>{notice}</p>}
 
       {alerts.length > 0 && (
-        <section style={{ ...card, borderColor: "var(--color-danger-600)", marginBottom: 16 }}>
+        <section style={{ ...card, border: "1px solid var(--color-danger-600)", marginBottom: 16 }}>
           <h3 style={sectionTitle}><IconSos size={16} color="var(--color-danger-600)" />SOS Aktif</h3>
           <div style={{ display: "grid", gap: 8 }}>
             {alerts.map((alert) => (
@@ -156,7 +156,8 @@ export default function AgentTripTab() {
             return (
               <div key={m.id}>
                 <p style={{ margin: "0 0 6px", fontWeight: 700 }}>{m.name}</p>
-                <p style={{ margin: "0 0 8px", fontSize: 12, color: "var(--color-warm-500)" }}>{m.origin} → {m.destination} · {m.scheduledAt?.toDate().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+                <p style={{ margin: "0 0 4px", fontSize: 12, color: "var(--color-warm-500)" }}>{m.origin} → {m.destination} · {m.scheduledAt?.toDate().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+                {m.mode === "FLIGHT" && (m.airline || m.flightNumber) && <p style={{ margin: "0 0 8px", fontSize: 12, color: "var(--color-warm-500)" }}>{[m.airline, m.flightNumber].filter(Boolean).join(" · ")}{m.tripLeg && ` · ${m.tripLeg === "DEPARTURE" ? "Keberangkatan" : "Kepulangan"}`}</p>}
                 <div style={{ display: "grid", gap: 6 }}>
                   {pilgrims.map((p) => (
                     <div key={p.id} style={rosterRow}>

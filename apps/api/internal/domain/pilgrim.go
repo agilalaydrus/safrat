@@ -31,7 +31,6 @@ type Pilgrim struct {
 	Email                 string
 	HasAccount            bool
 	PaymentStatus         string
-	PaymentReceiptURL     string
 	PaymentNotes          string
 	EmergencyContactName  string
 	EmergencyContactPhone string
@@ -52,6 +51,69 @@ type Pilgrim struct {
 	BloodType          string
 	ChronicConditions  string
 	CurrentMedications string
+
+	NIK                string
+	Address            string
+	KYCStatus          string
+	KYCSource          string
+	KYCVerifiedBy      string
+	KYCVerifiedAt      *time.Time
+	KYCRejectionReason string
+	DocumentsKTP       bool
+	DocumentsSelfie    bool
+
+	PlaceOfBirth  string
+	MaritalStatus string
+	Occupation    string
+	FatherName    string
+
+	DocumentsKK          bool
+	DocumentsMahramProof bool
+
+	InsuranceStartDate           *time.Time
+	InsuranceEndDate             *time.Time
+	InsuranceBeneficiaryName     string
+	InsuranceBeneficiaryRelation string
+
+	DocumentsVisa  bool
+	VisaNumber     string
+	VisaExpiryDate *time.Time
+}
+
+type PilgrimDocumentChecklistInput struct {
+	Passport       bool
+	Photo          bool
+	Vaccine        bool
+	KTP            bool
+	KK             bool
+	MahramProof    bool
+	Visa           bool
+	PassportExpiry *time.Time
+	VaccineDate    *time.Time
+	VisaNumber     string
+	VisaExpiry     *time.Time
+}
+
+type PilgrimKYCInput struct {
+	NIK           string
+	Address       string
+	PlaceOfBirth  string
+	MaritalStatus string
+	Occupation    string
+	FatherName    string
+}
+
+type PilgrimInsuranceInput struct {
+	Provider            string
+	PolicyNo            string
+	Class               string
+	BloodType           string
+	ChronicConditions   string
+	CurrentMedications  string
+	StartDate           *time.Time
+	EndDate             *time.Time
+	BeneficiaryName     string
+	BeneficiaryRelation string
 }
 
 type PilgrimDocument struct {

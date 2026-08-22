@@ -22,6 +22,18 @@ LEFT JOIN "user" lu ON lu.id = p.linked_user_id
 WHERE p.app_access_code = $1 AND p.is_substituted = false
 ORDER BY p.id, ra.allocated_at DESC NULLS LAST;
 
+-- name: ListPilgrimHotelStays :many
+-- Every hotel this pilgrim has a room in (Makkah + Madinah both, when
+-- assigned) — GetPilgrimAppInfo's hotel_name/room_number is just a
+-- "what's current" display simplification, this is the full list.
+SELECT h.name AS hotel_name, r.room_number, r.room_type
+FROM pilgrims p
+JOIN room_allocations ra ON ra.pilgrim_id = p.id
+JOIN rooms r ON r.id = ra.room_id
+JOIN hotels h ON h.id = r.hotel_id
+WHERE p.app_access_code = $1 AND p.is_substituted = false
+ORDER BY ra.allocated_at ASC;
+
 -- name: LinkPilgrimGoogleAccount :one
 -- Only ever called from the session-authenticated (not org-scoped)
 -- PilgrimAppService.LinkGoogleAccount RPC — $2 comes from the caller's real,

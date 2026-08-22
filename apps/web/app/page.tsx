@@ -18,13 +18,13 @@ import {
 } from "@tabler/icons-react";
 import { authClient } from "@/lib/auth-client";
 
-const CAPABILITY_BADGES = ["Jamaah & Rombongan", "Kloter & Musim Hijriah", "Akomodasi", "Transportasi", "SOS Real-time", "Produk Digital", "Agen & Komisi"];
+const CAPABILITY_BADGES = ["Jamaah & Grup", "Kloter & Musim Hijriah", "Akomodasi", "Transportasi", "SOS Real-time", "Produk Digital", "Agen & Komisi"];
 
 const PAIN_POINTS = [
   {
     icon: IconMessages,
     problem: "Data Tersebar di Excel & Grup WhatsApp",
-    solution: "Satu database. Staf operator, ketua rombongan, sampai jamaah melihat data yang sama secara real-time, dari perangkat masing-masing.",
+    solution: "Satu database. Staf operator, ketua grup, sampai jamaah melihat data yang sama secara real-time, dari perangkat masing-masing.",
   },
   {
     icon: IconSos,
@@ -39,14 +39,14 @@ const PAIN_POINTS = [
 ];
 
 const FEATURES = [
-  { icon: IconUsers, title: "Jamaah & Rombongan", desc: "Daftar satu per satu atau impor CSV massal. Substitusi jamaah otomatis tanpa kehilangan riwayat kamar dan kursi." },
+  { icon: IconUsers, title: "Jamaah & Grup", desc: "Daftar satu per satu atau impor CSV massal. Substitusi jamaah otomatis tanpa kehilangan riwayat kamar dan kursi." },
   { icon: IconMoonStars, title: "Kloter & Musim Hijriah", desc: "Kelola musim per periode Hijriah: Rajab, Ramadhan, Syawal, Dzulqa'dah, sampai musim Haji itu sendiri." },
   { icon: IconBuildingHospital, title: "Akomodasi", desc: "Alokasikan kamar hotel dengan validasi kapasitas dan aturan gender/mahram otomatis, per musim." },
   { icon: IconBus, title: "Transportasi", desc: "Jadwalkan pergerakan armada, tetapkan kursi per jamaah, pantau manifest kendaraan secara real-time." },
   { icon: IconSos, title: "SOS Darurat", desc: "Satu tombol untuk jamaah, eskalasi otomatis ke koordinator kalau belum direspons. Bukan fitur tempelan." },
   { icon: IconShoppingCart, title: "Produk Digital & Pembayaran", desc: "Jual paket roaming dan layanan tambahan lewat checkout terintegrasi, baik langsung oleh jamaah maupun dicatat manual oleh admin." },
   { icon: IconUserDollar, title: "Agen & Komisi", desc: "Lacak agen rujukan, hitung komisi otomatis dari tiap transaksi, sampai pencairan lewat dompet digital mereka sendiri." },
-  { icon: IconDeviceMobile, title: "Aplikasi Ketua Rombongan & Jamaah", desc: "PWA ringan untuk chat, check-in, dan SOS, langsung dari browser tanpa perlu install dari toko aplikasi." },
+  { icon: IconDeviceMobile, title: "Aplikasi Ketua Grup & Jamaah", desc: "PWA ringan untuk chat, check-in, dan SOS, langsung dari browser tanpa perlu install dari toko aplikasi." },
 ];
 
 export default function LandingPage() {
@@ -138,7 +138,7 @@ export default function LandingPage() {
         <div style={trustInner}>
           <IconShieldCheck size={28} color="var(--color-gold-500)" />
           <p style={trustText}>
-            Dibangun mengikuti istilah dan alur kerja yang sama dengan yang dipakai PPIU/PIHK sehari-hari: Rombongan, Kloter, Muttawwif. Bukan istilah SaaS generik yang harus diterjemahkan dulu ke operasional Anda.
+            Dibangun mengikuti istilah dan alur kerja yang sama dengan yang dipakai PPIU/PIHK sehari-hari: Grup, Kloter, Muttawwif. Bukan istilah SaaS generik yang harus diterjemahkan dulu ke operasional Anda.
           </p>
         </div>
       </section>

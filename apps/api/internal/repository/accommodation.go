@@ -180,7 +180,11 @@ func (r *AccommodationRepository) CountAllocated(ctx context.Context, roomID str
 	}
 	return r.queries.CountAllocatedByRoom(ctx, id)
 }
-func (r *AccommodationRepository) GetAllocation(ctx context.Context, opID, pilgrimID string) (*Allocation, error) {
+
+// GetAllocationForHotel checks whether the pilgrim already holds a room in
+// THIS hotel specifically — not whether they hold a room anywhere, since
+// one per hotel (Makkah + Madinah) is the valid, intended case.
+func (r *AccommodationRepository) GetAllocationForHotel(ctx context.Context, opID, pilgrimID, hotelID string) (*Allocation, error) {
 	op, e := pgUUID(opID)
 	if e != nil {
 		return nil, e
@@ -189,7 +193,11 @@ func (r *AccommodationRepository) GetAllocation(ctx context.Context, opID, pilgr
 	if e != nil {
 		return nil, e
 	}
-	v, e := r.queries.GetAllocationByPilgrim(ctx, db.GetAllocationByPilgrimParams{OperatorID: op, PilgrimID: p})
+	h, e := pgUUID(hotelID)
+	if e != nil {
+		return nil, e
+	}
+	v, e := r.queries.GetAllocationForHotel(ctx, db.GetAllocationForHotelParams{OperatorID: op, PilgrimID: p, HotelID: h})
 	if errors.Is(e, pgx.ErrNoRows) {
 		return nil, apperror.ErrNotFound
 	}
@@ -198,7 +206,7 @@ func (r *AccommodationRepository) GetAllocation(ctx context.Context, opID, pilgr
 	}
 	return allocation(v), nil
 }
-func (r *AccommodationRepository) Allocate(ctx context.Context, opID, roomID, pilgrimID, assignedBy string) (*Allocation, error) {
+func (r *AccommodationRepository) Allocate(ctx context.Context, opID, roomID, hotelID, pilgrimID, assignedBy string) (*Allocation, error) {
 	op, e := pgUUID(opID)
 	if e != nil {
 		return nil, e
@@ -207,17 +215,21 @@ func (r *AccommodationRepository) Allocate(ctx context.Context, opID, roomID, pi
 	if e != nil {
 		return nil, e
 	}
+	hID, e := pgUUID(hotelID)
+	if e != nil {
+		return nil, e
+	}
 	p, e := pgUUID(pilgrimID)
 	if e != nil {
 		return nil, e
 	}
-	v, e := r.queries.AllocatePilgrimTx(ctx, db.AllocatePilgrimTxParams{OperatorID: op, RoomID: rID, PilgrimID: p, AssignedBy: assignedBy})
+	v, e := r.queries.AllocatePilgrimTx(ctx, db.AllocatePilgrimTxParams{OperatorID: op, RoomID: rID, HotelID: hID, PilgrimID: p, AssignedBy: assignedBy})
 	if e != nil {
 		return nil, e
 	}
 	return allocation(v), nil
 }
-func (r *AccommodationRepository) Deallocate(ctx context.Context, opID, pilgrimID string) error {
+func (r *AccommodationRepository) Deallocate(ctx context.Context, opID, pilgrimID, roomID string) error {
 	op, e := pgUUID(opID)
 	if e != nil {
 		return e
@@ -226,7 +238,11 @@ func (r *AccommodationRepository) Deallocate(ctx context.Context, opID, pilgrimI
 	if e != nil {
 		return e
 	}
-	return r.queries.DeallocatePilgrim(ctx, db.DeallocatePilgrimParams{OperatorID: op, PilgrimID: p})
+	rID, e := pgUUID(roomID)
+	if e != nil {
+		return e
+	}
+	return r.queries.DeallocatePilgrim(ctx, db.DeallocatePilgrimParams{OperatorID: op, PilgrimID: p, RoomID: rID})
 }
 
 func (r *AccommodationRepository) TransferAllocationTx(ctx context.Context, tx pgx.Tx, originalID, replacementID, operatorID string) error {
@@ -259,7 +275,7 @@ func room(v db.Room) *Room {
 }
 
 type PilgrimRoomAssignment struct {
-	PilgrimID, HotelName, RoomNumber, RoomType string
+	PilgrimID, HotelName, RoomNumber, RoomType, RoomID, HotelID string
 }
 
 func (r *AccommodationRepository) ListPilgrimRoomAssignments(ctx context.Context, opID, seasonID string) ([]*PilgrimRoomAssignment, error) {
@@ -277,7 +293,7 @@ func (r *AccommodationRepository) ListPilgrimRoomAssignments(ctx context.Context
 	}
 	result := make([]*PilgrimRoomAssignment, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, &PilgrimRoomAssignment{PilgrimID: uuidString(row.PilgrimID), HotelName: row.HotelName, RoomNumber: row.RoomNumber, RoomType: row.RoomType})
+		result = append(result, &PilgrimRoomAssignment{PilgrimID: uuidString(row.PilgrimID), HotelName: row.HotelName, RoomNumber: row.RoomNumber, RoomType: row.RoomType, RoomID: uuidString(row.RoomID), HotelID: uuidString(row.HotelID)})
 	}
 	return result, nil
 }

@@ -39,6 +39,10 @@ message MyAccess {
   string org_role = 2;
   string operator_id = 3;
   string operator_name = 4;
+  // Used to build the operator's own subdomain link (e.g.
+  // vacana.tawafiqhub.id) — see apps/web/lib/tenant-link.ts. Empty if the
+  // operator was created before slugs existed and never got backfilled one.
+  string operator_slug = 8;
 
   // Group Leader — every group this identity leads (groups.leader_id).
   // Usually one, but a person can lead more than one group.
@@ -62,6 +66,7 @@ message AgentSummary {
   string name = 2;
   string referral_code = 3;
   bool is_active = 4;
+  string phone = 5;
 }
 
 message LeaderGroupSummary {

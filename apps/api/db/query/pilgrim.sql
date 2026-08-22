@@ -131,8 +131,7 @@ WHERE operator_id = $1 AND season_id = $2 AND kloter_id = $3;
 
 -- name: UpdatePilgrimPayment :one
 UPDATE pilgrims
-SET payment_status = $3, payment_receipt_url = $4,
-    payment_notes = $5, updated_at = NOW()
+SET payment_status = $3, payment_notes = $4, updated_at = NOW()
 WHERE id = $1 AND operator_id = $2
 RETURNING *;
 
@@ -140,7 +139,24 @@ RETURNING *;
 UPDATE pilgrims
 SET documents_passport = $3, documents_photo = $4,
     documents_vaccine = $5, passport_expiry_date = $6,
-    vaccine_meningitis_date = $7, updated_at = NOW()
+    vaccine_meningitis_date = $7,
+    documents_ktp = $8, documents_kk = $9, documents_mahram_proof = $10,
+    documents_visa = $11, visa_number = $12, visa_expiry_date = $13,
+    updated_at = NOW()
+WHERE id = $1 AND operator_id = $2
+RETURNING *;
+
+-- name: UpdatePilgrimKyc :one
+UPDATE pilgrims
+SET nik = $3, address = $4, place_of_birth = $5, marital_status = $6, occupation = $7, father_name = $8,
+    kyc_status = $9, kyc_source = $10,
+    kyc_verified_by = '', kyc_verified_at = NULL, kyc_rejection_reason = '', updated_at = NOW()
+WHERE id = $1 AND operator_id = $2
+RETURNING *;
+
+-- name: VerifyPilgrimKyc :one
+UPDATE pilgrims
+SET kyc_status = $3, kyc_verified_by = $4, kyc_verified_at = NOW(), kyc_rejection_reason = $5, updated_at = NOW()
 WHERE id = $1 AND operator_id = $2
 RETURNING *;
 

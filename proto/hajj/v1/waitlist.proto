@@ -17,6 +17,13 @@ service WaitlistService {
   rpc ListWaitlist(ListWaitlistRequest) returns (ListWaitlistResponse);
   rpc PromoteFromWaitlist(PromoteFromWaitlistRequest) returns (WaitlistEntry);
   rpc RemoveFromWaitlist(RemoveFromWaitlistRequest) returns (RemoveFromWaitlistResponse);
+  // ConfirmWaitlistEntry is the staff-facing counterpart to the public
+  // ConfirmWaitlistSlot — Indonesian jamaah generally don't want to
+  // self-serve a confirmation link, so in practice the operator (or the
+  // Muttawwif) calls/WhatsApps the person directly and confirms on their
+  // behalf here. Works from WAITING or PROMOTED, no expiry check — this is
+  // a trusted staff action, not an unattended public link.
+  rpc ConfirmWaitlistEntry(ConfirmWaitlistEntryRequest) returns (WaitlistEntry);
 }
 
 message WaitlistEntry {
@@ -82,3 +89,7 @@ message RemoveFromWaitlistRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
 message RemoveFromWaitlistResponse {}
+
+message ConfirmWaitlistEntryRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}

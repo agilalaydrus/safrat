@@ -8,6 +8,8 @@ type LeaderGroup struct {
 	Name         string
 	Capacity     int32
 	PilgrimCount int32
+	CurrentCity  string
+	LastUpdate   *time.Time
 }
 
 type CheckIn struct {

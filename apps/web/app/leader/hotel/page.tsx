@@ -56,7 +56,7 @@ export default function LeaderHotelCheckInPage() {
             </button>
           </article>
         ))}
-        {!pilgrims.length && <p style={{ color: "var(--color-warm-400)" }}>Belum ada jamaah di rombongan ini.</p>}
+        {!pilgrims.length && <p style={{ color: "var(--color-warm-400)" }}>Belum ada jamaah di grup ini.</p>}
       </div>
     </main>
   );

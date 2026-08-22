@@ -54,3 +54,14 @@ func (h *OperatorHandler) ListAuditLogs(ctx context.Context, req *connect.Reques
 	}
 	return connect.NewResponse(&hajjv1.ListAuditLogsResponse{Logs: logs}), nil
 }
+
+func (h *OperatorHandler) ResolveOperatorSlug(ctx context.Context, req *connect.Request[hajjv1.ResolveOperatorSlugRequest]) (*connect.Response[hajjv1.ResolveOperatorSlugResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.operatorService.ResolveSlug(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

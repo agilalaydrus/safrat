@@ -50,8 +50,29 @@ func (h *GroupHandler) ListOperatorMembers(ctx context.Context, _ *connect.Reque
 	}
 	return connect.NewResponse(result), nil
 }
+func (h *GroupHandler) ListMuttawwif(ctx context.Context, _ *connect.Request[hajjv1.ListMuttawwifRequest]) (*connect.Response[hajjv1.ListMuttawwifResponse], error) {
+	result, err := h.groupService.ListMuttawwif(ctx, middleware.OperatorIDFromCtx(ctx))
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
 func (h *GroupHandler) GetGroupRoster(ctx context.Context, req *connect.Request[hajjv1.GetGroupRosterRequest]) (*connect.Response[hajjv1.GetGroupRosterResponse], error) {
 	result, err := h.groupService.GetGroupRoster(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+func (h *GroupHandler) ListGroupsByKloter(ctx context.Context, req *connect.Request[hajjv1.ListGroupsByKloterRequest]) (*connect.Response[hajjv1.ListGroupsResponse], error) {
+	result, err := h.groupService.ListGroupsByKloter(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+func (h *GroupHandler) UpdateGroupCity(ctx context.Context, req *connect.Request[hajjv1.UpdateGroupCityRequest]) (*connect.Response[hajjv1.Group], error) {
+	result, err := h.groupService.UpdateGroupCity(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
 	if err != nil {
 		return nil, connectError(err)
 	}

@@ -58,7 +58,7 @@ export default function LeaderSOSPage() {
 
   return (
     <main style={page}>
-      <p style={eyebrow}>SOS ROMBONGAN ANDA</p>
+      <p style={eyebrow}>SOS GRUP ANDA</p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button style={alarmEnabled ? enabledButton : ghostButton} onClick={enableAlarm} disabled={alarmEnabled}>
           {alarmEnabled ? <IconBell size={16} /> : <IconBellOff size={16} />}{alarmEnabled ? "Notifikasi & suara aktif" : "Aktifkan notifikasi & suara"}

@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { IconWallet, IconUsers, IconLink, IconClock, IconMapPin } from "@tabler/icons-react";
+import { IconWallet, IconUsers, IconLink, IconClock, IconMapPin, IconShieldCheck } from "@tabler/icons-react";
 import AgentWalletTab from "@/components/agent/AgentWalletTab";
 import AgentJamaahTab from "@/components/agent/AgentJamaahTab";
 import AgentReferralTab from "@/components/agent/AgentReferralTab";
 import AgentPayoutTab from "@/components/agent/AgentPayoutTab";
 import AgentTripTab from "@/components/agent/AgentTripTab";
+import AgentKycSelfSection from "@/components/agents/AgentKycSelfSection";
 import { authClient } from "@/lib/auth-client";
 import { staffScheduleClient } from "@/lib/rpc";
 
@@ -15,6 +16,7 @@ const BASE_TABS = [
   { id: "jamaah", label: "Jamaah Saya", icon: IconUsers },
   { id: "referral", label: "Link Referral", icon: IconLink },
   { id: "payout", label: "Pencairan", icon: IconClock },
+  { id: "kyc", label: "KYC", icon: IconShieldCheck },
 ] as const;
 const TRIP_TAB = { id: "trip", label: "Perjalanan Saya", icon: IconMapPin } as const;
 type TabId = (typeof BASE_TABS)[number]["id"] | typeof TRIP_TAB.id;
@@ -48,6 +50,7 @@ export default function AgentPortalPage() {
       {tab === "referral" && <AgentReferralTab />}
       {tab === "payout" && <AgentPayoutTab />}
       {tab === "trip" && <AgentTripTab />}
+      {tab === "kyc" && <AgentKycSelfSection />}
     </main>
   );
 }

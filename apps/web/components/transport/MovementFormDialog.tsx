@@ -10,8 +10,10 @@ type Props = { open: boolean; seasonId: string; onClose: () => void; onSaved: ()
 
 const MODES = [["BUS", "Bus"], ["FLIGHT", "Pesawat"], ["TRAIN", "Kereta Cepat"]] as const;
 
+const TRIP_LEGS = [["", "Bukan bagian itinerary internasional"], ["DEPARTURE", "Keberangkatan"], ["RETURN", "Kepulangan"]] as const;
+
 export default function MovementFormDialog({ open, seasonId, onClose, onSaved }: Props) {
-  const [form, setForm] = useState({ name: "", origin: "", destination: "", scheduledAt: "", mode: "BUS", kloterId: "" });
+  const [form, setForm] = useState({ name: "", origin: "", destination: "", scheduledAt: "", mode: "BUS", kloterId: "", airline: "", flightNumber: "", tripLeg: "" });
   const [error, setError] = useState("");
   const [kloters, setKloters] = useState<Kloter[]>([]);
 
@@ -33,7 +35,7 @@ export default function MovementFormDialog({ open, seasonId, onClose, onSaved }:
       return;
     }
     try {
-      await transportClient.createMovement({ seasonId, name: form.name, origin: form.origin, destination: form.destination, scheduledAt: Timestamp.fromDate(scheduledAt), mode: form.mode, kloterId: form.kloterId });
+      await transportClient.createMovement({ seasonId, name: form.name, origin: form.origin, destination: form.destination, scheduledAt: Timestamp.fromDate(scheduledAt), mode: form.mode, kloterId: form.kloterId, airline: form.airline, flightNumber: form.flightNumber, tripLeg: form.tripLeg });
       onSaved();
       onClose();
     } catch (caught) {
@@ -60,6 +62,15 @@ export default function MovementFormDialog({ open, seasonId, onClose, onSaved }:
               <Field label={form.mode === "FLIGHT" ? "Bandara Asal" : form.mode === "TRAIN" ? "Stasiun Asal" : "Asal"}><input className="safrat-input" required value={form.origin} onChange={(event) => update("origin", event.target.value)} style={input} /></Field>
               <Field label={form.mode === "FLIGHT" ? "Bandara Tujuan" : form.mode === "TRAIN" ? "Stasiun Tujuan" : "Tujuan"}><input className="safrat-input" required value={form.destination} onChange={(event) => update("destination", event.target.value)} style={input} /></Field>
               <Field label="Dijadwalkan pada"><input className="safrat-input" required type="datetime-local" value={form.scheduledAt} onChange={(event) => update("scheduledAt", event.target.value)} style={input} /></Field>
+              {form.mode === "FLIGHT" && <>
+                <Field label="Maskapai"><input className="safrat-input" value={form.airline} onChange={(event) => update("airline", event.target.value)} placeholder="mis. Garuda Indonesia" style={input} /></Field>
+                <Field label="Nomor Penerbangan"><input className="safrat-input" value={form.flightNumber} onChange={(event) => update("flightNumber", event.target.value)} placeholder="mis. GA980" style={input} /></Field>
+                <Field label="Bagian perjalanan" hint="Isi jika ini bagian dari itinerary internasional (keberangkatan/kepulangan) — kosongkan untuk penerbangan lokal/lainnya. Jika ada transit, tambahkan setiap kaki penerbangan sebagai jadwal terpisah dengan bagian yang sama.">
+                  <select className="safrat-input" value={form.tripLeg} onChange={(event) => update("tripLeg", event.target.value)} style={input}>
+                    {TRIP_LEGS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </Field>
+              </>}
               <Field label="Kloter" hint="Kosongkan jika jadwal ini berlaku untuk semua kloter (mis. shuttle bersama).">
                 <select className="safrat-input" value={form.kloterId} onChange={(event) => update("kloterId", event.target.value)} style={input}>
                   <option value="">Tanpa kloter</option>

@@ -5,6 +5,7 @@ import { IconCheck, IconClipboardList, IconLink, IconX } from "@tabler/icons-rea
 import { Gender } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { PilgrimRegistration } from "@hajj-saas/proto-gen/hajj/v1/registration_pb";
 import { operatorClient, pilgrimClient, registrationClient, seasonClient } from "@/lib/rpc";
+import { buildTenantLink } from "@/lib/tenant-link";
 
 const STATUS_LABEL: Record<string, string> = { PENDING: "Menunggu", APPROVED: "Disetujui", REJECTED: "Ditolak" };
 
@@ -14,8 +15,8 @@ function genderFromString(value: string): Gender {
 
 export default function RegistrationsDashboard() {
   const [seasonId, setSeasonId] = useState("");
-  const [seasons, setSeasons] = useState<{ id: string; name: string; isActive: boolean }[]>([]);
-  const [operatorId, setOperatorId] = useState("");
+  const [seasons, setSeasons] = useState<{ id: string; name: string; isActive: boolean; slug: string }[]>([]);
+  const [operatorSlug, setOperatorSlug] = useState("");
   const [registrations, setRegistrations] = useState<PilgrimRegistration[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("PENDING");
@@ -26,7 +27,7 @@ export default function RegistrationsDashboard() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    operatorClient.getMyOperator({}).then((response) => setOperatorId(response.id)).catch(() => {});
+    operatorClient.getMyOperator({}).then((response) => setOperatorSlug(response.slug)).catch(() => {});
     seasonClient.listSeasons({}).then((response) => {
       setSeasons(response.seasons);
       setSeasonId(response.seasons.find((s) => s.isActive)?.id ?? response.seasons[0]?.id ?? "");
@@ -41,8 +42,9 @@ export default function RegistrationsDashboard() {
   useEffect(refresh, [seasonId]);
 
   const filtered = useMemo(() => registrations.filter((r) => r.status === filter), [registrations, filter]);
-  const activeName = seasons.find((s) => s.id === seasonId)?.name ?? "Pilih musim";
-  const publicLink = operatorId && seasonId ? `${typeof window !== "undefined" ? window.location.origin : ""}/register/${operatorId}/${seasonId}` : "";
+  const selectedSeason = seasons.find((s) => s.id === seasonId);
+  const activeName = selectedSeason?.name ?? "Pilih musim";
+  const publicLink = operatorSlug && selectedSeason?.slug ? buildTenantLink(operatorSlug, `/register/${selectedSeason.slug}`) : "";
 
   const copyLink = async () => {
     if (!publicLink) return;

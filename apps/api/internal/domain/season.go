@@ -23,6 +23,7 @@ type Season struct {
 	IsActive   bool
 	CreatedAt  time.Time
 	Capacity   int32
+	Slug       string
 }
 
 type SeasonAnalytics struct {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { IconBuildingHospital, IconClipboardCheck, IconLogout, IconMessageCircle, IconSos, IconUsersGroup, IconWallet } from "@tabler/icons-react";
+import { IconBuildingHospital, IconClipboardCheck, IconLogout, IconMapPin, IconMessageCircle, IconSos, IconUserCircle, IconUsersGroup, IconWallet } from "@tabler/icons-react";
 import { RequireAccess } from "@/components/auth/RequireAccess";
 import { LeaderGroupProvider, useLeaderGroup } from "@/lib/leader-context";
 import { authClient } from "@/lib/auth-client";
@@ -13,9 +13,11 @@ const TABS = [
   ["Daftar Jamaah", "/leader", IconUsersGroup],
   ["Check-In", "/leader/check-in", IconClipboardCheck],
   ["Hotel", "/leader/hotel", IconBuildingHospital],
+  ["Lokasi", "/leader/location", IconMapPin],
   ["Chat", "/leader/chat", IconMessageCircle],
   ["SOS", "/leader/sos", IconSos],
   ["Dompet", "/leader/wallet", IconWallet],
+  ["Profil", "/leader/profile", IconUserCircle],
 ] as const;
 
 function LeaderShell({ children }: { children: React.ReactNode }) {
@@ -50,7 +52,7 @@ function LeaderShell({ children }: { children: React.ReactNode }) {
         )}
       </header>
       <div style={content}>{children}</div>
-      <nav style={tabBar} aria-label="Navigasi rombongan">
+      <nav style={tabBar} aria-label="Navigasi grup">
         {TABS.map(([label, href, Icon]) => {
           const active = pathname === href;
           const badgeCount = label === "Chat" ? chatUnread : label === "SOS" ? sosActive : 0;

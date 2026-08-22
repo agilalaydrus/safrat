@@ -3,7 +3,7 @@
 -- this app only ever treats one as "the" operator for a given identity, so
 -- take any single membership row deterministically (oldest first) rather
 -- than picking arbitrarily on each call.
-SELECT m."organizationId" AS organization_id, m.role, o.id AS operator_id, o.name AS operator_name
+SELECT m."organizationId" AS organization_id, m.role, o.id AS operator_id, o.name AS operator_name, o.slug AS operator_slug
 FROM member m
 JOIN operators o ON o.better_auth_org_id = m."organizationId"
 WHERE m."userId" = $1

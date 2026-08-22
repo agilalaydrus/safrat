@@ -2,8 +2,10 @@
 UPDATE pilgrims
 SET insurance_provider = $2, insurance_policy_no = $3, insurance_class = $4,
     blood_type = $5, chronic_conditions = $6, current_medications = $7,
+    insurance_start_date = $8, insurance_end_date = $9,
+    insurance_beneficiary_name = $10, insurance_beneficiary_relation = $11,
     updated_at = NOW()
-WHERE id = $1 AND operator_id = $8
+WHERE id = $1 AND operator_id = $12
 RETURNING *;
 
 -- name: CreateInsuranceClaim :one
@@ -31,6 +33,7 @@ SELECT
   p.phone, p.emergency_contact_name, p.emergency_contact_phone,
   p.blood_type, p.chronic_conditions, p.current_medications,
   p.insurance_provider, p.insurance_policy_no, p.insurance_class,
+  p.insurance_start_date, p.insurance_end_date, p.insurance_beneficiary_name, p.insurance_beneficiary_relation,
   p.medical_notes,
   s.name AS season_name, s.start_date, s.end_date,
   o.name AS operator_name, o.license_number, o.phone AS operator_phone,

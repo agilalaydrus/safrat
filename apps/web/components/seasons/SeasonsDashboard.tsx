@@ -93,7 +93,7 @@ export default function SeasonsDashboard() {
         <section style={empty}>
           <IconCalendar size={48} color="var(--color-warm-400)" />
           <h2 style={{ margin: 0 }}>Belum ada musim</h2>
-          <p style={{ color: "var(--color-warm-500)" }}>Buat musim untuk mulai mengelola jamaah, rombongan, dan operasional lainnya.</p>
+          <p style={{ color: "var(--color-warm-500)" }}>Buat musim untuk mulai mengelola jamaah, grup, dan operasional lainnya.</p>
           <button style={gold} onClick={() => setOpen(true)}>Tambah Musim</button>
         </section>
       )}

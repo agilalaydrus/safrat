@@ -4,8 +4,10 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -87,6 +89,7 @@ func main() {
 		checklistRepository := repository.NewChecklistRepository(queries)
 		lostReportRepository := repository.NewLostReportRepository(queries)
 		tripRepository := repository.NewTripRepository(queries)
+		journeyRepository := repository.NewJourneyRepository(queries)
 
 		firebasePusher, err := notification.NewFirebasePusher(ctx, logger, config.FirebaseServiceAccountJSON, notificationRepository)
 		if err != nil {
@@ -94,20 +97,21 @@ func main() {
 			sentry.CaptureException(err)
 		}
 
-		operatorService := service.NewOperatorService(operatorRepository)
+		operatorService := service.NewOperatorService(operatorRepository, seasonRepository)
 		pilgrimService := service.NewPilgrimService(operatorRepository, pilgrimRepository, accommodationRepository, transportRepository, auditRepository, pool)
 		seasonService := service.NewSeasonService(operatorRepository, seasonRepository, auditRepository)
 		accommodationService := service.NewAccommodationService(operatorRepository, pilgrimRepository, accommodationRepository, auditRepository)
 		transportService := service.NewTransportService(operatorRepository, transportRepository, auditRepository)
 		productService := service.NewProductService(operatorRepository, productRepository)
 		agentService := service.NewAgentService(operatorRepository, agentRepository, auditRepository, pool)
-		groupService := service.NewGroupService(operatorRepository, groupRepository, auditRepository, agentRepository)
+		journeyService := service.NewJourneyService(operatorRepository, journeyRepository, auditRepository)
+		groupService := service.NewGroupService(operatorRepository, groupRepository, auditRepository, agentRepository, journeyService)
 		pilgrimAppService := service.NewPilgrimAppService(pilgrimRepository, productRepository, auditRepository, identityRepository, broadcastRepository)
 		sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, auditRepository, firebasePusher)
 		chatService := service.NewChatService(operatorRepository, pilgrimRepository, chatRepository, groupRepository, groupLeaderRepository)
-		groupLeaderService := service.NewGroupLeaderService(operatorRepository, groupLeaderRepository, sosRepository, pilgrimRepository)
+		groupLeaderService := service.NewGroupLeaderService(operatorRepository, groupLeaderRepository, sosRepository, pilgrimRepository, groupRepository, journeyService)
 		notificationService := service.NewNotificationService(operatorRepository, notificationRepository)
-		kloterService := service.NewKloterService(operatorRepository, kloterRepository, auditRepository)
+		kloterService := service.NewKloterService(operatorRepository, kloterRepository, auditRepository, journeyService)
 		identityService := service.NewIdentityService(identityRepository)
 		xenditClient := payment.NewClient(config.XenditSecretKey)
 		orderService := service.NewOrderService(operatorRepository, pilgrimRepository, productRepository, orderRepository, auditRepository, xenditClient, config.AllowedOrigin)
@@ -151,6 +155,7 @@ func main() {
 		checklistHandler := handler.NewChecklistHandler(checklistService)
 		lostReportHandler := handler.NewLostReportHandler(lostReportService)
 		tripHandler := handler.NewTripHandler(tripService)
+		journeyHandler := handler.NewJourneyHandler(journeyService)
 		handlerOptions := []connect.HandlerOption{connect.WithInterceptors(
 			middleware.NewRateLimitInterceptor(),
 			middleware.NewAuthInterceptor(pool, identityRepository),
@@ -183,6 +188,7 @@ func main() {
 		checklistPath, checklistServiceHandler := hajjv1connect.NewChecklistServiceHandler(checklistHandler, handlerOptions...)
 		lostReportPath, lostReportServiceHandler := hajjv1connect.NewLostReportServiceHandler(lostReportHandler, handlerOptions...)
 		tripPath, tripServiceHandler := hajjv1connect.NewTripServiceHandler(tripHandler, handlerOptions...)
+		journeyPath, journeyServiceHandler := hajjv1connect.NewJourneyServiceHandler(journeyHandler, handlerOptions...)
 		mux.Handle(operatorPath, operatorServiceHandler)
 		mux.Handle(pilgrimPath, pilgrimServiceHandler)
 		mux.Handle(seasonPath, seasonServiceHandler)
@@ -211,12 +217,16 @@ func main() {
 		mux.Handle(checklistPath, checklistServiceHandler)
 		mux.Handle(lostReportPath, lostReportServiceHandler)
 		mux.Handle(tripPath, tripServiceHandler)
+		mux.Handle(journeyPath, journeyServiceHandler)
 		mux.HandleFunc("POST /webhooks/xendit", handler.NewXenditWebhookHandler(logger, orderRepository, config.XenditWebhookToken))
 		uploadDir := os.Getenv("UPLOAD_DIR")
 		if uploadDir == "" {
 			uploadDir = "./uploads/documents"
 		}
 		mux.HandleFunc("POST /upload/document", handler.NewDocumentUploadHandler(pool, pilgrimService, uploadDir))
+		mux.HandleFunc("POST /upload/document/self", handler.NewPilgrimSelfDocumentUploadHandler(pilgrimService, uploadDir))
+		mux.HandleFunc("POST /upload/agent-document", handler.NewAgentDocumentUploadHandler(pool, agentService, uploadDir))
+		mux.HandleFunc("POST /upload/agent-document/self", handler.NewAgentSelfDocumentUploadHandler(pool, agentService, uploadDir))
 		mux.Handle("/uploads/documents/", http.StripPrefix("/uploads/documents/", http.FileServer(http.Dir(uploadDir))))
 		mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, request *http.Request) {
 			if err := pool.Ping(request.Context()); err != nil {
@@ -253,17 +263,72 @@ func main() {
 	}
 }
 
+// originMatcher accepts the exact configured origin, plus any single-label
+// subdomain of the same base host — e.g. CORS_ALLOWED_ORIGIN=
+// https://app.tawafiqhub.id also allows https://vacana.tawafiqhub.id,
+// https://maktour.tawafiqhub.id, etc. (see apps/web/lib/tenant-link.ts and
+// middleware.ts — every operator gets its own subdomain for /register,
+// /apply, /waitlist). 127.0.0.1/localhost are treated as the same base for
+// local dev, matching tenant-link.ts's "*.localhost" convention.
+type originMatcher struct {
+	exact    string
+	scheme   string
+	port     string
+	baseHost string
+}
+
+func newOriginMatcher(allowedOrigin string) originMatcher {
+	m := originMatcher{exact: allowedOrigin}
+	parsed, err := url.Parse(allowedOrigin)
+	if err != nil {
+		return m
+	}
+	m.scheme = parsed.Scheme
+	m.port = parsed.Port()
+	host := parsed.Hostname()
+	switch {
+	case host == "127.0.0.1" || host == "localhost":
+		host = "localhost"
+	default:
+		if label, rest, found := strings.Cut(host, "."); found && (label == "app" || label == "www") {
+			host = rest
+		}
+	}
+	m.baseHost = host
+	return m
+}
+
+func (m originMatcher) allows(origin string) bool {
+	if origin == "" {
+		return false
+	}
+	if origin == m.exact {
+		return true
+	}
+	if m.baseHost == "" {
+		return false
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil || parsed.Scheme != m.scheme || parsed.Port() != m.port {
+		return false
+	}
+	sub, rest, found := strings.Cut(parsed.Hostname(), ".")
+	return found && sub != "" && rest == m.baseHost
+}
+
 func cors(allowedOrigin string, next http.Handler) http.Handler {
+	matcher := newOriginMatcher(allowedOrigin)
 	return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		origin := request.Header.Get("Origin")
-		if origin == allowedOrigin {
-			w.Header().Set("Access-Control-Allow-Origin", allowedOrigin)
+		allowed := matcher.allows(origin)
+		if allowed {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
 		}
 		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Connect-Protocol-Version, Connect-Timeout-Ms")
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 		if request.Method == http.MethodOptions {
-			if origin != allowedOrigin {
+			if !allowed {
 				http.Error(w, "origin is not allowed", http.StatusForbidden)
 				return
 			}

@@ -12,4 +12,6 @@ type Kloter struct {
 	DepartureDate *time.Time
 	Capacity      int32
 	PilgrimCount  int32
+	Status        string
+	Notes         string
 }

@@ -9,6 +9,7 @@ type Operator struct {
 	Country         string
 	Email           string
 	LicenseNumber   string
+	Slug            string
 	CreatedAt       time.Time
 }
 

@@ -156,7 +156,7 @@ export default function DashboardPage() {
               <StatCard label="Total Jamaah" value={stats.total} accent="gold" />
               <StatCard label="Tersubstitusi" value={stats.substituted} accent="danger" />
               <StatCard label="Butuh Kursi Roda" value={stats.requiresWheelchair} accent="emerald" />
-              <StatCard label="Belum Ada Rombongan" value={stats.unassignedGroup} accent="gold" />
+              <StatCard label="Belum Ada Grup" value={stats.unassignedGroup} accent="gold" />
               <StatCard label="Belum Ada Kloter" value={stats.unassignedKloter} accent="gold" />
             </>
           ) : (

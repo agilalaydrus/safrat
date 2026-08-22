@@ -86,3 +86,14 @@ func (h *SeasonHandler) GetSeasonAnalytics(ctx context.Context, req *connect.Req
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *SeasonHandler) ResolveSeasonSlug(ctx context.Context, req *connect.Request[hajjv1.ResolveSeasonSlugRequest]) (*connect.Response[hajjv1.ResolveSeasonSlugResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.seasonService.ResolveSeasonSlug(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

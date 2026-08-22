@@ -4,6 +4,7 @@ package hajj.v1;
 
 import "buf/validate/validate.proto";
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 import "hajj/v1/groupleader.proto";
 
 option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
@@ -18,6 +19,16 @@ service GroupService {
   rpc DeleteGroup(DeleteGroupRequest) returns (google.protobuf.Empty);
   rpc ListOperatorMembers(ListOperatorMembersRequest) returns (ListOperatorMembersResponse);
   rpc GetGroupRoster(GetGroupRosterRequest) returns (GetGroupRosterResponse);
+  // ListMuttawwif is the operator-wide roster — every distinct Better Auth
+  // user who leads at least one group, with every group they lead (a
+  // person can lead more than one). Contrast with ListGroups, which is
+  // one row per group, not per leader.
+  rpc ListMuttawwif(ListMuttawwifRequest) returns (ListMuttawwifResponse);
+  rpc ListGroupsByKloter(ListGroupsByKloterRequest) returns (ListGroupsResponse);
+  // UpdateGroupCity is the Muttawwif's one-tap "we're at X now" action —
+  // appends to group_location_log and (best-effort, never rolls back this
+  // call) cascades pilgrim_journey_status for every pilgrim in the group.
+  rpc UpdateGroupCity(UpdateGroupCityRequest) returns (Group);
 }
 
 message Group {
@@ -28,6 +39,10 @@ message Group {
   int32 pilgrim_count = 5;
   string leader_id = 6;
   string leader_name = 7;
+  string kloter_id = 8;
+  string current_city = 9; // INDONESIA | MADINAH | MAKKAH | ARAFAH | MUZDALIFAH | MINA | TRANSIT | DEPARTED
+  string status = 10; // ACTIVE | IN_IBADAH | EMERGENCY | COMPLETED
+  google.protobuf.Timestamp last_update = 11;
 }
 
 message ListGroupsRequest {
@@ -59,3 +74,29 @@ message OperatorMember {
 }
 message ListOperatorMembersRequest {}
 message ListOperatorMembersResponse { repeated OperatorMember members = 1; }
+
+message Muttawwif {
+  string user_id = 1;
+  string name = 2;
+  string email = 3;
+  string phone = 4;
+  repeated LeaderGroup groups = 5;
+  // agent_id is this leader's own row in `agents` (EnsureAgentForLeader) —
+  // KYC lives there. Empty only if the leader has never been assigned to
+  // a group yet (the row is created on first assignment).
+  string agent_id = 6;
+  string kyc_status = 7; // UNVERIFIED | PENDING_REVIEW | VERIFIED | REJECTED
+}
+message ListMuttawwifRequest {}
+message ListMuttawwifResponse { repeated Muttawwif muttawwif = 1; }
+
+message ListGroupsByKloterRequest {
+  string kloter_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message UpdateGroupCityRequest {
+  string group_id = 1 [(buf.validate.field).string.min_len = 1];
+  string city = 2 [(buf.validate.field).string.min_len = 1];
+  string location = 3; // detail, e.g. "Hotel Dar Al Hijra lt 5"
+  string notes = 4;
+}
