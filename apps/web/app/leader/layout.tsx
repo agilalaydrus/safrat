@@ -10,21 +10,22 @@ import { authClient } from "@/lib/auth-client";
 import { invalidateMyAccessCache } from "@/lib/access-cache";
 import { useLeaderActiveSOSCount, useLeaderChatUnread } from "@/lib/leader-notifications";
 
-// Five items max in the bottom bar (the ones a Muttawwif touches every
-// day) — everything else lives one tap away in the "Lainnya" sheet. Ten
-// items crammed into a bottom bar is the thing being fixed here.
+// The bottom bar is for what a Muttawwif actually touches while jamaah are
+// mid-ibadah — a group leader mid-trip is checking who's on the bus and
+// watching for SOS, not opening a ritual checklist (that gets updated in
+// the lulls, not constantly, so it lives in "Lainnya" instead).
 const PRIMARY_TABS = [
   ["Jamaah", "/leader", IconUsersGroup],
   ["Lokasi", "/leader/location", IconMapPin],
-  ["Ibadah", "/leader/rituals", IconMoonStars],
+  ["Absen Bus", "/leader/check-in", IconBusStop],
+  ["SOS", "/leader/sos", IconSos],
   ["Chat", "/leader/chat", IconMessageCircle],
 ] as const;
 
 const MORE_ITEMS = [
-  ["Absen Bus", "/leader/check-in", IconBusStop],
   ["Check-In Hotel", "/leader/hotel", IconBuildingHospital],
+  ["Ibadah", "/leader/rituals", IconMoonStars],
   ["Kesehatan", "/leader/health", IconHeartbeat],
-  ["SOS", "/leader/sos", IconSos],
   ["Dompet", "/leader/wallet", IconWallet],
   ["Profil", "/leader/profile", IconUserCircle],
 ] as const;
@@ -66,7 +67,7 @@ function LeaderShell({ children }: { children: React.ReactNode }) {
       <nav style={tabBar} aria-label="Navigasi utama">
         {PRIMARY_TABS.map(([label, href, Icon]) => {
           const active = pathname === href;
-          const badgeCount = label === "Chat" ? chatUnread : 0;
+          const badgeCount = label === "Chat" ? chatUnread : label === "SOS" ? sosActive : 0;
           return (
             <Link key={label} href={href} style={{ ...tab, ...(active ? activeTab : {}) }}>
               <span style={iconWrap}>
@@ -78,10 +79,7 @@ function LeaderShell({ children }: { children: React.ReactNode }) {
           );
         })}
         <button onClick={() => setMoreOpen(true)} style={{ ...tab, ...(moreActive ? activeTab : {}), border: 0, background: "transparent", font: "inherit" }} aria-label="Lainnya">
-          <span style={iconWrap}>
-            <IconDots size={22} stroke={moreActive ? 2.2 : 1.8} />
-            {sosActive > 0 && <span style={badge}>{sosActive > 9 ? "9+" : sosActive}</span>}
-          </span>
+          <span style={iconWrap}><IconDots size={22} stroke={moreActive ? 2.2 : 1.8} /></span>
           <span style={tabLabel}>Lainnya</span>
         </button>
       </nav>
@@ -97,12 +95,10 @@ function LeaderShell({ children }: { children: React.ReactNode }) {
             <div style={sheetGrid}>
               {MORE_ITEMS.map(([label, href, Icon]) => {
                 const active = pathname === href;
-                const badgeCount = label === "SOS" ? sosActive : 0;
                 return (
                   <Link key={label} href={href} onClick={() => setMoreOpen(false)} style={{ ...sheetItem, ...(active ? sheetItemActive : {}) }}>
                     <span style={iconWrap}>
                       <Icon size={24} stroke={active ? 2.2 : 1.8} />
-                      {badgeCount > 0 && <span style={badge}>{badgeCount > 9 ? "9+" : badgeCount}</span>}
                     </span>
                     <span style={sheetItemLabel}>{label}</span>
                   </Link>
