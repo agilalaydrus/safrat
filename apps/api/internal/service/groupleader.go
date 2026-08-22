@@ -22,10 +22,11 @@ type GroupLeaderService struct {
 	pilgrimRepository     *repository.PilgrimRepository
 	groupRepository       *repository.GroupRepository
 	journeyService        *JourneyService
+	pushNotifier          PushNotifier
 }
 
-func NewGroupLeaderService(operators *repository.OperatorRepository, groupLeaders *repository.GroupLeaderRepository, sos *repository.SOSRepository, pilgrims *repository.PilgrimRepository, groups *repository.GroupRepository, journey *JourneyService) *GroupLeaderService {
-	return &GroupLeaderService{operatorRepository: operators, groupLeaderRepository: groupLeaders, sosRepository: sos, pilgrimRepository: pilgrims, groupRepository: groups, journeyService: journey}
+func NewGroupLeaderService(operators *repository.OperatorRepository, groupLeaders *repository.GroupLeaderRepository, sos *repository.SOSRepository, pilgrims *repository.PilgrimRepository, groups *repository.GroupRepository, journey *JourneyService, push PushNotifier) *GroupLeaderService {
+	return &GroupLeaderService{operatorRepository: operators, groupLeaderRepository: groupLeaders, sosRepository: sos, pilgrimRepository: pilgrims, groupRepository: groups, journeyService: journey, pushNotifier: push}
 }
 
 // ListMySOSAlerts scopes the coordinator-wide SOS surface down to only
@@ -71,7 +72,7 @@ func (s *GroupLeaderService) UpdateMyGroupCity(ctx context.Context, orgID string
 	if err != nil {
 		return nil, err
 	}
-	group, err := s.groupRepository.UpdateCity(ctx, op, req.GroupId, req.City, req.Location, middleware.UserIDFromCtx(ctx))
+	group, err := s.groupRepository.UpdateCity(ctx, op, req.GroupId, req.City, req.Activity, req.Location, middleware.UserIDFromCtx(ctx))
 	if err != nil {
 		return nil, serviceError("GroupLeaderService.UpdateMyGroupCity", err)
 	}
@@ -80,11 +81,14 @@ func (s *GroupLeaderService) UpdateMyGroupCity(ctx context.Context, orgID string
 			sentry.CaptureException(fmt.Errorf("GroupLeaderService.UpdateMyGroupCity: journey cascade: %w", err))
 		}
 	}
-	return &hajjv1.LeaderGroup{Id: group.ID, Name: group.Name, Capacity: group.Capacity, SeasonId: group.SeasonID, CurrentCity: group.CurrentCity, LastUpdate: timestampOrNil(group.LastUpdate)}, nil
+	if s.pushNotifier != nil {
+		s.pushNotifier.NotifyGroupPilgrims(ctx, op, group.ID, "Tawafiq Hub", groupCityPushBody(req.City))
+	}
+	return &hajjv1.LeaderGroup{Id: group.ID, Name: group.Name, Capacity: group.Capacity, SeasonId: group.SeasonID, CurrentCity: group.CurrentCity, LastUpdate: timestampOrNil(group.LastUpdate), CurrentActivity: group.CurrentActivity}, nil
 }
 
 func leaderGroupMessage(group *domain.LeaderGroup) *hajjv1.LeaderGroup {
-	return &hajjv1.LeaderGroup{Id: group.ID, Name: group.Name, Capacity: group.Capacity, PilgrimCount: group.PilgrimCount, SeasonId: group.SeasonID, CurrentCity: group.CurrentCity, LastUpdate: timestampOrNil(group.LastUpdate)}
+	return &hajjv1.LeaderGroup{Id: group.ID, Name: group.Name, Capacity: group.Capacity, PilgrimCount: group.PilgrimCount, SeasonId: group.SeasonID, CurrentCity: group.CurrentCity, LastUpdate: timestampOrNil(group.LastUpdate), CurrentActivity: group.CurrentActivity}
 }
 
 func timestampOrNil(t *time.Time) *timestamppb.Timestamp {

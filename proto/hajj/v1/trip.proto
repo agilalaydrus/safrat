@@ -7,6 +7,7 @@ import "hajj/v1/pilgrim.proto";
 import "hajj/v1/sos.proto";
 import "hajj/v1/transport.proto";
 import "hajj/v1/groupleader.proto";
+import "hajj/v1/kloter.proto";
 
 option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 
@@ -28,6 +29,16 @@ service TripService {
   rpc ListTripSOSAlerts(ListTripSOSAlertsRequest) returns (ListTripSOSAlertsResponse);
   rpc AcknowledgeTripSOSAlert(AcknowledgeTripSOSAlertRequest) returns (SOSAlert);
   rpc ResolveTripSOSAlert(ResolveTripSOSAlertRequest) returns (SOSAlert);
+  // UpdateTripKloterStatus is the Tour Leader's own trigger for the kloter
+  // lifecycle stepper (same transitions/cascade as
+  // KloterService.UpdateKloterStatus, just ownership-checked via
+  // kloter_staff instead of requiring the admin dashboard).
+  rpc UpdateTripKloterStatus(UpdateTripKloterStatusRequest) returns (Kloter);
+}
+
+message UpdateTripKloterStatusRequest {
+  string kloter_id = 1 [(buf.validate.field).string.uuid = true];
+  string status = 2 [(buf.validate.field).string.min_len = 1];
 }
 
 message GetTripRosterRequest {

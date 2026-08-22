@@ -88,3 +88,25 @@ func (h *PilgrimAppHandler) ListMyBroadcasts(ctx context.Context, req *connect.R
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PilgrimAppHandler) ListMyRituals(ctx context.Context, req *connect.Request[hajjv1.PilgrimAppRequest]) (*connect.Response[hajjv1.ListMyRitualsResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimAppService.ListMyRituals(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PilgrimAppHandler) RegisterMyPushToken(ctx context.Context, req *connect.Request[hajjv1.RegisterMyPushTokenRequest]) (*connect.Response[hajjv1.RegisterMyPushTokenResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimAppService.RegisterMyPushToken(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

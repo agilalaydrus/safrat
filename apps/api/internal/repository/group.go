@@ -30,7 +30,7 @@ func (r *GroupRepository) ListForOperator(ctx context.Context, operatorID, seaso
 	}
 	result := make([]*domain.Group, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, &domain.Group{ID: uuid.UUID(row.ID.Bytes).String(), SeasonID: uuid.UUID(row.SeasonID.Bytes).String(), OperatorID: uuid.UUID(row.OperatorID.Bytes).String(), Name: row.Name, Capacity: row.Capacity, PilgrimCount: row.PilgrimCount, LeaderID: row.LeaderID.String, LeaderName: row.LeaderName.String, KloterID: nullableUUIDString(row.KloterID), CurrentCity: row.CurrentCity, Status: row.Status, LastUpdate: timestamptzPtr(row.LastUpdate)})
+		result = append(result, &domain.Group{ID: uuid.UUID(row.ID.Bytes).String(), SeasonID: uuid.UUID(row.SeasonID.Bytes).String(), OperatorID: uuid.UUID(row.OperatorID.Bytes).String(), Name: row.Name, Capacity: row.Capacity, PilgrimCount: row.PilgrimCount, LeaderID: row.LeaderID.String, LeaderName: row.LeaderName.String, KloterID: nullableUUIDString(row.KloterID), CurrentCity: row.CurrentCity, Status: row.Status, LastUpdate: timestamptzPtr(row.LastUpdate), CurrentActivity: row.CurrentActivity})
 	}
 	return result, nil
 }
@@ -53,14 +53,14 @@ func (r *GroupRepository) ListByKloter(ctx context.Context, operatorID, kloterID
 	}
 	result := make([]*domain.Group, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, &domain.Group{ID: uuid.UUID(row.ID.Bytes).String(), SeasonID: uuid.UUID(row.SeasonID.Bytes).String(), OperatorID: uuid.UUID(row.OperatorID.Bytes).String(), Name: row.Name, Capacity: row.Capacity, PilgrimCount: row.PilgrimCount, LeaderID: row.LeaderID.String, LeaderName: row.LeaderName.String, KloterID: nullableUUIDString(row.KloterID), CurrentCity: row.CurrentCity, Status: row.Status, LastUpdate: timestamptzPtr(row.LastUpdate)})
+		result = append(result, &domain.Group{ID: uuid.UUID(row.ID.Bytes).String(), SeasonID: uuid.UUID(row.SeasonID.Bytes).String(), OperatorID: uuid.UUID(row.OperatorID.Bytes).String(), Name: row.Name, Capacity: row.Capacity, PilgrimCount: row.PilgrimCount, LeaderID: row.LeaderID.String, LeaderName: row.LeaderName.String, KloterID: nullableUUIDString(row.KloterID), CurrentCity: row.CurrentCity, Status: row.Status, LastUpdate: timestamptzPtr(row.LastUpdate), CurrentActivity: row.CurrentActivity})
 	}
 	return result, nil
 }
 
 // UpdateCity is the Muttawwif's one-tap location update — also appends an
 // immutable group_location_log row so the trip trail can be reconstructed.
-func (r *GroupRepository) UpdateCity(ctx context.Context, operatorID, groupID, city, location, updatedByUserID string) (*domain.Group, error) {
+func (r *GroupRepository) UpdateCity(ctx context.Context, operatorID, groupID, city, activity, location, updatedByUserID string) (*domain.Group, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func (r *GroupRepository) UpdateCity(ctx context.Context, operatorID, groupID, c
 	if err != nil {
 		return nil, err
 	}
-	v, err := r.queries.UpdateGroupCity(ctx, db.UpdateGroupCityParams{ID: groupUUID, OperatorID: opUUID, CurrentCity: city})
+	v, err := r.queries.UpdateGroupCity(ctx, db.UpdateGroupCityParams{ID: groupUUID, OperatorID: opUUID, CurrentCity: city, CurrentActivity: activity})
 	if err != nil {
 		return nil, err
 	}
@@ -212,5 +212,5 @@ func (r *GroupRepository) ListOperatorMembers(ctx context.Context, betterAuthOrg
 }
 
 func toGroup(group db.Group) *domain.Group {
-	return &domain.Group{ID: uuid.UUID(group.ID.Bytes).String(), SeasonID: uuid.UUID(group.SeasonID.Bytes).String(), OperatorID: uuid.UUID(group.OperatorID.Bytes).String(), Name: group.Name, Capacity: group.Capacity, LeaderID: group.LeaderID.String, KloterID: nullableUUIDString(group.KloterID), CurrentCity: group.CurrentCity, Status: group.Status, LastUpdate: timestamptzPtr(group.LastUpdate)}
+	return &domain.Group{ID: uuid.UUID(group.ID.Bytes).String(), SeasonID: uuid.UUID(group.SeasonID.Bytes).String(), OperatorID: uuid.UUID(group.OperatorID.Bytes).String(), Name: group.Name, Capacity: group.Capacity, LeaderID: group.LeaderID.String, KloterID: nullableUUIDString(group.KloterID), CurrentCity: group.CurrentCity, Status: group.Status, LastUpdate: timestamptzPtr(group.LastUpdate), CurrentActivity: group.CurrentActivity}
 }

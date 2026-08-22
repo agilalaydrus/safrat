@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// HealthReportService: BERAT severity automatically pushes to the operator
+// and any Tour Leader assigned to the pilgrim's kloter (best-effort, via
+// FirebasePusher — see notification.PilgrimPushNotifier).
+service HealthReportService {
+  rpc CreateHealthReport(CreateHealthReportRequest) returns (HealthReport);
+  rpc ListHealthReports(ListHealthReportsRequest) returns (ListHealthReportsResponse);
+  rpc ResolveHealthReport(ResolveHealthReportRequest) returns (HealthReport);
+}
+
+message HealthReport {
+  string id = 1;
+  string pilgrim_id = 2;
+  string pilgrim_name = 3;
+  string group_id = 4;
+  string group_name = 5;
+  string severity = 6; // RINGAN | SEDANG | BERAT
+  string symptoms = 7;
+  string action_taken = 8;
+  bool resolved = 9;
+  google.protobuf.Timestamp resolved_at = 10;
+  google.protobuf.Timestamp created_at = 11;
+}
+
+message CreateHealthReportRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+  string severity = 2 [(buf.validate.field).string = {in: ["RINGAN", "SEDANG", "BERAT"]}];
+  string symptoms = 3 [(buf.validate.field).string.min_len = 1];
+  string action_taken = 4;
+}
+
+message ListHealthReportsRequest {
+  // Unset (default) lists both resolved and open; set true/false to filter.
+  optional bool resolved = 1;
+}
+message ListHealthReportsResponse { repeated HealthReport reports = 1; }
+
+message ResolveHealthReportRequest {
+  string report_id = 1 [(buf.validate.field).string.uuid = true];
+}

@@ -1,15 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { IconBed, IconBus, IconCheck, IconSos } from "@tabler/icons-react";
+import { IconBed, IconBus, IconCheck, IconPlaneDeparture, IconSos } from "@tabler/icons-react";
 import { KloterStaff } from "@hajj-saas/proto-gen/hajj/v1/staff_schedule_pb";
 import { Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { SOSAlert } from "@hajj-saas/proto-gen/hajj/v1/sos_pb";
 import { Movement } from "@hajj-saas/proto-gen/hajj/v1/transport_pb";
+import { Kloter } from "@hajj-saas/proto-gen/hajj/v1/kloter_pb";
 import { CheckIn } from "@hajj-saas/proto-gen/hajj/v1/groupleader_pb";
-import { staffScheduleClient, tripClient } from "@/lib/rpc";
+import { kloterClient, staffScheduleClient, tripClient } from "@/lib/rpc";
 
 const SOS_STATUS_LABEL: Record<string, string> = { ACTIVE: "Aktif", ACKNOWLEDGED: "Dikonfirmasi", ESCALATED: "Dieskalasi" };
+const KLOTER_STEPS = [
+  ["DRAFT", "Draft"], ["CONFIRMED", "Konfirmasi"], ["DEPARTED", "Catat Keberangkatan"],
+  ["IN_SAUDI", "Tiba di Saudi"], ["DEPARTED_SAUDI", "Boarding Pulang"], ["COMPLETED", "Selesai"],
+] as const;
 
 export default function AgentTripTab() {
   const [assignments, setAssignments] = useState<KloterStaff[]>([]);
@@ -18,9 +23,11 @@ export default function AgentTripTab() {
   const [alerts, setAlerts] = useState<SOSAlert[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [checkIns, setCheckIns] = useState<Record<string, CheckIn[]>>({});
+  const [kloter, setKloter] = useState<Kloter>();
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [working, setWorking] = useState("");
+  const [statusSaving, setStatusSaving] = useState(false);
 
   useEffect(() => {
     staffScheduleClient.listMyAssignments({}).then((r) => {
@@ -36,6 +43,7 @@ export default function AgentTripTab() {
       tripClient.getTripRoster({ kloterId: selected.kloterId }),
       tripClient.listTripSOSAlerts({ kloterId: selected.kloterId }),
       tripClient.listTripMovements({ kloterId: selected.kloterId }),
+      kloterClient.listKloters({ seasonId: selected.seasonId }).then((r) => setKloter(r.kloters.find((k) => k.id === selected.kloterId))),
     ]).then(([rosterRes, alertsRes, movementsRes]) => {
       setPilgrims(rosterRes.pilgrims);
       setAlerts(alertsRes.alerts.filter((a) => a.status !== "RESOLVED"));
@@ -46,6 +54,20 @@ export default function AgentTripTab() {
     }).catch(() => setNotice("Gagal memuat data perjalanan.")).finally(() => setLoading(false));
   };
   useEffect(refreshRoster, [selected]);
+
+  const advanceKloterStatus = async (status: string) => {
+    if (!selected) return;
+    if (!window.confirm(`Ubah status kloter menjadi "${KLOTER_STEPS.find(([s]) => s === status)?.[1] ?? status}"? Ini akan memperbarui status perjalanan seluruh jamaah di kloter secara otomatis.`)) return;
+    setStatusSaving(true);
+    try {
+      const updated = await tripClient.updateTripKloterStatus({ kloterId: selected.kloterId, status });
+      setKloter(updated);
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "Gagal memperbarui status kloter.");
+    } finally {
+      setStatusSaving(false);
+    }
+  };
 
   const toggleHotelCheckIn = async (pilgrim: Pilgrim) => {
     if (!selected) return;
@@ -112,6 +134,25 @@ export default function AgentTripTab() {
         </select>
       )}
       {notice && <p style={{ color: "var(--color-gold-800)", fontSize: 13 }}>{notice}</p>}
+
+      {kloter && (
+        <section style={{ ...card, marginBottom: 16 }}>
+          <h3 style={sectionTitle}><IconPlaneDeparture size={16} color="var(--color-emerald-800)" />Status Kloter {kloter.code}</h3>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+            {KLOTER_STEPS.map(([status, label], i) => {
+              const currentIdx = KLOTER_STEPS.findIndex(([s]) => s === kloter.status);
+              const isCurrent = status === kloter.status;
+              const isPast = i < currentIdx;
+              return <span key={status} style={{ ...stepBadge, ...(isCurrent ? stepCurrent : isPast ? stepPast : {}) }}>{label}</span>;
+            })}
+          </div>
+          {(() => {
+            const currentIdx = KLOTER_STEPS.findIndex(([s]) => s === kloter.status);
+            const next = KLOTER_STEPS[currentIdx + 1];
+            return next ? <button disabled={statusSaving} onClick={() => void advanceKloterStatus(next[0])} style={smallBtn}>{statusSaving ? "Menyimpan..." : next[1]}</button> : null;
+          })()}
+        </section>
+      )}
 
       {alerts.length > 0 && (
         <section style={{ ...card, border: "1px solid var(--color-danger-600)", marginBottom: 16 }}>
@@ -186,3 +227,6 @@ const alertRow: React.CSSProperties = { display: "flex", justifyContent: "space-
 const smallBtn: React.CSSProperties = { minHeight: 32, border: 0, borderRadius: 6, padding: "0 10px", background: "var(--color-emerald-900)", color: "#fff", fontSize: 12, fontWeight: 600 };
 const smallBtnGhost: React.CSSProperties = { minHeight: 32, border: "1px solid var(--color-cream-400)", borderRadius: 6, padding: "0 10px", background: "transparent", color: "var(--color-warm-700)", fontSize: 12, fontWeight: 600 };
 const smallBtnActive: React.CSSProperties = { minHeight: 32, border: 0, borderRadius: 6, padding: "0 10px", background: "var(--color-emerald-50)", color: "var(--color-emerald-900)", fontSize: 12, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 };
+const stepBadge: React.CSSProperties = { padding: "5px 10px", borderRadius: 99, background: "var(--color-cream-100)", border: "1px solid var(--color-cream-400)", color: "var(--color-warm-400)", fontSize: 11, fontWeight: 600 };
+const stepCurrent: React.CSSProperties = { background: "var(--color-gold-500)", border: "1px solid var(--color-gold-500)", color: "var(--color-warm-900)" };
+const stepPast: React.CSSProperties = { background: "var(--color-emerald-50)", border: "1px solid var(--color-emerald-200)", color: "var(--color-emerald-900)" };

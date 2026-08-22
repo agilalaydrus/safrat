@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { IconBuildingHospital, IconClipboardCheck, IconLogout, IconMapPin, IconMessageCircle, IconSos, IconUserCircle, IconUsersGroup, IconWallet } from "@tabler/icons-react";
+import { IconBuildingHospital, IconClipboardCheck, IconHeartbeat, IconLogout, IconMapPin, IconMessageCircle, IconMoonStars, IconSos, IconUserCircle, IconUsersGroup, IconWallet } from "@tabler/icons-react";
 import { RequireAccess } from "@/components/auth/RequireAccess";
 import { LeaderGroupProvider, useLeaderGroup } from "@/lib/leader-context";
 import { authClient } from "@/lib/auth-client";
@@ -14,6 +14,8 @@ const TABS = [
   ["Check-In", "/leader/check-in", IconClipboardCheck],
   ["Hotel", "/leader/hotel", IconBuildingHospital],
   ["Lokasi", "/leader/location", IconMapPin],
+  ["Ibadah", "/leader/rituals", IconMoonStars],
+  ["Kesehatan", "/leader/health", IconHeartbeat],
   ["Chat", "/leader/chat", IconMessageCircle],
   ["SOS", "/leader/sos", IconSos],
   ["Dompet", "/leader/wallet", IconWallet],

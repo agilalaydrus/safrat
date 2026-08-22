@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { IconHome, IconSos, IconMessageCircle, IconCalendarEvent, IconShoppingBag, IconLogout, IconSpeakerphone } from "@tabler/icons-react";
+import { IconHome, IconSos, IconMessageCircle, IconCalendarEvent, IconShoppingBag, IconLogout, IconSpeakerphone, IconMoonStars } from "@tabler/icons-react";
 import { useRegisterShellServiceWorker } from "@/lib/register-sw";
 import { useLocationPing } from "@/lib/geolocation";
+import { useRegisterPilgrimPush } from "@/lib/pilgrim-push";
 import { RequireAccess } from "@/components/auth/RequireAccess";
 import { PilgrimCodeProvider, usePilgrimCode } from "@/lib/pilgrim-context";
 import { authClient } from "@/lib/auth-client";
@@ -17,6 +18,7 @@ const TABS = [
   ["SOS", "/pilgrim/sos", IconSos],
   ["Chat", "/pilgrim/chat", IconMessageCircle],
   ["Jadwal", "/pilgrim/schedule", IconCalendarEvent],
+  ["Ibadah", "/pilgrim/rituals", IconMoonStars],
   ["Produk", "/pilgrim/products", IconShoppingBag],
   ["Info", "/pilgrim/announcements", IconSpeakerphone],
 ] as const;
@@ -27,6 +29,7 @@ function PilgrimShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const code = usePilgrimCode();
   useLocationPing(code);
+  useRegisterPilgrimPush(code);
   const chatUnread = usePilgrimChatUnread(code, pathname === "/pilgrim/chat");
 
   async function signOut() {

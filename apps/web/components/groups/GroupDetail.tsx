@@ -7,7 +7,10 @@ import { IconBuilding, IconGenderFemale, IconGenderMale, IconMessageCircle, Icon
 import { Gender, Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { Group } from "@hajj-saas/proto-gen/hajj/v1/group_pb";
 import { Kloter } from "@hajj-saas/proto-gen/hajj/v1/kloter_pb";
-import { groupClient, kloterClient, accommodationClient } from "@/lib/rpc";
+import { groupClient, kloterClient, accommodationClient, ritualClient, healthReportClient, seasonClient } from "@/lib/rpc";
+import { RitualProgressItem } from "@hajj-saas/proto-gen/hajj/v1/ritual_pb";
+import { HealthReport } from "@hajj-saas/proto-gen/hajj/v1/health_report_pb";
+import { SeasonType } from "@hajj-saas/proto-gen/hajj/v1/season_pb";
 import GroupChatPanel from "./GroupChatPanel";
 import GroupFormDialog from "./GroupFormDialog";
 import PilgrimFormDialog from "../pilgrims/PilgrimFormDialog";
@@ -44,6 +47,10 @@ export default function GroupDetail({ id }: { id: string }) {
   const [roster, setRoster] = useState<Pilgrim[]>([]);
   const [kloters, setKloters] = useState<Kloter[]>([]);
   const [rooms, setRooms] = useState<Record<string, { hotelName: string; roomNumber: string }[]>>({});
+  const [ritualItems, setRitualItems] = useState<RitualProgressItem[]>([]);
+  const [healthReports, setHealthReports] = useState<HealthReport[]>([]);
+  const [seasonTypeBucket, setSeasonTypeBucket] = useState<"HAJJ" | "UMRAH">("UMRAH");
+  const [seeding, setSeeding] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [chatOpen, setChatOpen] = useState(false);
@@ -62,9 +69,32 @@ export default function GroupDetail({ id }: { id: string }) {
         for (const a of r.assignments) (map[a.pilgrimId] ??= []).push({ hotelName: a.hotelName, roomNumber: a.roomNumber });
         setRooms(map);
       }),
+      ritualClient.getGroupRitualProgress({ groupId: id }).then((r) => setRitualItems(r.items)).catch(() => {}),
+      healthReportClient.listHealthReports({}).then((r) => setHealthReports(r.reports.filter((x) => x.groupId === id && !x.resolved))).catch(() => {}),
+      seasonClient.listSeasons({}).then((r) => {
+        const season = r.seasons.find((s) => s.id === seasonId);
+        setSeasonTypeBucket(season?.type === SeasonType.HAJJ ? "HAJJ" : "UMRAH");
+      }).catch(() => {}),
     ]).catch(() => setNotice("Gagal memuat data grup.")).finally(() => setLoading(false));
   };
   useEffect(load, [id, seasonId]);
+
+  async function resolveHealthReport(reportId: string) {
+    await healthReportClient.resolveHealthReport({ reportId });
+    load();
+  }
+
+  async function seedRituals() {
+    setSeeding(true);
+    try {
+      await ritualClient.seedDefaultTemplates({ seasonType: seasonTypeBucket });
+      load();
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "Gagal membuat template ritual.");
+    } finally {
+      setSeeding(false);
+    }
+  }
 
   const kloterCode = (kloterId: string) => kloters.find((k) => k.id === kloterId)?.code;
 
@@ -113,6 +143,7 @@ export default function GroupDetail({ id }: { id: string }) {
           <p style={{ margin: "4px 0 0", fontSize: 13, color: lastUpdateColor(group.lastUpdate?.toDate()) }}>
             <IconBuilding size={14} style={{ verticalAlign: "-2px", marginRight: 6 }} />
             {CITY_LABEL[group.currentCity] ?? (group.currentCity || "Indonesia")}
+            {group.currentActivity && ` · ${group.currentActivity}`}
             {group.lastUpdate && ` · diperbarui ${group.lastUpdate.toDate().toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`}
           </p>
         </div>
@@ -148,6 +179,47 @@ export default function GroupDetail({ id }: { id: string }) {
           </div> : <p style={{ color: "var(--color-warm-400)", fontSize: 13 }}>Belum ada jamaah.</p>}
         </section>
       </div>
+
+      {(ritualItems.length > 0 || healthReports.length > 0 || roster.length > 0) && (
+        <div style={twoCol}>
+          {ritualItems.length > 0 ? (
+            <section style={card}>
+              <h2 style={{ margin: "0 0 12px", fontSize: 16 }}>Progres Ibadah</h2>
+              <div style={{ display: "grid", gap: 8 }}>
+                {ritualItems.map((item) => (
+                  <div key={item.ritualId} style={breakdownRow}>
+                    <span>{item.name}</span>
+                    <span style={breakdownCount}>{item.completedCount}/{item.totalPilgrims}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : roster.length > 0 ? (
+            <section style={card}>
+              <h2 style={{ margin: "0 0 12px", fontSize: 16 }}>Progres Ibadah</h2>
+              <p style={{ margin: "0 0 10px", fontSize: 13, color: "var(--color-warm-400)" }}>Belum ada template ritual untuk musim {seasonTypeBucket === "HAJJ" ? "Haji" : "Umrah"} ini.</p>
+              <button onClick={() => void seedRituals()} disabled={seeding} style={emerald}>{seeding ? "Membuat..." : "Buat Template Default"}</button>
+            </section>
+          ) : null}
+          {healthReports.length > 0 && (
+            <section style={card}>
+              <h2 style={{ margin: "0 0 12px", fontSize: 16 }}>Laporan Kesehatan Aktif ({healthReports.length})</h2>
+              <div style={{ display: "grid", gap: 8 }}>
+                {healthReports.map((r) => (
+                  <div key={r.id} style={{ ...breakdownRow, alignItems: "flex-start", flexDirection: "column", gap: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+                      <strong>{r.pilgrimName}</strong>
+                      <span style={{ color: r.severity === "BERAT" ? "var(--color-danger-600)" : "var(--color-gold-800)", fontSize: 12, fontWeight: 700 }}>{r.severity}</span>
+                    </div>
+                    <span style={{ fontSize: 13, color: "var(--color-warm-600)" }}>{r.symptoms}</span>
+                    <button onClick={() => void resolveHealthReport(r.id)} style={{ ...ghostBtn, minHeight: 32, padding: "0 10px", fontSize: 12 }}>Tandai Ditangani</button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      )}
 
       <section style={{ ...card, marginTop: 16 }}>
         <h2 style={{ margin: "0 0 12px", fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}><IconUsers size={18} color="var(--color-emerald-800)" />Anggota ({roster.length})</h2>

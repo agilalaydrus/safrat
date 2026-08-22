@@ -99,6 +99,68 @@ func (p *FirebasePusher) NotifyLostReport(ctx context.Context, operatorID, pilgr
 	}
 }
 
+func (p *FirebasePusher) send(ctx context.Context, tokens []string, title, body string) {
+	if p == nil || p.client == nil || len(tokens) == 0 {
+		return
+	}
+	response, err := p.client.SendEachForMulticast(ctx, &messaging.MulticastMessage{
+		Tokens:       tokens,
+		Notification: &messaging.Notification{Title: title, Body: body},
+	})
+	if err != nil {
+		p.logger.Error("send push", "error", err)
+		return
+	}
+	if response.FailureCount > 0 {
+		p.logger.Warn("push partial failure", "failure_count", response.FailureCount, "success_count", response.SuccessCount)
+	}
+}
+
+// NotifyOperatorStaff broadcasts to every registered coordinator/leader
+// device for the operator — same scope as NotifySOSAlert/NotifyLostReport,
+// generalized for cascade events (health BERAT, kloter milestones the
+// operator should know about even without watching the dashboard).
+func (p *FirebasePusher) NotifyOperatorStaff(ctx context.Context, operatorID, title, body string) {
+	if p == nil || p.client == nil {
+		return
+	}
+	tokens, err := p.tokens.ListTokensForOperator(ctx, operatorID)
+	if err != nil {
+		p.logger.Error("list push tokens", "error", err)
+		return
+	}
+	p.send(ctx, tokens, title, body)
+}
+
+// NotifyGroupPilgrims pushes to every pilgrim in the group who has
+// registered a device (pilgrim_push_tokens) — used for the Muttawwif's
+// location-update cascade ("Rombongan Anda kini di Makkah").
+func (p *FirebasePusher) NotifyGroupPilgrims(ctx context.Context, operatorID, groupID, title, body string) {
+	if p == nil || p.client == nil {
+		return
+	}
+	tokens, err := p.tokens.ListTokensForGroup(ctx, operatorID, groupID)
+	if err != nil {
+		p.logger.Error("list group push tokens", "error", err)
+		return
+	}
+	p.send(ctx, tokens, title, body)
+}
+
+// NotifyKloterPilgrims is the kloter-wide equivalent, used by
+// KloterService's status-change cascade ("Perjalanan ibadah Anda dimulai").
+func (p *FirebasePusher) NotifyKloterPilgrims(ctx context.Context, operatorID, kloterID, title, body string) {
+	if p == nil || p.client == nil {
+		return
+	}
+	tokens, err := p.tokens.ListTokensForKloter(ctx, operatorID, kloterID)
+	if err != nil {
+		p.logger.Error("list kloter push tokens", "error", err)
+		return
+	}
+	p.send(ctx, tokens, title, body)
+}
+
 func sosNotificationText(alert *domain.SOSAlert) (string, string) {
 	if alert.Status == "ESCALATED" {
 		return "SOS ESCALATED", alert.PilgrimName + " has not been acknowledged in 10 minutes."

@@ -6,6 +6,7 @@
 -- member the tracking is live without revealing where the pilgrim is.
 SELECT
   p.id,
+  p.operator_id,
   SPLIT_PART(p.full_name, ' ', 1) AS first_name,
   p.payment_status,
   p.hotel_checked_in,

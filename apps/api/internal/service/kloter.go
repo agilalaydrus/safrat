@@ -21,10 +21,20 @@ type KloterService struct {
 	kloterRepository   *repository.KloterRepository
 	auditRepository    *repository.AuditRepository
 	journeyService     *JourneyService
+	pushNotifier       PushNotifier
 }
 
-func NewKloterService(operators *repository.OperatorRepository, kloters *repository.KloterRepository, audit *repository.AuditRepository, journey *JourneyService) *KloterService {
-	return &KloterService{operatorRepository: operators, kloterRepository: kloters, auditRepository: audit, journeyService: journey}
+func NewKloterService(operators *repository.OperatorRepository, kloters *repository.KloterRepository, audit *repository.AuditRepository, journey *JourneyService, push PushNotifier) *KloterService {
+	return &KloterService{operatorRepository: operators, kloterRepository: kloters, auditRepository: audit, journeyService: journey, pushNotifier: push}
+}
+
+// kloterStatusPushText is the "seluruh jamaah kloter" push copy per the
+// cascade map in SPEC_GROUP_KLOTER_MUTTAWWIF.md section 4.
+var kloterStatusPushText = map[string]string{
+	"DEPARTED":       "Perjalanan ibadah Anda dimulai",
+	"IN_SAUDI":       "Selamat tiba di Tanah Suci",
+	"DEPARTED_SAUDI": "Dalam perjalanan pulang ke Indonesia",
+	"COMPLETED":      "Selamat tiba! Sertifikat Anda siap diunduh",
 }
 
 // kloterStatusOrder is forward-only, except the one explicit rollback
@@ -110,37 +120,52 @@ func (s *KloterService) UpdateKloterStatus(ctx context.Context, orgID string, re
 	if req == nil || strings.TrimSpace(req.KloterId) == "" || strings.TrimSpace(req.Status) == "" {
 		return nil, serviceError("KloterService.UpdateKloterStatus", apperror.ErrValidation)
 	}
-	targetIdx := kloterStatusIndex(req.Status)
-	if targetIdx == -1 {
-		return nil, serviceError("KloterService.UpdateKloterStatus", apperror.ErrValidation)
-	}
 	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
 	if err != nil {
 		return nil, serviceError("KloterService.UpdateKloterStatus", err)
 	}
-	current, err := s.kloterRepository.GetForOperator(ctx, op.ID, req.KloterId)
+	kloter, err := s.updateStatus(ctx, op.ID, req.KloterId, req.Status)
 	if err != nil {
 		return nil, serviceError("KloterService.UpdateKloterStatus", err)
-	}
-	currentIdx := kloterStatusIndex(current.Status)
-	isRollback := current.Status == "CONFIRMED" && req.Status == "DRAFT"
-	if !isRollback && targetIdx <= currentIdx {
-		return nil, serviceError("KloterService.UpdateKloterStatus", errors.New("status kloter hanya bisa maju"))
-	}
-	kloter, err := s.kloterRepository.UpdateStatus(ctx, op.ID, req.KloterId, req.Status)
-	if err != nil {
-		return nil, serviceError("KloterService.UpdateKloterStatus", err)
-	}
-	s.logActivity(ctx, op.ID, "kloter_status_changed", kloter.ID, fmt.Sprintf("Status kloter %s: %s -> %s", kloter.Code, current.Status, req.Status))
-	// Cascade: best-effort, never rolls back the status change itself —
-	// full async event-bus/SSE/push delivery is a later phase, but the
-	// core data effect (bulk journey status) happens synchronously now.
-	if journeyStatus, ok := kloterToJourneyStatus[req.Status]; ok && s.journeyService != nil {
-		if _, err := s.journeyService.bulkUpdateStatus(ctx, op.ID, kloter.ID, journeyStatus, fmt.Sprintf("Cascade dari kloter %s -> %s", kloter.Code, req.Status)); err != nil {
-			sentry.CaptureException(fmt.Errorf("KloterService.UpdateKloterStatus: journey cascade: %w", err))
-		}
 	}
 	return kloterMessage(kloter), nil
+}
+
+// updateStatus is the operator-independent core, reused by
+// TripService.UpdateTripKloterStatus (a Tour Leader assigned to the kloter
+// via kloter_staff — already resolved its own operatorID via
+// authorizeKloter, no need to re-derive it here).
+func (s *KloterService) updateStatus(ctx context.Context, operatorID, kloterID, status string) (*domain.Kloter, error) {
+	targetIdx := kloterStatusIndex(status)
+	if targetIdx == -1 {
+		return nil, apperror.ErrValidation
+	}
+	current, err := s.kloterRepository.GetForOperator(ctx, operatorID, kloterID)
+	if err != nil {
+		return nil, err
+	}
+	currentIdx := kloterStatusIndex(current.Status)
+	isRollback := current.Status == "CONFIRMED" && status == "DRAFT"
+	if !isRollback && targetIdx <= currentIdx {
+		return nil, errors.New("status kloter hanya bisa maju")
+	}
+	kloter, err := s.kloterRepository.UpdateStatus(ctx, operatorID, kloterID, status)
+	if err != nil {
+		return nil, err
+	}
+	s.logActivity(ctx, operatorID, "kloter_status_changed", kloter.ID, fmt.Sprintf("Status kloter %s: %s -> %s", kloter.Code, current.Status, status))
+	// Cascade: best-effort, never rolls back the status change itself —
+	// full async event-bus/SSE/push delivery is a later phase, but the
+	// core data effect (bulk journey status + push) happens synchronously.
+	if journeyStatus, ok := kloterToJourneyStatus[status]; ok && s.journeyService != nil {
+		if _, err := s.journeyService.bulkUpdateStatus(ctx, operatorID, kloter.ID, journeyStatus, fmt.Sprintf("Cascade dari kloter %s -> %s", kloter.Code, status)); err != nil {
+			sentry.CaptureException(fmt.Errorf("KloterService.updateStatus: journey cascade: %w", err))
+		}
+	}
+	if body, ok := kloterStatusPushText[status]; ok && s.pushNotifier != nil {
+		s.pushNotifier.NotifyKloterPilgrims(ctx, operatorID, kloter.ID, "Tawafiq Hub", body)
+	}
+	return kloter, nil
 }
 
 func (s *KloterService) DeleteKloter(ctx context.Context, orgID string, req *hajjv1.DeleteKloterRequest) (*emptypb.Empty, error) {

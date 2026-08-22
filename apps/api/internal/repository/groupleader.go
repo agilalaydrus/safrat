@@ -26,7 +26,7 @@ func (r *GroupLeaderRepository) ListMyGroups(ctx context.Context, operatorID, le
 	}
 	result := make([]*domain.LeaderGroup, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, &domain.LeaderGroup{ID: uuid.UUID(row.ID.Bytes).String(), SeasonID: uuid.UUID(row.SeasonID.Bytes).String(), Name: row.Name, Capacity: row.Capacity, PilgrimCount: row.PilgrimCount, CurrentCity: row.CurrentCity, LastUpdate: timestamptzPtr(row.LastUpdate)})
+		result = append(result, &domain.LeaderGroup{ID: uuid.UUID(row.ID.Bytes).String(), SeasonID: uuid.UUID(row.SeasonID.Bytes).String(), Name: row.Name, Capacity: row.Capacity, PilgrimCount: row.PilgrimCount, CurrentCity: row.CurrentCity, LastUpdate: timestamptzPtr(row.LastUpdate), CurrentActivity: row.CurrentActivity})
 	}
 	return result, nil
 }

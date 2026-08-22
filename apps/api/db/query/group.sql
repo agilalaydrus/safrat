@@ -39,7 +39,7 @@ ORDER BY g.name ASC;
 
 -- name: UpdateGroupCity :one
 UPDATE groups
-SET current_city = $3, last_update = NOW()
+SET current_city = $3, current_activity = $4, last_update = NOW()
 WHERE id = $1 AND operator_id = $2
 RETURNING *;
 

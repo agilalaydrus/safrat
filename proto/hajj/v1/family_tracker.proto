@@ -35,4 +35,12 @@ message FamilyStatus {
   // tracking is live without exposing where the pilgrim actually is.
   google.protobuf.Timestamp last_location_at = 9;
   bool has_active_sos = 10;
+  // Human-readable journey status, e.g. "Sedang di Makkah",
+  // "Dalam perjalanan pulang", "Tiba di Indonesia" — never the raw
+  // REGISTERED/IN_MAKKAH enum value.
+  string journey_status_label = 11;
+  // "7 dari 9 ritual telah selesai" — empty if no ritual templates exist
+  // for this season yet.
+  int32 rituals_completed = 12;
+  int32 rituals_total = 13;
 }

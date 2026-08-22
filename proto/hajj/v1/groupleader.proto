@@ -44,6 +44,7 @@ message LeaderGroup {
   string season_id = 5;
   string current_city = 6; // INDONESIA | MADINAH | MAKKAH | ARAFAH | MUZDALIFAH | MINA | TRANSIT | DEPARTED
   google.protobuf.Timestamp last_update = 7;
+  string current_activity = 8;
 }
 
 message UpdateMyGroupCityRequest {
@@ -51,6 +52,7 @@ message UpdateMyGroupCityRequest {
   string city = 2 [(buf.validate.field).string.min_len = 1];
   string location = 3;
   string notes = 4;
+  string activity = 5;
 }
 
 message ListMyGroupsRequest {}

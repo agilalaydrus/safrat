@@ -3,18 +3,19 @@ package domain
 import "time"
 
 type Group struct {
-	ID           string
-	SeasonID     string
-	OperatorID   string
-	Name         string
-	Capacity     int32
-	PilgrimCount int32
-	LeaderID     string
-	LeaderName   string
-	KloterID     string
-	CurrentCity  string
-	Status       string
-	LastUpdate   *time.Time
+	ID              string
+	SeasonID        string
+	OperatorID      string
+	Name            string
+	Capacity        int32
+	PilgrimCount    int32
+	LeaderID        string
+	LeaderName      string
+	KloterID        string
+	CurrentCity     string
+	Status          string
+	LastUpdate      *time.Time
+	CurrentActivity string
 }
 
 type OperatorMember struct {

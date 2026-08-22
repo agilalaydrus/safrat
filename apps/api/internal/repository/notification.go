@@ -28,3 +28,43 @@ func (r *NotificationRepository) ListTokensForOperator(ctx context.Context, oper
 	}
 	return r.queries.ListPushTokensForOperator(ctx, opUUID)
 }
+
+// RegisterPilgrimToken is the pilgrim-app counterpart of RegisterToken —
+// pilgrim_push_tokens is keyed to pilgrim_id, not a Better Auth user_id,
+// since most of the pilgrim PWA is public (app_access_code), no guaranteed
+// session.
+func (r *NotificationRepository) RegisterPilgrimToken(ctx context.Context, operatorID, pilgrimID, fcmToken string) error {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return err
+	}
+	pilgrimUUID, err := pgUUID(pilgrimID)
+	if err != nil {
+		return err
+	}
+	return r.queries.UpsertPilgrimPushToken(ctx, db.UpsertPilgrimPushTokenParams{OperatorID: opUUID, PilgrimID: pilgrimUUID, FcmToken: fcmToken})
+}
+
+func (r *NotificationRepository) ListTokensForGroup(ctx context.Context, operatorID, groupID string) ([]string, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	groupUUID, err := pgUUID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	return r.queries.ListPushTokensForGroup(ctx, db.ListPushTokensForGroupParams{OperatorID: opUUID, GroupID: groupUUID})
+}
+
+func (r *NotificationRepository) ListTokensForKloter(ctx context.Context, operatorID, kloterID string) ([]string, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	kloterUUID, err := pgUUID(kloterID)
+	if err != nil {
+		return nil, err
+	}
+	return r.queries.ListPushTokensForKloter(ctx, db.ListPushTokensForKloterParams{OperatorID: opUUID, KloterID: kloterUUID})
+}

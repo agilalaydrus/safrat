@@ -9,6 +9,7 @@ import { ChecklistService } from "@hajj-saas/proto-gen/hajj/v1/checklist_connect
 import { FamilyTrackerService } from "@hajj-saas/proto-gen/hajj/v1/family_tracker_connect";
 import { GroupService } from "@hajj-saas/proto-gen/hajj/v1/group_connect";
 import { GroupLeaderService } from "@hajj-saas/proto-gen/hajj/v1/groupleader_connect";
+import { HealthReportService } from "@hajj-saas/proto-gen/hajj/v1/health_report_connect";
 import { IdentityService } from "@hajj-saas/proto-gen/hajj/v1/identity_connect";
 import { InsuranceService } from "@hajj-saas/proto-gen/hajj/v1/insurance_connect";
 import { JourneyService } from "@hajj-saas/proto-gen/hajj/v1/journey_connect";
@@ -21,6 +22,7 @@ import { PilgrimAppService } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_app_conn
 import { PilgrimService } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_connect";
 import { ProductService } from "@hajj-saas/proto-gen/hajj/v1/product_connect";
 import { RegistrationService } from "@hajj-saas/proto-gen/hajj/v1/registration_connect";
+import { RitualService } from "@hajj-saas/proto-gen/hajj/v1/ritual_connect";
 import { SeasonService } from "@hajj-saas/proto-gen/hajj/v1/season_connect";
 import { SOSService } from "@hajj-saas/proto-gen/hajj/v1/sos_connect";
 import { StaffScheduleService } from "@hajj-saas/proto-gen/hajj/v1/staff_schedule_connect";
@@ -59,3 +61,5 @@ export const insuranceClient = createClient(InsuranceService, transport);
 export const checklistClient = createClient(ChecklistService, transport);
 export const lostReportClient = createClient(LostReportService, transport);
 export const tripClient = createClient(TripService, transport);
+export const ritualClient = createClient(RitualService, transport);
+export const healthReportClient = createClient(HealthReportService, transport);

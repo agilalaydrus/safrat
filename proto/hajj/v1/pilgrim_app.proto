@@ -7,6 +7,7 @@ import "google/protobuf/timestamp.proto";
 import "hajj/v1/transport.proto";
 import "hajj/v1/product.proto";
 import "hajj/v1/broadcast.proto";
+import "hajj/v1/ritual.proto";
 
 option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 
@@ -51,7 +52,26 @@ service PilgrimAppService {
   // PilgrimService.VerifyPilgrimKyc). Never gates any other pilgrim
   // feature today.
   rpc SubmitMyPilgrimKyc(SubmitMyPilgrimKycRequest) returns (PilgrimAppInfo);
+  // ListMyRituals is public (app_access_code) — powers the "Ibadah Saya"
+  // tab. Read-only; completion is always recorded by a Muttawwif via
+  // RitualService, never self-reported.
+  rpc ListMyRituals(PilgrimAppRequest) returns (ListMyRitualsResponse);
+  // RegisterMyPushToken is public (app_access_code) — the pilgrim PWA has
+  // no guaranteed Better Auth session, so push tokens for pilgrims are
+  // keyed to pilgrim_id directly (pilgrim_push_tokens), not to a Better
+  // Auth user_id like NotificationService.RegisterPushSubscription.
+  rpc RegisterMyPushToken(RegisterMyPushTokenRequest) returns (RegisterMyPushTokenResponse);
 }
+
+message ListMyRitualsResponse {
+  repeated PilgrimRitualStatus rituals = 1;
+}
+
+message RegisterMyPushTokenRequest {
+  string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
+  string fcm_token = 2 [(buf.validate.field).string.min_len = 1];
+}
+message RegisterMyPushTokenResponse {}
 
 message PilgrimAppRequest {
   string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
@@ -88,6 +108,11 @@ message PilgrimAppInfo {
   // Full list of hotel stays (Makkah + Madinah, when both are assigned) —
   // hotel_name/room_number above are just a "what's current" summary.
   repeated HotelStay hotel_stays = 25;
+  // Position in the end-to-end trip lifecycle (REGISTERED..COMPLETED) —
+  // see domain.JourneyStatuses. Powers the pilgrim app's "Perjalanan Saya"
+  // timeline; updates whenever a Muttawwif/Tour Leader/operator action
+  // cascades a journey-status change.
+  string journey_status = 26;
 }
 
 message HotelStay {
@@ -154,4 +179,8 @@ message CertificateData {
   string hotels_visited = 12;
   string makkah_hotels = 13;
   string madinah_hotels = 14;
+  // false until journey_status reaches ARRIVED_INDONESIA/COMPLETED — other
+  // fields are zero-valued while locked, so the client should check this
+  // before rendering anything.
+  bool unlocked = 15;
 }

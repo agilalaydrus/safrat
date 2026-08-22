@@ -90,12 +90,18 @@ func main() {
 		lostReportRepository := repository.NewLostReportRepository(queries)
 		tripRepository := repository.NewTripRepository(queries)
 		journeyRepository := repository.NewJourneyRepository(queries)
+		ritualRepository := repository.NewRitualRepository(queries)
+		healthReportRepository := repository.NewHealthReportRepository(queries)
 
 		firebasePusher, err := notification.NewFirebasePusher(ctx, logger, config.FirebaseServiceAccountJSON, notificationRepository)
 		if err != nil {
 			logger.Error("init firebase", "error", err)
 			sentry.CaptureException(err)
 		}
+		// firebasePusher (nilable *notification.FirebasePusher) satisfies both
+		// SOSNotifier and PushNotifier — a nil pointer stored in the interface
+		// still works because every method checks its own receiver for nil.
+		var pushNotifier service.PushNotifier = firebasePusher
 
 		operatorService := service.NewOperatorService(operatorRepository, seasonRepository)
 		pilgrimService := service.NewPilgrimService(operatorRepository, pilgrimRepository, accommodationRepository, transportRepository, auditRepository, pool)
@@ -105,13 +111,15 @@ func main() {
 		productService := service.NewProductService(operatorRepository, productRepository)
 		agentService := service.NewAgentService(operatorRepository, agentRepository, auditRepository, pool)
 		journeyService := service.NewJourneyService(operatorRepository, journeyRepository, auditRepository)
-		groupService := service.NewGroupService(operatorRepository, groupRepository, auditRepository, agentRepository, journeyService)
-		pilgrimAppService := service.NewPilgrimAppService(pilgrimRepository, productRepository, auditRepository, identityRepository, broadcastRepository)
+		groupService := service.NewGroupService(operatorRepository, groupRepository, auditRepository, agentRepository, journeyService, pushNotifier)
+		pilgrimAppService := service.NewPilgrimAppService(pilgrimRepository, productRepository, auditRepository, identityRepository, broadcastRepository, journeyRepository, ritualRepository, notificationRepository)
 		sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, auditRepository, firebasePusher)
 		chatService := service.NewChatService(operatorRepository, pilgrimRepository, chatRepository, groupRepository, groupLeaderRepository)
-		groupLeaderService := service.NewGroupLeaderService(operatorRepository, groupLeaderRepository, sosRepository, pilgrimRepository, groupRepository, journeyService)
+		groupLeaderService := service.NewGroupLeaderService(operatorRepository, groupLeaderRepository, sosRepository, pilgrimRepository, groupRepository, journeyService, pushNotifier)
 		notificationService := service.NewNotificationService(operatorRepository, notificationRepository)
-		kloterService := service.NewKloterService(operatorRepository, kloterRepository, auditRepository, journeyService)
+		kloterService := service.NewKloterService(operatorRepository, kloterRepository, auditRepository, journeyService, pushNotifier)
+		ritualService := service.NewRitualService(operatorRepository, ritualRepository, journeyRepository, auditRepository, pushNotifier)
+		healthReportService := service.NewHealthReportService(operatorRepository, healthReportRepository, pilgrimRepository, auditRepository, pushNotifier)
 		identityService := service.NewIdentityService(identityRepository)
 		xenditClient := payment.NewClient(config.XenditSecretKey)
 		orderService := service.NewOrderService(operatorRepository, pilgrimRepository, productRepository, orderRepository, auditRepository, xenditClient, config.AllowedOrigin)
@@ -119,14 +127,14 @@ func main() {
 		registrationService := service.NewRegistrationService(operatorRepository, registrationRepository, auditRepository, agentRepository)
 		waitlistService := service.NewWaitlistService(operatorRepository, waitlistRepository, auditRepository)
 		cancellationService := service.NewCancellationService(operatorRepository, pilgrimRepository, seasonRepository, cancellationRepository, waitlistRepository, auditRepository)
-		familyTrackerService := service.NewFamilyTrackerService(familyTrackerRepository)
+		familyTrackerService := service.NewFamilyTrackerService(familyTrackerRepository, journeyRepository, ritualRepository)
 		cashFlowService := service.NewCashFlowService(operatorRepository, cashFlowRepository)
 		vendorService := service.NewVendorService(operatorRepository, vendorRepository)
 		staffScheduleService := service.NewStaffScheduleService(operatorRepository, staffScheduleRepository)
 		insuranceService := service.NewInsuranceService(operatorRepository, insuranceRepository)
 		checklistService := service.NewChecklistService(operatorRepository, pilgrimRepository, checklistRepository)
 		lostReportService := service.NewLostReportService(operatorRepository, pilgrimRepository, lostReportRepository, groupLeaderRepository, firebasePusher)
-		tripService := service.NewTripService(operatorRepository, tripRepository, pilgrimRepository, sosRepository, groupLeaderRepository, transportRepository)
+		tripService := service.NewTripService(operatorRepository, tripRepository, pilgrimRepository, sosRepository, groupLeaderRepository, transportRepository, kloterService)
 		operatorHandler := handler.NewOperatorHandler(operatorService)
 		pilgrimHandler := handler.NewPilgrimHandler(pilgrimService)
 		seasonHandler := handler.NewSeasonHandler(seasonService)
@@ -156,6 +164,8 @@ func main() {
 		lostReportHandler := handler.NewLostReportHandler(lostReportService)
 		tripHandler := handler.NewTripHandler(tripService)
 		journeyHandler := handler.NewJourneyHandler(journeyService)
+		ritualHandler := handler.NewRitualHandler(ritualService)
+		healthReportHandler := handler.NewHealthReportHandler(healthReportService)
 		handlerOptions := []connect.HandlerOption{connect.WithInterceptors(
 			middleware.NewRateLimitInterceptor(),
 			middleware.NewAuthInterceptor(pool, identityRepository),
@@ -189,6 +199,8 @@ func main() {
 		lostReportPath, lostReportServiceHandler := hajjv1connect.NewLostReportServiceHandler(lostReportHandler, handlerOptions...)
 		tripPath, tripServiceHandler := hajjv1connect.NewTripServiceHandler(tripHandler, handlerOptions...)
 		journeyPath, journeyServiceHandler := hajjv1connect.NewJourneyServiceHandler(journeyHandler, handlerOptions...)
+		ritualPath, ritualServiceHandler := hajjv1connect.NewRitualServiceHandler(ritualHandler, handlerOptions...)
+		healthReportPath, healthReportServiceHandler := hajjv1connect.NewHealthReportServiceHandler(healthReportHandler, handlerOptions...)
 		mux.Handle(operatorPath, operatorServiceHandler)
 		mux.Handle(pilgrimPath, pilgrimServiceHandler)
 		mux.Handle(seasonPath, seasonServiceHandler)
@@ -218,6 +230,8 @@ func main() {
 		mux.Handle(lostReportPath, lostReportServiceHandler)
 		mux.Handle(tripPath, tripServiceHandler)
 		mux.Handle(journeyPath, journeyServiceHandler)
+		mux.Handle(ritualPath, ritualServiceHandler)
+		mux.Handle(healthReportPath, healthReportServiceHandler)
 		mux.HandleFunc("POST /webhooks/xendit", handler.NewXenditWebhookHandler(logger, orderRepository, config.XenditWebhookToken))
 		uploadDir := os.Getenv("UPLOAD_DIR")
 		if uploadDir == "" {

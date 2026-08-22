@@ -21,10 +21,11 @@ type GroupService struct {
 	auditRepository    *repository.AuditRepository
 	agentRepository    *repository.AgentRepository
 	journeyService     *JourneyService
+	pushNotifier       PushNotifier
 }
 
-func NewGroupService(operators *repository.OperatorRepository, groups *repository.GroupRepository, audit *repository.AuditRepository, agents *repository.AgentRepository, journey *JourneyService) *GroupService {
-	return &GroupService{operatorRepository: operators, groupRepository: groups, auditRepository: audit, agentRepository: agents, journeyService: journey}
+func NewGroupService(operators *repository.OperatorRepository, groups *repository.GroupRepository, audit *repository.AuditRepository, agents *repository.AgentRepository, journey *JourneyService, push PushNotifier) *GroupService {
+	return &GroupService{operatorRepository: operators, groupRepository: groups, auditRepository: audit, agentRepository: agents, journeyService: journey, pushNotifier: push}
 }
 
 // cityToJourneyStatus cascades a Muttawwif's location update to every
@@ -37,6 +38,19 @@ var cityToJourneyStatus = map[string]string{
 	"ARAFAH":     "IN_ARAFAH",
 	"MUZDALIFAH": "IN_MUZDALIFAH",
 	"MINA":       "IN_MINA",
+}
+
+var cityLabel = map[string]string{
+	"INDONESIA": "Indonesia", "TRANSIT": "transit", "MADINAH": "Madinah", "MAKKAH": "Makkah",
+	"ARAFAH": "Arafah", "MUZDALIFAH": "Muzdalifah", "MINA": "Mina", "DEPARTED": "perjalanan pulang",
+}
+
+func groupCityPushBody(city string) string {
+	label, ok := cityLabel[city]
+	if !ok {
+		label = city
+	}
+	return "Grup Anda kini di " + label
 }
 
 func (s *GroupService) logActivity(ctx context.Context, operatorID, action, entityID, message string) {
@@ -206,11 +220,11 @@ func (s *GroupService) UpdateGroupCity(ctx context.Context, orgID string, req *h
 	if err != nil {
 		return nil, serviceError("GroupService.UpdateGroupCity", err)
 	}
-	group, err := s.groupRepository.UpdateCity(ctx, op.ID, req.GroupId, req.City, req.Location, middleware.UserIDFromCtx(ctx))
+	group, err := s.groupRepository.UpdateCity(ctx, op.ID, req.GroupId, req.City, req.Activity, req.Location, middleware.UserIDFromCtx(ctx))
 	if err != nil {
 		return nil, serviceError("GroupService.UpdateGroupCity", err)
 	}
-	s.logActivity(ctx, op.ID, "group_city_updated", group.ID, fmt.Sprintf("Rombongan %s kini di %s", group.Name, req.City))
+	s.logActivity(ctx, op.ID, "group_city_updated", group.ID, fmt.Sprintf("Grup %s kini di %s", group.Name, req.City))
 	// Cascade: best-effort, never rolls back the location update itself —
 	// see kloterToJourneyStatus for the same pattern.
 	if journeyStatus, ok := cityToJourneyStatus[req.City]; ok && s.journeyService != nil {
@@ -218,11 +232,14 @@ func (s *GroupService) UpdateGroupCity(ctx context.Context, orgID string, req *h
 			sentry.CaptureException(fmt.Errorf("GroupService.UpdateGroupCity: journey cascade: %w", err))
 		}
 	}
+	if s.pushNotifier != nil {
+		s.pushNotifier.NotifyGroupPilgrims(ctx, op.ID, group.ID, "Tawafiq Hub", groupCityPushBody(req.City))
+	}
 	return groupMessage(group), nil
 }
 
 func groupMessage(group *domain.Group) *hajjv1.Group {
-	msg := &hajjv1.Group{Id: group.ID, SeasonId: group.SeasonID, Name: group.Name, Capacity: group.Capacity, PilgrimCount: group.PilgrimCount, LeaderId: group.LeaderID, LeaderName: group.LeaderName, KloterId: group.KloterID, CurrentCity: group.CurrentCity, Status: group.Status}
+	msg := &hajjv1.Group{Id: group.ID, SeasonId: group.SeasonID, Name: group.Name, Capacity: group.Capacity, PilgrimCount: group.PilgrimCount, LeaderId: group.LeaderID, LeaderName: group.LeaderName, KloterId: group.KloterID, CurrentCity: group.CurrentCity, Status: group.Status, CurrentActivity: group.CurrentActivity}
 	if group.LastUpdate != nil {
 		msg.LastUpdate = timestamppb.New(*group.LastUpdate)
 	}

@@ -105,3 +105,14 @@ func (h *TripHandler) ResolveTripSOSAlert(ctx context.Context, req *connect.Requ
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *TripHandler) UpdateTripKloterStatus(ctx context.Context, req *connect.Request[hajjv1.UpdateTripKloterStatusRequest]) (*connect.Response[hajjv1.Kloter], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.tripService.UpdateTripKloterStatus(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

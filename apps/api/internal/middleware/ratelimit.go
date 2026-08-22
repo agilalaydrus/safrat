@@ -57,7 +57,9 @@ var rateLimitedProcedures = map[string]rate.Limit{
 	// Loose — a jamaah might share and view their certificate multiple times.
 	"/hajj.v1.PilgrimAppService/GetMyCertificate": rate.Every(time.Minute / 4),
 	// A pilgrim filling in KYC fields might retry a typo a few times.
-	"/hajj.v1.PilgrimAppService/SubmitMyPilgrimKyc": rate.Every(time.Minute / 6),
+	"/hajj.v1.PilgrimAppService/SubmitMyPilgrimKyc":  rate.Every(time.Minute / 6),
+	"/hajj.v1.PilgrimAppService/ListMyRituals":       rate.Every(time.Minute / 4),
+	"/hajj.v1.PilgrimAppService/RegisterMyPushToken": rate.Every(time.Minute / 4),
 	// Called from apps/web/middleware.ts (server-side, not the visitor's own
 	// browser) on every subdomain page load, so this needs a much looser
 	// ceiling than a real per-visitor endpoint — middleware.ts also caches

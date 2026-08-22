@@ -19,6 +19,7 @@ export default function CertificatePage({ params }: { params: Promise<{ code: st
 
   if (loading) return <div style={{ textAlign: "center", padding: 60, color: "var(--color-warm-500)" }}>Memuat sertifikat...</div>;
   if (error || !data) return <div style={{ textAlign: "center", padding: 60, color: "var(--color-warm-500)" }}>Sertifikat tidak ditemukan.</div>;
+  if (!data.unlocked) return <div style={{ textAlign: "center", padding: 60, color: "var(--color-warm-500)", maxWidth: 420, margin: "0 auto" }}><p style={{ fontSize: 40, margin: "0 0 12px" }}>🔒</p><p style={{ fontWeight: 700, marginBottom: 6 }}>Sertifikat belum tersedia</p><p style={{ fontSize: 14 }}>Sertifikat akan otomatis terbuka setelah Anda tiba kembali di Indonesia.</p></div>;
 
   const startStr = data.startDate?.toDate().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) ?? "-";
   const endStr = data.endDate?.toDate().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) ?? "-";

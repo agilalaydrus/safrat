@@ -17,6 +17,15 @@ const PAYMENT_LABEL: Record<string, { label: string; color: string; bg: string }
   PAID: { label: "Lunas", color: "var(--color-emerald-900)", bg: "var(--color-emerald-50)" },
 };
 
+const JOURNEY_STATUS_LABEL: Record<string, string> = {
+  REGISTERED: "Terdaftar", DOCUMENT_VERIFIED: "Dokumen terverifikasi", PRE_DEPARTURE: "Persiapan keberangkatan",
+  DEPARTED_INDONESIA: "Dalam perjalanan menuju Saudi", IN_TRANSIT: "Transit", ARRIVED_SAUDI: "Tiba di Arab Saudi",
+  IN_MADINAH: "Sedang di Madinah", IN_MAKKAH: "Sedang di Makkah", IN_ARAFAH: "Sedang di Arafah",
+  IN_MUZDALIFAH: "Sedang di Muzdalifah", IN_MINA: "Sedang di Mina", BACK_IN_MAKKAH: "Sedang di Makkah",
+  PRE_DEPARTURE_SAUDI: "Persiapan kepulangan", DEPARTED_SAUDI: "Dalam perjalanan pulang ke Indonesia",
+  IN_TRANSIT_RETURN: "Transit kepulangan", ARRIVED_INDONESIA: "Telah tiba di Indonesia ✓", COMPLETED: "Perjalanan selesai",
+};
+
 // "Terkonfirmasi" means both identity (KYC) is verified by admin AND
 // payment has started (DP or Lunas) — neither alone is enough, and being
 // merely "not cancelled" was never a meaningful confirmation signal.
@@ -108,6 +117,15 @@ export default function PilgrimHomePage() {
         <p style={{ margin: "-10px 0 16px", fontSize: 12, color: "var(--color-warm-500)" }}>
           {info.kycStatus !== "VERIFIED" ? "Lengkapi & tunggu verifikasi data KYC Anda di halaman Profil." : "Menunggu pembayaran DP atau pelunasan."}
         </p>
+      )}
+
+      {info.journeyStatus && (
+        <section style={{ ...wheelchairCard, borderLeft: "3px solid var(--color-gold-500)" }}>
+          <div>
+            <p style={{ margin: 0, fontSize: 11, color: "var(--color-warm-400)", textTransform: "uppercase", letterSpacing: ".06em" }}>Perjalanan Saya</p>
+            <p style={{ margin: "2px 0 0", fontWeight: 700, fontSize: 15 }}>{JOURNEY_STATUS_LABEL[info.journeyStatus] ?? info.journeyStatus}</p>
+          </div>
+        </section>
       )}
 
       <section style={wheelchairCard}>

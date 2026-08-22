@@ -34,6 +34,7 @@ export default function FamilyTrackerPage({ code }: { code: string }) {
     ["Koordinator", status.leaderName || "-"],
     ["Pembaruan Lokasi Terakhir", lastSeenStr],
   ];
+  if (status.ritualsTotal > 0) rows.push(["Progress Ibadah", `${status.ritualsCompleted} dari ${status.ritualsTotal} ritual selesai`]);
   if (status.pilgrimStatus === "CANCELLED") rows.push(["Status Keberangkatan", "Dibatalkan"]);
 
   return <main style={page}>
@@ -50,6 +51,7 @@ export default function FamilyTrackerPage({ code }: { code: string }) {
         <div style={cardHead}>
           <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, margin: "0 0 4px" }}>Nama Jamaah</p>
           <p style={{ color: "#fff", fontSize: 24, fontWeight: 700, margin: 0 }}>{status.firstName}</p>
+          {status.journeyStatusLabel && <p style={{ color: "var(--color-gold-300)", fontSize: 14, fontWeight: 600, margin: 0 }}>{status.journeyStatusLabel}</p>}
           <span style={{ ...payBadge, background: PAY_COLOR[status.paymentStatus] ?? "var(--color-warm-500)" }}>{PAY_LABEL[status.paymentStatus] ?? status.paymentStatus}</span>
         </div>
         <div style={cardBody}>

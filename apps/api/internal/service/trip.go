@@ -21,10 +21,31 @@ type TripService struct {
 	sosRepository         *repository.SOSRepository
 	groupLeaderRepository *repository.GroupLeaderRepository
 	transportRepository   *repository.TransportRepository
+	kloterService         *KloterService
 }
 
-func NewTripService(operators *repository.OperatorRepository, trips *repository.TripRepository, pilgrims *repository.PilgrimRepository, sos *repository.SOSRepository, groupLeaders *repository.GroupLeaderRepository, transport *repository.TransportRepository) *TripService {
-	return &TripService{operatorRepository: operators, tripRepository: trips, pilgrimRepository: pilgrims, sosRepository: sos, groupLeaderRepository: groupLeaders, transportRepository: transport}
+func NewTripService(operators *repository.OperatorRepository, trips *repository.TripRepository, pilgrims *repository.PilgrimRepository, sos *repository.SOSRepository, groupLeaders *repository.GroupLeaderRepository, transport *repository.TransportRepository, kloters *KloterService) *TripService {
+	return &TripService{operatorRepository: operators, tripRepository: trips, pilgrimRepository: pilgrims, sosRepository: sos, groupLeaderRepository: groupLeaders, transportRepository: transport, kloterService: kloters}
+}
+
+// UpdateTripKloterStatus is the Tour Leader's own trigger for the kloter
+// lifecycle — same transitions/cascade as KloterService.UpdateKloterStatus,
+// reusing its unexported core (ownership already confirmed by
+// authorizeKloter, unlike the admin-dashboard RPC which only checks org
+// membership).
+func (s *TripService) UpdateTripKloterStatus(ctx context.Context, orgID string, req *hajjv1.UpdateTripKloterStatusRequest) (*hajjv1.Kloter, error) {
+	if req == nil || strings.TrimSpace(req.Status) == "" {
+		return nil, serviceError("TripService.UpdateTripKloterStatus", apperror.ErrValidation)
+	}
+	op, err := s.authorizeKloter(ctx, orgID, req.KloterId)
+	if err != nil {
+		return nil, serviceError("TripService.UpdateTripKloterStatus", err)
+	}
+	kloter, err := s.kloterService.updateStatus(ctx, op, req.KloterId, req.Status)
+	if err != nil {
+		return nil, serviceError("TripService.UpdateTripKloterStatus", err)
+	}
+	return kloterMessage(kloter), nil
 }
 
 // authorizeKloter resolves the operator and confirms the caller is actually

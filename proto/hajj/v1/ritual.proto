@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// RitualService tracks the manasik checklist (Ihram, Tawaf, Sa'i, Wuquf,
+// etc.) per pilgrim. BulkCompleteRitual is Muttawwif-scoped like
+// GroupLeaderService (ownership-checked via EnsureLeaderOwnsGroup) —
+// completion is otherwise operator-scoped admin/coordinator access.
+service RitualService {
+  rpc ListRitualTemplates(ListRitualTemplatesRequest) returns (ListRitualTemplatesResponse);
+  rpc CreateRitualTemplate(CreateRitualTemplateRequest) returns (RitualTemplate);
+  // SeedDefaultTemplates is a no-op if templates already exist for this
+  // season_type — safe to call more than once (e.g. once per new season).
+  rpc SeedDefaultTemplates(SeedDefaultTemplatesRequest) returns (google.protobuf.Empty);
+  rpc GetGroupRitualProgress(GetGroupRitualProgressRequest) returns (GroupRitualProgress);
+  // BulkCompleteRitual is the Muttawwif's one-tap "everyone's done" action —
+  // backend resolves the pilgrim list from group_id, client never sends one.
+  rpc BulkCompleteRitual(BulkCompleteRitualRequest) returns (BulkCompleteRitualResponse);
+  rpc CompleteRitualForPilgrim(CompleteRitualForPilgrimRequest) returns (google.protobuf.Empty);
+}
+
+message RitualTemplate {
+  string id = 1;
+  string season_type = 2;
+  string name = 3;
+  string description = 4;
+  int32 order_num = 5;
+  bool is_required = 6;
+}
+
+message ListRitualTemplatesRequest {
+  string season_type = 1 [(buf.validate.field).string.min_len = 1];
+}
+message ListRitualTemplatesResponse { repeated RitualTemplate templates = 1; }
+
+message CreateRitualTemplateRequest {
+  string season_type = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  string description = 3;
+  int32 order_num = 4;
+  bool is_required = 5;
+}
+
+message SeedDefaultTemplatesRequest {
+  string season_type = 1 [(buf.validate.field).string = {in: ["HAJJ", "UMRAH"]}];
+}
+
+message GetGroupRitualProgressRequest {
+  string group_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message RitualProgressItem {
+  string ritual_id = 1;
+  string name = 2;
+  int32 order_num = 3;
+  int32 total_pilgrims = 4;
+  int32 completed_count = 5;
+  repeated string incomplete_pilgrim_names = 6;
+}
+message GroupRitualProgress {
+  string group_id = 1;
+  repeated RitualProgressItem items = 2;
+}
+
+message BulkCompleteRitualRequest {
+  string group_id = 1 [(buf.validate.field).string.uuid = true];
+  string ritual_id = 2 [(buf.validate.field).string.uuid = true];
+  string notes = 3;
+  repeated string excluded_pilgrim_ids = 4;
+}
+message BulkCompleteRitualResponse { int32 completed_count = 1; }
+
+message CompleteRitualForPilgrimRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+  string ritual_id = 2 [(buf.validate.field).string.uuid = true];
+  string notes = 3;
+}
+
+message PilgrimRitualStatus {
+  string ritual_id = 1;
+  string name = 2;
+  string description = 3;
+  int32 order_num = 4;
+  bool is_required = 5;
+  bool completed = 6;
+  google.protobuf.Timestamp completed_at = 7;
+  string completed_by_name = 8;
+}

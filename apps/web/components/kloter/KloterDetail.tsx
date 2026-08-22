@@ -165,7 +165,7 @@ export default function KloterDetail({ id }: { id: string }) {
       </section>
 
       <section style={{ ...card, marginTop: 16 }}>
-        <h2 style={sectionTitle}><IconUsersGroup size={18} color="var(--color-emerald-800)" />Rombongan ({groups.length})</h2>
+        <h2 style={sectionTitle}><IconUsersGroup size={18} color="var(--color-emerald-800)" />Grup ({groups.length})</h2>
         {groups.length ? <div style={{ display: "grid", gap: 8 }}>
           {groups.map((g) => (
             <Link key={g.id} href={`/dashboard/groups/${g.id}?seasonId=${seasonId}`} style={groupRow}>
@@ -182,7 +182,7 @@ export default function KloterDetail({ id }: { id: string }) {
               </div>
             </Link>
           ))}
-        </div> : <p style={{ color: "var(--color-warm-400)", fontSize: 13 }}>Belum ada rombongan yang ditugaskan ke kloter ini.</p>}
+        </div> : <p style={{ color: "var(--color-warm-400)", fontSize: 13 }}>Belum ada grup yang ditugaskan ke kloter ini.</p>}
       </section>
 
       <section style={{ ...card, marginTop: 16 }}>

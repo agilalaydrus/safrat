@@ -78,6 +78,10 @@ var publicProcedures = map[string]bool{
 	// pattern as the rest of this service; pilgrim_id/operator_id are always
 	// derived server-side from app_access_code, never trusted from the body.
 	"/hajj.v1.PilgrimAppService/SubmitMyPilgrimKyc": true,
+	// PilgrimAppService/ListMyRituals, RegisterMyPushToken — same
+	// public, code-authenticated pattern as the rest of this service.
+	"/hajj.v1.PilgrimAppService/ListMyRituals":       true,
+	"/hajj.v1.PilgrimAppService/RegisterMyPushToken": true,
 	// OperatorService/ResolveOperatorSlug — apps/web/middleware.ts calls this
 	// on every subdomain request (before any session exists) to map a slug
 	// like "vacana" to an operator ID. Returns only id + name.

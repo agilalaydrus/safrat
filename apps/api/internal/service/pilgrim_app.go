@@ -14,22 +14,42 @@ import (
 )
 
 type PilgrimAppService struct {
-	pilgrimRepository   *repository.PilgrimRepository
-	productRepository   *repository.ProductRepository
-	auditRepository     *repository.AuditRepository
-	identityRepository  *repository.IdentityRepository
-	broadcastRepository *repository.BroadcastRepository
+	pilgrimRepository      *repository.PilgrimRepository
+	productRepository      *repository.ProductRepository
+	auditRepository        *repository.AuditRepository
+	identityRepository     *repository.IdentityRepository
+	broadcastRepository    *repository.BroadcastRepository
+	journeyRepository      *repository.JourneyRepository
+	ritualRepository       *repository.RitualRepository
+	notificationRepository *repository.NotificationRepository
 }
 
-func NewPilgrimAppService(pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, audit *repository.AuditRepository, identity *repository.IdentityRepository, broadcasts *repository.BroadcastRepository) *PilgrimAppService {
-	return &PilgrimAppService{pilgrimRepository: pilgrims, productRepository: products, auditRepository: audit, identityRepository: identity, broadcastRepository: broadcasts}
+func NewPilgrimAppService(pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, audit *repository.AuditRepository, identity *repository.IdentityRepository, broadcasts *repository.BroadcastRepository, journeys *repository.JourneyRepository, rituals *repository.RitualRepository, notifications *repository.NotificationRepository) *PilgrimAppService {
+	return &PilgrimAppService{pilgrimRepository: pilgrims, productRepository: products, auditRepository: audit, identityRepository: identity, broadcastRepository: broadcasts, journeyRepository: journeys, ritualRepository: rituals, notificationRepository: notifications}
 }
+
+// certificateUnlockStatuses mirrors JourneyStatuses' tail — a certificate
+// only unlocks once the pilgrim has actually landed back in Indonesia.
+var certificateUnlockStatuses = map[string]bool{"ARRIVED_INDONESIA": true, "COMPLETED": true}
 
 // GetMyCertificate is public (app_access_code), same pattern as every
-// other PilgrimAppService method.
+// other PilgrimAppService method. Gated on journey status per the
+// business rule "ARRIVED_INDONESIA otomatis unlock sertifikat digital" —
+// returns Unlocked:false with every other field zero-valued until then.
 func (s *PilgrimAppService) GetMyCertificate(ctx context.Context, req *hajjv1.PilgrimAppRequest) (*hajjv1.CertificateData, error) {
 	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" {
 		return nil, serviceError("PilgrimAppService.GetMyCertificate", apperror.ErrValidation)
+	}
+	pilgrim, err := s.pilgrimRepository.GetByAppAccessCode(ctx, req.AppAccessCode)
+	if err != nil {
+		return nil, serviceError("PilgrimAppService.GetMyCertificate", apperror.ErrNotFound)
+	}
+	status := "REGISTERED"
+	if js, err := s.journeyRepository.GetStatus(ctx, pilgrim.OperatorID, pilgrim.ID); err == nil && js != nil {
+		status = js.Status
+	}
+	if !certificateUnlockStatuses[status] {
+		return &hajjv1.CertificateData{Unlocked: false}, nil
 	}
 	data, err := s.pilgrimRepository.GetCertificateData(ctx, req.AppAccessCode)
 	if err != nil {
@@ -42,6 +62,7 @@ func (s *PilgrimAppService) GetMyCertificate(ctx context.Context, req *hajjv1.Pi
 		OperatorName: data.OperatorName, LicenseNumber: data.LicenseNumber,
 		GroupName: data.GroupName, LeaderName: data.LeaderName,
 		HotelsVisited: data.HotelsVisited, MakkahHotels: data.MakkahHotels, MadinahHotels: data.MadinahHotels,
+		Unlocked: true,
 	}, nil
 }
 
@@ -86,7 +107,44 @@ func (s *PilgrimAppService) GetMyInfo(ctx context.Context, req *hajjv1.PilgrimAp
 			result.HotelStays = append(result.HotelStays, &hajjv1.HotelStay{HotelName: stay.HotelName, RoomNumber: stay.RoomNumber, RoomType: stay.RoomType})
 		}
 	}
+	if js, err := s.journeyRepository.GetStatus(ctx, info.OperatorID, info.ID); err == nil && js != nil {
+		result.JourneyStatus = js.Status
+	} else {
+		result.JourneyStatus = "REGISTERED"
+	}
 	return result, nil
+}
+
+// ListMyRituals is public (app_access_code) — powers the "Ibadah Saya" tab.
+func (s *PilgrimAppService) ListMyRituals(ctx context.Context, req *hajjv1.PilgrimAppRequest) (*hajjv1.ListMyRitualsResponse, error) {
+	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" {
+		return nil, serviceError("PilgrimAppService.ListMyRituals", apperror.ErrValidation)
+	}
+	statuses, err := s.ritualRepository.GetPilgrimStatusByAccessCode(ctx, req.AppAccessCode)
+	if err != nil {
+		return nil, serviceError("PilgrimAppService.ListMyRituals", err)
+	}
+	result := &hajjv1.ListMyRitualsResponse{Rituals: make([]*hajjv1.PilgrimRitualStatus, 0, len(statuses))}
+	for _, st := range statuses {
+		result.Rituals = append(result.Rituals, pilgrimRitualStatusMessage(st))
+	}
+	return result, nil
+}
+
+// RegisterMyPushToken is public (app_access_code) — see pilgrim_push_tokens
+// in migration 071 for why this is a separate table from push_subscriptions.
+func (s *PilgrimAppService) RegisterMyPushToken(ctx context.Context, req *hajjv1.RegisterMyPushTokenRequest) (*hajjv1.RegisterMyPushTokenResponse, error) {
+	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" || strings.TrimSpace(req.FcmToken) == "" {
+		return nil, serviceError("PilgrimAppService.RegisterMyPushToken", apperror.ErrValidation)
+	}
+	pilgrim, err := s.pilgrimRepository.GetByAppAccessCode(ctx, req.AppAccessCode)
+	if err != nil {
+		return nil, serviceError("PilgrimAppService.RegisterMyPushToken", apperror.ErrNotFound)
+	}
+	if err := s.notificationRepository.RegisterPilgrimToken(ctx, pilgrim.OperatorID, pilgrim.ID, req.FcmToken); err != nil {
+		return nil, serviceError("PilgrimAppService.RegisterMyPushToken", err)
+	}
+	return &hajjv1.RegisterMyPushTokenResponse{}, nil
 }
 
 func pilgrimAppInfoMessage(info *domain.PilgrimAppInfo) *hajjv1.PilgrimAppInfo {

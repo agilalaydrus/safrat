@@ -43,6 +43,9 @@ message Group {
   string current_city = 9; // INDONESIA | MADINAH | MAKKAH | ARAFAH | MUZDALIFAH | MINA | TRANSIT | DEPARTED
   string status = 10; // ACTIVE | IN_IBADAH | EMERGENCY | COMPLETED
   google.protobuf.Timestamp last_update = 11;
+  // Free-text itinerary detail beyond the coarse city bucket above — e.g.
+  // "City Tour Jeddah", "Ziarah Masjid Quba", "Waktu bebas".
+  string current_activity = 12;
 }
 
 message ListGroupsRequest {
@@ -99,4 +102,5 @@ message UpdateGroupCityRequest {
   string city = 2 [(buf.validate.field).string.min_len = 1];
   string location = 3; // detail, e.g. "Hotel Dar Al Hijra lt 5"
   string notes = 4;
+  string activity = 5; // e.g. "City Tour Jeddah", "Ziarah Masjid Quba"
 }
