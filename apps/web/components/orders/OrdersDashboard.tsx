@@ -11,7 +11,7 @@ const STATUS_STYLE: Record<string, React.CSSProperties> = {
   PENDING: { background: "var(--color-gold-50)", color: "var(--color-gold-800)" },
   PAID: { background: "var(--color-emerald-50)", color: "var(--color-emerald-900)" },
   EXPIRED: { background: "var(--color-cream-200)", color: "var(--color-warm-500)" },
-  FAILED: { background: "#fdf0f0", color: "var(--color-danger-600)" },
+  FAILED: { background: "#ffe4e6", color: "var(--color-danger-600)" },
   CANCELLED: { background: "var(--color-cream-200)", color: "var(--color-warm-500)" },
 };
 
@@ -117,7 +117,7 @@ const eyebrow: React.CSSProperties = { color: "var(--color-gold-800)", fontSize:
 const title: React.CSSProperties = { fontSize: "clamp(32px,5vw,48px)", fontWeight: 500, margin: 0 };
 const actions: React.CSSProperties = { display: "flex", gap: 10 };
 const select: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 12px", background: "#fff" };
-const gold: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, padding: "0 18px", display: "inline-flex", alignItems: "center", gap: 8, background: "var(--color-gold-500)", color: "var(--color-warm-900)", fontWeight: 700 };
+const gold: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, padding: "0 18px", display: "inline-flex", alignItems: "center", gap: 8, background: "var(--color-gold-500)", color: "#fff", fontWeight: 700 };
 const stats: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 14, margin: "24px 0" };
 const stat: React.CSSProperties = { display: "grid", gap: 6, padding: 18, background: "#fff", border: "1px solid var(--color-cream-400)", borderTop: "2px solid var(--color-gold-500)", borderRadius: 10 };
 const table: React.CSSProperties = { width: "100%", borderCollapse: "collapse", background: "#fff" };

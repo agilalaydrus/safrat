@@ -228,5 +228,5 @@ const smallBtn: React.CSSProperties = { minHeight: 32, border: 0, borderRadius: 
 const smallBtnGhost: React.CSSProperties = { minHeight: 32, border: "1px solid var(--color-cream-400)", borderRadius: 6, padding: "0 10px", background: "transparent", color: "var(--color-warm-700)", fontSize: 12, fontWeight: 600 };
 const smallBtnActive: React.CSSProperties = { minHeight: 32, border: 0, borderRadius: 6, padding: "0 10px", background: "var(--color-emerald-50)", color: "var(--color-emerald-900)", fontSize: 12, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 4 };
 const stepBadge: React.CSSProperties = { padding: "5px 10px", borderRadius: 99, background: "var(--color-cream-100)", border: "1px solid var(--color-cream-400)", color: "var(--color-warm-400)", fontSize: 11, fontWeight: 600 };
-const stepCurrent: React.CSSProperties = { background: "var(--color-gold-500)", border: "1px solid var(--color-gold-500)", color: "var(--color-warm-900)" };
+const stepCurrent: React.CSSProperties = { background: "var(--color-gold-500)", border: "1px solid var(--color-gold-500)", color: "#fff" };
 const stepPast: React.CSSProperties = { background: "var(--color-emerald-50)", border: "1px solid var(--color-emerald-200)", color: "var(--color-emerald-900)" };

@@ -171,15 +171,15 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   return <label style={{ display: "grid", gap: 6 }}><span style={fieldLabel}>{label}</span>{children}{hint && <span style={{ fontSize: 11, color: "var(--color-warm-400)" }}>{hint}</span>}</label>;
 }
 
-const overlay: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 30, display: "flex", justifyContent: "flex-end", background: "rgba(26,20,16,.48)" };
-const sheet: React.CSSProperties = { width: "min(480px,100%)", height: "100vh", overflowY: "auto", background: "#fff", padding: 24, boxShadow: "-6px 0 32px rgba(26,20,16,.12)" };
+const overlay: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 30, display: "flex", justifyContent: "flex-end", background: "rgba(15,23,42,.48)" };
+const sheet: React.CSSProperties = { width: "min(480px,100%)", height: "100vh", overflowY: "auto", background: "#fff", padding: 24, boxShadow: "-6px 0 32px rgba(15,23,42,.12)" };
 const header: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 };
 const eyebrow: React.CSSProperties = { margin: "0 0 6px", color: "var(--color-gold-800)", fontSize: 11, fontWeight: 700, letterSpacing: ".08em" };
 const closeBtn: React.CSSProperties = { width: 40, height: 40, borderRadius: "50%", border: "1px solid var(--color-cream-400)", background: "transparent", color: "var(--color-warm-400)" };
 const input: React.CSSProperties = { minHeight: 48, width: "100%", border: "1.5px solid var(--color-cream-400)", borderRadius: 10, padding: "0 14px", font: "inherit" };
 const fieldLabel: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--color-warm-700)" };
-const primary: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 10, background: "var(--color-gold-500)", color: "var(--color-warm-900)", fontWeight: 700 };
-const formError: React.CSSProperties = { margin: 0, fontSize: 13, color: "var(--color-danger-600)", background: "#fdf0f0", padding: "10px 12px", borderRadius: 8 };
+const primary: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 10, background: "var(--color-gold-500)", color: "#fff", fontWeight: 700 };
+const formError: React.CSSProperties = { margin: 0, fontSize: 13, color: "var(--color-danger-600)", background: "#ffe4e6", padding: "10px 12px", borderRadius: 8 };
 const legsSection: React.CSSProperties = { marginTop: 24 };
 const legsTitle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, margin: "16px 0 4px", fontSize: 15 };
 const legRow: React.CSSProperties = { display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 12px", background: "var(--color-cream-100)", border: "1px solid var(--color-cream-300)", borderRadius: 8 };

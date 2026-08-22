@@ -199,7 +199,7 @@ export default function AgentKycDialog({ open, agent, onClose, onUpdated }: Prop
   );
 }
 
-const o: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 30, display: "flex", justifyContent: "flex-end", background: "rgba(26,20,16,.48)", backdropFilter: "blur(2px)" };
+const o: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 30, display: "flex", justifyContent: "flex-end", background: "rgba(15,23,42,.48)", backdropFilter: "blur(2px)" };
 const s: React.CSSProperties = { width: "min(560px,100%)", height: "100vh", display: "flex", flexDirection: "column", background: "#fff", borderRadius: "16px 0 0 16px", overflow: "hidden" };
 const h: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px 16px", borderBottom: "1px solid var(--color-cream-300)" };
 const b: React.CSSProperties = { flex: 1, overflowY: "auto", padding: 24 };
@@ -209,9 +209,9 @@ const sec: React.CSSProperties = { margin: "8px 0 0", fontSize: 11, fontWeight: 
 const i: React.CSSProperties = { minHeight: 44, width: "100%", border: "1.5px solid var(--color-cream-400)", borderRadius: 10, padding: "0 14px", background: "#fff", font: "inherit" };
 const lab: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--color-warm-700)" };
 const primary: React.CSSProperties = { minHeight: 44, border: 0, borderRadius: 10, background: "var(--color-emerald-900)", color: "#fff", fontWeight: 700 };
-const err: React.CSSProperties = { margin: "0 0 12px", padding: 10, borderRadius: 8, background: "#fdf0f0", color: "var(--color-danger-600)" };
+const err: React.CSSProperties = { margin: "0 0 12px", padding: 10, borderRadius: 8, background: "#ffe4e6", color: "var(--color-danger-600)" };
 const warn: React.CSSProperties = { margin: "0 0 12px", fontSize: 13, color: "var(--color-danger-600)" };
 const badge: React.CSSProperties = { color: "white", fontWeight: 700, fontSize: 12, borderRadius: 999, padding: "6px 14px" };
 const uploadLabel: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, padding: "0 14px", background: "var(--color-emerald-900)", color: "white", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer" };
-const cameraLabel: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, padding: "0 14px", background: "var(--color-gold-500)", color: "var(--color-warm-900)", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer" };
+const cameraLabel: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, padding: "0 14px", background: "var(--color-gold-500)", color: "#fff", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer" };
 const docRow: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "var(--color-cream-100)", border: "1px solid var(--color-cream-400)", borderRadius: 8 };

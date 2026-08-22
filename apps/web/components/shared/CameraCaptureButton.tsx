@@ -116,6 +116,6 @@ export default function CameraCaptureButton({ label = "Ambil Foto", onCapture, d
 }
 
 const overlay: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,.7)", padding: 20 };
-const panel: React.CSSProperties = { width: "100%", maxWidth: 480, background: "#1a1410", borderRadius: 16, padding: 18 };
+const panel: React.CSSProperties = { width: "100%", maxWidth: 480, background: "#0f172a", borderRadius: 16, padding: 18 };
 const closeBtn: React.CSSProperties = { width: 32, height: 32, borderRadius: "50%", border: "1px solid rgba(255,255,255,.3)", background: "transparent", color: "#fff" };
-const captureBtn: React.CSSProperties = { width: "100%", minHeight: 48, marginTop: 14, border: 0, borderRadius: 10, background: "var(--color-gold-500)", color: "var(--color-warm-900)", fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 };
+const captureBtn: React.CSSProperties = { width: "100%", minHeight: 48, marginTop: 14, border: 0, borderRadius: 10, background: "var(--color-gold-500)", color: "#fff", fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 };

@@ -55,7 +55,7 @@ export default function PilgrimProductsPage() {
       <p style={eyebrow}>PRODUK TERSEDIA</p>
       <h1 style={title}>Produk</h1>
       {orderStatus === "success" && <p style={successBanner}>Pembayaran berhasil! Produk Anda akan segera diproses.</p>}
-      {orderStatus === "failed" && <p style={{ ...offlineBanner, background: "#fdf0f0", color: "var(--color-danger-600)" }}>Pembayaran tidak berhasil. Silakan coba lagi.</p>}
+      {orderStatus === "failed" && <p style={{ ...offlineBanner, background: "#ffe4e6", color: "var(--color-danger-600)" }}>Pembayaran tidak berhasil. Silakan coba lagi.</p>}
       {fromCache && <p style={offlineBanner}><IconWifiOff size={16} />Menampilkan produk tersimpan — Anda sedang offline</p>}
       {error && <p role="alert" style={{ color: "var(--color-danger-600)", fontSize: 13 }}>{error}</p>}
       {loaded && !products.length && <p style={{ color: "var(--color-warm-400)" }}>Belum ada produk tersedia untuk musim Anda.</p>}
@@ -113,7 +113,7 @@ const desc: React.CSSProperties = { margin: "8px 0 0", color: "var(--color-warm-
 const inclusions: React.CSSProperties = { margin: "8px 0 0", paddingInlineStart: 18, color: "var(--color-warm-700)", fontSize: 13 };
 const price: React.CSSProperties = { margin: "10px 0 0", fontWeight: 700, color: "var(--color-emerald-900)", fontSize: 16 };
 const duration: React.CSSProperties = { fontWeight: 400, color: "var(--color-warm-400)", fontSize: 13 };
-const buyButton: React.CSSProperties = { marginTop: 12, width: "100%", minHeight: 44, border: "none", borderRadius: 8, background: "var(--color-gold-500)", color: "var(--color-warm-900)", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif" };
+const buyButton: React.CSSProperties = { marginTop: 12, width: "100%", minHeight: 44, border: "none", borderRadius: 8, background: "var(--color-gold-500)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif" };
 const itineraryToggle: React.CSSProperties = { marginTop: 10, display: "flex", alignItems: "center", gap: 4, border: 0, background: "transparent", color: "var(--color-emerald-800)", fontSize: 12, fontWeight: 600, padding: 0 };
 const itineraryList: React.CSSProperties = { marginTop: 8, display: "grid", gap: 8 };
 const itineraryDay: React.CSSProperties = { display: "flex", gap: 8, alignItems: "flex-start", background: "var(--color-cream-100)", border: "1px solid var(--color-cream-300)", borderRadius: 8, padding: "8px 10px" };

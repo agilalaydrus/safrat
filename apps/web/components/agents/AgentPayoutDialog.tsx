@@ -229,7 +229,7 @@ function SummaryRow({ label, value, emphasis }: { label: string; value: string; 
   return <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}><span style={{ color: "var(--color-warm-500)", fontSize: emphasis ? 14 : 13 }}>{label}</span><b style={{ fontSize: emphasis ? 22 : 15, color: emphasis ? "var(--color-danger-600)" : "var(--color-warm-900)" }}>{value}</b></div>;
 }
 
-const o: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 30, display: "flex", justifyContent: "flex-end", background: "rgba(26,20,16,.48)", backdropFilter: "blur(2px)" };
+const o: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 30, display: "flex", justifyContent: "flex-end", background: "rgba(15,23,42,.48)", backdropFilter: "blur(2px)" };
 const s: React.CSSProperties = { width: "min(560px,100%)", height: "100vh", display: "flex", flexDirection: "column", background: "#fff", borderRadius: "16px 0 0 16px", overflow: "hidden" };
 const h: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px 16px", borderBottom: "1px solid var(--color-cream-300)" };
 const b: React.CSSProperties = { flex: 1, overflowY: "auto", padding: 24 };
@@ -239,8 +239,8 @@ const ey: React.CSSProperties = { margin: 0, color: "var(--color-gold-800)", fon
 const sec: React.CSSProperties = { margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: ".1em", color: "var(--color-warm-400)", paddingBottom: 8, borderBottom: "1px solid var(--color-cream-300)" };
 const i: React.CSSProperties = { minHeight: 48, width: "100%", border: "1.5px solid var(--color-cream-400)", borderRadius: 10, padding: "0 14px", background: "#fff", font: "inherit" };
 const lab: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--color-warm-700)" };
-const primary: React.CSSProperties = { minHeight: 48, width: "100%", border: 0, borderRadius: 10, background: "var(--color-gold-500)", color: "var(--color-warm-900)", fontWeight: 700 };
-const err: React.CSSProperties = { margin: 0, padding: 10, borderRadius: 8, background: "#fdf0f0", color: "var(--color-danger-600)" };
+const primary: React.CSSProperties = { minHeight: 48, width: "100%", border: 0, borderRadius: 10, background: "var(--color-gold-500)", color: "#fff", fontWeight: 700 };
+const err: React.CSSProperties = { margin: 0, padding: 10, borderRadius: 8, background: "#ffe4e6", color: "var(--color-danger-600)" };
 const summaryCard: React.CSSProperties = { display: "grid", gap: 8, padding: 18, background: "var(--color-cream-200)", borderRadius: 12, border: "1px solid var(--color-cream-400)" };
 const amountWrap: React.CSSProperties = { position: "relative" };
 const amountPrefix: React.CSSProperties = { position: "absolute", insetInlineStart: 14, top: 0, height: 48, display: "flex", alignItems: "center", color: "var(--color-warm-500)", fontWeight: 600, pointerEvents: "none" };

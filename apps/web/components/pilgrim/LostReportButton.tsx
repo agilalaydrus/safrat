@@ -101,9 +101,9 @@ function holdFillStyle(progress: number): React.CSSProperties {
   };
 }
 
-const fab: React.CSSProperties = { position: "fixed", right: 16, bottom: 96, zIndex: 35, minHeight: 44, borderRadius: 999, border: "1px solid rgba(220,38,38,.35)", background: "#fff", color: "var(--color-danger-600)", display: "inline-flex", alignItems: "center", gap: 6, padding: "0 14px 0 12px", boxShadow: "0 6px 16px rgba(26,20,16,.14)" };
+const fab: React.CSSProperties = { position: "fixed", right: 16, bottom: 96, zIndex: 35, minHeight: 44, borderRadius: 999, border: "1px solid rgba(220,38,38,.35)", background: "#fff", color: "var(--color-danger-600)", display: "inline-flex", alignItems: "center", gap: 6, padding: "0 14px 0 12px", boxShadow: "0 6px 16px rgba(15,23,42,.14)" };
 const fabLabel: React.CSSProperties = { fontSize: 13, fontWeight: 700 };
-const overlay: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "flex-end", justifyContent: "center", background: "rgba(26,20,16,.48)" };
+const overlay: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "flex-end", justifyContent: "center", background: "rgba(15,23,42,.48)" };
 const dialog: React.CSSProperties = { width: "100%", maxWidth: 420, textAlign: "center", background: "#fff", borderRadius: "20px 20px 0 0", padding: 28 };
 const confirmButton: React.CSSProperties = { position: "relative", overflow: "hidden", width: "100%", minHeight: 50, border: 0, borderRadius: 10, background: "var(--color-danger-600)", color: "#fff", fontWeight: 700, fontSize: 15, marginBottom: 10, userSelect: "none", touchAction: "none" };
 const cancelButton: React.CSSProperties = { width: "100%", minHeight: 46, border: "1px solid var(--color-cream-500)", borderRadius: 10, background: "transparent", color: "var(--color-warm-500)" };

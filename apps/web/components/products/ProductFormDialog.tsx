@@ -188,8 +188,8 @@ export default function ProductFormDialog({ open, seasonId, initial, onClose, on
   );
 }
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) { return <label style={{ display: "grid", gap: 6 }}><span style={labelStyle}>{label}</span>{children}{error && <small style={{ color: "var(--color-danger-600)" }}>{error}</small>}</label>; }
-const overlay: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 30, display: "flex", justifyContent: "flex-end", background: "rgba(26,20,16,.48)", backdropFilter: "blur(2px)" };
-const sheet: React.CSSProperties = { width: "min(560px,100%)", height: "100vh", display: "flex", flexDirection: "column", background: "#fff", borderRadius: "16px 0 0 16px", overflow: "hidden", boxShadow: "-6px 0 32px rgba(26,20,16,.12)" };
+const overlay: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 30, display: "flex", justifyContent: "flex-end", background: "rgba(15,23,42,.48)", backdropFilter: "blur(2px)" };
+const sheet: React.CSSProperties = { width: "min(560px,100%)", height: "100vh", display: "flex", flexDirection: "column", background: "#fff", borderRadius: "16px 0 0 16px", overflow: "hidden", boxShadow: "-6px 0 32px rgba(15,23,42,.12)" };
 const head: React.CSSProperties = { padding: "20px 24px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--color-cream-300)" };
 const body: React.CSSProperties = { flex: 1, overflowY: "auto", padding: 24 };
 const foot: React.CSSProperties = { padding: "16px 24px", borderTop: "1px solid var(--color-cream-300)" };
@@ -199,10 +199,10 @@ const section: React.CSSProperties = { margin: 0, fontSize: 11, fontWeight: 700,
 const input: React.CSSProperties = { minHeight: 48, width: "100%", border: "1.5px solid var(--color-cream-400)", borderRadius: 10, padding: "0 14px", background: "#fff", font: "inherit", outline: "none" };
 const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--color-warm-700)" };
 const cols: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12 };
-const primary: React.CSSProperties = { minHeight: 48, width: "100%", border: 0, borderRadius: 10, background: "var(--color-gold-500)", color: "var(--color-warm-900)", fontWeight: 700 };
+const primary: React.CSSProperties = { minHeight: 48, width: "100%", border: 0, borderRadius: 10, background: "var(--color-gold-500)", color: "#fff", fontWeight: 700 };
 const count: React.CSSProperties = { textAlign: "right", color: "var(--color-warm-400)" };
 const check: React.CSSProperties = { color: "var(--color-warm-700)", fontSize: 13 };
-const error: React.CSSProperties = { margin: 0, color: "var(--color-danger-600)", background: "#fdf0f0", padding: 10, borderRadius: 8 };
+const error: React.CSSProperties = { margin: 0, color: "var(--color-danger-600)", background: "#ffe4e6", padding: 10, borderRadius: 8 };
 const hotelGrid: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8 };
 const hotelChip: React.CSSProperties = { minHeight: 36, display: "inline-flex", alignItems: "center", padding: "0 12px", borderRadius: 99, border: "1px solid var(--color-cream-400)", background: "#fff", color: "var(--color-warm-600)", fontSize: 13, cursor: "pointer" };
 const hotelChipActive: React.CSSProperties = { background: "var(--color-emerald-900)", borderColor: "var(--color-emerald-900)", color: "#fff" };

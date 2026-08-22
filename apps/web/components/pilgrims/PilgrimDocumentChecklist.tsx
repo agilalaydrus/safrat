@@ -245,6 +245,6 @@ const emerald: React.CSSProperties = { minHeight: 44, border: 0, borderRadius: 8
 const badge: React.CSSProperties = { color: "white", fontWeight: 700, fontSize: 12, borderRadius: 999, padding: "6px 14px" };
 const warning: React.CSSProperties = { margin: 0, color: "var(--color-danger-600)", fontWeight: 600, fontSize: 13 };
 const uploadLabel: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 4, minHeight: 32, padding: "0 10px", background: "var(--color-emerald-900)", color: "white", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" };
-const cameraLabel: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 4, minHeight: 32, padding: "0 10px", background: "var(--color-gold-500)", color: "var(--color-warm-900)", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" };
+const cameraLabel: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 4, minHeight: 32, padding: "0 10px", background: "var(--color-gold-500)", color: "#fff", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" };
 const fileRow: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: "var(--color-cream-100)", border: "1px solid var(--color-cream-400)", borderRadius: 8 };
 const deleteButton: React.CSSProperties = { border: 0, background: "transparent", color: "var(--color-danger-600)", display: "flex", alignItems: "center", flexShrink: 0 };

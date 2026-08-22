@@ -217,7 +217,7 @@ function badge(status: string): React.CSSProperties {
   const map: Record<string, [string, string]> = {
     arrived: ["var(--color-emerald-50)", "var(--color-emerald-900)"],
     departed: ["var(--color-cream-200)", "var(--color-warm-500)"],
-    cancelled: ["#fdf0f0", "var(--color-danger-600)"],
+    cancelled: ["#ffe4e6", "var(--color-danger-600)"],
   };
   const [bg, color] = map[status] ?? ["var(--color-cream-300)", "var(--color-warm-500)"];
   return { justifySelf: "start", padding: "5px 10px", borderRadius: 99, background: bg, color, textTransform: "capitalize", fontSize: 12 };
@@ -243,7 +243,7 @@ const subtitle: React.CSSProperties = { color: "var(--color-warm-500)" };
 const input: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 12px", background: "var(--color-cream-200)", color: "var(--color-warm-900)" };
 const emerald: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, padding: "0 18px", display: "inline-flex", alignItems: "center", gap: 8, background: "var(--color-emerald-900)", color: "var(--color-cream-100)", fontWeight: 700 };
 const ghost: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-cream-500)", borderRadius: 8, padding: "0 18px", display: "inline-flex", alignItems: "center", gap: 8, background: "transparent", color: "var(--color-warm-700)", fontWeight: 700 };
-const gold: React.CSSProperties = { ...emerald, background: "var(--color-gold-500)", color: "var(--color-warm-900)" };
+const gold: React.CSSProperties = { ...emerald, background: "var(--color-gold-500)", color: "#fff" };
 const grid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(270px,1fr))", gap: 16 };
 const card: React.CSSProperties = { display: "grid", gap: 12, background: "white", border: "1px solid var(--color-cream-400)", borderRadius: 12, padding: 20, color: "var(--color-warm-900)", textDecoration: "none" };
 const bar: React.CSSProperties = { height: 8, borderRadius: 8, overflow: "hidden", background: "var(--color-emerald-200)" };

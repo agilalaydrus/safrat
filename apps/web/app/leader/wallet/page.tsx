@@ -102,7 +102,7 @@ function TransactionRow({ tx }: { tx: WalletTransaction }) {
   const sign = isPending ? "" : isCredit ? "+" : "-";
   return (
     <div style={txRow}>
-      <span style={{ ...txIcon, color, background: isPending ? "var(--color-gold-50)" : isCredit ? "var(--color-emerald-50)" : "#fdf0f0" }}><Icon size={18} /></span>
+      <span style={{ ...txIcon, color, background: isPending ? "var(--color-gold-50)" : isCredit ? "var(--color-emerald-50)" : "#ffe4e6" }}><Icon size={18} /></span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ margin: 0, fontWeight: 600, fontSize: 14 }}>{tx.description || (isCredit ? "Komisi order" : "Pencairan")}</p>
         <p style={{ margin: 0, color: "var(--color-warm-400)", fontSize: 12 }}>{tx.createdAt?.toDate().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}</p>
@@ -125,8 +125,8 @@ const input: React.CSSProperties = { minHeight: 46, width: "100%", border: "1.5p
 const amountWrap: React.CSSProperties = { position: "relative" };
 const amountPrefix: React.CSSProperties = { position: "absolute", insetInlineStart: 14, top: 0, height: 46, display: "flex", alignItems: "center", color: "var(--color-warm-500)", fontWeight: 600, pointerEvents: "none" };
 const chip: React.CSSProperties = { justifySelf: "start", minHeight: 30, border: "1px solid var(--color-cream-400)", borderRadius: 999, padding: "0 12px", background: "transparent", color: "var(--color-emerald-900)", fontSize: 12, fontWeight: 600, marginTop: 4 };
-const primary: React.CSSProperties = { width: "100%", minHeight: 48, marginTop: 16, border: 0, borderRadius: 10, background: "var(--color-gold-500)", color: "var(--color-warm-900)", fontWeight: 700 };
-const errBox: React.CSSProperties = { margin: "12px 0 0", padding: 10, borderRadius: 8, background: "#fdf0f0", color: "var(--color-danger-600)", fontSize: 13 };
+const primary: React.CSSProperties = { width: "100%", minHeight: 48, marginTop: 16, border: 0, borderRadius: 10, background: "var(--color-gold-500)", color: "#fff", fontWeight: 700 };
+const errBox: React.CSSProperties = { margin: "12px 0 0", padding: 10, borderRadius: 8, background: "#ffe4e6", color: "var(--color-danger-600)", fontSize: 13 };
 const successBox: React.CSSProperties = { margin: "12px 0 0", padding: 10, borderRadius: 8, background: "var(--color-emerald-50)", color: "var(--color-emerald-900)", fontSize: 13 };
 const txRow: React.CSSProperties = { display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: "#fff", border: "1px solid var(--color-cream-300)", borderRadius: 10 };
 const txIcon: React.CSSProperties = { width: 36, height: 36, borderRadius: "50%", display: "grid", placeItems: "center", flexShrink: 0 };

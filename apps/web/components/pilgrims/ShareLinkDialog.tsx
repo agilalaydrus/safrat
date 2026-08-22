@@ -51,8 +51,8 @@ export default function ShareLinkDialog({ title, url, onClose }: Props) {
   );
 }
 
-const overlay: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(26,20,16,.48)", padding: 20 };
-const dialog: React.CSSProperties = { width: "100%", maxWidth: 480, background: "#fff", borderRadius: 16, padding: 24, boxShadow: "0 20px 60px rgba(26,20,16,.25)" };
+const overlay: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(15,23,42,.48)", padding: 20 };
+const dialog: React.CSSProperties = { width: "100%", maxWidth: 480, background: "#fff", borderRadius: 16, padding: 24, boxShadow: "0 20px 60px rgba(15,23,42,.25)" };
 const closeBtn: React.CSSProperties = { width: 32, height: 32, borderRadius: "50%", border: "1px solid var(--color-cream-400)", background: "transparent", color: "var(--color-warm-400)" };
 const urlInput: React.CSSProperties = { minHeight: 46, width: "100%", border: "1.5px solid var(--color-cream-400)", borderRadius: 10, padding: "0 14px", background: "var(--color-cream-100)", font: "inherit", fontSize: 13, color: "var(--color-warm-900)" };
 const primaryBtn: React.CSSProperties = { minHeight: 46, border: 0, borderRadius: 10, background: "var(--color-emerald-900)", color: "#fff", fontWeight: 700, padding: "0 18px", display: "inline-flex", alignItems: "center", gap: 8 };

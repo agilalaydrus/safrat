@@ -67,7 +67,7 @@ export default function AgentPayoutTab() {
             <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="BCA 1234567890 a.n. Nama Anda" style={{ ...inp, resize: "vertical" }} />
           </label>
           {notice && <p style={{ fontSize: 13, color: notice.includes("berhasil") ? "var(--color-emerald-700)" : "var(--color-danger-600)" }}>{notice}</p>}
-          <button onClick={submit} disabled={submitting} style={{ height: 44, background: "var(--color-gold-500)", color: "var(--color-warm-900)", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+          <button onClick={submit} disabled={submitting} style={{ height: 44, background: "var(--color-gold-500)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
             {submitting ? "Mengirim..." : "Ajukan Pencairan"}
           </button>
         </div>

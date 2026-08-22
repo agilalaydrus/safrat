@@ -69,6 +69,6 @@ const heading: React.CSSProperties = { fontSize: 20, fontWeight: 500, marginTop:
 const sub: React.CSSProperties = { fontSize: 13, color: "var(--color-warm-400)", marginBottom: 20 };
 const labelStyle: React.CSSProperties = { display: "block", fontSize: 13, fontWeight: 600, color: "var(--color-warm-700)" };
 const inputStyle: React.CSSProperties = { display: "block", width: "100%", marginTop: 6, padding: "10px 12px", fontSize: 14, borderRadius: 8, background: "var(--color-cream-200)", fontFamily: "'Plus Jakarta Sans',sans-serif", outline: "none", border: "1px solid var(--color-cream-500)" };
-const submitStyle: React.CSSProperties = { width: "100%", height: 44, background: "var(--color-gold-500)", color: "var(--color-warm-900)", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", marginTop: 8 };
+const submitStyle: React.CSSProperties = { width: "100%", height: 44, background: "var(--color-gold-500)", color: "#fff", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans',sans-serif", marginTop: 8 };
 const footer: React.CSSProperties = { textAlign: "center", fontSize: 13, color: "var(--color-warm-400)", marginTop: 20 };
 const footerLink: React.CSSProperties = { color: "var(--color-emerald-900)", fontWeight: 600 };

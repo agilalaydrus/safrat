@@ -120,8 +120,8 @@ function statusLabel(status: string): string {
 }
 
 function genderIcon(gender: Gender | string) { return gender === Gender.FEMALE || gender === "FEMALE" ? <IconGenderFemale size={15} /> : <IconGenderMale size={15} />; }
-const overlay: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 30, display: "flex", justifyContent: "flex-end", background: "rgba(26,20,16,.52)" };
-const sheet: React.CSSProperties = { width: "min(600px,100%)", minHeight: "100%", overflowY: "auto", background: "var(--color-cream-100)", padding: 24, boxShadow: "0 8px 24px rgba(26,20,16,.12)", animation: "sheet-in .2s ease-out" };
+const overlay: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 30, display: "flex", justifyContent: "flex-end", background: "rgba(15,23,42,.52)" };
+const sheet: React.CSSProperties = { width: "min(600px,100%)", minHeight: "100%", overflowY: "auto", background: "var(--color-cream-100)", padding: 24, boxShadow: "0 8px 24px rgba(15,23,42,.12)", animation: "sheet-in .2s ease-out" };
 const header: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" };
 const eyebrow: React.CSSProperties = { margin: "0 0 6px", color: "var(--color-gold-800)", fontSize: 11, fontWeight: 700, letterSpacing: ".08em" };
 const section: React.CSSProperties = { display: "grid", gap: 12, marginTop: 24 };

@@ -52,5 +52,5 @@ const eyebrow: React.CSSProperties = { margin: 0, color: "var(--color-gold-800)"
 const title: React.CSSProperties = { margin: "4px 0 8px", fontSize: 28, fontFamily: "'Playfair Display', serif", color: "var(--color-emerald-900)" };
 const label: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--color-warm-700)" };
 const input: React.CSSProperties = { minHeight: 48, width: "100%", border: "1.5px solid var(--color-cream-400)", borderRadius: 10, padding: "0 14px", background: "#fff", font: "inherit" };
-const primary: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 10, background: "var(--color-gold-500)", color: "var(--color-warm-900)", fontWeight: 700 };
-const errStyle: React.CSSProperties = { margin: 0, padding: 10, borderRadius: 8, background: "#fdf0f0", color: "var(--color-danger-600)" };
+const primary: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 10, background: "var(--color-gold-500)", color: "#fff", fontWeight: 700 };
+const errStyle: React.CSSProperties = { margin: 0, padding: 10, borderRadius: 8, background: "#ffe4e6", color: "var(--color-danger-600)" };
