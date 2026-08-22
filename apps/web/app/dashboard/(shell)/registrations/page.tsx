@@ -1,2 +1,2 @@
-import RegistrationsDashboard from "@/components/registrations/RegistrationsDashboard";
-export default function Page() { return <RegistrationsDashboard />; }
+import RegistrationsAndWaitlistPage from "@/components/registrations/RegistrationsAndWaitlistPage";
+export default function Page() { return <RegistrationsAndWaitlistPage />; }

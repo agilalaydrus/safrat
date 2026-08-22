@@ -1,2 +1,2 @@
-import WaitlistDashboard from "@/components/waitlist/WaitlistDashboard";
-export default function Page() { return <WaitlistDashboard />; }
+import { redirect } from "next/navigation";
+export default function Page() { redirect("/dashboard/registrations"); }

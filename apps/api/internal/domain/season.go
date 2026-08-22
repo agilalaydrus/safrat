@@ -27,12 +27,43 @@ type Season struct {
 }
 
 type SeasonAnalytics struct {
-	TotalPilgrims  int64
-	PaidCount      int64
-	DPCount        int64
-	UnpaidCount    int64
-	DocsComplete   int64
-	CheckedInCount int64
-	RoomsAllocated int64
-	SeatsAssigned  int64
+	TotalPilgrims         int64
+	PaidCount             int64
+	DPCount               int64
+	UnpaidCount           int64
+	DocsComplete          int64
+	CheckedInCount        int64
+	RoomsAllocated        int64
+	SeatsAssigned         int64
+	WheelchairCount       int64
+	UnassignedGroupCount  int64
+	UnassignedKloterCount int64
+	OrderCount            int32
+	TotalRevenueIDR       int64
+}
+
+type PaymentMonthPoint struct {
+	Month       string // "2026-03"
+	PaidCount   int64
+	DPCount     int64
+	UnpaidCount int64
+}
+
+type AgentSeasonStat struct {
+	AgentName      string
+	PilgrimCount   int64
+	CommissionRate float64
+}
+
+type KloterFillStat struct {
+	KloterCode   string
+	PilgrimCount int32
+	Capacity     int32
+}
+
+type HotelOccupancyStat struct {
+	HotelName string
+	City      string
+	Capacity  int32
+	Allocated int32
 }

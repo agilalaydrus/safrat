@@ -222,15 +222,15 @@ func (r *SeasonRepository) GetAnalytics(ctx context.Context, operatorID, seasonI
 	if err != nil {
 		return nil, err
 	}
+	orderStats, err := r.queries.GetSeasonOrderStats(ctx, db.GetSeasonOrderStatsParams{OperatorID: operatorUUID, SeasonID: seasonUUID})
+	if err != nil {
+		return nil, err
+	}
 	return &domain.SeasonAnalytics{
-		TotalPilgrims:  row.TotalPilgrims,
-		PaidCount:      row.PaidCount,
-		DPCount:        row.DpCount,
-		UnpaidCount:    row.UnpaidCount,
-		DocsComplete:   row.DocsComplete,
-		CheckedInCount: row.CheckedInCount,
-		RoomsAllocated: row.RoomsAllocated,
-		SeatsAssigned:  row.SeatsAssigned,
+		TotalPilgrims: row.TotalPilgrims, PaidCount: row.PaidCount, DPCount: row.DpCount, UnpaidCount: row.UnpaidCount,
+		DocsComplete: row.DocsComplete, CheckedInCount: row.CheckedInCount, RoomsAllocated: row.RoomsAllocated, SeatsAssigned: row.SeatsAssigned,
+		WheelchairCount: row.WheelchairCount, UnassignedGroupCount: row.UnassignedGroupCount, UnassignedKloterCount: row.UnassignedKloterCount,
+		OrderCount: orderStats.OrderCount, TotalRevenueIDR: orderStats.TotalRevenueIdr,
 	}, nil
 }
 

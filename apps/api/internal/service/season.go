@@ -14,13 +14,15 @@ import (
 )
 
 type SeasonService struct {
-	operatorRepository *repository.OperatorRepository
-	seasonRepository   *repository.SeasonRepository
-	auditRepository    *repository.AuditRepository
+	operatorRepository   *repository.OperatorRepository
+	seasonRepository     *repository.SeasonRepository
+	auditRepository      *repository.AuditRepository
+	analyticsRepository  *repository.AnalyticsRepository
+	monitoringRepository *repository.MonitoringRepository
 }
 
-func NewSeasonService(operatorRepository *repository.OperatorRepository, seasonRepository *repository.SeasonRepository, auditRepository *repository.AuditRepository) *SeasonService {
-	return &SeasonService{operatorRepository: operatorRepository, seasonRepository: seasonRepository, auditRepository: auditRepository}
+func NewSeasonService(operatorRepository *repository.OperatorRepository, seasonRepository *repository.SeasonRepository, auditRepository *repository.AuditRepository, analyticsRepository *repository.AnalyticsRepository, monitoringRepository *repository.MonitoringRepository) *SeasonService {
+	return &SeasonService{operatorRepository: operatorRepository, seasonRepository: seasonRepository, auditRepository: auditRepository, analyticsRepository: analyticsRepository, monitoringRepository: monitoringRepository}
 }
 
 func (s *SeasonService) Create(ctx context.Context, authenticatedOrgID string, request *hajjv1.CreateSeasonRequest) (*hajjv1.Season, error) {
@@ -149,16 +151,61 @@ func (s *SeasonService) GetAnalytics(ctx context.Context, authenticatedOrgID str
 	if err != nil {
 		return nil, serviceError("SeasonService.GetAnalytics", err)
 	}
-	return &hajjv1.SeasonAnalytics{
-		TotalPilgrims:  analytics.TotalPilgrims,
-		PaidCount:      analytics.PaidCount,
-		DpCount:        analytics.DPCount,
-		UnpaidCount:    analytics.UnpaidCount,
-		DocsComplete:   analytics.DocsComplete,
-		CheckedInCount: analytics.CheckedInCount,
-		RoomsAllocated: analytics.RoomsAllocated,
-		SeatsAssigned:  analytics.SeatsAssigned,
-	}, nil
+	result := &hajjv1.SeasonAnalytics{
+		TotalPilgrims: analytics.TotalPilgrims, PaidCount: analytics.PaidCount, DpCount: analytics.DPCount, UnpaidCount: analytics.UnpaidCount,
+		DocsComplete: analytics.DocsComplete, CheckedInCount: analytics.CheckedInCount, RoomsAllocated: analytics.RoomsAllocated, SeatsAssigned: analytics.SeatsAssigned,
+		WheelchairCount: analytics.WheelchairCount, UnassignedGroupCount: analytics.UnassignedGroupCount, UnassignedKloterCount: analytics.UnassignedKloterCount,
+		OrderCount: analytics.OrderCount, TotalRevenueIdr: analytics.TotalRevenueIDR, RitualCompletionPct: -1,
+	}
+
+	if timeline, err := s.analyticsRepository.ListPaymentTimeline(ctx, operator.ID, request.SeasonId); err == nil {
+		for _, t := range timeline {
+			result.PaymentTimeline = append(result.PaymentTimeline, &hajjv1.PaymentMonthPoint{Month: t.Month, PaidCount: t.PaidCount, DpCount: t.DPCount, UnpaidCount: t.UnpaidCount})
+		}
+	}
+	if agents, err := s.analyticsRepository.ListAgentStats(ctx, operator.ID, request.SeasonId); err == nil {
+		for _, a := range agents {
+			if a.PilgrimCount == 0 {
+				continue // an agent with zero referrals this season adds noise, not signal
+			}
+			result.AgentStats = append(result.AgentStats, &hajjv1.AgentSeasonStat{AgentName: a.AgentName, PilgrimCount: a.PilgrimCount, CommissionRate: a.CommissionRate})
+		}
+	}
+	if kloters, err := s.analyticsRepository.ListKloterFill(ctx, operator.ID, request.SeasonId); err == nil {
+		for _, k := range kloters {
+			result.KloterFill = append(result.KloterFill, &hajjv1.KloterFillStat{KloterCode: k.KloterCode, PilgrimCount: k.PilgrimCount, Capacity: k.Capacity})
+		}
+	}
+	if hotels, err := s.analyticsRepository.ListHotelOccupancy(ctx, operator.ID, request.SeasonId); err == nil {
+		for _, h := range hotels {
+			result.HotelOccupancy = append(result.HotelOccupancy, &hajjv1.HotelOccupancyStat{HotelName: h.HotelName, City: h.City, Capacity: h.Capacity, Allocated: h.Allocated})
+		}
+	}
+	if sos, err := s.monitoringRepository.ListActiveSOS(ctx, operator.ID, request.SeasonId); err == nil {
+		result.ActiveSosCount = int32(len(sos))
+	}
+	if health, err := s.monitoringRepository.ListOpenHealthReports(ctx, operator.ID, request.SeasonId); err == nil {
+		result.OpenHealthReportsCount = int32(len(health))
+		for _, h := range health {
+			if h.Severity == "BERAT" {
+				result.HealthBeratCount++
+			}
+		}
+	}
+	if progress, err := s.monitoringRepository.ListGroupRitualProgress(ctx, operator.ID, request.SeasonId); err == nil {
+		var completedTotal, possibleTotal int64
+		for _, p := range progress {
+			if p.TemplateCount == 0 {
+				continue
+			}
+			completedTotal += int64(p.CompletedCount)
+			possibleTotal += int64(p.TemplateCount) * int64(p.PilgrimCount)
+		}
+		if possibleTotal > 0 {
+			result.RitualCompletionPct = float64(completedTotal) / float64(possibleTotal)
+		}
+	}
+	return result, nil
 }
 
 func seasonType(value hajjv1.SeasonType) domain.SeasonType {

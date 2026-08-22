@@ -1,2 +1,2 @@
-import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
-export default function Page() { return <AnalyticsDashboard />; }
+import { redirect } from "next/navigation";
+export default function Page() { redirect("/dashboard/reports"); }

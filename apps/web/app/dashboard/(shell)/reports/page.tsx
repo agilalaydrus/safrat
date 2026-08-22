@@ -1,2 +1,2 @@
-import ReportsDashboard from "@/components/reports/ReportsDashboard";
-export default function ReportsPage() { return <ReportsDashboard />; }
+import ReportsAndAnalyticsPage from "@/components/reports/ReportsAndAnalyticsPage";
+export default function ReportsPage() { return <ReportsAndAnalyticsPage />; }

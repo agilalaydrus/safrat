@@ -110,4 +110,47 @@ message SeasonAnalytics {
   int64 checked_in_count = 6;
   int64 rooms_allocated = 7;
   int64 seats_assigned = 8;
+  int64 wheelchair_count = 9;
+  int64 unassigned_group_count = 10;
+  int64 unassigned_kloter_count = 11;
+  // Order/revenue — season-scoped (unlike agent payout totals, which are
+  // deliberately lifetime; see OrderService).
+  int32 order_count = 12;
+  int64 total_revenue_idr = 13;
+  repeated PaymentMonthPoint payment_timeline = 14;
+  repeated AgentSeasonStat agent_stats = 15;
+  repeated KloterFillStat kloter_fill = 16;
+  repeated HotelOccupancyStat hotel_occupancy = 17;
+  // -1 if no ritual templates exist yet for this season's type, distinct
+  // from a real 0%.
+  double ritual_completion_pct = 18;
+  int32 active_sos_count = 19;
+  int32 open_health_reports_count = 20;
+  int32 health_berat_count = 21;
+}
+
+message PaymentMonthPoint {
+  string month = 1; // "2026-03" style, first day of month
+  int64 paid_count = 2;
+  int64 dp_count = 3;
+  int64 unpaid_count = 4;
+}
+
+message AgentSeasonStat {
+  string agent_name = 1;
+  int64 pilgrim_count = 2;
+  double commission_rate = 3;
+}
+
+message KloterFillStat {
+  string kloter_code = 1;
+  int32 pilgrim_count = 2;
+  int32 capacity = 3;
+}
+
+message HotelOccupancyStat {
+  string hotel_name = 1;
+  string city = 2;
+  int32 capacity = 3;
+  int32 allocated = 4;
 }

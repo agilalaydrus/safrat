@@ -94,6 +94,7 @@ func main() {
 		ritualRepository := repository.NewRitualRepository(queries)
 		healthReportRepository := repository.NewHealthReportRepository(queries)
 		monitoringRepository := repository.NewMonitoringRepository(queries)
+		analyticsRepository := repository.NewAnalyticsRepository(queries)
 
 		firebasePusher, err := notification.NewFirebasePusher(ctx, logger, config.FirebaseServiceAccountJSON, notificationRepository)
 		if err != nil {
@@ -111,7 +112,7 @@ func main() {
 
 		operatorService := service.NewOperatorService(operatorRepository, seasonRepository)
 		pilgrimService := service.NewPilgrimService(operatorRepository, pilgrimRepository, accommodationRepository, transportRepository, auditRepository, pool)
-		seasonService := service.NewSeasonService(operatorRepository, seasonRepository, auditRepository)
+		seasonService := service.NewSeasonService(operatorRepository, seasonRepository, auditRepository, analyticsRepository, monitoringRepository)
 		accommodationService := service.NewAccommodationService(operatorRepository, pilgrimRepository, accommodationRepository, auditRepository)
 		transportService := service.NewTransportService(operatorRepository, transportRepository, auditRepository)
 		productService := service.NewProductService(operatorRepository, productRepository)
