@@ -1,9 +1,30 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&display=swap');
 /* Fraunces: a warm, characterful editorial serif with real optical-size
-   personality — used for the marketing/landing page's display type only,
+   personality, used for the marketing/landing page's display type only,
    deliberately distinct from the generic geometric-sans look of most
    AI/SaaS templates. App chrome (sidebar, dashboards) keeps Playfair
    Display + Plus Jakarta Sans as-is. */
+
+/* Tailwind, theme + utilities only (no preflight): the rest of the app is
+   60+ pages of hand-written inline styles with their own reset below, so
+   pulling in Tailwind's preflight.css would re-reset margins, headings,
+   buttons, etc. app-wide. These are imported unlayered (not wrapped in
+   layer(...)) on purpose: a layered stylesheet always loses to any
+   unlayered rule regardless of specificity or source order, and this file
+   already has plain unlayered rules below (h1-h4, a, button, input) that
+   would then silently beat every Tailwind utility class on the landing
+   page. Importing unlayered lets normal specificity decide instead, so a
+   class like .font-extrabold correctly beats the element selector h1. */
+@import "tailwindcss/theme.css";
+@import "tailwindcss/utilities.css";
+/* Explicit source paths: importing the sub-files above (instead of the
+   plain "tailwindcss" entry point) skips Tailwind's automatic content
+   detection, so without this the utilities layer above compiles to
+   nothing. app/ and components/ are the only two directories that use
+   Tailwind classes right now. */
+@source "./";
+@source "../components/";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   /* Slate/Emerald light theme — same palette as the marketing landing page.
@@ -26,6 +47,13 @@
 html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 15px; line-height: 1.6; color: var(--color-warm-900); background: var(--color-cream-100); }
 h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; font-weight: 500; line-height: 1.2; color: var(--color-warm-900); }
+/* Tailwind utilities live in a CSS @layer, which always loses to this
+   unlayered rule above regardless of source order, so a Tailwind class
+   like font-extrabold on an <h1> inside the landing page would silently
+   be overridden. This scoped, unlayered reset wins back the cascade for
+   just the .landing-scope subtree (used by app/page.tsx) without touching
+   headings anywhere else in the app. */
+.landing-scope h1, .landing-scope h2, .landing-scope h3, .landing-scope h4 { font-family: inherit; font-weight: inherit; line-height: inherit; color: inherit; }
 a { color: inherit; text-decoration: none; }
 button { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; cursor: pointer; }
 input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 14px; }
@@ -44,6 +72,14 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-seri
   from { transform: translateX(105%); }
   to { transform: translateX(0); }
 }
+
+@keyframes shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}
+.animate-shake { animation: shake 0.5s; }
 
 .btn-signout:hover { color: rgba(255,255,255,0.9) !important; }
 .btn-close-sheet:hover { background: var(--color-cream-200) !important; color: var(--color-warm-900) !important; }
