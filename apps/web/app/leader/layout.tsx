@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { IconBuildingHospital, IconClipboardCheck, IconDots, IconHeartbeat, IconLogout, IconMapPin, IconMessageCircle, IconMoonStars, IconSos, IconUserCircle, IconUsersGroup, IconWallet, IconX } from "@tabler/icons-react";
+import { IconBuildingHospital, IconBusStop, IconDots, IconHeartbeat, IconLogout, IconMapPin, IconMessageCircle, IconMoonStars, IconSos, IconUserCircle, IconUsersGroup, IconWallet, IconX } from "@tabler/icons-react";
 import { RequireAccess } from "@/components/auth/RequireAccess";
 import { LeaderGroupProvider, useLeaderGroup } from "@/lib/leader-context";
 import { authClient } from "@/lib/auth-client";
@@ -21,8 +21,8 @@ const PRIMARY_TABS = [
 ] as const;
 
 const MORE_ITEMS = [
-  ["Check-In Hotel", "/leader/check-in", IconClipboardCheck],
-  ["Data Hotel", "/leader/hotel", IconBuildingHospital],
+  ["Absen Bus", "/leader/check-in", IconBusStop],
+  ["Check-In Hotel", "/leader/hotel", IconBuildingHospital],
   ["Kesehatan", "/leader/health", IconHeartbeat],
   ["SOS", "/leader/sos", IconSos],
   ["Dompet", "/leader/wallet", IconWallet],

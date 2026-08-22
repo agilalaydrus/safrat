@@ -95,7 +95,8 @@ export default function LeaderCheckInPage() {
 
   return (
     <main style={page}>
-      <p style={eyebrow}>CHECK-IN</p>
+      <p style={eyebrow}>ABSEN BUS &amp; KENDARAAN</p>
+      <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--color-warm-500)" }}>Tandai jamaah yang sudah naik kendaraan sebelum keberangkatan, dan yang sudah turun saat tiba.</p>
       {fromCache && <p style={offlineBanner}><IconWifiOff size={16} />Menggunakan data tersimpan — Anda sedang offline</p>}
       <select value={movementId} onChange={(event) => setMovementId(event.target.value)} style={select}>
         {!movements.length && <option value="">Belum ada jadwal perjalanan</option>}
@@ -110,10 +111,10 @@ export default function LeaderCheckInPage() {
               <strong style={{ display: "block", marginBottom: 8 }}>{pilgrim.fullName}</strong>
               <div style={buttonRow}>
                 <button disabled={!movementId || state.departed || working === pilgrim.id + "DEPARTURE"} onClick={() => checkIn(pilgrim.id, "DEPARTURE")} style={state.departed ? doneButton : actionButton}>
-                  {state.departed && <IconCheck size={16} />}Keberangkatan
+                  {state.departed && <IconCheck size={16} />}Naik Kendaraan
                 </button>
                 <button disabled={!movementId || state.arrived || working === pilgrim.id + "ARRIVAL"} onClick={() => checkIn(pilgrim.id, "ARRIVAL")} style={state.arrived ? doneButton : actionButton}>
-                  {state.arrived && <IconCheck size={16} />}Kedatangan
+                  {state.arrived && <IconCheck size={16} />}Turun Kendaraan
                 </button>
               </div>
             </article>
