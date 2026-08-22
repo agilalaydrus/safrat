@@ -28,6 +28,6 @@ export default function RegistrationsAndWaitlistPage() {
 }
 
 const tabBar: React.CSSProperties = { display: "flex", gap: 8, margin: "32px 24px 0", borderBottom: "1px solid var(--color-cream-400)" };
-const tabBase: React.CSSProperties = { minHeight: 44, display: "inline-flex", alignItems: "center", gap: 6, padding: "0 16px", border: 0, borderBottom: "2px solid transparent", background: "transparent", fontWeight: 700, fontSize: 14, color: "var(--color-warm-500)" };
+const tabBase: React.CSSProperties = { minHeight: 44, display: "inline-flex", alignItems: "center", gap: 6, padding: "0 16px", border: 0, borderBottomWidth: 2, borderBottomStyle: "solid", borderBottomColor: "transparent", background: "transparent", fontWeight: 700, fontSize: 14, color: "var(--color-warm-500)" };
 const tabActive: React.CSSProperties = { ...tabBase, color: "var(--color-emerald-900)", borderBottomColor: "var(--color-gold-500)" };
 const tabInactive: React.CSSProperties = tabBase;
