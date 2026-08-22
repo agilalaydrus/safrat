@@ -249,7 +249,7 @@ func (s *AgentService) ListMyPilgrims(ctx context.Context, orgID, userID string)
 	for _, row := range rows {
 		msg := &hajjv1.AgentPilgrim{
 			Id: row.ID, FullName: row.FullName, PassportNumber: row.PassportNumber, Gender: row.Gender,
-			PaymentStatus: row.PaymentStatus, DocsComplete: row.DocsComplete, PilgrimStatus: row.PilgrimStatus, SeasonName: row.SeasonName,
+			PaymentStatus: row.PaymentStatus, DocsComplete: row.DocsComplete, PilgrimStatus: row.PilgrimStatus, SeasonName: row.SeasonName, SeasonId: row.SeasonID,
 		}
 		if row.DepartureDate != nil {
 			msg.DepartureDate = timestamppb.New(*row.DepartureDate)

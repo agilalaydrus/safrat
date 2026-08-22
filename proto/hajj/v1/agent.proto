@@ -324,6 +324,7 @@ message AgentPilgrim {
   string pilgrim_status = 7;
   string season_name = 8;
   google.protobuf.Timestamp departure_date = 9;
+  string season_id = 10;
 }
 
 message ListMyPilgrimsRequest {}

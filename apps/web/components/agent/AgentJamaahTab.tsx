@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { agentClient } from "@/lib/rpc";
 import { AgentPilgrim } from "@hajj-saas/proto-gen/hajj/v1/agent_pb";
+import SellPackageDialog from "./SellPackageDialog";
 
 const payBadge: Record<string, { label: string; color: string; bg: string }> = {
   PAID: { label: "Lunas", color: "#065f46", bg: "#d1fae5" },
@@ -14,10 +15,11 @@ export default function AgentJamaahTab() {
   const [pilgrims, setPilgrims] = useState<AgentPilgrim[]>([]);
   const [seasonFilter, setSeasonFilter] = useState("ALL");
   const [loading, setLoading] = useState(true);
+  const [sellTarget, setSellTarget] = useState<AgentPilgrim | null>(null);
+  const [notice, setNotice] = useState("");
 
-  useEffect(() => {
-    agentClient.listMyPilgrims({}).then((r) => setPilgrims(r.pilgrims)).finally(() => setLoading(false));
-  }, []);
+  const load = () => { agentClient.listMyPilgrims({}).then((r) => setPilgrims(r.pilgrims)).finally(() => setLoading(false)); };
+  useEffect(load, []);
 
   const seasons = useMemo(() => ["ALL", ...Array.from(new Set(pilgrims.map((p) => p.seasonName)))], [pilgrims]);
   const filtered = seasonFilter === "ALL" ? pilgrims : pilgrims.filter((p) => p.seasonName === seasonFilter);
@@ -38,7 +40,7 @@ export default function AgentJamaahTab() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 560 }}>
           <thead>
             <tr style={{ borderBottom: "1px solid var(--color-cream-400)", background: "var(--color-cream-100)" }}>
-              {["Nama", "Musim", "Pembayaran", "Dokumen", "Status"].map((h) => (
+              {["Nama", "Musim", "Pembayaran", "Dokumen", "Status", ""].map((h) => (
                 <th key={h} style={{ textAlign: "left", padding: "10px 14px", fontWeight: 700, color: "var(--color-warm-600)" }}>{h}</th>
               ))}
             </tr>
@@ -57,12 +59,27 @@ export default function AgentJamaahTab() {
                   <td style={{ padding: "12px 14px", color: p.pilgrimStatus === "CANCELLED" ? "var(--color-danger-600)" : "var(--color-emerald-700)", fontWeight: 600 }}>
                     {p.pilgrimStatus === "CANCELLED" ? "Dibatalkan" : "Aktif"}
                   </td>
+                  <td style={{ padding: "12px 14px" }}>
+                    {p.pilgrimStatus !== "CANCELLED" && <button onClick={() => setSellTarget(p)} style={sellBtn}>Jual Paket</button>}
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>}
+      {notice && <p style={{ marginTop: 12, fontSize: 13, color: "var(--color-emerald-800)" }}>{notice}</p>}
+      {sellTarget && (
+        <SellPackageDialog
+          open={!!sellTarget}
+          pilgrimId={sellTarget.id}
+          pilgrimName={sellTarget.fullName}
+          seasonId={sellTarget.seasonId}
+          onClose={() => setSellTarget(null)}
+          onSold={() => { setNotice(`Paket berhasil dijual ke ${sellTarget.fullName}.`); load(); }}
+        />
+      )}
     </div>
   );
 }
+const sellBtn: React.CSSProperties = { minHeight: 32, border: "1px solid var(--color-emerald-800)", borderRadius: 8, padding: "0 10px", background: "transparent", color: "var(--color-emerald-900)", fontSize: 12, fontWeight: 700 };

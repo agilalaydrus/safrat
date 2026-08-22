@@ -95,6 +95,7 @@ SELECT
   p.id, p.full_name, p.passport_number, p.gender, p.payment_status,
   (p.documents_passport AND p.documents_photo AND p.documents_vaccine) AS docs_complete,
   p.status AS pilgrim_status,
+  s.id AS season_id,
   s.name AS season_name,
   s.start_date AS departure_date
 FROM pilgrims p

@@ -294,7 +294,7 @@ func (r *AgentRepository) ListMyPilgrims(ctx context.Context, operatorID, agentI
 		result = append(result, &domain.AgentPilgrim{
 			ID: uuidString(row.ID), FullName: row.FullName, PassportNumber: row.PassportNumber, Gender: row.Gender,
 			PaymentStatus: row.PaymentStatus, DocsComplete: row.DocsComplete.Bool, PilgrimStatus: row.PilgrimStatus,
-			SeasonName: row.SeasonName, DepartureDate: timestamptzPtr(row.DepartureDate),
+			SeasonID: uuidString(row.SeasonID), SeasonName: row.SeasonName, DepartureDate: timestamptzPtr(row.DepartureDate),
 		})
 	}
 	return result, nil

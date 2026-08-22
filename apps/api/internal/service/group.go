@@ -100,7 +100,7 @@ func (s *GroupService) UpdateGroup(ctx context.Context, orgID string, req *hajjv
 	if err != nil {
 		return nil, serviceError("GroupService.UpdateGroup", err)
 	}
-	group, err := s.groupRepository.Update(ctx, op.ID, req.GroupId, req.Name, req.Capacity, req.LeaderId)
+	group, err := s.groupRepository.Update(ctx, op.ID, req.GroupId, req.Name, req.Capacity, req.LeaderId, req.KloterId)
 	if err != nil {
 		return nil, serviceError("GroupService.UpdateGroup", err)
 	}

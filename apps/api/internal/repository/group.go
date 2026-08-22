@@ -148,7 +148,7 @@ func (r *GroupRepository) Create(ctx context.Context, operatorID, seasonID, name
 	return toGroup(group), nil
 }
 
-func (r *GroupRepository) Update(ctx context.Context, operatorID, groupID, name string, capacity int32, leaderID string) (*domain.Group, error) {
+func (r *GroupRepository) Update(ctx context.Context, operatorID, groupID, name string, capacity int32, leaderID, kloterID string) (*domain.Group, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -157,7 +157,7 @@ func (r *GroupRepository) Update(ctx context.Context, operatorID, groupID, name 
 	if err != nil {
 		return nil, err
 	}
-	group, err := r.queries.UpdateGroup(ctx, db.UpdateGroupParams{ID: groupUUID, OperatorID: opUUID, Name: name, Capacity: capacity, Column5: leaderID})
+	group, err := r.queries.UpdateGroup(ctx, db.UpdateGroupParams{ID: groupUUID, OperatorID: opUUID, Name: name, Capacity: capacity, Column5: leaderID, Column6: kloterID})
 	if err != nil {
 		return nil, err
 	}

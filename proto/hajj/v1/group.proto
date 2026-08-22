@@ -64,6 +64,7 @@ message UpdateGroupRequest {
   string name = 2 [(buf.validate.field).string.min_len = 1];
   int32 capacity = 3;
   string leader_id = 4;
+  string kloter_id = 5;
 }
 
 message DeleteGroupRequest {

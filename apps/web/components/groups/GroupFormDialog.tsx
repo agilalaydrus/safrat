@@ -1,10 +1,10 @@
 "use client";
-import { FormEvent,useEffect,useState } from "react"; import { IconX } from "@tabler/icons-react"; import { Group,OperatorMember } from "@hajj-saas/proto-gen/hajj/v1/group_pb"; import { groupClient } from "@/lib/rpc"; import { authClient } from "@/lib/auth-client";
+import { FormEvent,useEffect,useState } from "react"; import { IconX } from "@tabler/icons-react"; import { Group,OperatorMember } from "@hajj-saas/proto-gen/hajj/v1/group_pb"; import { Kloter } from "@hajj-saas/proto-gen/hajj/v1/kloter_pb"; import { groupClient,kloterClient } from "@/lib/rpc"; import { authClient } from "@/lib/auth-client";
 type P={open:boolean;seasonId:string;initial?:Group;onClose:()=>void;onSaved:(n:string)=>void};
 export default function GroupFormDialog({open,seasonId,initial,onClose,onSaved}:P){
-  const[name,setName]=useState(""),[capacity,setCapacity]=useState("40"),[leaderId,setLeaderId]=useState(""),[members,setMembers]=useState<OperatorMember[]>([]),[error,setError]=useState(""),[saving,setSaving]=useState(false);
+  const[name,setName]=useState(""),[capacity,setCapacity]=useState("40"),[leaderId,setLeaderId]=useState(""),[kloterId,setKloterId]=useState(""),[members,setMembers]=useState<OperatorMember[]>([]),[kloters,setKloters]=useState<Kloter[]>([]),[error,setError]=useState(""),[saving,setSaving]=useState(false);
   const[inviting,setInviting]=useState(false),[inviteEmail,setInviteEmail]=useState(""),[inviteNotice,setInviteNotice]=useState("");
-  useEffect(()=>{if(open){setName(initial?.name??"");setCapacity(String(initial?.capacity??40));setLeaderId(initial?.leaderId??"");setError("");setInviteEmail("");setInviteNotice("");groupClient.listOperatorMembers({}).then(r=>setMembers(r.members)).catch(()=>{})}},[open,initial]);
+  useEffect(()=>{if(open){setName(initial?.name??"");setCapacity(String(initial?.capacity??40));setLeaderId(initial?.leaderId??"");setKloterId(initial?.kloterId??"");setError("");setInviteEmail("");setInviteNotice("");groupClient.listOperatorMembers({}).then(r=>setMembers(r.members)).catch(()=>{});if(seasonId)kloterClient.listKloters({seasonId}).then(r=>setKloters(r.kloters)).catch(()=>{})}},[open,initial,seasonId]);
   async function sendInvite(){
     if(!inviteEmail.trim())return;
     setInviting(true);setInviteNotice("");
@@ -23,7 +23,7 @@ export default function GroupFormDialog({open,seasonId,initial,onClose,onSaved}:
     if(Number(capacity)<1){setError("Kapasitas minimal 1.");return}
     setSaving(true);
     try{
-      if(initial)await groupClient.updateGroup({groupId:initial.id,name:name.trim(),capacity:Number(capacity),leaderId});
+      if(initial)await groupClient.updateGroup({groupId:initial.id,name:name.trim(),capacity:Number(capacity),leaderId,kloterId});
       else await groupClient.createGroup({seasonId,name:name.trim(),capacity:Number(capacity)});
       onSaved(name.trim());onClose();
     }catch(caught){setError(caught instanceof Error?caught.message:"Gagal menyimpan grup.")}
@@ -34,6 +34,7 @@ export default function GroupFormDialog({open,seasonId,initial,onClose,onSaved}:
       <label style={{display:"grid",gap:6}}><span style={lab}>Nama grup</span><input className="safrat-input" value={name} onChange={e=>setName(e.target.value)} placeholder="mis. GROUP-A" style={i}/></label>
       <label style={{display:"grid",gap:6}}><span style={lab}>Kapasitas</span><input className="safrat-input" type="number" min="1" value={capacity} onChange={e=>setCapacity(e.target.value)} style={i}/></label>
       {initial&&<label style={{display:"grid",gap:6}}><span style={lab}>Pilih Muttawwif</span><select className="safrat-input" value={leaderId} onChange={e=>setLeaderId(e.target.value)} style={i}><option value="">Belum ditentukan</option>{members.map(m=><option key={m.userId} value={m.userId}>{m.name} ({m.email})</option>)}</select></label>}
+      {initial&&<label style={{display:"grid",gap:6}}><span style={lab}>Kloter</span><select className="safrat-input" value={kloterId} onChange={e=>setKloterId(e.target.value)} style={i}><option value="">Belum ditentukan</option>{kloters.map(k=><option key={k.id} value={k.id}>{k.code}</option>)}</select></label>}
       {initial&&<div style={{display:"grid",gap:6,padding:12,background:"var(--color-cream-100)",borderRadius:10}}>
         <span style={{...lab,fontSize:12}}>Belum ada di daftar? Undang Muttawwif baru</span>
         <div style={{display:"flex",gap:8}}>

@@ -54,7 +54,7 @@ RETURNING *;
 
 -- name: UpdateGroup :one
 UPDATE groups
-SET name = $3, capacity = $4, leader_id = NULLIF($5::text, '')
+SET name = $3, capacity = $4, leader_id = NULLIF($5::text, ''), kloter_id = NULLIF($6::text, '')::uuid
 WHERE id = $1 AND operator_id = $2
 RETURNING *;
 

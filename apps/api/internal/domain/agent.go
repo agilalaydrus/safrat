@@ -101,6 +101,7 @@ type AgentPilgrim struct {
 	PaymentStatus  string
 	DocsComplete   bool
 	PilgrimStatus  string
+	SeasonID       string
 	SeasonName     string
 	DepartureDate  *time.Time
 }

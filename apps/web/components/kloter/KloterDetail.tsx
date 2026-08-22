@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { IconBuilding, IconBus, IconGenderFemale, IconGenderMale, IconPlane, IconUserCheck, IconUsers, IconUsersGroup, IconWheelchair } from "@tabler/icons-react";
+import { IconBuilding, IconBus, IconGenderFemale, IconGenderMale, IconPackage, IconPlane, IconUserCheck, IconUsers, IconUsersGroup, IconWheelchair } from "@tabler/icons-react";
 import { Gender, Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { Kloter } from "@hajj-saas/proto-gen/hajj/v1/kloter_pb";
 import { Movement } from "@hajj-saas/proto-gen/hajj/v1/transport_pb";
 import { Group } from "@hajj-saas/proto-gen/hajj/v1/group_pb";
-import { kloterClient, pilgrimClient, transportClient, accommodationClient, groupClient } from "@/lib/rpc";
+import { Product } from "@hajj-saas/proto-gen/hajj/v1/product_pb";
+import { kloterClient, pilgrimClient, transportClient, accommodationClient, groupClient, productClient } from "@/lib/rpc";
 
 const TRIP_LEG_LABEL: Record<string, string> = { DEPARTURE: "Keberangkatan", RETURN: "Kepulangan" };
 const MODE_ICON: Record<string, React.ComponentType<{ size?: number }>> = { FLIGHT: IconPlane, BUS: IconBus, TRAIN: IconBus };
@@ -37,6 +38,7 @@ export default function KloterDetail({ id }: { id: string }) {
   const [roster, setRoster] = useState<Pilgrim[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [linkedProducts, setLinkedProducts] = useState<Product[]>([]);
   const [rooms, setRooms] = useState<Record<string, { hotelName: string; roomNumber: string }[]>>({});
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
@@ -50,6 +52,7 @@ export default function KloterDetail({ id }: { id: string }) {
       pilgrimClient.listPilgrims({ seasonId, limit: 1000, offset: 0 }).then((r) => setRoster(r.pilgrims.filter((p) => p.kloterId === id))),
       transportClient.listMovements({ seasonId }).then((r) => setMovements(r.movements.filter((m) => m.kloterId === id))),
       groupClient.listGroupsByKloter({ kloterId: id }).then((r) => setGroups(r.groups)),
+      productClient.listProducts({ seasonId }).then((r) => setLinkedProducts(r.products.filter((p) => p.defaultKloterId === id))).catch(() => {}),
       accommodationClient.listPilgrimRoomAssignments({ seasonId }).then((r) => {
         const map: Record<string, { hotelName: string; roomNumber: string }[]> = {};
         for (const a of r.assignments) (map[a.pilgrimId] ??= []).push({ hotelName: a.hotelName, roomNumber: a.roomNumber });
@@ -184,6 +187,32 @@ export default function KloterDetail({ id }: { id: string }) {
           ))}
         </div> : <p style={{ color: "var(--color-warm-400)", fontSize: 13 }}>Belum ada grup yang ditugaskan ke kloter ini.</p>}
       </section>
+
+      {linkedProducts.length > 0 && (
+        <section style={{ ...card, marginTop: 16 }}>
+          <h2 style={sectionTitle}><IconPackage size={18} color="var(--color-emerald-800)" />Paket Terkait ({linkedProducts.length})</h2>
+          <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--color-warm-500)" }}>Jamaah yang membeli paket ini otomatis ditempatkan ke kloter ini.</p>
+          <div style={{ display: "grid", gap: 10 }}>
+            {linkedProducts.map((p) => (
+              <div key={p.id} style={{ background: "#fff", border: "1px solid var(--color-cream-300)", borderRadius: 10, padding: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <strong>{p.name}</strong>
+                  <Link href="/dashboard/products" style={{ fontSize: 12, color: "var(--color-gold-800)" }}>Kelola Produk</Link>
+                </div>
+                {p.itineraryDays.length > 0 && (
+                  <div style={{ display: "grid", gap: 4, marginTop: 8 }}>
+                    {p.itineraryDays.map((day) => (
+                      <div key={day.dayNumber} style={{ fontSize: 12, color: "var(--color-warm-600)" }}>
+                        <span style={legBadge}>Hari {day.dayNumber}</span> {day.title}{day.city && ` — ${day.city}`}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section style={{ ...card, marginTop: 16 }}>
         <h2 style={sectionTitle}><IconBuilding size={18} color="var(--color-emerald-800)" />Distribusi Hotel &amp; Akomodasi</h2>
