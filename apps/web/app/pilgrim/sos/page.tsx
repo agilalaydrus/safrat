@@ -29,8 +29,8 @@ export default function PilgrimSOSPage() {
   }, []);
 
   useOfflineQueueFlush(SOS_QUEUE_KIND, async (payload) => {
-    const { appAccessCode, lat, lng } = payload as { appAccessCode: string; lat?: number; lng?: number };
-    await sosClient.createSOSAlert({ appAccessCode, lat, lng });
+    const { appAccessCode, lat, lng, idempotencyKey } = payload as { appAccessCode: string; lat?: number; lng?: number; idempotencyKey?: string };
+    await sosClient.createSOSAlert({ appAccessCode, lat, lng, idempotencyKey });
     markDelivered();
   });
 
@@ -83,12 +83,16 @@ export default function PilgrimSOSPage() {
     // Best-effort fresh GPS fix — a short timeout so SOS never waits long on
     // it; falls back server-side to the pilgrim's last periodic location ping.
     const location = await getFreshLocation();
+    // One idempotency key per SOS action, reused by any offline replay — a
+    // retry after a lost response resolves to the same alert instead of
+    // raising a duplicate emergency.
+    const idempotencyKey = crypto.randomUUID();
     try {
-      await sosClient.createSOSAlert({ appAccessCode: code, lat: location?.lat, lng: location?.lng });
+      await sosClient.createSOSAlert({ appAccessCode: code, lat: location?.lat, lng: location?.lng, idempotencyKey });
       markDelivered();
       setStatus("sent");
     } catch {
-      enqueueAction(SOS_QUEUE_KIND, { appAccessCode: code, lat: location?.lat, lng: location?.lng });
+      enqueueAction(SOS_QUEUE_KIND, { appAccessCode: code, lat: location?.lat, lng: location?.lng, idempotencyKey });
       setStatus("queued");
     }
   }

@@ -51,6 +51,9 @@ message CreateSOSAlertRequest {
   // back to the pilgrim's last periodic location ping when omitted/unavailable.
   optional double lat = 2 [(buf.validate.field).double = {gte: -90, lte: 90}];
   optional double lng = 3 [(buf.validate.field).double = {gte: -180, lte: 180}];
+  // Optional client-generated key for offline-replay dedup — the same key on a
+  // retry resolves to the original alert instead of raising a duplicate.
+  string idempotency_key = 4;
 }
 
 message ListActiveSOSAlertsRequest {}

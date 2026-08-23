@@ -1,7 +1,15 @@
 -- name: CreateSOSAlert :one
-INSERT INTO sos_alerts (operator_id, pilgrim_id, lat, lng)
-VALUES ($1, $2, $3, $4)
+-- ON CONFLICT DO NOTHING returns no row on a duplicate idempotency_key (the
+-- repo detects ErrNoRows and fetches the existing alert). An empty key never
+-- conflicts — the partial unique index excludes it — so keyless callers always
+-- insert.
+INSERT INTO sos_alerts (operator_id, pilgrim_id, lat, lng, idempotency_key)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (pilgrim_id, idempotency_key) WHERE idempotency_key <> '' DO NOTHING
 RETURNING *;
+
+-- name: GetSOSAlertByIdempotencyKey :one
+SELECT * FROM sos_alerts WHERE pilgrim_id = $1 AND idempotency_key = $2;
 
 -- name: ListActiveSOSAlerts :many
 SELECT s.*, p.full_name AS pilgrim_name

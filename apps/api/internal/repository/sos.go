@@ -2,10 +2,12 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -15,20 +17,32 @@ func NewSOSRepository(queries *db.Queries) *SOSRepository {
 	return &SOSRepository{queries: queries}
 }
 
-func (r *SOSRepository) Create(ctx context.Context, operatorID, pilgrimID string, lat, lng *float64) (*domain.SOSAlert, error) {
+// Create inserts an SOS alert. When idempotencyKey is non-empty and one already
+// exists for this pilgrim+key (an offline replay), it returns the existing alert
+// with created=false — the service uses that to skip re-notifying.
+func (r *SOSRepository) Create(ctx context.Context, operatorID, pilgrimID string, lat, lng *float64, idempotencyKey string) (alert *domain.SOSAlert, created bool, err error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	pilgrimUUID, err := pgUUID(pilgrimID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	alert, err := r.queries.CreateSOSAlert(ctx, db.CreateSOSAlertParams{OperatorID: opUUID, PilgrimID: pilgrimUUID, Lat: float8Value(lat), Lng: float8Value(lng)})
+	row, err := r.queries.CreateSOSAlert(ctx, db.CreateSOSAlertParams{OperatorID: opUUID, PilgrimID: pilgrimUUID, Lat: float8Value(lat), Lng: float8Value(lng), IdempotencyKey: idempotencyKey})
+	if errors.Is(err, pgx.ErrNoRows) {
+		// ON CONFLICT DO NOTHING returned nothing — a duplicate key. Return
+		// the already-recorded alert.
+		existing, getErr := r.queries.GetSOSAlertByIdempotencyKey(ctx, db.GetSOSAlertByIdempotencyKeyParams{PilgrimID: pilgrimUUID, IdempotencyKey: idempotencyKey})
+		if getErr != nil {
+			return nil, false, getErr
+		}
+		return toSOSAlert(existing, ""), false, nil
+	}
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return toSOSAlert(alert, ""), nil
+	return toSOSAlert(row, ""), true, nil
 }
 
 func float8Value(value *float64) pgtype.Float8 {

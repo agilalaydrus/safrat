@@ -55,11 +55,16 @@ func (s *SOSService) CreateSOSAlert(ctx context.Context, req *hajjv1.CreateSOSAl
 	if lat == nil || lng == nil {
 		lat, lng = pilgrim.LastLat, pilgrim.LastLng
 	}
-	alert, err := s.sosRepository.Create(ctx, pilgrim.OperatorID, pilgrim.ID, lat, lng)
+	alert, created, err := s.sosRepository.Create(ctx, pilgrim.OperatorID, pilgrim.ID, lat, lng, req.IdempotencyKey)
 	if err != nil {
 		return nil, serviceError("SOSService.CreateSOSAlert", err)
 	}
 	alert.PilgrimName = pilgrim.FullName
+	if !created {
+		// Idempotent replay of an already-recorded alert — return it without
+		// re-notifying coordinators or re-publishing (no duplicate emergency).
+		return sosAlertMessage(alert), nil
+	}
 	s.logActivity(ctx, pilgrim.OperatorID, "", "sos_created", alert.ID, fmt.Sprintf("SOS dari %s", pilgrim.FullName))
 	if s.notifier != nil {
 		s.notifier.NotifySOSAlert(ctx, pilgrim.OperatorID, alert)
