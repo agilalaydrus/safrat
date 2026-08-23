@@ -1,6 +1,7 @@
 "use client";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Timestamp } from "@bufbuild/protobuf";
+import { Code, ConnectError } from "@connectrpc/connect";
 import { IconX } from "@tabler/icons-react";
 import { Season, SeasonType } from "@hajj-saas/proto-gen/hajj/v1/season_pb";
 import { seasonClient } from "@/lib/rpc";
@@ -18,6 +19,7 @@ export default function SeasonFormDialog({ open, initial, onClose, onSaved }: Pr
   const [capacity, setCapacity] = useState("0");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -39,12 +41,14 @@ export default function SeasonFormDialog({ open, initial, onClose, onSaved }: Pr
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (submittingRef.current) return;
     const errs: Record<string, string> = {};
     if (!name.trim()) errs.name = "Nama musim wajib diisi.";
     if (!startDate) errs.startDate = "Tanggal mulai wajib diisi.";
     if (!endDate) errs.endDate = "Tanggal selesai wajib diisi.";
     if (startDate && endDate && startDate > endDate) errs.endDate = "Tanggal selesai harus setelah tanggal mulai.";
     if (Object.keys(errs).length) { setErrors(errs); return; }
+    submittingRef.current = true;
     setSaving(true);
     try {
       const payload = {
@@ -59,8 +63,12 @@ export default function SeasonFormDialog({ open, initial, onClose, onSaved }: Pr
       onSaved(name.trim());
       onClose();
     } catch (err) {
-      setErrors({ _form: err instanceof Error ? err.message : "Gagal menyimpan musim." });
+      const message = ConnectError.from(err).code === Code.AlreadyExists
+        ? "Musim dengan nama, jenis, tanggal, dan kapasitas yang sama sudah ada."
+        : err instanceof Error ? err.message : "Gagal menyimpan musim.";
+      setErrors({ _form: message });
     } finally {
+      submittingRef.current = false;
       setSaving(false);
     }
   }

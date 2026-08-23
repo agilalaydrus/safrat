@@ -28,6 +28,11 @@
 - Operator slugs now use the meaningful full name after removing generic legal
   prefixes (`PT`, `CV`, `KBIH/KBIHU`, etc.). Migration 076 repairs only existing
   generic slugs such as `/p/pt`; it is applied locally.
+- Season creation is idempotent and protected at three layers: synchronous UI
+  submit locks, backend exact-retry upsert, and a unique normalized season name
+  per operator. Migrations 077–078 safely removed empty local duplicates; one
+  `Umrah Musim Dingin 2026` row remains. Same-name rows with dependent data make
+  the migration fail for manual merge rather than cascading data loss.
 - Verified locally: web typecheck, ESLint (0 errors; 23 pre-existing hook
   warnings), production build, and generated-manifest inspection (20/20 PWA
   routes present). A real-browser/device offline test is still recommended.
@@ -36,8 +41,8 @@
 
 ## Repo / deploy state
 
-- **10 commits sit on local `main`, NOT pushed** after the operator-slug fix in
-  the current work (see `git log origin/main..main`).
+- **11 commits sit on local `main`, NOT pushed** after the season-duplicate fix
+  in the current work (see `git log origin/main..main`).
   **Pushing `main` triggers a production deploy** (`.github/workflows/deploy.yml`
   → builds images, runs goose migrations, redeploys `app.tawafiqhub.id`). The
   owner has deliberately **held deploys** — do not push `main` unless told.
@@ -45,7 +50,7 @@
   and rebuilt by CI — never commit it. `apps/web/tsconfig.tsbuildinfo` and
   untracked scratch `*.md` / media are also excluded.
 - **Local dev DB was wiped clean** (all rows truncated, schema kept) for fresh
-  manual testing. Migrations **073–076 are applied locally**; in prod goose
+  manual testing. Migrations **073–078 are applied locally**; in prod goose
   applies them on deploy.
 - Local processes: web dev on `:3131`; Go API on `:8131` was restarted from
   current source after the old binary returned 404 for

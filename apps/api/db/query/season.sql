@@ -1,6 +1,12 @@
 -- name: CreateSeason :one
 INSERT INTO seasons (operator_id, name, type, start_date, end_date, capacity, slug)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (operator_id, lower(btrim(name)))
+DO UPDATE SET name = seasons.name
+WHERE seasons.type = EXCLUDED.type
+  AND seasons.start_date = EXCLUDED.start_date
+  AND seasons.end_date = EXCLUDED.end_date
+  AND seasons.capacity = EXCLUDED.capacity
 RETURNING *;
 
 -- name: SeasonSlugExists :one

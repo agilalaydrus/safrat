@@ -21,10 +21,8 @@ var (
 	seasonSlugTrimHyphens  = regexp.MustCompile(`(^-|-$)`)
 )
 
-// seasonSlugBase slugifies the FULL season name (unlike operator slugs,
-// which use only the first word) — a season's full name is what actually
-// distinguishes it, e.g. "Musim Haji 2025" vs "Musim Haji 2026" would
-// otherwise both collide on "musim".
+// seasonSlugBase slugifies the full season name. The full name is what
+// distinguishes it, e.g. "Musim Haji 2025" vs "Musim Haji 2026".
 func seasonSlugBase(name string) string {
 	lowered := seasonSlugStripPattern.ReplaceAllString(strings.ToLower(strings.TrimSpace(name)), "-")
 	return seasonSlugTrimHyphens.ReplaceAllString(lowered, "")
@@ -56,8 +54,14 @@ func (r *SeasonRepository) Create(ctx context.Context, operatorID, name string, 
 		Capacity:   capacity,
 		Slug:       pgtype.Text{String: slug, Valid: slug != ""},
 	})
+	// CreateSeason's ON CONFLICT returns the existing row only when every
+	// business value matches. The same name with different details returns no
+	// row so callers can direct the user to edit the existing season instead.
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperror.ErrAlreadyExists
+	}
 	if err != nil {
-		return nil, err
+		return nil, databaseError(err)
 	}
 	return toSeason(season), nil
 }
@@ -186,7 +190,7 @@ func (r *SeasonRepository) Update(ctx context.Context, operatorID, seasonID, nam
 		Type: databaseSeasonType(seasonType), StartDate: pgTimestamp(startDate), EndDate: pgTimestamp(endDate), Capacity: capacity,
 	})
 	if err != nil {
-		return nil, err
+		return nil, databaseError(err)
 	}
 	return toSeason(season), nil
 }

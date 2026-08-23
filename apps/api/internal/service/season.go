@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/apperror"
@@ -26,14 +27,14 @@ func NewSeasonService(operatorRepository *repository.OperatorRepository, seasonR
 }
 
 func (s *SeasonService) Create(ctx context.Context, authenticatedOrgID string, request *hajjv1.CreateSeasonRequest) (*hajjv1.Season, error) {
-	if request == nil || request.StartDate == nil || request.EndDate == nil || request.StartDate.AsTime().After(request.EndDate.AsTime()) {
+	if request == nil || strings.TrimSpace(request.Name) == "" || request.StartDate == nil || request.EndDate == nil || request.StartDate.AsTime().After(request.EndDate.AsTime()) {
 		return nil, serviceError("SeasonService.Create", apperror.ErrValidation)
 	}
 	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
 	if err != nil {
 		return nil, serviceError("SeasonService.Create", err)
 	}
-	season, err := s.seasonRepository.Create(ctx, operator.ID, request.Name, seasonType(request.Type), request.StartDate.AsTime(), request.EndDate.AsTime(), request.Capacity)
+	season, err := s.seasonRepository.Create(ctx, operator.ID, strings.TrimSpace(request.Name), seasonType(request.Type), request.StartDate.AsTime(), request.EndDate.AsTime(), request.Capacity)
 	if err != nil {
 		return nil, serviceError("SeasonService.Create", err)
 	}
@@ -57,14 +58,14 @@ func (s *SeasonService) List(ctx context.Context, authenticatedOrgID string) (*h
 }
 
 func (s *SeasonService) Update(ctx context.Context, authenticatedOrgID string, request *hajjv1.UpdateSeasonRequest) (*hajjv1.Season, error) {
-	if request == nil || !isUUID(request.SeasonId) || request.StartDate == nil || request.EndDate == nil || request.StartDate.AsTime().After(request.EndDate.AsTime()) {
+	if request == nil || !isUUID(request.SeasonId) || strings.TrimSpace(request.Name) == "" || request.StartDate == nil || request.EndDate == nil || request.StartDate.AsTime().After(request.EndDate.AsTime()) {
 		return nil, serviceError("SeasonService.Update", apperror.ErrValidation)
 	}
 	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
 	if err != nil {
 		return nil, serviceError("SeasonService.Update", err)
 	}
-	season, err := s.seasonRepository.Update(ctx, operator.ID, request.SeasonId, request.Name, seasonType(request.Type), request.StartDate.AsTime(), request.EndDate.AsTime(), request.Capacity)
+	season, err := s.seasonRepository.Update(ctx, operator.ID, request.SeasonId, strings.TrimSpace(request.Name), seasonType(request.Type), request.StartDate.AsTime(), request.EndDate.AsTime(), request.Capacity)
 	if err != nil {
 		return nil, serviceError("SeasonService.Update", err)
 	}

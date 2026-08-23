@@ -1,7 +1,8 @@
 "use client";
 
 import { Timestamp } from "@bufbuild/protobuf";
-import { FormEvent, useState } from "react";
+import { Code, ConnectError } from "@connectrpc/connect";
+import { FormEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SeasonType } from "@hajj-saas/proto-gen/hajj/v1/season_pb";
 import { authClient } from "@/lib/auth-client";
@@ -46,6 +47,7 @@ export default function OnboardingPage() {
   const [orgCreated, setOrgCreated] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const submittingRef = useRef(false);
 
   function update<K extends keyof Values>(key: K, value: Values[K]) {
     setValues((current) => ({ ...current, [key]: value }));
@@ -53,12 +55,16 @@ export default function OnboardingPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setError(null);
     if (isPending) {
       setError("Mohon tunggu, sesi Anda sedang dimuat.");
+      submittingRef.current = false;
       return;
     }
     if (!session?.user) {
+      submittingRef.current = false;
       router.push("/sign-in");
       return;
     }
@@ -102,8 +108,12 @@ export default function OnboardingPage() {
         router.push("/dashboard");
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Terjadi kesalahan. Silakan coba lagi.");
+      const message = ConnectError.from(caught).code === Code.AlreadyExists
+        ? "Nama musim sudah digunakan. Ubah musim yang ada atau gunakan nama lain."
+        : caught instanceof Error ? caught.message : "Terjadi kesalahan. Silakan coba lagi.";
+      setError(message);
     } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   }
