@@ -14,6 +14,7 @@ export default function Navbar() {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
+    <>
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/95">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Brand */}
@@ -87,8 +88,12 @@ export default function Navbar() {
           </button>
         </div>
       </div>
+      </header>
 
-      {/* Mobile drawer */}
+      {/* Mobile drawer — rendered outside <header> so its fixed positioning is
+          relative to the viewport, not trapped by the header's backdrop-blur
+          (a backdrop-filter ancestor becomes the containing block for fixed
+          descendants, which would clip the drawer to the header bar). */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <button
@@ -148,6 +153,6 @@ export default function Navbar() {
           </div>
         </div>
       )}
-    </header>
+    </>
   );
 }
