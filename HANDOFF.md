@@ -43,8 +43,9 @@
 - **Local dev DB was wiped clean** (all rows truncated, schema kept) for fresh
   manual testing. Migrations **073, 074, 075 are applied locally**; in prod goose
   applies them on deploy.
-- Local processes: web dev on `:3131`; Go API on `:8131` is an **old binary** —
-  restart (`cd apps/api && go run ./cmd/server`) to pick up the new RPCs.
+- Local processes: web dev on `:3131`; Go API on `:8131` was restarted from
+  current source after the old binary returned 404 for
+  `OperatorService.UpdateMyProfile`.
 
 ## What shipped this session (the 5 commits)
 
