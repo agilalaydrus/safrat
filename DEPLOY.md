@@ -6,8 +6,11 @@
 > - `9100` → Go API (container internal: 8080)
 > - `9101` → Next.js Web (container internal: 3000)
 > - `5432` NOT exposed — PostgreSQL stays inside Docker network only
-> - `6379` NOT exposed — Redis stays inside Docker network only (§4);
->   only `worker` reads it, the API server never touches Redis directly
+> - `6379` NOT exposed — Redis stays inside Docker network only (§4). The
+>   `worker` reads it for the asynq job queue; the `api` reads it too when
+>   `REDIS_URL` is set, for the Redis-backed monitoring event bus
+>   (`internal/events/bus.go`) — optional, and required only to run more than
+>   one `api` replica
 > - `worker` (§4, `cmd/worker`) has no host port at all — it's a
 >   background scheduler, not an HTTP service
 
@@ -185,7 +188,8 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 
 # Redis — self-hosted via the `redis` compose service above, not Upstash;
-# only cmd/worker reads REDIS_URL (the API server never touches Redis)
+# cmd/worker always reads REDIS_URL (asynq queue); the api also reads it when
+# set, for the Redis-backed monitoring event bus (optional, multi-replica).
 # REDIS_URL is hardcoded to redis://redis:6379 in the worker service block
 # above since it's an internal-network hostname, not a secret — nothing
 # needed here.

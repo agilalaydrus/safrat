@@ -24,6 +24,7 @@ import (
 	"github.com/hajj-saas/api/internal/repository"
 	"github.com/hajj-saas/api/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -93,6 +94,7 @@ func main() {
 		journeyRepository := repository.NewJourneyRepository(queries)
 		ritualRepository := repository.NewRitualRepository(queries)
 		healthReportRepository := repository.NewHealthReportRepository(queries)
+		outboxRepository := repository.NewOutboxRepository(queries)
 		monitoringRepository := repository.NewMonitoringRepository(queries)
 		analyticsRepository := repository.NewAnalyticsRepository(queries)
 
@@ -106,9 +108,23 @@ func main() {
 		// still works because every method checks its own receiver for nil.
 		var pushNotifier service.PushNotifier = firebasePusher
 		// eventBus feeds the operator monitoring dashboard's real-time stream
-		// (MonitoringService.StreamEvents) — in-process pub/sub, see
-		// internal/events/bus.go for why (and when to switch to Redis).
-		eventBus := events.NewBus()
+		// (MonitoringService.StreamEvents). Redis-backed when REDIS_URL is set
+		// (cross-replica delivery, horizontal-scale ready); otherwise an
+		// in-process bus that only works for a single instance. See
+		// internal/events/bus.go.
+		var eventBus *events.Bus
+		if redisURL := strings.TrimSpace(os.Getenv("REDIS_URL")); redisURL != "" {
+			opt, parseErr := redis.ParseURL(redisURL)
+			if parseErr != nil {
+				logger.Error("parse REDIS_URL for event bus", "error", parseErr)
+				os.Exit(1)
+			}
+			eventBus = events.NewRedisBus(redis.NewClient(opt))
+			logger.Info("event bus backend", "type", "redis", "note", "multi-replica ready")
+		} else {
+			eventBus = events.NewBus()
+			logger.Info("event bus backend", "type", "in-memory", "note", "single instance only")
+		}
 
 		operatorService := service.NewOperatorService(operatorRepository, seasonRepository)
 		pilgrimService := service.NewPilgrimService(operatorRepository, pilgrimRepository, accommodationRepository, transportRepository, auditRepository, pool)
@@ -126,7 +142,7 @@ func main() {
 		notificationService := service.NewNotificationService(operatorRepository, notificationRepository)
 		kloterService := service.NewKloterService(operatorRepository, kloterRepository, auditRepository, journeyService, pushNotifier, eventBus)
 		ritualService := service.NewRitualService(operatorRepository, ritualRepository, journeyRepository, auditRepository, pushNotifier, eventBus)
-		healthReportService := service.NewHealthReportService(operatorRepository, healthReportRepository, pilgrimRepository, auditRepository, pushNotifier, eventBus)
+		healthReportService := service.NewHealthReportService(operatorRepository, healthReportRepository, pilgrimRepository, auditRepository, outboxRepository, pool, eventBus)
 		monitoringService := service.NewMonitoringService(operatorRepository, monitoringRepository, groupRepository, eventBus)
 		identityService := service.NewIdentityService(identityRepository)
 		xenditClient := payment.NewClient(config.XenditSecretKey)

@@ -1,18 +1,26 @@
-// Package events is an in-process pub/sub broker for the operator
-// monitoring dashboard's real-time stream (MonitoringService.StreamEvents).
+// Package events is a pub/sub broker for the operator monitoring dashboard's
+// real-time stream (MonitoringService.StreamEvents).
 //
-// Deliberately in-memory, not Redis — same call as the rate limiter in
-// internal/middleware/ratelimit.go ("fine for the single-API-instance
-// deployment in DEPLOY.md; move to Redis if the API ever runs more than
-// one replica"). If this API is ever horizontally scaled, a subscriber
-// connected to instance A will miss events published on instance B —
-// switch Bus to a Redis pub/sub-backed implementation at that point,
-// keeping the same Publish/Subscribe interface so callers don't change.
+// Two interchangeable backends behind the same Publish/Subscribe interface:
+//
+//   - NewBus() — in-memory, single-process. Fine for a one-replica deployment;
+//     a subscriber on instance A never sees events published on instance B.
+//   - NewRedisBus(rdb) — Redis pub/sub. Publish on any replica reaches
+//     subscribers on every replica, so the API can scale horizontally. The
+//     server picks this automatically when REDIS_URL is set.
+//
+// Callers hold a *Bus and don't care which backend is active — exactly the
+// "keep the same interface so callers don't change" migration the in-memory
+// version was written to allow.
 package events
 
 import (
+	"context"
+	"encoding/json"
 	"sync"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type Event struct {
@@ -35,18 +43,31 @@ const maxSubscribersPerOperator = 20
 const eventBufferSize = 8
 
 type Bus struct {
-	mu   sync.Mutex
-	subs map[string]map[chan Event]struct{} // operatorID -> set of subscriber channels
+	mu     sync.Mutex
+	subs   map[string]map[chan Event]struct{} // operatorID -> set of subscriber channels (in-memory backend)
+	counts map[string]int                     // operatorID -> subscriber count (redis backend cap)
+	rdb    *redis.Client                      // nil => in-memory backend
 }
 
 func NewBus() *Bus {
 	return &Bus{subs: make(map[string]map[chan Event]struct{})}
 }
 
+// NewRedisBus returns a Redis-pub/sub-backed bus — cross-replica delivery,
+// same interface as NewBus.
+func NewRedisBus(rdb *redis.Client) *Bus {
+	return &Bus{subs: make(map[string]map[chan Event]struct{}), counts: make(map[string]int), rdb: rdb}
+}
+
+func channelKey(operatorID string) string { return "events:" + operatorID }
+
 // Subscribe returns a channel of events for this operator and an
 // unsubscribe func the caller must defer — ok is false (channel is nil)
 // if this operator already has maxSubscribersPerOperator open streams.
 func (b *Bus) Subscribe(operatorID string) (ch chan Event, unsubscribe func(), ok bool) {
+	if b.rdb != nil {
+		return b.subscribeRedis(operatorID)
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	set, exists := b.subs[operatorID]
@@ -73,13 +94,83 @@ func (b *Bus) Subscribe(operatorID string) (ch chan Event, unsubscribe func(), o
 	return ch, unsubscribe, true
 }
 
-// Publish is non-blocking — a slow/stalled subscriber never backs up the
-// service call that triggered the event (see eventBufferSize: a full
-// channel just drops the event for that one subscriber). A nil *Bus is a
-// valid no-op, same defensive-nil pattern as PushNotifier/SOSNotifier —
-// callers never need to nil-check before calling.
+// subscribeRedis backs Subscribe when a Redis client is configured. The reader
+// goroutine is the sole owner of ch — the only sender and the only closer — so
+// unsubscribe (which just cancels the context) can never race a send onto a
+// closed channel.
+func (b *Bus) subscribeRedis(operatorID string) (chan Event, func(), bool) {
+	b.mu.Lock()
+	if b.counts[operatorID] >= maxSubscribersPerOperator {
+		b.mu.Unlock()
+		return nil, nil, false
+	}
+	b.counts[operatorID]++
+	b.mu.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	pubsub := b.rdb.Subscribe(ctx, channelKey(operatorID))
+	ch := make(chan Event, eventBufferSize)
+
+	go func() {
+		defer close(ch)
+		defer func() { _ = pubsub.Close() }()
+		redisCh := pubsub.Channel()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case msg, open := <-redisCh:
+				if !open {
+					return
+				}
+				var ev Event
+				if err := json.Unmarshal([]byte(msg.Payload), &ev); err != nil {
+					continue
+				}
+				select {
+				case ch <- ev:
+				case <-ctx.Done():
+					return
+				default:
+					// Buffer full — drop, same loss-tolerant semantics as the
+					// in-memory path (events are just refetch signals).
+				}
+			}
+		}
+	}()
+
+	var once sync.Once
+	unsubscribe := func() {
+		once.Do(func() {
+			cancel()
+			b.mu.Lock()
+			b.counts[operatorID]--
+			if b.counts[operatorID] <= 0 {
+				delete(b.counts, operatorID)
+			}
+			b.mu.Unlock()
+		})
+	}
+	return ch, unsubscribe, true
+}
+
+// Publish is non-blocking — a slow/stalled subscriber (in-memory) or a slow
+// Redis (redis backend) never backs up the service call that triggered the
+// event. A nil *Bus is a valid no-op, same defensive-nil pattern as
+// PushNotifier/SOSNotifier — callers never need to nil-check before calling.
 func (b *Bus) Publish(operatorID, eventType, entityID string) {
 	if b == nil {
+		return
+	}
+	if b.rdb != nil {
+		payload, err := json.Marshal(Event{Type: eventType, EntityID: entityID, CreatedAt: time.Now()})
+		if err != nil {
+			return
+		}
+		// Short timeout so a slow/unreachable Redis can't stall the request.
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = b.rdb.Publish(ctx, channelKey(operatorID), payload).Err()
 		return
 	}
 	b.mu.Lock()

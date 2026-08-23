@@ -44,6 +44,7 @@ func main() {
 	waitlistRepository := repository.NewWaitlistRepository(queries)
 	notificationRepository := repository.NewNotificationRepository(queries)
 	auditRepository := repository.NewAuditRepository(queries)
+	outboxRepository := repository.NewOutboxRepository(queries)
 	agentService := service.NewAgentService(operatorRepository, agentRepository, auditRepository, pool)
 	tierHandler := worker.NewTierHandler(logger, operatorRepository, agentService)
 
@@ -59,6 +60,7 @@ func main() {
 	sosHandler := worker.NewSOSHandler(logger, sosService)
 	waitlistHandler := worker.NewWaitlistHandler(logger, waitlistRepository)
 	cashFlowHandler := worker.NewCashFlowHandler(logger, queries)
+	outboxHandler := worker.NewOutboxHandler(logger, outboxRepository, firebasePusher)
 
 	redisOpt, err := asynq.ParseRedisURI(redisURL)
 	if err != nil {
@@ -83,6 +85,12 @@ func main() {
 		logger.Error("register vendor payment overdue schedule", "error", err)
 		os.Exit(1)
 	}
+	// Drains the cascade_events outbox frequently — this is what makes
+	// producer-side side-effects (e.g. health BERAT push) actually fire.
+	if _, err := scheduler.Register("@every 10s", worker.NewCascadeDispatchTask()); err != nil {
+		logger.Error("register cascade dispatch schedule", "error", err)
+		os.Exit(1)
+	}
 	go func() {
 		if err := scheduler.Run(); err != nil {
 			logger.Error("scheduler stopped", "error", err)
@@ -95,6 +103,7 @@ func main() {
 	mux.HandleFunc(worker.TaskSOSEscalate, sosHandler.HandleEscalate)
 	mux.HandleFunc(worker.TaskWaitlistExpire, waitlistHandler.HandleExpire)
 	mux.HandleFunc(worker.TaskMarkOverdueVendorPayments, cashFlowHandler.HandleMarkOverdue)
+	mux.HandleFunc(worker.TaskCascadeDispatch, outboxHandler.HandleDispatch)
 
 	server := asynq.NewServer(redisOpt, asynq.Config{Concurrency: 5, Logger: slogAdapter{logger}})
 	logger.Info("worker listening", "redis", redisURL)

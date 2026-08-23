@@ -5,6 +5,7 @@ import (
 
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -15,6 +16,16 @@ func NewHealthReportRepository(queries *db.Queries) *HealthReportRepository {
 }
 
 func (r *HealthReportRepository) Create(ctx context.Context, operatorID, pilgrimID, groupID, reportedByUserID, severity, symptoms, actionTaken string) (*domain.HealthReport, error) {
+	return createHealthReport(ctx, r.queries, operatorID, pilgrimID, groupID, reportedByUserID, severity, symptoms, actionTaken)
+}
+
+// CreateTx is the transactional variant — used so the report insert and the
+// outbox event that fans out its BERAT push commit atomically.
+func (r *HealthReportRepository) CreateTx(ctx context.Context, tx pgx.Tx, operatorID, pilgrimID, groupID, reportedByUserID, severity, symptoms, actionTaken string) (*domain.HealthReport, error) {
+	return createHealthReport(ctx, r.queries.WithTx(tx), operatorID, pilgrimID, groupID, reportedByUserID, severity, symptoms, actionTaken)
+}
+
+func createHealthReport(ctx context.Context, q *db.Queries, operatorID, pilgrimID, groupID, reportedByUserID, severity, symptoms, actionTaken string) (*domain.HealthReport, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -27,7 +38,7 @@ func (r *HealthReportRepository) Create(ctx context.Context, operatorID, pilgrim
 	if err != nil {
 		return nil, err
 	}
-	v, err := r.queries.CreateHealthReport(ctx, db.CreateHealthReportParams{
+	v, err := q.CreateHealthReport(ctx, db.CreateHealthReportParams{
 		OperatorID: opUUID, PilgrimID: pilgrimUUID, GroupID: groupUUID,
 		ReportedBy: pgtype.Text{String: reportedByUserID, Valid: reportedByUserID != ""},
 		Severity:   db.HealthSeverity(severity), Symptoms: symptoms, ActionTaken: actionTaken,
