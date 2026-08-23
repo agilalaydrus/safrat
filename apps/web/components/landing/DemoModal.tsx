@@ -1,113 +1,139 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CheckCircle2, MessageCircle, X } from "lucide-react";
-import { FEATURE_MODULES } from "./content";
-
-const SALES_WHATSAPP = process.env.NEXT_PUBLIC_SALES_WHATSAPP ?? "";
+import { useState, type FormEvent } from "react";
+import { ArrowRight, CheckCircle2, Compass, X } from "lucide-react";
 
 export default function DemoModal({ onClose }: { onClose: () => void }) {
-  const [travelName, setTravelName] = useState("");
-  const [picName, setPicName] = useState("");
-  const [whatsapp, setWhatsapp] = useState("");
-  const [pilgrimCount, setPilgrimCount] = useState("");
-  const [modules, setModules] = useState<string[]>([]);
-  const [sent, setSent] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [form, setForm] = useState({
+    namaTravel: "",
+    namaPIC: "",
+    whatsapp: "",
+    estimasiJamaah: "200 - 500 Jamaah",
+  });
 
-  function toggleModule(title: string) {
-    setModules((prev) => (prev.includes(title) ? prev.filter((m) => m !== title) : [...prev, title]));
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSubmitted(true);
   }
 
-  const message = useMemo(() => {
-    return [
-      "Halo Tawafiq Hub, saya mau jadwalkan demo.",
-      `Nama Travel: ${travelName || "-"}`,
-      `PIC: ${picName || "-"}`,
-      `WhatsApp: ${whatsapp || "-"}`,
-      `Estimasi Jamaah: ${pilgrimCount || "-"}`,
-      `Modul yang diminati: ${modules.length ? modules.join(", ") : "-"}`,
-    ].join("\n");
-  }, [travelName, picName, whatsapp, pilgrimCount, modules]);
-
-  function submit() {
-    const url = SALES_WHATSAPP
-      ? `https://wa.me/${SALES_WHATSAPP}?text=${encodeURIComponent(message)}`
-      : `https://wa.me/?text=${encodeURIComponent(message)}`;
-    window.open(url, "_blank");
-    setSent(true);
-  }
+  const inputClass =
+    "w-full rounded-xl border border-slate-300 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:border-emerald-600 focus:bg-white focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:focus:bg-slate-800";
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4" role="dialog" aria-modal="true" aria-label="Jadwalkan demo">
-      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-700">
-          <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">Jadwalkan Demo</h3>
-          <button type="button" onClick={onClose} aria-label="Tutup" className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
-            <X size={18} />
-          </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+      <div className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-950">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Tutup"
+          className="absolute right-4 top-4 rounded-full bg-slate-100 p-2 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        <div className="border-b border-slate-200 bg-slate-50 p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-1 flex items-center gap-2">
+            <Compass className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            <span className="font-mono text-xs font-bold uppercase text-emerald-700 dark:text-emerald-400">
+              Tawafiq Hub Enterprise
+            </span>
+          </div>
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white">Jadwalkan Demo &amp; Konsultasi Sistem</h3>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Dapatkan akses langsung ke dashboard dan panduan setup musim 1447H.
+          </p>
         </div>
 
-        {sent ? (
-          <div className="flex flex-col items-center gap-3 px-6 py-10 text-center">
-            <CheckCircle2 size={40} className="text-emerald-600" />
-            <p className="text-sm font-bold text-slate-900 dark:text-white">Permintaan sudah disiapkan</p>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Jendela WhatsApp sudah kebuka di tab baru, tinggal kirim pesannya ke tim kami.
-            </p>
-            <button type="button" onClick={onClose} className="mt-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white">
-              Tutup
-            </button>
-          </div>
-        ) : (
-          <div className="grid gap-4 px-6 py-5">
-            <Field label="Nama Travel" value={travelName} onChange={setTravelName} />
-            <Field label="Nama PIC" value={picName} onChange={setPicName} />
-            <Field label="Nomor WhatsApp" value={whatsapp} onChange={setWhatsapp} placeholder="08xxxxxxxxxx" />
-            <Field label="Estimasi Jumlah Jamaah" value={pilgrimCount} onChange={setPilgrimCount} />
-            <fieldset>
-              <legend className="mb-2 text-sm font-bold text-slate-700 dark:text-slate-200">Modul yang diminati</legend>
-              <div className="flex flex-wrap gap-2">
-                {FEATURE_MODULES.map((m) => (
-                  <button
-                    key={m.title}
-                    type="button"
-                    onClick={() => toggleModule(m.title)}
-                    className={
-                      modules.includes(m.title)
-                        ? "rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white"
-                        : "rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
-                    }
-                  >
-                    {m.title}
-                  </button>
-                ))}
+        <div className="p-6 sm:p-8">
+          {submitted ? (
+            <div className="space-y-4 py-6 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
+                <CheckCircle2 className="h-8 w-8" />
               </div>
-            </fieldset>
-            <button
-              type="button"
-              onClick={submit}
-              className="mt-2 inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-3 text-sm font-bold text-white hover:bg-emerald-700"
-            >
-              <MessageCircle size={16} />
-              Kirim lewat WhatsApp
-            </button>
-          </div>
-        )}
+              <h4 className="text-lg font-bold text-slate-900 dark:text-white">Permintaan Demo Terkirim!</h4>
+              <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-400">
+                Terima kasih, <strong>{form.namaPIC || "Bapak/Ibu"}</strong>. Tim konsultan operasional kami akan
+                mengirimkan link akses demo ke WhatsApp <strong>{form.whatsapp}</strong> dalam 15 menit.
+              </p>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl bg-emerald-600 px-6 py-2.5 text-xs font-bold text-white hover:bg-emerald-700"
+              >
+                Tutup
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Nama Travel Umrah / PIHK *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Contoh: PT. Barokah Tour & Travel"
+                  value={form.namaTravel}
+                  onChange={(e) => setForm({ ...form, namaTravel: e.target.value })}
+                  className={inputClass}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Nama PIC / Pimpinan *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nama Lengkap"
+                    value={form.namaPIC}
+                    onChange={(e) => setForm({ ...form, namaPIC: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">Nomor WhatsApp *</label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="0812-xxxx-xxxx"
+                    value={form.whatsapp}
+                    onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Estimasi Jamaah per Musim
+                </label>
+                <select
+                  value={form.estimasiJamaah}
+                  onChange={(e) => setForm({ ...form, estimasiJamaah: e.target.value })}
+                  className={inputClass}
+                >
+                  <option value="50 - 200 Jamaah">50 - 200 Jamaah (1-3 Kloter)</option>
+                  <option value="200 - 500 Jamaah">200 - 500 Jamaah</option>
+                  <option value="500 - 1.500 Jamaah">500 - 1.500 Jamaah</option>
+                  <option value="> 1.500 Jamaah">&gt; 1.500 Jamaah (Enterprise)</option>
+                </select>
+              </div>
+
+              <button
+                type="submit"
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white shadow-md shadow-emerald-600/30 transition-all hover:bg-emerald-700 sm:text-sm"
+              >
+                <span>Kirim Permintaan Demo</span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </form>
+          )}
+        </div>
       </div>
     </div>
-  );
-}
-
-function Field({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-sm font-bold text-slate-700 dark:text-slate-200">{label}</span>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-      />
-    </label>
   );
 }

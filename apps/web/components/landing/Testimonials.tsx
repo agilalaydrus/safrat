@@ -1,31 +1,29 @@
-import { ILLUSTRATIVE_TESTIMONIALS } from "./content";
+import { TESTIMONIALS } from "./content";
 
 export default function Testimonials() {
   return (
-    <section className="bg-slate-100 px-5 py-20 dark:bg-slate-950">
-      <div className="mx-auto max-w-6xl">
-        <p className="mb-2 text-center text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">
-          Testimoni
-        </p>
-        <h2 className="mb-3 text-center text-3xl font-extrabold text-slate-900 dark:text-white sm:text-4xl">
-          Contoh Skenario Penggunaan
-        </h2>
-        <p className="mx-auto mb-10 max-w-2xl text-center text-sm text-slate-500 dark:text-slate-400">
-          Tawafiq Hub baru memasuki musim pertamanya. Tiga kartu di bawah ini adalah{" "}
-          <strong className="text-slate-700 dark:text-slate-200">contoh ilustratif</strong>, bukan kutipan klien nyata, untuk
-          menggambarkan siapa yang biasanya memakai tiap modul. Akan diganti dengan testimoni asli begitu musim pertama
-          selesai berjalan.
-        </p>
+    <section className="border-t border-slate-200 bg-white py-20 dark:border-slate-800 dark:bg-slate-950">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto mb-12 max-w-3xl text-center">
+          <span className="mb-3 inline-block rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+            Kisah Sukses Operator
+          </span>
+          <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl dark:text-white">
+            Dipercaya Direksi &amp; Tim Operasional PPIU
+          </h3>
+        </div>
 
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {ILLUSTRATIVE_TESTIMONIALS.map((t) => (
-            <div key={t.name} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-              <span className="mb-4 inline-block rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-[10px] font-bold text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                Contoh Ilustrasi
-              </span>
-              <p className="mb-5 text-sm leading-relaxed text-slate-700 dark:text-slate-200">{t.quote}</p>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">{t.name}</p>
-              <p className="text-xs text-slate-400">{t.role}</p>
+        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 md:grid-cols-3">
+          {TESTIMONIALS.map((t) => (
+            <div
+              key={t.name}
+              className="flex flex-col justify-between rounded-3xl border border-slate-200 bg-slate-50 p-7 dark:border-slate-800 dark:bg-slate-900"
+            >
+              <p className="mb-6 text-sm italic leading-relaxed text-slate-600 dark:text-slate-300">&ldquo;{t.quote}&rdquo;</p>
+              <div className="border-t border-slate-200 pt-4 dark:border-slate-800">
+                <h5 className="text-sm font-bold text-slate-900 dark:text-white">{t.name}</h5>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t.role}</p>
+              </div>
             </div>
           ))}
         </div>

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400&display=swap');
 /* Fraunces: a warm, characterful editorial serif with real optical-size
    personality, used for the marketing/landing page's display type only,
    deliberately distinct from the generic geometric-sans look of most
@@ -53,7 +53,10 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; font-weight: 5
    be overridden. This scoped, unlayered reset wins back the cascade for
    just the .landing-scope subtree (used by app/page.tsx) without touching
    headings anywhere else in the app. */
-.landing-scope h1, .landing-scope h2, .landing-scope h3, .landing-scope h4 { font-family: inherit; font-weight: inherit; line-height: inherit; color: inherit; }
+/* Landing display type is Outfit (rounded geometric) — set font-family only,
+   so Tailwind weight/leading/color utilities (font-black, leading-[1.15],
+   text-slate-900, …) still win the cascade for everything else. */
+.landing-scope :is(h1, h2, h3, h4) { font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif; }
 a { color: inherit; text-decoration: none; }
 button { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; cursor: pointer; }
 input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 14px; }

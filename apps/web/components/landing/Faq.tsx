@@ -1,38 +1,50 @@
 "use client";
 
 import { useState } from "react";
-import { Minus, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { FAQ_ITEMS } from "./content";
 
 export default function Faq() {
-  const [open, setOpen] = useState<number | null>(0);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   return (
-    <section id="faq" className="bg-white px-5 py-20 dark:bg-slate-900">
-      <div className="mx-auto max-w-2xl">
-        <p className="mb-2 text-center text-xs font-bold uppercase tracking-widest text-emerald-700 dark:text-emerald-400">FAQ</p>
-        <h2 className="mb-10 text-center text-3xl font-extrabold text-slate-900 dark:text-white sm:text-4xl">
-          Pertanyaan yang Sering Ditanyakan
-        </h2>
+    <section id="faq" className="border-t border-slate-200 bg-slate-50 py-20 dark:border-slate-800 dark:bg-slate-900">
+      <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-12 text-center">
+          <span className="mb-3 inline-block rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+            Frequently Asked Questions
+          </span>
+          <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+            Pertanyaan yang Sering Diajukan PPIU
+          </h3>
+        </div>
 
-        <div className="space-y-3">
-          {FAQ_ITEMS.map((item, i) => {
-            const isOpen = open === i;
-            return (
-              <div key={item.q} className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
-                <button
-                  type="button"
-                  onClick={() => setOpen(isOpen ? null : i)}
-                  aria-expanded={isOpen}
-                  className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left text-sm font-bold text-slate-900 dark:text-white"
-                >
-                  {item.q}
-                  {isOpen ? <Minus size={16} className="shrink-0 text-emerald-600" /> : <Plus size={16} className="shrink-0 text-slate-400" />}
-                </button>
-                {isOpen && <p className="px-5 pb-5 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{item.a}</p>}
-              </div>
-            );
-          })}
+        <div className="space-y-4">
+          {FAQ_ITEMS.map((item, idx) => (
+            <div
+              key={item.q}
+              className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950"
+            >
+              <button
+                type="button"
+                onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
+                aria-expanded={openFaq === idx}
+                className="flex w-full items-center justify-between p-5 text-left text-sm font-bold text-slate-900 transition-colors hover:text-emerald-700 sm:text-base dark:text-white dark:hover:text-emerald-400"
+              >
+                <span>{item.q}</span>
+                {openFaq === idx ? (
+                  <ChevronUp className="h-5 w-5 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 flex-shrink-0 text-slate-400" />
+                )}
+              </button>
+              {openFaq === idx && (
+                <div className="border-t border-slate-100 px-5 pb-5 pt-3 text-xs leading-relaxed text-slate-600 sm:text-sm dark:border-slate-800 dark:text-slate-300">
+                  {item.a}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </section>
