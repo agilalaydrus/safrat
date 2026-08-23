@@ -1,0 +1,87 @@
+# Handoff Notes
+
+> Working state + prioritized roadmap for the next agent. Point-in-time snapshot
+> (2026-08-24). Verify against current code before trusting any file:line.
+
+## Repo / deploy state
+
+- **5 commits sit on local `main`, NOT pushed** (see `git log origin/main..main`).
+  **Pushing `main` triggers a production deploy** (`.github/workflows/deploy.yml`
+  → builds images, runs goose migrations, redeploys `app.tawafiqhub.id`). The
+  owner has deliberately **held deploys** — do not push `main` unless told.
+- Generated code (`apps/api/internal/gen`, `packages/proto-gen`) is **gitignored**
+  and rebuilt by CI — never commit it. `apps/web/tsconfig.tsbuildinfo` and
+  untracked scratch `*.md` / media are also excluded.
+- **Local dev DB was wiped clean** (all rows truncated, schema kept) for fresh
+  manual testing. Migrations **073, 074, 075 are applied locally**; in prod goose
+  applies them on deploy.
+- Local processes: web dev on `:3131`; Go API on `:8131` is an **old binary** —
+  restart (`cd apps/api && go run ./cmd/server`) to pick up the new RPCs.
+
+## What shipped this session (the 5 commits)
+
+1. `f97ad06` Landing: Masuk/Daftar prioritized, demo flow removed, WA contact
+   `+62 812-8303-1003`.
+2. `65ea474` Fix transparent mobile menu drawer (was trapped by the header's
+   `backdrop-blur` containing block).
+3. `d3a1d69` **Onboarding wizard + operator public profile** — migration 073;
+   `OperatorService.UpdateMyProfile` (auth) + `GetPublicProfile` (public);
+   `/p/[slug]` SSR page; settings editor + share link; post-onboarding banner.
+4. `f9dc1c8` **Production hardening**:
+   - **#1 Transactional outbox** (migration 074 `cascade_events`): producers
+     enqueue in the same tx as the write; worker relay (`cascade:dispatch`
+     `@every 10s`, `FOR UPDATE SKIP LOCKED`, dead-letter after 5 attempts)
+     drains it. **Health-report BERAT push** migrated as the atomic reference.
+   - **#2 Redis-backed event bus** (`internal/events/bus.go`): same interface,
+     picks Redis when `REDIS_URL` set → cross-replica. In-memory path unchanged.
+     `docker-compose.prod.yml` api service now sets `REDIS_URL`.
+5. `472e54d` **Offline hardening**:
+   - Poison-safe write queue (`lib/offline.ts`): per-item attempts + dead-letter
+     so one failing item can't wedge the SOS queue; idempotency-key plumbing.
+   - **SOS create idempotency** (migration 075): `idempotency_key` + partial
+     unique index; `ON CONFLICT DO NOTHING` + `created` flag → replay returns the
+     existing alert without re-notifying. Verified end-to-end.
+
+## Roadmap (prioritized) — with the analysis already done
+
+### Highest value
+- **#3 Precache for cold-start offline.** Current `public/sw.js` only runtime-
+  caches already-visited pages; a cold start offline is blank (short of the spec's
+  "72-jam zero-network"). Do it right with **Serwist** (maintained SW tool for
+  Next 15 App Router) to generate a precache manifest of the app shell. Moderate
+  effort: new build dep + config. This is the real remaining gap.
+
+### Medium value, low risk (reuses the outbox pattern from commit 4)
+- **#1 Migrate more cascade producers to the outbox**: group-city, kloter-status,
+  ritual bulk. Follow the health reference in `service/health_report.go` +
+  `worker/outbox.go`. **Caveat discovered:** do NOT move the **SOS coordinator
+  notification** onto the polled relay — it would add up to 10s latency to an
+  *emergency*. Keep SOS notify immediate; if you want durability there, give
+  `NotifySOSAlert`/`NotifyOperatorStaff` an internal retry, or return an `error`
+  so a fast follow-up mechanism can react (they're currently `void`, which also
+  blocks the outbox relay from retrying pushes — a real follow-up).
+
+### Lower urgency (only bites at >1 replica; touches hot paths)
+- **#4 Finish multi-replica readiness**: the event bus is Redis-backed now, but
+  still per-process and stale-cross-replica: the **operator cache**
+  (`repository/operator.go`, 5-min TTL, invalidated only in-process) and the
+  **rate limiter** (`middleware/ratelimit.go`). Move both to Redis (pub/sub
+  invalidation for the cache; a distributed limiter). Single-instance today, so
+  not urgent.
+
+### Skip / already handled
+- **Check-in idempotency** — redundant: `check_ins` already has
+  `UNIQUE(movement_id, pilgrim_id, type)`.
+- **Chat idempotency** — possible but low value (duplicate message only).
+
+## CI note
+- `ci.yml` is red on a pre-existing `buf lint` proto-naming issue
+  (`PilgrimAppRequest`/`ChatAppRequest` reused across RPCs). It does **not** gate
+  the deploy workflow. Fixable by renaming those request types.
+
+## Local verify recipe
+- Go: `cd apps/api && go build ./... && go vet ./... && go test ./...`
+- Web: `pnpm --filter @hajj-saas/web typecheck && (cd apps/web && npx eslint .)`
+- Redis bus cross-instance test: `REDIS_TEST_URL=redis://localhost:6380 go test ./internal/events/`
+- Backend smoke tests run a throwaway server on `:8132` against the local DB
+  (`PORT=8132 go run ./cmd/server`) — insert a temp operator, curl the RPC, clean up.
