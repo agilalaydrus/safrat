@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Clock, ShieldCheck } from "lucide-react";
 
-export default function RoiCalculator({ onOpenDemo }: { onOpenDemo: () => void }) {
+export default function RoiCalculator() {
   const [jamaahCount, setJamaahCount] = useState(350);
   const [cloterCount, setCloterCount] = useState(6);
 
@@ -103,13 +104,12 @@ export default function RoiCalculator({ onOpenDemo }: { onOpenDemo: () => void }
                   Hemat hingga ~Rp {estimatedSavings} Juta / Musim
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={onOpenDemo}
-                className="rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-emerald-700"
+              <Link
+                href="/sign-up"
+                className="whitespace-nowrap rounded-lg bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-emerald-700"
               >
-                Klaim Penghematan
-              </button>
+                Coba Gratis
+              </Link>
             </div>
           </div>
         </div>

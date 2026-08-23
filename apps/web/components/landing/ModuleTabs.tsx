@@ -19,7 +19,7 @@ export default function ModuleTabs() {
   const [activeTab, setActiveTab] = useState<TabId>("kamar");
 
   return (
-    <section id="demo" className="bg-slate-50 py-20 dark:bg-slate-900">
+    <section id="cara-kerja" className="bg-slate-50 py-20 dark:bg-slate-900">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto mb-12 max-w-3xl text-center">
           <span className="mb-3 inline-block rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">

@@ -1,5 +1,4 @@
-"use client";
-
+import Link from "next/link";
 import {
   ArrowRight,
   Building2,
@@ -12,7 +11,7 @@ import {
 } from "lucide-react";
 import { HERO_TRUST } from "./content";
 
-export default function Hero({ onOpenDemo }: { onOpenDemo: () => void }) {
+export default function Hero() {
   return (
     <section className="relative overflow-hidden bg-gradient-to-b from-white via-slate-50 to-slate-100 pt-16 pb-20 md:pt-24 md:pb-28 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
       {/* Soft grid pattern */}
@@ -36,19 +35,18 @@ export default function Hero({ onOpenDemo }: { onOpenDemo: () => void }) {
           </p>
 
           <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <button
-              type="button"
-              onClick={onOpenDemo}
+            <Link
+              href="/sign-up"
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-8 py-4 text-sm font-bold text-white shadow-lg shadow-emerald-600/30 transition-all hover:scale-[1.02] hover:bg-emerald-700 sm:w-auto"
             >
-              <span>Coba Demo Sistem Sekarang</span>
+              <span>Coba Gratis</span>
               <ArrowRight className="h-4 w-4" />
-            </button>
+            </Link>
             <a
-              href="#demo"
+              href="#cara-kerja"
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-7 py-4 text-sm font-bold text-slate-700 shadow-sm transition-all hover:border-slate-400 hover:bg-slate-50 sm:w-auto dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
-              <span>Lihat Live Preview</span>
+              <span>Lihat Cara Kerja</span>
             </a>
           </div>
 

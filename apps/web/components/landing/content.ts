@@ -4,7 +4,7 @@
 
 export const NAV_LINKS: [string, string][] = [
   ["Solusi", "#solusi"],
-  ["Live Preview", "#demo"],
+  ["Cara Kerja", "#cara-kerja"],
   ["Kalkulator ROI", "#kalkulator"],
   ["Paket Layanan", "#harga"],
   ["FAQ", "#faq"],
@@ -133,9 +133,9 @@ export const PRICING_TIERS: PricingTier[] = [
 
 export const FOOTER_MODULES: [string, string][] = [
   ["Manajemen Jamaah & Paspor", "#solusi"],
-  ["Rooming List & Validasi Mahram", "#demo"],
-  ["Manifest Bus & Supir Saudi", "#demo"],
-  ["Gateway Darurat SOS 10 Menit", "#demo"],
+  ["Rooming List & Validasi Mahram", "#cara-kerja"],
+  ["Manifest Bus & Supir Saudi", "#cara-kerja"],
+  ["Gateway Darurat SOS 10 Menit", "#cara-kerja"],
 ];
 
 export const FOOTER_LAYANAN: [string, string][] = [
@@ -145,4 +145,9 @@ export const FOOTER_LAYANAN: [string, string][] = [
   ["Panduan Onboarding 1447H", "#faq"],
 ];
 
-export const WA_LINK = "https://wa.me/628119876000?text=Halo%20TawafiqHub,%20saya%20tertarik%20untuk%20demo%20sistem";
+// Sales contact — WhatsApp redirect.
+export const WA_NUMBER = "6281283031003";
+export const WA_NUMBER_DISPLAY = "+62 812-8303-1003";
+export const WA_SALES_LINK = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(
+  "Halo TawafiqHub, saya ingin bertanya tentang sistem",
+)}`;

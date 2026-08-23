@@ -2,114 +2,91 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Compass, Menu, MessageCircle, Moon, Sun, X } from "lucide-react";
+import { Compass, Menu, Moon, Sun, X } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useTheme } from "./ThemeProvider";
-import { NAV_LINKS, WA_LINK } from "./content";
+import { NAV_LINKS } from "./content";
 
-export default function Navbar({ onOpenDemo }: { onOpenDemo: () => void }) {
+export default function Navbar() {
   const { theme, toggleTheme } = useTheme();
   const { data: session, isPending } = authClient.useSession();
   const isAuthenticated = Boolean(session?.user);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
-    <>
-      {/* Top announcement bar */}
-      <div className="flex items-center justify-center gap-2 bg-slate-900 px-4 py-2.5 text-center text-xs font-medium text-white dark:bg-black">
-        <span className="rounded bg-emerald-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-950">
-          Musim 1447H Ready
-        </span>
-        <span className="hidden sm:inline">
-          Sistem Operasi Umrah &amp; Haji Khusus: Bebas sengketa kamar mahram &amp; auto-sync manifest Siskopatuh Kemenag.
-        </span>
-        <span className="sm:hidden">Sistem Operasi Siap Musim 1447H</span>
-        <button
-          type="button"
-          onClick={onOpenDemo}
-          className="ml-1 font-semibold text-emerald-400 underline hover:text-emerald-300"
-        >
-          Konsultasi Gratis &rarr;
-        </button>
-      </div>
-
-      {/* Sticky header */}
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/95">
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          {/* Brand */}
-          <Link href="/" aria-label="TawafiqHub" className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-md shadow-emerald-600/20">
-              <Compass className="h-6 w-6" />
+    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur-md dark:border-slate-800 dark:bg-slate-950/95">
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        {/* Brand */}
+        <Link href="/" aria-label="TawafiqHub" className="flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-md shadow-emerald-600/20">
+            <Compass className="h-6 w-6" />
+          </span>
+          <span className="leading-tight">
+            <span className="block text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              Tawafiq<span className="text-emerald-600 dark:text-emerald-400">Hub</span>
             </span>
-            <span className="leading-tight">
-              <span className="block text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                Tawafiq<span className="text-emerald-600 dark:text-emerald-400">Hub</span>
-              </span>
-              <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Sistem Operasi PPIU &amp; PIHK
-              </span>
+            <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Sistem Operasi PPIU &amp; PIHK
             </span>
-          </Link>
+          </span>
+        </Link>
 
-          {/* Desktop nav */}
-          <nav className="hidden items-center gap-7 text-sm font-semibold text-slate-600 md:flex dark:text-slate-300">
-            {NAV_LINKS.map(([label, href]) => (
-              <a key={href} href={href} className="transition-colors hover:text-emerald-600 dark:hover:text-emerald-400">
-                {label}
-              </a>
-            ))}
-          </nav>
-
-          {/* Actions */}
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label={theme === "light" ? "Ganti ke mode gelap" : "Ganti ke mode terang"}
-              className="grid h-10 w-10 place-items-center rounded-xl border border-slate-300 text-slate-500 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
-            </button>
-            <a
-              href={WA_LINK}
-              target="_blank"
-              rel="noreferrer"
-              className="hidden items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:border-emerald-500 hover:text-emerald-600 sm:inline-flex dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-emerald-500 dark:hover:text-emerald-400"
-            >
-              <MessageCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Tanya Sales</span>
+        {/* Desktop nav */}
+        <nav className="hidden items-center gap-7 text-sm font-semibold text-slate-600 md:flex dark:text-slate-300">
+          {NAV_LINKS.map(([label, href]) => (
+            <a key={href} href={href} className="transition-colors hover:text-emerald-600 dark:hover:text-emerald-400">
+              {label}
             </a>
-            {isAuthenticated ? (
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition-all hover:bg-emerald-700 sm:text-sm"
-              >
-                <span>Dashboard</span>
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            ) : (
-              !isPending && (
-                <button
-                  type="button"
-                  onClick={onOpenDemo}
-                  className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition-all hover:bg-emerald-700 sm:text-sm"
-                >
-                  <span>Jadwalkan Demo</span>
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-              )
-            )}
-            <button
-              type="button"
-              onClick={() => setDrawerOpen(true)}
-              aria-label="Buka menu"
-              className="grid h-10 w-10 place-items-center rounded-xl border border-slate-300 text-slate-600 md:hidden dark:border-slate-700 dark:text-slate-300"
+          ))}
+        </nav>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={theme === "light" ? "Ganti ke mode gelap" : "Ganti ke mode terang"}
+            className="grid h-10 w-10 place-items-center rounded-xl border border-slate-300 text-slate-500 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            {theme === "light" ? <Moon size={17} /> : <Sun size={17} />}
+          </button>
+
+          {isAuthenticated ? (
+            <Link
+              href="/dashboard"
+              className="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition-all hover:bg-emerald-700 sm:text-sm"
             >
-              <Menu size={20} />
-            </button>
-          </div>
+              Dashboard
+            </Link>
+          ) : (
+            !isPending && (
+              <>
+                <Link
+                  href="/sign-in"
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition-all hover:border-emerald-500 hover:text-emerald-600 sm:text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-emerald-500 dark:hover:text-emerald-400"
+                >
+                  Masuk
+                </Link>
+                <Link
+                  href="/sign-up"
+                  className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition-all hover:bg-emerald-700 sm:px-5 sm:text-sm"
+                >
+                  Daftar
+                </Link>
+              </>
+            )
+          )}
+
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Buka menu"
+            className="grid h-10 w-10 place-items-center rounded-xl border border-slate-300 text-slate-600 md:hidden dark:border-slate-700 dark:text-slate-300"
+          >
+            <Menu size={20} />
+          </button>
         </div>
-      </header>
+      </div>
 
       {/* Mobile drawer */}
       {drawerOpen && (
@@ -150,21 +127,27 @@ export default function Navbar({ onOpenDemo }: { onOpenDemo: () => void }) {
                   Dashboard
                 </Link>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDrawerOpen(false);
-                    onOpenDemo();
-                  }}
-                  className="rounded-xl bg-emerald-600 px-4 py-3 text-center text-sm font-bold text-white"
-                >
-                  Jadwalkan Demo
-                </button>
+                <>
+                  <Link
+                    href="/sign-in"
+                    onClick={() => setDrawerOpen(false)}
+                    className="rounded-xl border border-slate-300 px-4 py-3 text-center text-sm font-bold text-slate-700 dark:border-slate-700 dark:text-slate-200"
+                  >
+                    Masuk
+                  </Link>
+                  <Link
+                    href="/sign-up"
+                    onClick={() => setDrawerOpen(false)}
+                    className="rounded-xl bg-emerald-600 px-4 py-3 text-center text-sm font-bold text-white"
+                  >
+                    Daftar
+                  </Link>
+                </>
               )}
             </div>
           </div>
         </div>
       )}
-    </>
+    </header>
   );
 }

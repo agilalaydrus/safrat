@@ -1,10 +1,8 @@
+import Link from "next/link";
 import { ArrowRight, Compass, Mail, MessageCircle, Phone } from "lucide-react";
-import { FOOTER_LAYANAN, FOOTER_MODULES } from "./content";
+import { FOOTER_LAYANAN, FOOTER_MODULES, WA_NUMBER_DISPLAY, WA_SALES_LINK } from "./content";
 
-const WA_DEMO = "https://wa.me/628119876000?text=Halo%20TawafiqHub,%20saya%20ingin%20jadwalkan%20demo%20sistem";
-const WA_SALES = "https://wa.me/628119876000?text=Halo%20TawafiqHub,%20saya%20ingin%20tanya%20paket%20sistem";
-
-export default function CtaAndFooter({ onOpenDemo }: { onOpenDemo: () => void }) {
+export default function CtaAndFooter() {
   return (
     <>
       {/* CTA banner */}
@@ -14,26 +12,24 @@ export default function CtaAndFooter({ onOpenDemo }: { onOpenDemo: () => void })
             Siap Mengelola Musim Umrah 1447H dengan Lebih Tenang?
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-sm text-slate-300 sm:text-base">
-            Bergabunglah dengan ratusan pimpinan travel yang telah memodernisasi operasional mereka. Dapatkan akses demo
-            langsung hari ini.
+            Bergabunglah dengan ratusan pimpinan travel yang telah memodernisasi operasional mereka. Mulai gratis hari ini.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <button
-              type="button"
-              onClick={onOpenDemo}
+            <Link
+              href="/sign-up"
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-8 py-4 text-sm font-bold text-slate-950 shadow-lg transition-all hover:bg-emerald-300 sm:w-auto"
             >
-              <span>Jadwalkan Demo &amp; Konsultasi Gratis</span>
+              <span>Coba Gratis</span>
               <ArrowRight className="h-4 w-4" />
-            </button>
+            </Link>
             <a
-              href={WA_SALES}
+              href={WA_SALES_LINK}
               target="_blank"
               rel="noreferrer"
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-800 px-7 py-4 text-sm font-bold text-white transition-all hover:bg-slate-700 sm:w-auto"
             >
               <MessageCircle className="h-4 w-4 text-emerald-400" />
-              <span>Chat WhatsApp Sales</span>
+              <span>Hubungi Sales</span>
             </a>
           </div>
         </div>
@@ -87,8 +83,10 @@ export default function CtaAndFooter({ onOpenDemo }: { onOpenDemo: () => void })
                 <li className="flex items-center gap-2">
                   <Mail className="h-4 w-4 text-emerald-400" /> halo@tawafiqhub.id
                 </li>
-                <li className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-emerald-400" /> +62 811-9876-000
+                <li>
+                  <a href={WA_SALES_LINK} target="_blank" rel="noreferrer" className="flex items-center gap-2 hover:text-emerald-400">
+                    <Phone className="h-4 w-4 text-emerald-400" /> {WA_NUMBER_DISPLAY}
+                  </a>
                 </li>
                 <li>Jakarta • Surabaya • Jeddah Center</li>
               </ul>
@@ -108,10 +106,10 @@ export default function CtaAndFooter({ onOpenDemo }: { onOpenDemo: () => void })
 
       {/* Floating WhatsApp */}
       <a
-        href={WA_DEMO}
+        href={WA_SALES_LINK}
         target="_blank"
         rel="noreferrer"
-        aria-label="Hubungi WhatsApp"
+        aria-label="Hubungi Sales via WhatsApp"
         className="fixed bottom-6 right-6 z-40 flex items-center justify-center rounded-full border-2 border-white bg-emerald-600 p-3.5 text-white shadow-2xl transition-all hover:scale-110 hover:bg-emerald-500"
       >
         <MessageCircle className="h-6 w-6" />

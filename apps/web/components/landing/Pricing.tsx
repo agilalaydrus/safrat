@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
-import { PRICING_TIERS } from "./content";
+import { PRICING_TIERS, WA_SALES_LINK } from "./content";
 
-export default function Pricing({ onOpenDemo }: { onOpenDemo: () => void }) {
+export default function Pricing() {
   const [billingCycle, setBillingCycle] = useState<"bulanan" | "tahunan">("tahunan");
 
   return (
@@ -81,17 +82,27 @@ export default function Pricing({ onOpenDemo }: { onOpenDemo: () => void }) {
                   ))}
                 </ul>
               </div>
-              <button
-                type="button"
-                onClick={onOpenDemo}
-                className={`mt-8 w-full rounded-xl py-3 text-xs font-bold transition-all ${
-                  tier.highlighted
-                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30 hover:bg-emerald-700"
-                    : "border border-slate-300 bg-slate-50 text-slate-900 shadow-sm hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800"
-                }`}
-              >
-                {tier.cta}
-              </button>
+              {tier.price === "Custom" ? (
+                <a
+                  href={WA_SALES_LINK}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-8 block w-full rounded-xl border border-slate-300 bg-slate-50 py-3 text-center text-xs font-bold text-slate-900 shadow-sm transition-all hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800"
+                >
+                  {tier.cta}
+                </a>
+              ) : (
+                <Link
+                  href="/sign-up"
+                  className={`mt-8 block w-full rounded-xl py-3 text-center text-xs font-bold transition-all ${
+                    tier.highlighted
+                      ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30 hover:bg-emerald-700"
+                      : "border border-slate-300 bg-slate-50 text-slate-900 shadow-sm hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white dark:hover:bg-slate-800"
+                  }`}
+                >
+                  {tier.cta}
+                </Link>
+              )}
             </div>
           ))}
         </div>
