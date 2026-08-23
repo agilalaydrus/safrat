@@ -17,15 +17,38 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-var slugStripPattern = regexp.MustCompile(`[^a-z0-9]`)
+const operatorSlugBaseMaxLength = 55
 
-// slugBase derives a subdomain-safe candidate from an operator name's first
-// word — e.g. "Vacana Tour" -> "vacana". Empty when the first word has no
-// alphanumeric characters at all (e.g. punctuation-only), in which case the
-// caller falls back to not setting a slug rather than inserting "".
+var (
+	operatorSlugSeparatorPattern = regexp.MustCompile(`[^a-z0-9]+`)
+	operatorLegalPrefixes        = map[string]struct{}{
+		"pt": {}, "cv": {}, "ud": {}, "pd": {}, "fa": {},
+		"kbih": {}, "kbihu": {}, "yayasan": {},
+	}
+	operatorReservedSlugs = map[string]struct{}{
+		"app": {}, "api": {}, "www": {},
+	}
+)
+
+// slugBase derives a readable, DNS-label-safe candidate from the full operator
+// name. A generic Indonesian legal-entity prefix is removed when another word
+// follows it: "PT Vacana Indonesia" -> "vacana-indonesia", not the useless
+// "pt". The base is bounded so uniqueness suffixes still fit in a 63-character
+// DNS label.
 func slugBase(name string) string {
-	firstWord, _, _ := strings.Cut(strings.TrimSpace(name), " ")
-	return slugStripPattern.ReplaceAllString(strings.ToLower(firstWord), "")
+	normalized := operatorSlugSeparatorPattern.ReplaceAllString(strings.ToLower(strings.TrimSpace(name)), "-")
+	normalized = strings.Trim(normalized, "-")
+	parts := strings.Split(normalized, "-")
+	if len(parts) > 1 {
+		if _, generic := operatorLegalPrefixes[parts[0]]; generic {
+			parts = parts[1:]
+		}
+	}
+	base := strings.Join(parts, "-")
+	if len(base) > operatorSlugBaseMaxLength {
+		base = strings.TrimRight(base[:operatorSlugBaseMaxLength], "-")
+	}
+	return base
 }
 
 // operatorCacheTTL is generous — operator rows (name/country/license) change
@@ -75,9 +98,9 @@ func (r *OperatorRepository) Create(ctx context.Context, betterAuthOrgID, name, 
 	return toOperator(operator), nil
 }
 
-// uniqueSlug tries the bare first-word candidate, then -2, -3, ... until it
-// finds one not already taken. Bounded at 50 attempts — if the name's first
-// word is generic enough to collide 50 times, something else is wrong; the
+// uniqueSlug tries the readable base candidate, then -2, -3, ... until it
+// finds one not already taken. Bounded at 50 attempts — if the name is generic
+// enough to collide 50 times, something else is wrong; the
 // operator still gets created (Create's slug ends up empty, not a hard
 // failure), just without a subdomain until someone sets one manually.
 func (r *OperatorRepository) uniqueSlug(ctx context.Context, name string) (string, error) {
@@ -89,6 +112,9 @@ func (r *OperatorRepository) uniqueSlug(ctx context.Context, name string) (strin
 		candidate := base
 		if attempt > 1 {
 			candidate = fmt.Sprintf("%s-%d", base, attempt)
+		}
+		if _, reserved := operatorReservedSlugs[candidate]; reserved {
+			continue
 		}
 		exists, err := r.queries.OperatorSlugExists(ctx, pgtype.Text{String: candidate, Valid: true})
 		if err != nil {

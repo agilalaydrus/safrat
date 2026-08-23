@@ -12,9 +12,9 @@
 - Every handoff response must include: a concise summary, completed work,
   remaining/unverified work, recommendations, local commit, and server status.
 
-## Continuation after this snapshot (`c76f460`)
+## Continuation after this snapshot
 
-- The cold-start offline item below is implemented locally with Serwist 9:
+- The cold-start offline item below is committed as `c76f460` with Serwist 9:
   `app/sw.ts` is the source and production builds generate the ignored
   `public/sw.js`. All 20 `/pilgrim` + `/leader` routes and build assets are in
   the precache manifest.
@@ -25,15 +25,19 @@
 - `RequireAccess` now has a bounded 72-hour offline access snapshot, and leader
   groups are read-through cached. Without these, a precached shell still
   redirected to sign-in during a cold offline start.
+- Operator slugs now use the meaningful full name after removing generic legal
+  prefixes (`PT`, `CV`, `KBIH/KBIHU`, etc.). Migration 076 repairs only existing
+  generic slugs such as `/p/pt`; it is applied locally.
 - Verified locally: web typecheck, ESLint (0 errors; 23 pre-existing hook
   warnings), production build, and generated-manifest inspection (20/20 PWA
   routes present). A real-browser/device offline test is still recommended.
-- The continuation is committed locally as `c76f460`; it has not been pushed
-  or deployed.
+- The offline continuation is committed locally as `c76f460`; nothing has been
+  pushed or deployed.
 
 ## Repo / deploy state
 
-- **5 commits sit on local `main`, NOT pushed** (see `git log origin/main..main`).
+- **10 commits sit on local `main`, NOT pushed** after the operator-slug fix in
+  the current work (see `git log origin/main..main`).
   **Pushing `main` triggers a production deploy** (`.github/workflows/deploy.yml`
   → builds images, runs goose migrations, redeploys `app.tawafiqhub.id`). The
   owner has deliberately **held deploys** — do not push `main` unless told.
@@ -41,7 +45,7 @@
   and rebuilt by CI — never commit it. `apps/web/tsconfig.tsbuildinfo` and
   untracked scratch `*.md` / media are also excluded.
 - **Local dev DB was wiped clean** (all rows truncated, schema kept) for fresh
-  manual testing. Migrations **073, 074, 075 are applied locally**; in prod goose
+  manual testing. Migrations **073–076 are applied locally**; in prod goose
   applies them on deploy.
 - Local processes: web dev on `:3131`; Go API on `:8131` was restarted from
   current source after the old binary returned 404 for
