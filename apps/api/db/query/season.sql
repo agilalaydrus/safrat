@@ -62,3 +62,16 @@ WHERE seasons.operator_id = $2
     WHERE target.id = $1 AND target.operator_id = $2
   )
 RETURNING *;
+
+-- name: ListPublicSeasonsByOperator :many
+-- Public "available packages" for an operator's profile page: seasons that
+-- haven't ended yet, with their registered-pilgrim count as social proof.
+-- No is_registration_open column exists — end_date >= NOW() is the "still
+-- available" signal. Only non-sensitive columns are selected.
+SELECT s.id, s.name, s.type, s.start_date, s.end_date,
+       COUNT(p.id) AS pilgrim_count
+FROM seasons s
+LEFT JOIN pilgrims p ON p.season_id = s.id
+WHERE s.operator_id = $1 AND s.end_date >= NOW()
+GROUP BY s.id, s.name, s.type, s.start_date, s.end_date
+ORDER BY s.start_date ASC;

@@ -147,6 +147,31 @@ func (r *SeasonRepository) ListByOperatorID(ctx context.Context, operatorID stri
 	return results, nil
 }
 
+// ListPublicSeasons returns the not-yet-ended seasons for an operator's
+// public profile page, with each season's registered-pilgrim count.
+func (r *SeasonRepository) ListPublicSeasons(ctx context.Context, operatorID string) ([]*domain.PublicSeasonSummary, error) {
+	operatorUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListPublicSeasonsByOperator(ctx, operatorUUID)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]*domain.PublicSeasonSummary, 0, len(rows))
+	for _, row := range rows {
+		results = append(results, &domain.PublicSeasonSummary{
+			ID:           uuid.UUID(row.ID.Bytes).String(),
+			Name:         row.Name,
+			Type:         domain.SeasonType(row.Type),
+			StartDate:    row.StartDate.Time,
+			EndDate:      row.EndDate.Time,
+			PilgrimCount: int32(row.PilgrimCount),
+		})
+	}
+	return results, nil
+}
+
 func (r *SeasonRepository) Update(ctx context.Context, operatorID, seasonID, name string, seasonType domain.SeasonType, startDate, endDate time.Time, capacity int32) (*domain.Season, error) {
 	operatorUUID, err := pgUUID(operatorID)
 	if err != nil {

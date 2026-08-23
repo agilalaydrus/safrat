@@ -14,6 +14,9 @@ const PUBLIC_PATHS = [
   "/waitlist",
   "/track",
   "/certificate",
+  // Trailing slash is deliberate: bare "/p" would also match "/pilgrim"
+  // (startsWith), wrongly making the authenticated pilgrim app public.
+  "/p/",
   "/firebase-messaging-sw.js",
 ];
 

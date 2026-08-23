@@ -35,3 +35,15 @@ LEFT JOIN "user" u ON u.id = a.user_id
 WHERE a.operator_id = $1
 ORDER BY a.created_at DESC
 LIMIT $2;
+
+-- name: UpdateOperatorProfile :one
+UPDATE operators SET
+  logo_url            = $2,
+  description         = $3,
+  whatsapp_number     = $4,
+  website             = $5,
+  address             = $6,
+  city                = $7,
+  is_profile_complete = TRUE
+WHERE id = $1
+RETURNING *;

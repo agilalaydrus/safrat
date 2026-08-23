@@ -137,6 +137,36 @@ func (r *OperatorRepository) Update(ctx context.Context, operatorID, name, count
 	return result, nil
 }
 
+func (r *OperatorRepository) UpdateProfile(ctx context.Context, operatorID string, profile domain.Operator) (*domain.Operator, error) {
+	id, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	operator, err := r.queries.UpdateOperatorProfile(ctx, db.UpdateOperatorProfileParams{
+		ID:             id,
+		LogoUrl:        pgtype.Text{String: profile.LogoURL, Valid: profile.LogoURL != ""},
+		Description:    profile.Description,
+		WhatsappNumber: profile.WhatsappNumber,
+		Website:        profile.Website,
+		Address:        profile.Address,
+		City:           profile.City,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperror.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	result := toOperator(operator)
+	// Same cache invalidation as Update — GetByBetterAuthOrgID is cached, and
+	// a stale entry would hide the just-saved profile from every subsequent
+	// authenticated RPC for up to operatorCacheTTL.
+	r.mu.Lock()
+	r.cache[result.BetterAuthOrgID] = operatorCacheEntry{value: result, expiresAt: time.Now().Add(operatorCacheTTL)}
+	r.mu.Unlock()
+	return result, nil
+}
+
 func (r *OperatorRepository) GetByBetterAuthOrgID(ctx context.Context, betterAuthOrgID string) (*domain.Operator, error) {
 	if cached, ok := r.cachedOperator(betterAuthOrgID); ok {
 		return cached, nil
@@ -210,13 +240,20 @@ func (r *OperatorRepository) ListAuditLogs(ctx context.Context, operatorID strin
 
 func toOperator(value db.Operator) *domain.Operator {
 	return &domain.Operator{
-		ID:              uuid.UUID(value.ID.Bytes).String(),
-		BetterAuthOrgID: value.BetterAuthOrgID,
-		Name:            value.Name,
-		Country:         value.Country,
-		Email:           value.Email,
-		LicenseNumber:   value.LicenseNumber.String,
-		Slug:            value.Slug.String,
-		CreatedAt:       value.CreatedAt.Time,
+		ID:                uuid.UUID(value.ID.Bytes).String(),
+		BetterAuthOrgID:   value.BetterAuthOrgID,
+		Name:              value.Name,
+		Country:           value.Country,
+		Email:             value.Email,
+		LicenseNumber:     value.LicenseNumber.String,
+		Slug:              value.Slug.String,
+		CreatedAt:         value.CreatedAt.Time,
+		LogoURL:           value.LogoUrl.String,
+		Description:       value.Description,
+		WhatsappNumber:    value.WhatsappNumber,
+		Website:           value.Website,
+		Address:           value.Address,
+		City:              value.City,
+		IsProfileComplete: value.IsProfileComplete,
 	}
 }

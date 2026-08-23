@@ -66,6 +66,7 @@ var rateLimitedProcedures = map[string]rate.Limit{
 	// ceiling than a real per-visitor endpoint — middleware.ts also caches
 	// the slug->operatorId mapping in-memory to keep actual call volume low.
 	"/hajj.v1.OperatorService/ResolveOperatorSlug": rate.Every(time.Second / 5), // 5 per second per IP
+	"/hajj.v1.OperatorService/GetPublicProfile":    rate.Every(time.Second / 5), // 5 per second per IP
 	"/hajj.v1.SeasonService/ResolveSeasonSlug":     rate.Every(time.Second / 5),
 }
 

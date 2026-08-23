@@ -122,15 +122,92 @@ func (s *OperatorService) ResolveSlug(ctx context.Context, request *hajjv1.Resol
 	return &hajjv1.ResolveOperatorSlugResponse{OperatorId: operator.ID, Name: operator.Name, ActiveSeasonId: activeSeasonID}, nil
 }
 
+// UpdateMyProfile saves the public-profile fields for the operator behind the
+// caller's Better Auth org (same authenticatedOrgID -> GetByBetterAuthOrgID
+// resolution as Update/GetMy). Flips is_profile_complete TRUE.
+func (s *OperatorService) UpdateMyProfile(ctx context.Context, authenticatedOrgID string, request *hajjv1.UpdateOperatorProfileRequest) (*hajjv1.Operator, error) {
+	if request == nil {
+		return nil, serviceError("OperatorService.UpdateMyProfile", apperror.ErrValidation)
+	}
+	if authenticatedOrgID == "" {
+		return nil, serviceError("OperatorService.UpdateMyProfile", apperror.ErrUnauthorized)
+	}
+	current, err := s.repository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("OperatorService.UpdateMyProfile", err)
+	}
+	updated, err := s.repository.UpdateProfile(ctx, current.ID, domain.Operator{
+		LogoURL:        request.LogoUrl,
+		Description:    request.Description,
+		WhatsappNumber: request.WhatsappNumber,
+		Website:        request.Website,
+		Address:        request.Address,
+		City:           request.City,
+	})
+	if err != nil {
+		return nil, serviceError("OperatorService.UpdateMyProfile", err)
+	}
+	return operatorMessage(updated), nil
+}
+
+// GetPublicProfile is public (see publicProcedures in auth.go) — the operator's
+// shareable /p/{slug} page. Returns only non-sensitive fields plus available
+// (not-yet-ended) seasons.
+func (s *OperatorService) GetPublicProfile(ctx context.Context, request *hajjv1.GetPublicProfileRequest) (*hajjv1.GetPublicProfileResponse, error) {
+	if request == nil || request.Slug == "" {
+		return nil, serviceError("OperatorService.GetPublicProfile", apperror.ErrValidation)
+	}
+	operator, err := s.repository.GetBySlug(ctx, request.Slug)
+	if err != nil {
+		return nil, serviceError("OperatorService.GetPublicProfile", err)
+	}
+	seasons, err := s.seasonRepository.ListPublicSeasons(ctx, operator.ID)
+	if err != nil {
+		return nil, serviceError("OperatorService.GetPublicProfile", err)
+	}
+	summaries := make([]*hajjv1.PublicSeasonSummary, 0, len(seasons))
+	for _, season := range seasons {
+		summaries = append(summaries, &hajjv1.PublicSeasonSummary{
+			Id:           season.ID,
+			Name:         season.Name,
+			Type:         string(season.Type),
+			StartDate:    timestamppb.New(season.StartDate),
+			EndDate:      timestamppb.New(season.EndDate),
+			PilgrimCount: season.PilgrimCount,
+		})
+	}
+	return &hajjv1.GetPublicProfileResponse{
+		OperatorId:     operator.ID,
+		Name:           operator.Name,
+		Slug:           operator.Slug,
+		LogoUrl:        operator.LogoURL,
+		Description:    operator.Description,
+		WhatsappNumber: operator.WhatsappNumber,
+		Website:        operator.Website,
+		Address:        operator.Address,
+		City:           operator.City,
+		LicenseNumber:  operator.LicenseNumber,
+		Country:        operator.Country,
+		ActiveSeasons:  summaries,
+	}, nil
+}
+
 func operatorMessage(value *domain.Operator) *hajjv1.Operator {
 	return &hajjv1.Operator{
-		Id:              value.ID,
-		BetterAuthOrgId: value.BetterAuthOrgID,
-		Name:            value.Name,
-		Country:         value.Country,
-		Email:           value.Email,
-		LicenseNumber:   value.LicenseNumber,
-		Slug:            value.Slug,
-		CreatedAt:       timestamppb.New(value.CreatedAt),
+		Id:                value.ID,
+		BetterAuthOrgId:   value.BetterAuthOrgID,
+		Name:              value.Name,
+		Country:           value.Country,
+		Email:             value.Email,
+		LicenseNumber:     value.LicenseNumber,
+		Slug:              value.Slug,
+		CreatedAt:         timestamppb.New(value.CreatedAt),
+		LogoUrl:           value.LogoURL,
+		Description:       value.Description,
+		WhatsappNumber:    value.WhatsappNumber,
+		Website:           value.Website,
+		Address:           value.Address,
+		City:              value.City,
+		IsProfileComplete: value.IsProfileComplete,
 	}
 }

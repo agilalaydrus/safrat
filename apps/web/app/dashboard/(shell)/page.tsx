@@ -26,6 +26,7 @@ import {
 } from "@/lib/rpc";
 import { PageHero } from "@/components/ui/PageHero";
 import { StatCard } from "@/components/ui/StatCard";
+import ProfileShareBanner from "@/components/settings/ProfileShareBanner";
 
 const QUICK_ACTIONS = [
   { icon: IconUserPlus, title: "Tambah Jamaah", desc: "Daftarkan jamaah baru ke dalam sistem secara manual", href: "/dashboard/pilgrims" },
@@ -148,6 +149,7 @@ export default function DashboardPage() {
       />
 
       <div style={body}>
+        <ProfileShareBanner />
         {error && <p role="alert" style={errorBanner}>{error}</p>}
 
         <div style={statsGrid}>

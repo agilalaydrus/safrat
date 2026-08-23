@@ -17,6 +17,14 @@ service OperatorService {
   // subdomain requests to the existing /register, /apply, /waitlist path-based
   // routes. Deliberately returns only id + name, nothing sensitive.
   rpc ResolveOperatorSlug(ResolveOperatorSlugRequest) returns (ResolveOperatorSlugResponse);
+
+  // Updates the calling operator's public-profile fields (used by the
+  // onboarding wizard's final step and the dashboard settings editor).
+  rpc UpdateMyProfile(UpdateOperatorProfileRequest) returns (Operator);
+  // Public — the operator's shareable landing page at /p/{slug}. Returns
+  // only non-sensitive fields plus available (not-yet-ended) seasons. In
+  // publicProcedures (auth.go) and rateLimitedProcedures (ratelimit.go).
+  rpc GetPublicProfile(GetPublicProfileRequest) returns (GetPublicProfileResponse);
 }
 
 message Operator {
@@ -28,6 +36,50 @@ message Operator {
   string license_number = 6;
   google.protobuf.Timestamp created_at = 7;
   string slug = 8;
+  string logo_url = 9;
+  string description = 10;
+  string whatsapp_number = 11;
+  string website = 12;
+  string address = 13;
+  string city = 14;
+  bool is_profile_complete = 15;
+}
+
+message UpdateOperatorProfileRequest {
+  string logo_url = 1;
+  string description = 2 [(buf.validate.field).string.max_len = 500];
+  string whatsapp_number = 3;
+  string website = 4;
+  string address = 5;
+  string city = 6;
+}
+
+message GetPublicProfileRequest {
+  string slug = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message PublicSeasonSummary {
+  string id = 1;
+  string name = 2;
+  string type = 3;
+  google.protobuf.Timestamp start_date = 4;
+  google.protobuf.Timestamp end_date = 5;
+  int32 pilgrim_count = 6;
+}
+
+message GetPublicProfileResponse {
+  string operator_id = 1;
+  string name = 2;
+  string slug = 3;
+  string logo_url = 4;
+  string description = 5;
+  string whatsapp_number = 6;
+  string website = 7;
+  string address = 8;
+  string city = 9;
+  string license_number = 10;
+  string country = 11;
+  repeated PublicSeasonSummary active_seasons = 12;
 }
 
 message CreateOperatorRequest {
