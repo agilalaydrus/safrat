@@ -12,3 +12,11 @@ packages/proto-gen/hajj
 *.log
 .DS_Store
 apps/api/uploads/
+
+# Local-only clutter — never committed, never deployed
+tawafiqhub-landing-page/
+.pnpm-store/
+.claude/
+UI*.png
+*.pdf
+Safrat New Updates.md
