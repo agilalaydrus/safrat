@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import { getMyAccessCached } from "@/lib/access-cache";
+import { getMyAccessCached, invalidateMyAccessCache } from "@/lib/access-cache";
 import { resolveLandingPath } from "@/lib/post-login";
 
 type Role = "staff" | "leader" | "agent" | "pilgrim";
@@ -27,11 +27,17 @@ export function RequireAccess({ role, children }: { role: Role; children: React.
   useEffect(() => {
     let cancelled = false;
     async function check() {
-      const session = await authClient.getSession({ fetchOptions: { cache: "no-store" } });
-      if (cancelled) return;
-      if (!session.data?.user) {
-        router.replace("/sign-in");
-        return;
+      try {
+        const session = await authClient.getSession({ fetchOptions: { cache: "no-store" } });
+        if (cancelled) return;
+        if (!session.data?.user && !session.error) {
+          invalidateMyAccessCache();
+          router.replace("/sign-in");
+          return;
+        }
+      } catch {
+        // The session endpoint is unreachable. getMyAccessCached below may
+        // still authorize the shell from its bounded offline snapshot.
       }
       try {
         const access = await getMyAccessCached();

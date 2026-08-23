@@ -3,6 +3,24 @@
 > Working state + prioritized roadmap for the next agent. Point-in-time snapshot
 > (2026-08-24). Verify against current code before trusting any file:line.
 
+## Continuation after this snapshot (uncommitted)
+
+- The cold-start offline item below is implemented locally with Serwist 9:
+  `app/sw.ts` is the source and production builds generate the ignored
+  `public/sw.js`. All 20 `/pilgrim` + `/leader` routes and build assets are in
+  the precache manifest.
+- Firebase Messaging is bundled into that same production root-scope worker;
+  `/firebase-messaging-sw.js` remains a development-only fallback. This fixes
+  the prior collision where the cache worker and Firebase worker replaced each
+  other at scope `/`.
+- `RequireAccess` now has a bounded 72-hour offline access snapshot, and leader
+  groups are read-through cached. Without these, a precached shell still
+  redirected to sign-in during a cold offline start.
+- Verified locally: web typecheck, ESLint (0 errors; 23 pre-existing hook
+  warnings), production build, and generated-manifest inspection (20/20 PWA
+  routes present). A real-browser/device offline test is still recommended.
+- Nothing has been committed, pushed, or deployed.
+
 ## Repo / deploy state
 
 - **5 commits sit on local `main`, NOT pushed** (see `git log origin/main..main`).
@@ -44,12 +62,11 @@
 
 ## Roadmap (prioritized) — with the analysis already done
 
-### Highest value
-- **#3 Precache for cold-start offline.** Current `public/sw.js` only runtime-
-  caches already-visited pages; a cold start offline is blank (short of the spec's
-  "72-jam zero-network"). Do it right with **Serwist** (maintained SW tool for
-  Next 15 App Router) to generate a precache manifest of the app shell. Moderate
-  effort: new build dep + config. This is the real remaining gap.
+### Completed locally, pending review/commit
+- **#3 Precache for cold-start offline.** Implemented in the uncommitted
+  continuation described above. The remaining validation gap is a real-browser
+  test: load each PWA online once, close it, enable offline mode, then cold-open
+  the installed PWA and exercise cached reads/queued writes.
 
 ### Medium value, low risk (reuses the outbox pattern from commit 4)
 - **#1 Migrate more cascade producers to the outbox**: group-city, kloter-status,

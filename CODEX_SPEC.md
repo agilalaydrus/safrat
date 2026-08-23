@@ -65,9 +65,9 @@ Tables:           TanStack Table v8
 Charts:           Recharts
 PDF export:       @react-pdf/renderer  (background job — not inline)
 Excel export:     xlsx (SheetJS)
-PWA:              hand-rolled `public/sw.js` + `lib/offline.ts`, not next-pwa (see §11)
+PWA:              Serwist-generated `public/sw.js` + `lib/offline.ts` (see §11)
                   - Pilgrim PWA (/pilgrim/[code]) AND Group Leader PWA (/leader) — both, not just pilgrim
-                  - `cachedFetch`/`enqueueAction` cache-and-queue, not a Workbox runtimeCaching config
+                  - route/build precache plus `cachedFetch`/`enqueueAction` cache-and-queue
                   - Firebase Cloud Messaging for coordinator/leader push (independently optional)
 ```
 
@@ -995,9 +995,8 @@ Built inside `apps/web`, not `apps/mobile-leader` (see the STATUS note in
 (every leader is also a Better Auth org member; see the RBAC section in
 §5), self-scoped to `groups.leader_id = current user` end-to-end
 (`GroupLeaderRepository.EnsureLeaderOwnsGroup` on every call that takes a
-`group_id`). Offline is the hand-rolled cache in §11, not PowerSync — a
-short-term cache-and-queue, explicitly not the "72h zero-network"
-guarantee originally scoped here.
+`group_id`). Offline is the Serwist app-shell precache plus the local cache
+and queue in §11, not PowerSync or a conflict-resolving sync engine.
 
 **Screens:** My Groups → Roster, Check-In (one-tap DEPARTURE/ARRIVAL,
 offline-queued), Group Chat, SOS (operator-wide alerts scoped to this
@@ -1029,9 +1028,9 @@ identity ready ahead of Module 7 (a payment can require
 
 - Auth is still primarily the `appAccessCode` in the URL — Google linking
   is additive, not a replacement.
-- Service Worker (`public/sw.js`) does runtime caching of `/pilgrim`,
-  `/leader`, and `/_next/static`, not a full precache manifest — see §11
-  for the actual (short-term, not 72h) offline guarantee.
+- Service Worker source (`app/sw.ts`) is compiled by Serwist into generated
+  `public/sw.js`; it precaches all `/pilgrim` and `/leader` routes and their
+  build assets — see §11 for the remaining limits.
 - SOS is queued offline via `localStorage`, sent on the browser's `online`
   event.
 
@@ -1319,7 +1318,7 @@ func (s *NotificationService) NotifyAllCoordinators(ctx context.Context, operato
 
 ---
 
-## 11. PWA Architecture (as actually built — not `next-pwa`)
+## 11. PWA Architecture (as actually built — Serwist, not `next-pwa`)
 
 > The original plan below used the `next-pwa` package, a `next.config.ts`
 > `runtimeCaching` config, and an async server-component layout. None of
@@ -1333,13 +1332,13 @@ func (s *NotificationService) NotifyAllCoordinators(ctx context.Context, operato
 | SOS / check-in (write actions) | ✅ `enqueueAction` + `useOfflineQueueFlush` — queued in `localStorage`, replayed on the browser's `online` event |
 | Chat | ✅ polling, no streaming |
 | Push notification | ✅ Firebase Cloud Messaging (`lib/firebase.ts`), independently optional/no-op when unconfigured — not tied to PWA install state |
-| Offline guarantee | ❌ short-term cache only, explicitly **not** 72h zero-network |
+| Offline guarantee | ⚠️ app shell + bounded 72-hour access snapshot; last-seen data and queued writes only, not a device-verified or conflict-resolving 72-hour sync guarantee |
 
-```js
-// public/sw.js — hand-rolled, registered via useRegisterShellServiceWorker
-// (lib/register-sw.ts). Runtime-caches /pilgrim, /leader, and
-// /_next/static so an already-visited page still loads offline — not a
-// full precache manifest, not next-pwa.
+```typescript
+// app/sw.ts — source worker, compiled by Serwist during production builds.
+// public/sw.js is generated and gitignored. The manifest includes every
+// /pilgrim and /leader route plus build assets; runtime caching uses
+// Serwist's Next.js defaults.
 ```
 
 **Pilgrim PWA auth — `appAccessCode` primary, optional Google link additive:**
@@ -1429,7 +1428,7 @@ alone can't verify roles since Edge middleware has no DB access.
 | Auth | **Better Auth** | Open source, multi-tenant orgs built-in, ALL data in your PostgreSQL — zero external dependency. Replaces Clerk. Session strategy is opaque DB tokens, not JWT — see §5. |
 | Database | **PostgreSQL 16 self-hosted** | Full control, no vendor cost, no cold starts |
 | Hosting | **VPS + Docker Compose** | Own infrastructure, predictable cost, nginx handles routing |
-| ~~Mobile offline: PowerSync~~ → **hand-rolled cache** | `lib/offline.ts`: `cachedFetch` (localStorage read-through) + `enqueueAction` (offline write queue, flushed on `online`) | No simulator/device available to build/verify a real PowerSync-backed native app against; short-term cache-and-queue instead, explicitly not a 72h zero-network guarantee — see §11 |
+| ~~Mobile offline: PowerSync~~ → **Serwist + local cache** | `app/sw.ts` route/build precache; `lib/offline.ts` read-through cache + offline write queue; bounded 72-hour access snapshot | Cold-start shell and last-seen data work without the network, but this remains simpler than a conflict-resolving sync engine and needs device-level offline verification — see §11 |
 | Background jobs | **asynq** | Go-native, same binary, no external service. Two periodic tasks: agent tier recalc (5min), SOS escalation (1min) |
 | Pilgrim auth | **appAccessCode**, + **optional Google link** | Target: 45–65yo, first-time smartphone — no password required for read-only use. Google linking (`pilgrims.linked_user_id`) added ahead of Module 7 so a verified identity exists before money changes hands — additive, not a replacement |
 | ~~PWA scope: Pilgrim + Operator only~~ → **all three are PWAs** | Group Leader also shipped as a PWA (`/leader`), not native | Same reason as the offline-cache row above — no device/simulator to verify a native build; `apps/mobile-leader`/`apps/mobile-pilgrim` remain empty scaffolds for if that work resumes |

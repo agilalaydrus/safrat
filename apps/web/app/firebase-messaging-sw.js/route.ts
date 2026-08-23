@@ -1,7 +1,7 @@
-// Served at /firebase-messaging-sw.js — a service worker must be a real file
-// at that URL, but it also needs the real Firebase config, which only exists
-// as env vars. A static file in public/ can't read process.env at request
-// time, so this route handler generates the script server-side instead.
+// Development fallback served at /firebase-messaging-sw.js. Production bundles
+// Firebase Messaging into the Serwist app-shell worker so only one worker owns
+// the root scope. Keeping this route lets push registration work under Turbopack,
+// where Serwist generation is intentionally disabled.
 export async function GET() {
   const config = {
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "",
@@ -16,12 +16,7 @@ importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-com
 
 firebase.initializeApp(${JSON.stringify(config)});
 
-const messaging = firebase.messaging();
-messaging.onBackgroundMessage((payload) => {
-  const title = payload.notification?.title ?? "Tawafiq Hub";
-  const body = payload.notification?.body ?? "";
-  self.registration.showNotification(title, { body, icon: "/icons/icon-192.png" });
-});
+firebase.messaging();
 `;
 
   return new Response(script, { headers: { "Content-Type": "application/javascript", "Service-Worker-Allowed": "/" } });

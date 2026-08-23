@@ -2,6 +2,7 @@
 
 import { initializeApp, getApps } from "firebase/app";
 import { getMessaging, getToken, isSupported } from "firebase/messaging";
+import { registerTawafiqServiceWorker } from "@/lib/register-sw";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -22,7 +23,8 @@ export async function requestPushToken(): Promise<string | null> {
     const permission = await Notification.requestPermission();
     if (permission !== "granted") return null;
     const app = getApps()[0] ?? initializeApp(firebaseConfig);
-    const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+    const registration = await registerTawafiqServiceWorker();
+    if (!registration) return null;
     const token = await getToken(getMessaging(app), { vapidKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY, serviceWorkerRegistration: registration });
     return token || null;
   } catch {

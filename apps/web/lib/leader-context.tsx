@@ -3,6 +3,8 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { LeaderGroup } from "@hajj-saas/proto-gen/hajj/v1/groupleader_pb";
 import { groupLeaderClient } from "./rpc";
+import { getMyAccessCached } from "./access-cache";
+import { cachedFetch } from "./offline";
 
 // A leader's group id used to live in the URL (/leader/[groupId]) —
 // removed for the same reason as the pilgrim access code. Most leaders
@@ -28,13 +30,20 @@ export function LeaderGroupProvider({ children }: { children: React.ReactNode })
   const [selectedGroupId, setSelectedGroupIdState] = useState("");
 
   useEffect(() => {
-    groupLeaderClient.listMyGroups({}).then((response) => {
-      setGroups(response.groups);
-      setLoaded(true);
-      const stored = typeof window !== "undefined" ? window.sessionStorage.getItem(STORAGE_KEY) : null;
-      const initial = response.groups.find((g) => g.id === stored)?.id ?? response.groups[0]?.id ?? "";
-      setSelectedGroupIdState(initial);
-    }).catch(() => setLoaded(true));
+    getMyAccessCached()
+      .then((access) => {
+        const groupScope = access.leaderGroups.map((group) => group.id).sort().join(",");
+        return cachedFetch(`leader-groups:${groupScope}`, () => groupLeaderClient.listMyGroups({}));
+      })
+      .then(({ data: response }) => {
+        const nextGroups = response?.groups ?? [];
+        setGroups(nextGroups);
+        setLoaded(true);
+        const stored = typeof window !== "undefined" ? window.sessionStorage.getItem(STORAGE_KEY) : null;
+        const initial = nextGroups.find((g) => g.id === stored)?.id ?? nextGroups[0]?.id ?? "";
+        setSelectedGroupIdState(initial);
+      })
+      .catch(() => setLoaded(true));
   }, []);
 
   function setSelectedGroupId(id: string) {

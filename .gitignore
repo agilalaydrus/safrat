@@ -12,6 +12,10 @@ packages/proto-gen/hajj
 *.log
 .DS_Store
 apps/api/uploads/
+apps/web/public/sw.js
+apps/web/public/sw.js.map
+apps/web/public/swe-worker-*.js
+apps/web/public/swe-worker-*.js.map
 
 # Local-only clutter — never committed, never deployed
 tawafiqhub-landing-page/

@@ -106,6 +106,7 @@ jobs:
             ${{ env.WEB_IMAGE }}:${{ github.sha }}
             ${{ env.WEB_IMAGE }}:latest
           build-args: |
+            APP_BUILD_REVISION=${{ github.sha }}
             NEXT_PUBLIC_API_URL=${{ github.event.inputs.override_api_url != '' && github.event.inputs.override_api_url || 'https://api.tawafiqhub.id' }}
             NEXT_PUBLIC_APP_URL=${{ github.event.inputs.override_app_url != '' && github.event.inputs.override_app_url || 'https://app.tawafiqhub.id' }}
             NEXT_PUBLIC_VAPID_PUBLIC_KEY=${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}

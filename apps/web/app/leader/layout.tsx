@@ -9,6 +9,7 @@ import { LeaderGroupProvider, useLeaderGroup } from "@/lib/leader-context";
 import { authClient } from "@/lib/auth-client";
 import { invalidateMyAccessCache } from "@/lib/access-cache";
 import { useLeaderActiveSOSCount, useLeaderChatUnread } from "@/lib/leader-notifications";
+import { useRegisterShellServiceWorker } from "@/lib/register-sw";
 
 // The bottom bar is for what a Muttawwif actually touches while jamaah are
 // mid-ibadah — a group leader mid-trip is checking who's on the bus and
@@ -31,6 +32,7 @@ const MORE_ITEMS = [
 ] as const;
 
 function LeaderShell({ children }: { children: React.ReactNode }) {
+  useRegisterShellServiceWorker();
   const pathname = usePathname();
   const router = useRouter();
   const { groups, selectedGroupId, setSelectedGroupId } = useLeaderGroup();

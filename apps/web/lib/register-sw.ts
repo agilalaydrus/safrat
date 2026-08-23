@@ -2,11 +2,22 @@
 
 import { useEffect } from "react";
 
-/** Registers the app-shell cache service worker (public/sw.js). Call once from a PWA's root layout. */
+/**
+ * Returns the one root-scope service worker used for both offline caching and
+ * Firebase Messaging. Development keeps the generated Firebase-only fallback
+ * because Serwist is intentionally disabled under Turbopack.
+ */
+export async function registerTawafiqServiceWorker(): Promise<ServiceWorkerRegistration | undefined> {
+  if (!("serviceWorker" in navigator)) return undefined;
+
+  const scriptUrl = process.env.NODE_ENV === "production" ? "/sw.js" : "/firebase-messaging-sw.js";
+  return navigator.serviceWorker.register(scriptUrl);
+}
+
+/** Registers the production app-shell worker once from each PWA root layout. */
 export function useRegisterShellServiceWorker() {
   useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
-    }
+    if (process.env.NODE_ENV !== "production") return;
+    void registerTawafiqServiceWorker().catch(() => {});
   }, []);
 }
