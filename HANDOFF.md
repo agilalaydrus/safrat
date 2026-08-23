@@ -3,7 +3,16 @@
 > Working state + prioritized roadmap for the next agent. Point-in-time snapshot
 > (2026-08-24). Verify against current code before trusting any file:line.
 
-## Continuation after this snapshot (uncommitted)
+## Owner workflow preferences
+
+- After verified implementation work, always create a local commit so progress
+  is recorded. Never push or deploy unless the owner explicitly asks.
+- After every commit, make sure the local development server is running again
+  and verify the web endpoint so the owner can immediately inspect the result.
+- Every handoff response must include: a concise summary, completed work,
+  remaining/unverified work, recommendations, local commit, and server status.
+
+## Continuation after this snapshot (`c76f460`)
 
 - The cold-start offline item below is implemented locally with Serwist 9:
   `app/sw.ts` is the source and production builds generate the ignored
@@ -19,7 +28,8 @@
 - Verified locally: web typecheck, ESLint (0 errors; 23 pre-existing hook
   warnings), production build, and generated-manifest inspection (20/20 PWA
   routes present). A real-browser/device offline test is still recommended.
-- Nothing has been committed, pushed, or deployed.
+- The continuation is committed locally as `c76f460`; it has not been pushed
+  or deployed.
 
 ## Repo / deploy state
 
@@ -62,8 +72,8 @@
 
 ## Roadmap (prioritized) — with the analysis already done
 
-### Completed locally, pending review/commit
-- **#3 Precache for cold-start offline.** Implemented in the uncommitted
+### Completed locally, pending browser verification
+- **#3 Precache for cold-start offline.** Implemented in the committed
   continuation described above. The remaining validation gap is a real-browser
   test: load each PWA online once, close it, enable offline mode, then cold-open
   the installed PWA and exercise cached reads/queued writes.
