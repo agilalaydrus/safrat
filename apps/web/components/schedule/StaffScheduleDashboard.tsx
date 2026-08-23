@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { IconTrash, IconUsers } from "@tabler/icons-react";
 import { KloterScheduleSummary, KloterStaff } from "@hajj-saas/proto-gen/hajj/v1/staff_schedule_pb";
 import { OperatorMember } from "@hajj-saas/proto-gen/hajj/v1/group_pb";
-import { groupClient, kloterClient, seasonClient, staffScheduleClient } from "@/lib/rpc";
+import { groupClient, seasonClient, staffScheduleClient } from "@/lib/rpc";
 import { RoleGate } from "@/components/auth/RoleGate";
 
 const ROLE_LABEL: Record<string, string> = { COORDINATOR: "Koordinator", MEDICAL: "Medis", GUIDE: "Pemandu", ADMIN_SUPPORT: "Dukungan Admin" };

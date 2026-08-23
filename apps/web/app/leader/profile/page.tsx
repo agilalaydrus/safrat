@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IconLock, IconLogout, IconMail, IconPhone, IconUserCircle, IconUsersGroup } from "@tabler/icons-react";
+import { IconLogout, IconMail, IconPhone, IconUserCircle, IconUsersGroup } from "@tabler/icons-react";
 import { authClient } from "@/lib/auth-client";
 import { getMyAccessCached, invalidateMyAccessCache } from "@/lib/access-cache";
 import AgentKycSelfSection from "@/components/agents/AgentKycSelfSection";

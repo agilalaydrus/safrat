@@ -58,7 +58,7 @@ export default function AgentPayoutDialog({ open, agent, summary, onClose, onPai
 
   const amount = parseDigits(amountText);
 
-  function useRequest(request: PayoutRequest) {
+  function approveRequest(request: PayoutRequest) {
     setAmountText(String(Number(request.amountIdr)));
     setReference(request.note);
     setActiveRequestId(request.id);
@@ -129,7 +129,7 @@ export default function AgentPayoutDialog({ open, agent, summary, onClose, onPai
                       </div>
                       {rejectingId !== request.id && (
                         <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
-                          <button type="button" onClick={() => useRequest(request)} style={approveBtn}><IconCheck size={14} />Setujui</button>
+                          <button type="button" onClick={() => approveRequest(request)} style={approveBtn}><IconCheck size={14} />Setujui</button>
                           <button type="button" onClick={() => { setRejectingId(request.id); setRejectNote(""); }} style={rejectBtn}>Tolak</button>
                         </div>
                       )}

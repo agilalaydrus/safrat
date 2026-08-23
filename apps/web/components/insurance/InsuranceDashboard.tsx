@@ -22,7 +22,6 @@ export default function InsuranceDashboard() {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
 
-  const [seasons, setSeasons] = useState<{ id: string; name: string; isActive: boolean }[]>([]);
   const [seasonId, setSeasonId] = useState("");
   const [pilgrims, setPilgrims] = useState<Pilgrim[]>([]);
   const [search, setSearch] = useState("");
@@ -43,7 +42,6 @@ export default function InsuranceDashboard() {
 
   useEffect(() => {
     seasonClient.listSeasons({}).then((response) => {
-      setSeasons(response.seasons);
       setSeasonId(response.seasons.find((s) => s.isActive)?.id ?? response.seasons[0]?.id ?? "");
     }).catch(() => {});
   }, []);

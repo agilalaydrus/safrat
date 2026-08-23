@@ -107,7 +107,7 @@ export default function TransportDashboard() {
 
   useEffect(refresh, [season]);
 
-  async function useTemplate() {
+  async function applyTemplate() {
     if (!season || working) return;
     const template = TEMPLATES[templateKey];
     if (!template) return;
@@ -167,7 +167,7 @@ export default function TransportDashboard() {
             <option value="">Tanpa kloter</option>
             {kloters.map((k) => <option key={k.id} value={k.id}>Untuk {k.code}</option>)}
           </select>
-          <button disabled={!season || working} onClick={() => void useTemplate()} style={ghost}><IconTemplate size={18} />Gunakan Templat</button>
+          <button disabled={!season || working} onClick={() => void applyTemplate()} style={ghost}><IconTemplate size={18} />Gunakan Templat</button>
           <button disabled={!season} onClick={() => setOpen(true)} style={emerald}><IconPlus size={18} />Tambah Jadwal</button>
         </div>
       </header>
