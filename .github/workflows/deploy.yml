@@ -12,7 +12,7 @@ on:
         description: 'Override NEXT_PUBLIC_API_URL (leave blank for https://api.tawafiqhub.id)'
         default: ''
       override_app_url:
-        description: 'Override NEXT_PUBLIC_APP_URL (leave blank for https://app.tawafiqhub.id)'
+        description: 'Override NEXT_PUBLIC_APP_URL (leave blank for https://tawafiqhub.id)'
         default: ''
 
 env:
@@ -108,7 +108,7 @@ jobs:
           build-args: |
             APP_BUILD_REVISION=${{ github.sha }}
             NEXT_PUBLIC_API_URL=${{ github.event.inputs.override_api_url != '' && github.event.inputs.override_api_url || 'https://api.tawafiqhub.id' }}
-            NEXT_PUBLIC_APP_URL=${{ github.event.inputs.override_app_url != '' && github.event.inputs.override_app_url || 'https://app.tawafiqhub.id' }}
+            NEXT_PUBLIC_APP_URL=${{ github.event.inputs.override_app_url != '' && github.event.inputs.override_app_url || 'https://tawafiqhub.id' }}
             NEXT_PUBLIC_VAPID_PUBLIC_KEY=${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
             NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
             NEXT_PUBLIC_FIREBASE_API_KEY=${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
@@ -126,6 +126,7 @@ jobs:
             set -e
             export GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
             export IMAGE_TAG=${{ github.event.inputs.skip_build == 'y' && 'latest' || github.sha }}
+            export CORS_ALLOWED_ORIGIN=https://tawafiqhub.id
             cd /home/deploy/safrat
 
             # Prune old images first — runs even if the previous deploy
@@ -158,8 +159,8 @@ jobs:
               -e PGPASSWORD="${POSTGRES_PASSWORD}" \
               -e PGDATABASE=safrat \
               -e BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET}" \
-              -e BETTER_AUTH_URL="https://app.tawafiqhub.id" \
-              -e NEXT_PUBLIC_APP_URL="https://app.tawafiqhub.id" \
+              -e BETTER_AUTH_URL="https://tawafiqhub.id" \
+              -e NEXT_PUBLIC_APP_URL="https://tawafiqhub.id" \
               node:20-alpine \
               sh -c 'apk add --no-cache python3 make g++ && corepack enable && corepack prepare pnpm@9 --activate && pnpm install --frozen-lockfile --config.node-linker=hoisted && cd apps/web && npx auth@1.6.28 migrate --yes'
 
@@ -173,6 +174,19 @@ jobs:
               -e PGPASSWORD="${POSTGRES_PASSWORD}" \
               ghcr.io/kukymbr/goose-docker:latest \
               up
+
+            # Switch the canonical web host only after migrations succeed.
+            # Keep the previous file recoverable and never reload invalid nginx.
+            NGINX_CONFIG=/etc/nginx/sites-available/safrat
+            NGINX_BACKUP=/tmp/safrat-nginx-before-${{ github.run_id }}.conf
+            sudo -n cp "${NGINX_CONFIG}" "${NGINX_BACKUP}"
+            sudo -n install -m 0644 deploy/nginx/safrat.conf "${NGINX_CONFIG}"
+            if ! sudo -n nginx -t; then
+              sudo -n cp "${NGINX_BACKUP}" "${NGINX_CONFIG}"
+              sudo -n nginx -t
+              exit 1
+            fi
+            sudo -n systemctl reload nginx
 
             # Rolling restart — API first (no downtime for pure API changes),
             # web second. Worker restarts together with API (same image).

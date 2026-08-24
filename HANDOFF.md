@@ -14,6 +14,14 @@
 
 ## Continuation after this snapshot
 
+- The platform apex `https://tawafiqhub.id` is being made the canonical app
+  origin. Root/www TLS and DNS already reach the VPS; the version-controlled
+  nginx config proxies the apex and permanently redirects the old `app` host.
+  Better Auth, CORS, build URLs, and deployment defaults now use the apex.
+  Before production rollout, add
+  `https://tawafiqhub.id/api/auth/callback/google` to the Google OAuth client's
+  authorized redirect URIs. Existing host-only sessions on `app` will require
+  a one-time sign-in on the apex.
 - The hardening continuation fixes all proto RPC request naming violations;
   `buf lint` is now clean while RPC paths and field numbers stay wire-compatible.
 - Group-city (both admin and Muttawwif entry points), kloter-status, and ritual
@@ -50,6 +58,9 @@
   `/p/{slug}` address permanently redirects to `{slug}.tawafiqhub.id/`; share
   buttons use the tenant URL, and package CTAs use season slugs instead of UUIDs.
   API/database uniqueness remains the final race-safe guard for chosen slugs.
+  Production DNS currently has no wildcard `*.tawafiqhub.id` record and the
+  installed certificates do not cover the wildcard; those infrastructure items
+  are still required before arbitrary operator subdomains resolve publicly.
 - Landing hero messaging now sells one end-to-end operational control surface
   from Indonesia to Saudi, with gold-gradient emphasis and off-white dark-mode
   headings. FAQ dark mode separates active questions in warm gold from muted
@@ -64,16 +75,16 @@
 - Verified locally: web typecheck, ESLint (0 errors; 0 warnings), production
   build, and generated-manifest inspection (20/20 PWA
   routes present). A real-browser/device offline test is still recommended.
-- The offline continuation is committed locally as `c76f460`; nothing has been
-  pushed or deployed.
+- The offline and hardening continuations through `fb24df4` were pushed and
+  deployed successfully on 2026-08-24.
 
 ## Repo / deploy state
 
-- **16 commits sit on local `main`, NOT pushed** after the hardening continuation
-  in the current work (see `git log origin/main..main`).
+- The production release through `fb24df4` is on `origin/main` and passed CI,
+  image builds, migrations, VPS restart, and public smoke tests.
   **Pushing `main` triggers a production deploy** (`.github/workflows/deploy.yml`
-  → builds images, runs goose migrations, redeploys `app.tawafiqhub.id`). The
-  owner has deliberately **held deploys** — do not push `main` unless told.
+  → builds images, runs goose migrations, installs validated nginx config, and
+  redeploys `tawafiqhub.id`). Do not push again without explicit owner approval.
 - Generated code (`apps/api/internal/gen`, `packages/proto-gen`) is **gitignored**
   and rebuilt by CI — never commit it. `apps/web/tsconfig.tsbuildinfo` and
   untracked scratch `*.md` / media are also excluded.

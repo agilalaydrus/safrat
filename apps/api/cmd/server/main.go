@@ -318,7 +318,7 @@ func main() {
 
 // originMatcher accepts the exact configured origin, plus any single-label
 // subdomain of the same base host — e.g. CORS_ALLOWED_ORIGIN=
-// https://app.tawafiqhub.id also allows https://vacana.tawafiqhub.id,
+// https://tawafiqhub.id also allows https://vacana.tawafiqhub.id,
 // https://maktour.tawafiqhub.id, etc. (see apps/web/lib/tenant-link.ts and
 // middleware.ts — every operator gets its own subdomain for /register,
 // /apply, /waitlist). 127.0.0.1/localhost are treated as the same base for

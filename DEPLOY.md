@@ -96,7 +96,7 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD}
       PGDATABASE: safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      CORS_ALLOWED_ORIGIN: https://app.tawafiqhub.id
+      CORS_ALLOWED_ORIGIN: https://tawafiqhub.id
       SENTRY_DSN: ${SENTRY_DSN}
       FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON}
       XENDIT_SECRET_KEY: ${XENDIT_SECRET_KEY}
@@ -149,7 +149,7 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD}
       PGDATABASE: safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
-      BETTER_AUTH_URL: https://app.tawafiqhub.id
+      BETTER_AUTH_URL: https://tawafiqhub.id
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
       RESEND_API_KEY: ${RESEND_API_KEY}
@@ -183,7 +183,7 @@ POSTGRES_PASSWORD=use_a_strong_random_password
 BETTER_AUTH_SECRET=your_secret_here
 
 # Google Sign-In (Better Auth social provider) — web service only, never
-# reaches the Go API directly. Redirect URI: https://app.tawafiqhub.id/api/auth/callback/google
+# reaches the Go API directly. Redirect URI: https://tawafiqhub.id/api/auth/callback/google
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 
@@ -394,6 +394,12 @@ CMD ["node", "apps/web/server.js"]
 
 ## 7. nginx Configuration
 
+The production source of truth is `deploy/nginx/safrat.conf`. The deploy
+workflow installs it only after database migrations succeed, validates it with
+`nginx -t`, restores the previous file on validation failure, and reloads nginx
+before restarting application containers. The `deploy` user therefore needs
+passwordless sudo only for `cp`, `install`, `nginx`, and `systemctl reload nginx`.
+
 **Step 1 — HTTP only first** (before SSL):
 
 ```nginx
@@ -408,7 +414,7 @@ server {
 }
 server {
     listen 80;
-    server_name app.tawafiqhub.id;
+    server_name tawafiqhub.id www.tawafiqhub.id app.tawafiqhub.id;
     location / {
         proxy_pass http://127.0.0.1:9101;
         proxy_set_header Host $host;
@@ -425,6 +431,7 @@ sudo nginx -t && sudo systemctl reload nginx
 **Step 2 — Issue SSL:**
 
 ```bash
+sudo certbot --nginx -d tawafiqhub.id -d www.tawafiqhub.id
 sudo certbot --nginx -d app.tawafiqhub.id -d api.tawafiqhub.id
 ```
 
@@ -441,8 +448,8 @@ server {
     listen 443 ssl http2;
     server_name api.tawafiqhub.id;
 
-    ssl_certificate     /etc/letsencrypt/live/api.tawafiqhub.id/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/api.tawafiqhub.id/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/app.tawafiqhub.id/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/app.tawafiqhub.id/privkey.pem;
 
     add_header X-Frame-Options SAMEORIGIN;
     add_header X-Content-Type-Options nosniff;
@@ -470,15 +477,15 @@ server {
 # Web — Next.js
 server {
     listen 80;
-    server_name app.tawafiqhub.id;
-    return 301 https://$host$request_uri;
+    server_name tawafiqhub.id www.tawafiqhub.id app.tawafiqhub.id;
+    return 301 https://tawafiqhub.id$request_uri;
 }
 server {
     listen 443 ssl http2;
-    server_name app.tawafiqhub.id;
+    server_name tawafiqhub.id www.tawafiqhub.id;
 
-    ssl_certificate     /etc/letsencrypt/live/app.tawafiqhub.id/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/app.tawafiqhub.id/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/tawafiqhub.id/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/tawafiqhub.id/privkey.pem;
 
     add_header X-Frame-Options SAMEORIGIN;
     add_header X-Content-Type-Options nosniff;

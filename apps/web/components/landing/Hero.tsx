@@ -67,7 +67,7 @@ export default function Hero() {
                 <span className="h-3 w-3 rounded-full bg-rose-400" />
                 <span className="h-3 w-3 rounded-full bg-amber-400" />
                 <span className="h-3 w-3 rounded-full bg-emerald-400" />
-                <span className="ml-2 font-mono text-xs text-slate-400">app.tawafiqhub.id/dashboard/musim-1447h</span>
+                <span className="ml-2 font-mono text-xs text-slate-400">tawafiqhub.id/dashboard/musim-1447h</span>
               </div>
               <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                 Kloter 01 - Syawal 1447H (Aktif)

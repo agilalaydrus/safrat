@@ -1,6 +1,6 @@
 // Builds a public link on the operator's own subdomain (e.g.
 // vacana.tawafiqhub.id/register/[seasonId]) instead of the old
-// operatorId-in-path form (app.tawafiqhub.id/register/[operatorId]/[seasonId])
+// operatorId-in-path form (tawafiqhub.id/register/[operatorId]/[seasonId])
 // — apps/web/middleware.ts resolves the subdomain back to operatorId and
 // rewrites onto the same underlying route, so the page itself is unchanged.
 //
