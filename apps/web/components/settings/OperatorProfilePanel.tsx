@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { operatorClient } from "@/lib/rpc";
+import { buildTenantLink } from "@/lib/tenant-link";
 
 export default function OperatorProfilePanel() {
   const [name, setName] = useState("");
@@ -43,7 +44,7 @@ export default function OperatorProfilePanel() {
   }, []);
 
   const publicUrl = slug
-    ? `${process.env.NEXT_PUBLIC_APP_URL ?? (typeof window !== "undefined" ? window.location.origin : "")}/p/${slug}`
+    ? buildTenantLink(slug, "/")
     : "";
 
   const copyLink = async () => {
@@ -99,7 +100,7 @@ export default function OperatorProfilePanel() {
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <code style={{ flex: 1, minWidth: 220, padding: "10px 12px", background: "white", border: "1px solid var(--color-emerald-200)", borderRadius: 8, fontSize: 13, color: "var(--color-warm-900)", overflowX: "auto" }}>{publicUrl}</code>
             <button onClick={copyLink} style={{ ...emerald, minHeight: 40, padding: "0 16px" }}>{copied ? "Tersalin ✓" : "Salin Link"}</button>
-            <a href={`/p/${slug}`} target="_blank" rel="noreferrer" style={{ ...ghost, minHeight: 40, padding: "0 16px", display: "inline-flex", alignItems: "center" }}>Lihat</a>
+            <a href={publicUrl} target="_blank" rel="noreferrer" style={{ ...ghost, minHeight: 40, padding: "0 16px", display: "inline-flex", alignItems: "center" }}>Lihat</a>
           </div>
         </section>
       )}

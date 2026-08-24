@@ -39,6 +39,21 @@ const RESERVED_SUBDOMAINS = new Set(["app", "api", "www"]);
 // and it becomes the canonical root again).
 const BASE_HOSTS = ["tawafiqhub.id", "safrat.com", "localhost"];
 
+function baseHostname(hostname: string): string {
+  if (hostname === "127.0.0.1" || hostname === "localhost") return "localhost";
+  for (const base of BASE_HOSTS) {
+    if (hostname === base || hostname.endsWith(`.${base}`)) return base;
+  }
+  return hostname;
+}
+
+function tenantUrl(request: NextRequest, slug: string, pathname: string) {
+  const target = request.nextUrl.clone();
+  target.hostname = `${slug}.${baseHostname(target.hostname)}`;
+  target.pathname = pathname;
+  return target;
+}
+
 function extractSlug(host: string): string | null {
   const hostname = host.split(":")[0] ?? ""; // strip port (e.g. vacana.localhost:3131)
   for (const base of BASE_HOSTS) {
@@ -114,6 +129,22 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const slug = extractSlug(request.headers.get("host") ?? "");
+
+  // /p/{slug} was the original public URL. Keep old bookmarks working, but
+  // make the tenant subdomain root the one canonical address visitors see.
+  const legacyProfile = pathname.match(/^\/p\/([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)\/?$/);
+  if (!slug && legacyProfile?.[1]) {
+    return NextResponse.redirect(tenantUrl(request, legacyProfile[1], "/"), 308);
+  }
+
+  // The public profile remains implemented by app/p/[slug], while visitors
+  // see the cleaner operator root URL (vacana.tawafiqhub.id/).
+  if (slug && pathname === "/") {
+    const rewritten = request.nextUrl.clone();
+    rewritten.pathname = `/p/${slug}`;
+    return NextResponse.rewrite(rewritten);
+  }
+
   const subdomainRoute = slug && SUBDOMAIN_ROUTES.find((route) => pathname === route || pathname.startsWith(`${route}/`));
   if (slug && subdomainRoute) {
     const { operatorId, activeSeasonId } = await resolveOperator(slug);

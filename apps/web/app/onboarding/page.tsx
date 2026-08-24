@@ -2,7 +2,7 @@
 
 import { Timestamp } from "@bufbuild/protobuf";
 import { Code, ConnectError } from "@connectrpc/connect";
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SeasonType } from "@hajj-saas/proto-gen/hajj/v1/season_pb";
 import { authClient } from "@/lib/auth-client";
@@ -11,6 +11,7 @@ import { SEASON_TYPE_OPTIONS } from "@/lib/season-types";
 
 type Values = {
   name: string;
+  slug: string;
   licenseNumber: string;
   country: string;
   description: string;
@@ -25,6 +26,7 @@ type Values = {
 
 const initialValues: Values = {
   name: "",
+  slug: "",
   licenseNumber: "",
   country: "ID",
   description: "",
@@ -45,6 +47,9 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [values, setValues] = useState(initialValues);
   const [orgCreated, setOrgCreated] = useState(false);
+  const [createdOrganizationId, setCreatedOrganizationId] = useState("");
+  const [slugEdited, setSlugEdited] = useState(false);
+  const [slugStatus, setSlugStatus] = useState<"idle" | "checking" | "available" | "unavailable" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const submittingRef = useRef(false);
@@ -52,6 +57,37 @@ export default function OnboardingPage() {
   function update<K extends keyof Values>(key: K, value: Values[K]) {
     setValues((current) => ({ ...current, [key]: value }));
   }
+
+  function updateName(name: string) {
+    setValues((current) => ({
+      ...current,
+      name,
+      slug: slugEdited ? current.slug : suggestedOperatorSlug(name),
+    }));
+  }
+
+  useEffect(() => {
+    if (orgCreated || !isValidOperatorSlug(values.slug)) {
+      setSlugStatus("idle");
+      return;
+    }
+
+    let cancelled = false;
+    setSlugStatus("checking");
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await operatorClient.checkOperatorSlug({ slug: values.slug });
+        if (!cancelled) setSlugStatus(response.available ? "available" : "unavailable");
+      } catch {
+        if (!cancelled) setSlugStatus("error");
+      }
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [orgCreated, values.slug]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -74,16 +110,29 @@ export default function OnboardingPage() {
         // Create the org + operator once; re-entering step 1 (via Kembali)
         // must not create a duplicate organization.
         if (!orgCreated) {
-          const result = await authClient.organization.create({ name: values.name, slug: organizationSlug(values.name) });
-          if (result.error || !result.data) throw new Error(result.error?.message ?? "Gagal membuat organisasi.");
-          await authClient.organization.setActive({ organizationId: result.data.id });
+          if (!isValidOperatorSlug(values.slug)) {
+            throw new Error("Subdomain harus 3–63 karakter, memakai huruf kecil, angka, atau tanda hubung.");
+          }
+          const availability = await operatorClient.checkOperatorSlug({ slug: values.slug });
+          if (!availability.available) {
+            throw new ConnectError("Subdomain sudah digunakan.", Code.AlreadyExists);
+          }
+          let organizationId = createdOrganizationId;
+          if (!organizationId) {
+            const result = await authClient.organization.create({ name: values.name, slug: organizationSlug(values.name) });
+            if (result.error || !result.data) throw new Error(result.error?.message ?? "Gagal membuat organisasi.");
+            organizationId = result.data.id;
+            setCreatedOrganizationId(organizationId);
+          }
+          await authClient.organization.setActive({ organizationId });
           await authClient.getSession();
           await operatorClient.createOperator({
-            betterAuthOrgId: result.data.id,
+            betterAuthOrgId: organizationId,
             name: values.name,
             country: values.country.toUpperCase(),
             email: session.user.email,
             licenseNumber: values.licenseNumber,
+            slug: values.slug,
           });
           setOrgCreated(true);
         }
@@ -108,9 +157,12 @@ export default function OnboardingPage() {
         router.push("/dashboard");
       }
     } catch (caught) {
-      const message = ConnectError.from(caught).code === Code.AlreadyExists
-        ? "Nama musim sudah digunakan. Ubah musim yang ada atau gunakan nama lain."
-        : caught instanceof Error ? caught.message : "Terjadi kesalahan. Silakan coba lagi.";
+      const code = ConnectError.from(caught).code;
+      const message = code === Code.AlreadyExists && step === 1
+        ? `Subdomain ${values.slug}.tawafiqhub.id sudah digunakan. Silakan pilih nama lain.`
+        : code === Code.AlreadyExists
+          ? "Nama musim sudah digunakan. Ubah musim yang ada atau gunakan nama lain."
+          : caught instanceof Error ? caught.message : "Terjadi kesalahan. Silakan coba lagi.";
       setError(message);
     } finally {
       submittingRef.current = false;
@@ -140,9 +192,34 @@ export default function OnboardingPage() {
         <form onSubmit={submit} style={{ display: "grid", gap: 16 }}>
           {step === 1 && (
             <>
-              <Field label="Nama perusahaan" value={values.name} onChange={(v) => update("name", v)} placeholder="PT. Barokah Tour & Travel" />
-              <Field label="Nomor izin PPIU/PIHK (opsional)" value={values.licenseNumber} onChange={(v) => update("licenseNumber", v)} required={false} placeholder="PPIU-1234" />
-              <Field label="Negara (ISO-2)" value={values.country} onChange={(v) => update("country", v.toUpperCase())} maxLength={2} placeholder="ID" />
+              <Field label="Nama perusahaan" value={values.name} onChange={updateName} disabled={orgCreated} placeholder="PT. Barokah Tour & Travel" />
+              <label style={labelStyle}>
+                Alamat subdomain
+                <div style={subdomainInputStyle}>
+                  <span style={protocolStyle}>https://</span>
+                  <input
+                    required
+                    disabled={orgCreated}
+                    value={values.slug}
+                    onChange={(event) => {
+                      setSlugEdited(true);
+                      update("slug", normalizeOperatorSlug(event.target.value));
+                    }}
+                    minLength={3}
+                    maxLength={63}
+                    pattern="[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
+                    aria-describedby="subdomain-status"
+                    placeholder="barokah"
+                    style={subdomainTextInputStyle}
+                  />
+                  <span style={suffixStyle}>.tawafiqhub.id</span>
+                </div>
+                <span id="subdomain-status" style={{ ...hintStyle, color: slugStatusColor(slugStatus) }}>
+                  {slugStatusMessage(slugStatus, values.slug, orgCreated)}
+                </span>
+              </label>
+              <Field label="Nomor izin PPIU/PIHK (opsional)" value={values.licenseNumber} onChange={(v) => update("licenseNumber", v)} disabled={orgCreated} required={false} placeholder="PPIU-1234" />
+              <Field label="Negara (ISO-2)" value={values.country} onChange={(v) => update("country", v.toUpperCase())} disabled={orgCreated} maxLength={2} placeholder="ID" />
             </>
           )}
 
@@ -243,6 +320,7 @@ function Field({
   placeholder,
   maxLength,
   required = true,
+  disabled = false,
 }: {
   label: string;
   value: string;
@@ -251,12 +329,14 @@ function Field({
   placeholder?: string;
   maxLength?: number;
   required?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <label style={labelStyle}>
       {label}
       <input
         required={required}
+        disabled={disabled}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         type={type}
@@ -273,6 +353,45 @@ function organizationSlug(name: string) {
   return `${base}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
+function normalizeOperatorSlug(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+/, "")
+    .slice(0, 63);
+}
+
+function suggestedOperatorSlug(name: string) {
+  const normalized = normalizeOperatorSlug(name).replace(/-+$/, "");
+  const parts = normalized.split("-");
+  const legalPrefixes = new Set(["pt", "cv", "ud", "pd", "fa", "kbih", "kbihu", "yayasan"]);
+  const firstPart = parts[0] ?? "";
+  const withoutPrefix = parts.length > 1 && legalPrefixes.has(firstPart) ? parts.slice(1).join("-") : normalized;
+  return withoutPrefix.slice(0, 55).replace(/-+$/, "");
+}
+
+function isValidOperatorSlug(slug: string) {
+  return slug.length >= 3 && slug.length <= 63 && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(slug);
+}
+
+function slugStatusMessage(status: "idle" | "checking" | "available" | "unavailable" | "error", slug: string, locked: boolean) {
+  if (locked) return `Subdomain tersimpan: ${slug}.tawafiqhub.id`;
+  if (!slug) return "Pilih alamat singkat yang mudah diingat calon jamaah.";
+  if (!isValidOperatorSlug(slug)) return "Minimal 3 karakter; tanda hubung tidak boleh berada di awal atau akhir.";
+  if (status === "checking") return "Memeriksa ketersediaan...";
+  if (status === "available") return `${slug}.tawafiqhub.id tersedia.`;
+  if (status === "unavailable") return `${slug}.tawafiqhub.id sudah digunakan.`;
+  if (status === "error") return "Ketersediaan belum dapat diperiksa; sistem akan memvalidasi saat Anda lanjut.";
+  return "";
+}
+
+function slugStatusColor(status: "idle" | "checking" | "available" | "unavailable" | "error") {
+  if (status === "available") return "var(--color-emerald-700)";
+  if (status === "unavailable") return "var(--color-danger-600)";
+  return "var(--color-warm-400)";
+}
+
 const pageStyle: React.CSSProperties = { minHeight: "100vh", display: "grid", placeItems: "center", padding: "6vh 20px", background: "var(--color-cream-100)" };
 const cardStyle: React.CSSProperties = { width: "100%", maxWidth: 560, background: "white", borderRadius: 20, border: "1px solid var(--color-cream-300)", boxShadow: "0 10px 40px rgba(15,23,42,.06)", padding: "36px 32px" };
 const titleStyle: React.CSSProperties = { fontSize: "1.6rem", fontWeight: 700, margin: "0 0 6px", textAlign: "center", color: "var(--color-warm-900)" };
@@ -280,5 +399,9 @@ const subtitleStyle: React.CSSProperties = { fontSize: 14, color: "var(--color-w
 const labelStyle: React.CSSProperties = { display: "grid", gap: 8, fontSize: 14, fontWeight: 600, color: "var(--color-warm-700)" };
 const hintStyle: React.CSSProperties = { fontSize: 12, fontWeight: 400, color: "var(--color-warm-400)" };
 const inputStyle: React.CSSProperties = { display: "block", width: "100%", padding: "11px 13px", font: "inherit", fontWeight: 400, border: "1.5px solid var(--color-cream-400)", borderRadius: 10, background: "white", color: "var(--color-warm-900)" };
+const subdomainInputStyle: React.CSSProperties = { display: "flex", alignItems: "stretch", width: "100%", border: "1.5px solid var(--color-cream-400)", borderRadius: 10, overflow: "hidden", background: "white" };
+const protocolStyle: React.CSSProperties = { display: "flex", alignItems: "center", paddingLeft: 12, color: "var(--color-warm-400)", fontWeight: 400 };
+const subdomainTextInputStyle: React.CSSProperties = { minWidth: 70, flex: 1, padding: "11px 2px", border: 0, outline: 0, font: "inherit", fontWeight: 600, color: "var(--color-warm-900)" };
+const suffixStyle: React.CSSProperties = { display: "flex", alignItems: "center", paddingRight: 12, color: "var(--color-warm-500)", fontWeight: 500 };
 const primaryBtnStyle: React.CSSProperties = { flex: 1, padding: "13px 20px", border: 0, borderRadius: 10, background: "var(--color-emerald-800)", color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer" };
 const secondaryBtnStyle: React.CSSProperties = { padding: "13px 20px", borderRadius: 10, border: "1.5px solid var(--color-cream-400)", background: "white", color: "var(--color-warm-700)", fontWeight: 600, fontSize: 14, cursor: "pointer" };

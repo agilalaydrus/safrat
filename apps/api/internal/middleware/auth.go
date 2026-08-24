@@ -87,8 +87,11 @@ var publicProcedures = map[string]bool{
 	// on every subdomain request (before any session exists) to map a slug
 	// like "vacana" to an operator ID. Returns only id + name.
 	"/hajj.v1.OperatorService/ResolveOperatorSlug": true,
+	// Onboarding availability check contains no tenant data and runs before
+	// the new operator record exists.
+	"/hajj.v1.OperatorService/CheckOperatorSlug": true,
 	// OperatorService/GetPublicProfile — the shareable operator landing page
-	// at /p/{slug}, fetched server-side with no session. Returns only
+	// at {slug}.tawafiqhub.id, fetched server-side with no session. Returns only
 	// non-sensitive profile fields plus available seasons.
 	"/hajj.v1.OperatorService/GetPublicProfile": true,
 	// SeasonService/ResolveSeasonSlug — same pattern, for an explicit-season

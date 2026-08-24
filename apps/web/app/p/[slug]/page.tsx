@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { buildTenantLinkFromBase } from "@/lib/tenant-link";
 
 // Connect JSON response (camelCase proto JSON names). Timestamps are RFC3339
 // strings. Fetched server-side from the public GetPublicProfile RPC.
 type PublicSeason = {
   id: string;
   name: string;
+  slug: string;
   type: string;
   startDate?: string;
   endDate?: string;
@@ -72,6 +74,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: `${profile.name} — Travel Umrah & Haji`,
     description: profile.description || `Paket Umrah & Haji dari ${profile.name}.`,
+    alternates: process.env.NEXT_PUBLIC_APP_URL
+      ? { canonical: buildTenantLinkFromBase(profile.slug, "/", process.env.NEXT_PUBLIC_APP_URL) }
+      : undefined,
   };
 }
 
@@ -144,7 +149,7 @@ export default async function OperatorPublicProfile({ params }: { params: Promis
                     )}
                   </div>
                   <Link
-                    href={`/register/${profile.operatorId}/${season.id}`}
+                    href={`/register/${season.slug}`}
                     className="mt-4 block rounded-xl bg-emerald-600 py-2.5 text-center text-xs font-bold text-white transition-colors hover:bg-emerald-700"
                   >
                     Daftar Sekarang

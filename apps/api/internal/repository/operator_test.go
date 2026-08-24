@@ -44,3 +44,27 @@ func TestSlugBaseFitsDNSLabelWithSuffix(t *testing.T) {
 		t.Fatalf("slug %q must not end in a hyphen", got)
 	}
 }
+
+func TestIsValidOperatorSlug(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		slug string
+		want bool
+	}{
+		{slug: "sinar", want: true},
+		{slug: "sinar-bukit-shofa", want: true},
+		{slug: "ab", want: false},
+		{slug: "-sinar", want: false},
+		{slug: "sinar-", want: false},
+		{slug: "Sinar", want: false},
+		{slug: "sinar_bukit", want: false},
+		{slug: strings.Repeat("a", 64), want: false},
+	}
+
+	for _, test := range tests {
+		if got := IsValidOperatorSlug(test.slug); got != test.want {
+			t.Errorf("IsValidOperatorSlug(%q) = %v, want %v", test.slug, got, test.want)
+		}
+	}
+}

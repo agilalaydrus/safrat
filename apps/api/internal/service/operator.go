@@ -40,11 +40,34 @@ func (s *OperatorService) Create(ctx context.Context, authenticatedOrgID string,
 	if !errors.Is(err, apperror.ErrNotFound) {
 		return nil, serviceError("OperatorService.Create", err)
 	}
-	operator, err = s.repository.Create(ctx, request.BetterAuthOrgId, request.Name, request.Country, request.Email, request.LicenseNumber)
+	if request.Slug != "" {
+		if !repository.IsValidOperatorSlug(request.Slug) {
+			return nil, serviceError("OperatorService.Create", apperror.ErrValidation)
+		}
+		available, availabilityErr := s.repository.IsSlugAvailable(ctx, request.Slug)
+		if availabilityErr != nil {
+			return nil, serviceError("OperatorService.Create", availabilityErr)
+		}
+		if !available {
+			return nil, serviceError("OperatorService.Create", apperror.ErrAlreadyExists)
+		}
+	}
+	operator, err = s.repository.Create(ctx, request.BetterAuthOrgId, request.Name, request.Country, request.Email, request.LicenseNumber, request.Slug)
 	if err != nil {
 		return nil, serviceError("OperatorService.Create", err)
 	}
 	return operatorMessage(operator), nil
+}
+
+func (s *OperatorService) CheckSlug(ctx context.Context, request *hajjv1.CheckOperatorSlugRequest) (*hajjv1.CheckOperatorSlugResponse, error) {
+	if request == nil || !repository.IsValidOperatorSlug(request.Slug) {
+		return nil, serviceError("OperatorService.CheckSlug", apperror.ErrValidation)
+	}
+	available, err := s.repository.IsSlugAvailable(ctx, request.Slug)
+	if err != nil {
+		return nil, serviceError("OperatorService.CheckSlug", err)
+	}
+	return &hajjv1.CheckOperatorSlugResponse{Available: available}, nil
 }
 
 func (s *OperatorService) Update(ctx context.Context, authenticatedOrgID string, request *hajjv1.UpdateOperatorRequest) (*hajjv1.Operator, error) {
@@ -151,7 +174,8 @@ func (s *OperatorService) UpdateMyProfile(ctx context.Context, authenticatedOrgI
 }
 
 // GetPublicProfile is public (see publicProcedures in auth.go) — the operator's
-// shareable /p/{slug} page. Returns only non-sensitive fields plus available
+// shareable {slug}.tawafiqhub.id landing page. Returns only non-sensitive
+// fields plus available
 // (not-yet-ended) seasons.
 func (s *OperatorService) GetPublicProfile(ctx context.Context, request *hajjv1.GetPublicProfileRequest) (*hajjv1.GetPublicProfileResponse, error) {
 	if request == nil || request.Slug == "" {
@@ -174,6 +198,7 @@ func (s *OperatorService) GetPublicProfile(ctx context.Context, request *hajjv1.
 			StartDate:    timestamppb.New(season.StartDate),
 			EndDate:      timestamppb.New(season.EndDate),
 			PilgrimCount: season.PilgrimCount,
+			Slug:         season.Slug,
 		})
 	}
 	return &hajjv1.GetPublicProfileResponse{

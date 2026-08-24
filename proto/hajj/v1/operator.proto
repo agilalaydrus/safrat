@@ -12,6 +12,9 @@ service OperatorService {
   rpc GetMyOperator(GetMyOperatorRequest) returns (Operator);
   rpc UpdateOperator(UpdateOperatorRequest) returns (Operator);
   rpc ListAuditLogs(ListAuditLogsRequest) returns (ListAuditLogsResponse);
+  // Public preflight check used by onboarding before an operator chooses its
+  // permanent tenant subdomain.
+  rpc CheckOperatorSlug(CheckOperatorSlugRequest) returns (CheckOperatorSlugResponse);
   // Public — resolves a subdomain slug (e.g. "vacana" from vacana.tawafiqhub.id)
   // to the operator it belongs to, for apps/web/middleware.ts to rewrite
   // subdomain requests to the existing /register, /apply, /waitlist path-based
@@ -21,7 +24,8 @@ service OperatorService {
   // Updates the calling operator's public-profile fields (used by the
   // onboarding wizard's final step and the dashboard settings editor).
   rpc UpdateMyProfile(UpdateOperatorProfileRequest) returns (Operator);
-  // Public — the operator's shareable landing page at /p/{slug}. Returns
+  // Public — the operator's shareable landing page at {slug}.tawafiqhub.id.
+  // The internal /p/{slug} route is only the rendering target. Returns
   // only non-sensitive fields plus available (not-yet-ended) seasons. In
   // publicProcedures (auth.go) and rateLimitedProcedures (ratelimit.go).
   rpc GetPublicProfile(GetPublicProfileRequest) returns (GetPublicProfileResponse);
@@ -65,6 +69,7 @@ message PublicSeasonSummary {
   google.protobuf.Timestamp start_date = 4;
   google.protobuf.Timestamp end_date = 5;
   int32 pilgrim_count = 6;
+  string slug = 7;
 }
 
 message GetPublicProfileResponse {
@@ -88,6 +93,9 @@ message CreateOperatorRequest {
   string country = 3;
   string email = 4 [(buf.validate.field).string.email = true];
   string license_number = 5;
+  // User-selected tenant subdomain. Empty remains supported as a backwards-
+  // compatible fallback and lets the API derive one from the operator name.
+  string slug = 6;
 }
 
 message GetMyOperatorRequest {}
@@ -111,6 +119,11 @@ message AuditLog {
 
 message ListAuditLogsRequest { int32 limit = 1; }
 message ListAuditLogsResponse { repeated AuditLog logs = 1; }
+
+message CheckOperatorSlugRequest {
+  string slug = 1 [(buf.validate.field).string = {min_len: 3, max_len: 63, pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"}];
+}
+message CheckOperatorSlugResponse { bool available = 1; }
 
 message ResolveOperatorSlugRequest {
   string slug = 1 [(buf.validate.field).string.min_len = 1];

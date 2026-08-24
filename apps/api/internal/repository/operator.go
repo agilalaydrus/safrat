@@ -14,6 +14,7 @@ import (
 	"github.com/hajj-saas/api/internal/domain"
 	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -21,6 +22,7 @@ const operatorSlugBaseMaxLength = 55
 
 var (
 	operatorSlugSeparatorPattern = regexp.MustCompile(`[^a-z0-9]+`)
+	operatorSlugPattern          = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 	operatorLegalPrefixes        = map[string]struct{}{
 		"pt": {}, "cv": {}, "ud": {}, "pd": {}, "fa": {},
 		"kbih": {}, "kbihu": {}, "yayasan": {},
@@ -76,10 +78,14 @@ func NewOperatorRepository(queries *db.Queries) *OperatorRepository {
 	return &OperatorRepository{queries: queries, cache: make(map[string]operatorCacheEntry)}
 }
 
-func (r *OperatorRepository) Create(ctx context.Context, betterAuthOrgID, name, country, email, licenseNumber string) (*domain.Operator, error) {
-	slug, err := r.uniqueSlug(ctx, name)
-	if err != nil {
-		return nil, err
+func (r *OperatorRepository) Create(ctx context.Context, betterAuthOrgID, name, country, email, licenseNumber, requestedSlug string) (*domain.Operator, error) {
+	slug := requestedSlug
+	if slug == "" {
+		var err error
+		slug, err = r.uniqueSlug(ctx, name)
+		if err != nil {
+			return nil, err
+		}
 	}
 	operator, err := r.queries.CreateOperator(ctx, db.CreateOperatorParams{
 		BetterAuthOrgID: betterAuthOrgID,
@@ -93,9 +99,31 @@ func (r *OperatorRepository) Create(ctx context.Context, betterAuthOrgID, name, 
 		return r.GetByBetterAuthOrgID(ctx, betterAuthOrgID)
 	}
 	if err != nil {
+		var pgError *pgconn.PgError
+		if errors.As(err, &pgError) && pgError.Code == "23505" && pgError.ConstraintName == "operators_slug_key" {
+			return nil, apperror.ErrAlreadyExists
+		}
 		return nil, err
 	}
 	return toOperator(operator), nil
+}
+
+// IsSlugAvailable is only a friendly onboarding preflight. The database's
+// unique index remains the final authority, so concurrent signups cannot claim
+// the same subdomain even if both preflight checks initially return true.
+func (r *OperatorRepository) IsSlugAvailable(ctx context.Context, slug string) (bool, error) {
+	if !IsValidOperatorSlug(slug) {
+		return false, nil
+	}
+	if _, reserved := operatorReservedSlugs[slug]; reserved {
+		return false, nil
+	}
+	exists, err := r.queries.OperatorSlugExists(ctx, pgtype.Text{String: slug, Valid: true})
+	return !exists, err
+}
+
+func IsValidOperatorSlug(slug string) bool {
+	return len(slug) >= 3 && len(slug) <= 63 && operatorSlugPattern.MatchString(slug)
 }
 
 // uniqueSlug tries the readable base candidate, then -2, -3, ... until it

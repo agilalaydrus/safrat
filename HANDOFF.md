@@ -26,8 +26,14 @@
   groups are read-through cached. Without these, a precached shell still
   redirected to sign-in during a cold offline start.
 - Operator slugs now use the meaningful full name after removing generic legal
-  prefixes (`PT`, `CV`, `KBIH/KBIHU`, etc.). Migration 076 repairs only existing
-  generic slugs such as `/p/pt`; it is applied locally.
+  prefixes (`PT`, `CV`, `KBIH/KBIHU`, etc.). New onboarding lets the owner edit
+  that suggestion, previews `{slug}.tawafiqhub.id`, and checks availability in
+  real time. Migration 076 repairs only existing generic slugs such as `pt`; it
+  is applied locally.
+- The operator-subdomain root is now the canonical public profile URL. The old
+  `/p/{slug}` address permanently redirects to `{slug}.tawafiqhub.id/`; share
+  buttons use the tenant URL, and package CTAs use season slugs instead of UUIDs.
+  API/database uniqueness remains the final race-safe guard for chosen slugs.
 - Season creation is idempotent and protected at three layers: synchronous UI
   submit locks, backend exact-retry upsert, and a unique normalized season name
   per operator. Migrations 077–078 safely removed empty local duplicates; one
@@ -41,7 +47,7 @@
 
 ## Repo / deploy state
 
-- **11 commits sit on local `main`, NOT pushed** after the season-duplicate fix
+- **12 commits sit on local `main`, NOT pushed** after the selectable-subdomain work
   in the current work (see `git log origin/main..main`).
   **Pushing `main` triggers a production deploy** (`.github/workflows/deploy.yml`
   → builds images, runs goose migrations, redeploys `app.tawafiqhub.id`). The
@@ -52,9 +58,8 @@
 - **Local dev DB was wiped clean** (all rows truncated, schema kept) for fresh
   manual testing. Migrations **073–078 are applied locally**; in prod goose
   applies them on deploy.
-- Local processes: web dev on `:3131`; Go API on `:8131` was restarted from
-  current source after the old binary returned 404 for
-  `OperatorService.UpdateMyProfile`.
+- Local processes: web dev on `:3131`; Go API on `:8131`. Both are expected to
+  be restarted from current source after the latest local commit.
 
 ## What shipped this session (the 5 commits)
 
@@ -64,7 +69,8 @@
    `backdrop-blur` containing block).
 3. `d3a1d69` **Onboarding wizard + operator public profile** — migration 073;
    `OperatorService.UpdateMyProfile` (auth) + `GetPublicProfile` (public);
-   `/p/[slug]` SSR page; settings editor + share link; post-onboarding banner.
+   tenant-root public profile (internally rendered by `/p/[slug]`); settings
+   editor + share link; post-onboarding banner.
 4. `f9dc1c8` **Production hardening**:
    - **#1 Transactional outbox** (migration 074 `cascade_events`): producers
      enqueue in the same tx as the write; worker relay (`cascade:dispatch`

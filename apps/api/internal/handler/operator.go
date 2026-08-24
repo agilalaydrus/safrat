@@ -19,8 +19,22 @@ func NewOperatorHandler(operatorService *service.OperatorService) *OperatorHandl
 }
 
 func (h *OperatorHandler) CreateOperator(ctx context.Context, req *connect.Request[hajjv1.CreateOperatorRequest]) (*connect.Response[hajjv1.Operator], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
 	operatorID := middleware.OperatorIDFromCtx(ctx)
 	result, err := h.operatorService.Create(ctx, operatorID, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *OperatorHandler) CheckOperatorSlug(ctx context.Context, req *connect.Request[hajjv1.CheckOperatorSlugRequest]) (*connect.Response[hajjv1.CheckOperatorSlugResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.operatorService.CheckSlug(ctx, req.Msg)
 	if err != nil {
 		return nil, connectError(err)
 	}

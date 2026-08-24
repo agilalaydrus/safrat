@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { operatorClient } from "@/lib/rpc";
+import { buildTenantLink } from "@/lib/tenant-link";
 
 const DISMISS_KEY = "profile_banner_dismissed";
 
 // Shown once on the dashboard after onboarding completes (is_profile_complete
 // === true), until the operator dismisses it. Nudges them to share their
-// public /p/{slug} page with prospective jamaah.
+// public tenant-subdomain page with prospective jamaah.
 export default function ProfileShareBanner() {
   const [slug, setSlug] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -28,7 +29,7 @@ export default function ProfileShareBanner() {
 
   if (dismissed || !slug) return null;
 
-  const url = `${process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin}/p/${slug}`;
+  const url = buildTenantLink(slug, "/");
 
   const dismiss = () => {
     window.localStorage.setItem(DISMISS_KEY, "1");
@@ -48,10 +49,10 @@ export default function ProfileShareBanner() {
   return (
     <div style={wrap}>
       <span style={{ fontSize: 14, color: "var(--color-emerald-900)" }}>
-        🎉 Profil publik Anda sudah aktif di <strong>/p/{slug}</strong> — bagikan ke calon jamaah!
+        🎉 Profil publik Anda sudah aktif di <strong>{slug}.tawafiqhub.id</strong> — bagikan ke calon jamaah!
       </span>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <a href={`/p/${slug}`} target="_blank" rel="noreferrer" style={ghost}>Lihat Profil</a>
+        <a href={url} target="_blank" rel="noreferrer" style={ghost}>Lihat Profil</a>
         <button onClick={copy} style={solid}>{copied ? "Tersalin ✓" : "Salin Link"}</button>
         <button onClick={dismiss} aria-label="Tutup" style={close}>✕</button>
       </div>

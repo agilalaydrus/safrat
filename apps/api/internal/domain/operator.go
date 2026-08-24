@@ -21,10 +21,11 @@ type Operator struct {
 }
 
 // PublicSeasonSummary is the non-sensitive view of a season shown on an
-// operator's public profile page (/p/{slug}).
+// operator's public profile page at {slug}.tawafiqhub.id.
 type PublicSeasonSummary struct {
 	ID           string
 	Name         string
+	Slug         string
 	Type         SeasonType
 	StartDate    time.Time
 	EndDate      time.Time

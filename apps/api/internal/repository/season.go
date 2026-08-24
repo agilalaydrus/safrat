@@ -167,6 +167,7 @@ func (r *SeasonRepository) ListPublicSeasons(ctx context.Context, operatorID str
 		results = append(results, &domain.PublicSeasonSummary{
 			ID:           uuid.UUID(row.ID.Bytes).String(),
 			Name:         row.Name,
+			Slug:         row.Slug.String,
 			Type:         domain.SeasonType(row.Type),
 			StartDate:    row.StartDate.Time,
 			EndDate:      row.EndDate.Time,
