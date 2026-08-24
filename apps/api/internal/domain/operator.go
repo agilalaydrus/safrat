@@ -18,6 +18,11 @@ type Operator struct {
 	Address           string
 	City              string
 	IsProfileComplete bool
+	BrandColor        string
+	HeroEyebrow       string
+	HeroTitle         string
+	HeroSubtitle      string
+	HeroImageURL      string
 }
 
 // PublicSeasonSummary is the non-sensitive view of a season shown on an

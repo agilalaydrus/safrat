@@ -47,6 +47,11 @@ message Operator {
   string address = 13;
   string city = 14;
   bool is_profile_complete = 15;
+  string brand_color = 16;
+  string hero_eyebrow = 17;
+  string hero_title = 18;
+  string hero_subtitle = 19;
+  string hero_image_url = 20;
 }
 
 message UpdateMyProfileRequest {
@@ -56,6 +61,12 @@ message UpdateMyProfileRequest {
   string website = 4;
   string address = 5;
   string city = 6;
+  // Empty preserves the current/default color for older clients.
+  string brand_color = 7 [(buf.validate.field).string = {pattern: "^$|^#[0-9A-Fa-f]{6}$"}];
+  string hero_eyebrow = 8 [(buf.validate.field).string.max_len = 80];
+  string hero_title = 9 [(buf.validate.field).string.max_len = 120];
+  string hero_subtitle = 10 [(buf.validate.field).string.max_len = 240];
+  string hero_image_url = 11 [(buf.validate.field).string.max_len = 2048];
 }
 
 message GetPublicProfileRequest {
@@ -85,6 +96,11 @@ message GetPublicProfileResponse {
   string license_number = 10;
   string country = 11;
   repeated PublicSeasonSummary active_seasons = 12;
+  string brand_color = 13;
+  string hero_eyebrow = 14;
+  string hero_title = 15;
+  string hero_subtitle = 16;
+  string hero_image_url = 17;
 }
 
 message CreateOperatorRequest {

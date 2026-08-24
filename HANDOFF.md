@@ -14,6 +14,19 @@
 
 ## Continuation after this snapshot
 
+- The tenant subdomain root is now a full white-label travel storefront rather
+  than a compact public-profile card. Migration 081 adds one brand color plus
+  editable hero eyebrow/title/subtitle/image fields; the existing operator
+  name, logo, description, contact, legal details, and future seasons populate
+  the remaining template. Dashboard settings exposes all editable values, the
+  storefront derives accessible foreground contrast from the chosen color,
+  supports light/dark mode, keeps package registration slugs unchanged, and
+  permanently attributes "Powered by TawafiqHub". A 97 KB default Umrah hero
+  WebP is bundled for operators without photography. Migration 081 is applied
+  locally and the local database was returned to its prior empty state after a
+  non-persisting storefront QA fixture. Production rollout remains pending an
+  explicit push/deploy request.
+
 - The platform apex `https://tawafiqhub.id` is the canonical app origin.
   Root/www TLS and DNS reach the VPS; the version-controlled nginx config
   proxies the apex and permanently redirects the old `app` host. The promotion

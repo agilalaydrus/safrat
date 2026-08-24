@@ -44,6 +44,11 @@ UPDATE operators SET
   website             = $5,
   address             = $6,
   city                = $7,
+  brand_color         = $8,
+  hero_eyebrow        = $9,
+  hero_title          = $10,
+  hero_subtitle       = $11,
+  hero_image_url      = $12,
   is_profile_complete = TRUE
 WHERE id = $1
 RETURNING *;

@@ -159,6 +159,13 @@ func (s *OperatorService) UpdateMyProfile(ctx context.Context, authenticatedOrgI
 	if err != nil {
 		return nil, serviceError("OperatorService.UpdateMyProfile", err)
 	}
+	brandColor := request.BrandColor
+	if brandColor == "" {
+		brandColor = current.BrandColor
+	}
+	if brandColor == "" {
+		brandColor = "#059669"
+	}
 	updated, err := s.repository.UpdateProfile(ctx, current.ID, domain.Operator{
 		LogoURL:        request.LogoUrl,
 		Description:    request.Description,
@@ -166,6 +173,11 @@ func (s *OperatorService) UpdateMyProfile(ctx context.Context, authenticatedOrgI
 		Website:        request.Website,
 		Address:        request.Address,
 		City:           request.City,
+		BrandColor:     brandColor,
+		HeroEyebrow:    request.HeroEyebrow,
+		HeroTitle:      request.HeroTitle,
+		HeroSubtitle:   request.HeroSubtitle,
+		HeroImageURL:   request.HeroImageUrl,
 	})
 	if err != nil {
 		return nil, serviceError("OperatorService.UpdateMyProfile", err)
@@ -214,6 +226,11 @@ func (s *OperatorService) GetPublicProfile(ctx context.Context, request *hajjv1.
 		LicenseNumber:  operator.LicenseNumber,
 		Country:        operator.Country,
 		ActiveSeasons:  summaries,
+		BrandColor:     operator.BrandColor,
+		HeroEyebrow:    operator.HeroEyebrow,
+		HeroTitle:      operator.HeroTitle,
+		HeroSubtitle:   operator.HeroSubtitle,
+		HeroImageUrl:   operator.HeroImageURL,
 	}, nil
 }
 
@@ -234,5 +251,10 @@ func operatorMessage(value *domain.Operator) *hajjv1.Operator {
 		Address:           value.Address,
 		City:              value.City,
 		IsProfileComplete: value.IsProfileComplete,
+		BrandColor:        value.BrandColor,
+		HeroEyebrow:       value.HeroEyebrow,
+		HeroTitle:         value.HeroTitle,
+		HeroSubtitle:      value.HeroSubtitle,
+		HeroImageUrl:      value.HeroImageURL,
 	}
 }

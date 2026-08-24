@@ -246,6 +246,11 @@ func (r *OperatorRepository) UpdateProfile(ctx context.Context, operatorID strin
 		Website:        profile.Website,
 		Address:        profile.Address,
 		City:           profile.City,
+		BrandColor:     profile.BrandColor,
+		HeroEyebrow:    profile.HeroEyebrow,
+		HeroTitle:      profile.HeroTitle,
+		HeroSubtitle:   profile.HeroSubtitle,
+		HeroImageUrl:   profile.HeroImageURL,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.ErrNotFound
@@ -431,5 +436,10 @@ func toOperator(value db.Operator) *domain.Operator {
 		Address:           value.Address,
 		City:              value.City,
 		IsProfileComplete: value.IsProfileComplete,
+		BrandColor:        value.BrandColor,
+		HeroEyebrow:       value.HeroEyebrow,
+		HeroTitle:         value.HeroTitle,
+		HeroSubtitle:      value.HeroSubtitle,
+		HeroImageURL:      value.HeroImageUrl,
 	}
 }
