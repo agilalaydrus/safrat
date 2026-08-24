@@ -78,7 +78,11 @@
   Hostinger authoritative nameservers plus Cloudflare and Google. The renewal
   script now uses lego v5's fixed 120-second DNS wait, bypassing that false
   negative before Let’s Encrypt performs the authoritative validation.
-  Certificate issuance still needs to be retried on the VPS.
+  The apex plus wildcard certificate was issued successfully on the VPS on
+  2026-08-24, its key/SAN/expiry checks passed, and the daily
+  `safrat-wildcard-tls.timer` is active. Production wildcard routing still
+  requires the reviewed release to reach `main` so the deployment workflow can
+  promote the version-controlled Nginx configuration.
   Local verification passed: migration 080 plus a non-persisting reserved-slug
   constraint probe, all Go tests/vet/build, web lint/typecheck/production build,
   `buf lint`, shell syntax, Dockerized `nginx -t`, and Host-header routing
