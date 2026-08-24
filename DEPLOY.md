@@ -488,10 +488,11 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres 
    ```
 
    The renewal hook validates expiry, both SAN entries, and the certificate/key
-   pair before `nginx -t` and reload. DNS validation queries Cloudflare and
-   Google directly instead of the VPS's caching `127.0.0.53` stub and allows up
-   to 10 minutes for Hostinger TXT propagation. The existing Certbot timer can
-   remain while its legacy exact-host certificates are still referenced.
+   pair before `nginx -t` and reload. Issuance uses a fixed 120-second DNS wait
+   before Let's Encrypt validation, avoiding a known class of false-negative
+   local/authoritative prechecks after Hostinger and public resolvers already
+   agree on both TXT values. The existing Certbot timer can remain while its
+   legacy exact-host certificates are still referenced.
 
 4. Reinstall the root-owned nginx promotion helper because the wildcard release
    adds certificate preconditions:

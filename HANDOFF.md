@@ -74,10 +74,11 @@
   and both authoritative nameservers. Before any push to `main`, bootstrap the
   root-only `lego` certificate/timer from a staging worktree and reinstall the
   updated Nginx helper in the exact order documented in `DEPLOY.md`.
-  The first ACME attempt timed out because the VPS resolver stub `127.0.0.53`
-  retained a negative TXT answer; the renewal script now queries Cloudflare and
-  Google directly with a 10-minute Hostinger propagation budget. Certificate
-  issuance still needs to be retried on the VPS.
+  ACME prechecks timed out despite both TXT values being confirmed on both
+  Hostinger authoritative nameservers plus Cloudflare and Google. The renewal
+  script now uses lego v5's fixed 120-second DNS wait, bypassing that false
+  negative before Let’s Encrypt performs the authoritative validation.
+  Certificate issuance still needs to be retried on the VPS.
   Local verification passed: migration 080 plus a non-persisting reserved-slug
   constraint probe, all Go tests/vet/build, web lint/typecheck/production build,
   `buf lint`, shell syntax, Dockerized `nginx -t`, and Host-header routing
