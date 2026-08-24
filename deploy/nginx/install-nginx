@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly source_config="/home/deploy/safrat/deploy/nginx/safrat.conf"
+readonly target_config="/etc/nginx/sites-available/safrat"
+readonly backup_config="$(mktemp /etc/nginx/sites-available/safrat.backup.XXXXXX)"
+
+restore_previous_config() {
+  /usr/bin/cp "${backup_config}" "${target_config}"
+  /usr/sbin/nginx -t
+}
+
+cleanup() {
+  /usr/bin/rm -f "${backup_config}"
+}
+trap cleanup EXIT
+
+if [[ ! -f "${source_config}" ]]; then
+  echo "missing nginx source config: ${source_config}" >&2
+  exit 1
+fi
+
+/usr/bin/cp "${target_config}" "${backup_config}"
+/usr/bin/install -o root -g root -m 0644 "${source_config}" "${target_config}"
+
+if ! /usr/sbin/nginx -t; then
+  echo "nginx validation failed; restoring previous configuration" >&2
+  restore_previous_config
+  exit 1
+fi
+
+if ! /usr/bin/systemctl reload nginx; then
+  echo "nginx reload failed; restoring previous configuration" >&2
+  restore_previous_config
+  /usr/bin/systemctl reload nginx
+  exit 1
+fi

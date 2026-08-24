@@ -18,6 +18,8 @@
   origin. Root/www TLS and DNS already reach the VPS; the version-controlled
   nginx config proxies the apex and permanently redirects the old `app` host.
   Better Auth, CORS, build URLs, and deployment defaults now use the apex.
+  The VPS must bootstrap the root-owned `safrat-install-nginx` helper and its
+  single-command sudoers rule from `DEPLOY.md` before the first rollout.
   Before production rollout, add
   `https://tawafiqhub.id/api/auth/callback/google` to the Google OAuth client's
   authorized redirect URIs. Existing host-only sessions on `app` will require

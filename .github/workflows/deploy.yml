@@ -175,18 +175,10 @@ jobs:
               ghcr.io/kukymbr/goose-docker:latest \
               up
 
-            # Switch the canonical web host only after migrations succeed.
-            # Keep the previous file recoverable and never reload invalid nginx.
-            NGINX_CONFIG=/etc/nginx/sites-available/safrat
-            NGINX_BACKUP=/tmp/safrat-nginx-before-${{ github.run_id }}.conf
-            sudo -n cp "${NGINX_CONFIG}" "${NGINX_BACKUP}"
-            sudo -n install -m 0644 deploy/nginx/safrat.conf "${NGINX_CONFIG}"
-            if ! sudo -n nginx -t; then
-              sudo -n cp "${NGINX_BACKUP}" "${NGINX_CONFIG}"
-              sudo -n nginx -t
-              exit 1
-            fi
-            sudo -n systemctl reload nginx
+            # Root-owned, least-privilege helper installed once during VPS
+            # bootstrap. It hardcodes the source/target, validates nginx, and
+            # restores the previous config before returning any failure.
+            sudo -n /usr/local/sbin/safrat-install-nginx
 
             # Rolling restart — API first (no downtime for pure API changes),
             # web second. Worker restarts together with API (same image).

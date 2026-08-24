@@ -394,11 +394,26 @@ CMD ["node", "apps/web/server.js"]
 
 ## 7. nginx Configuration
 
-The production source of truth is `deploy/nginx/safrat.conf`. The deploy
-workflow installs it only after database migrations succeed, validates it with
-`nginx -t`, restores the previous file on validation failure, and reloads nginx
-before restarting application containers. The `deploy` user therefore needs
-passwordless sudo only for `cp`, `install`, `nginx`, and `systemctl reload nginx`.
+The production source of truth is `deploy/nginx/safrat.conf`. Install the
+root-owned helper once and grant the deploy user passwordless access to that
+single command only:
+
+```bash
+cd /home/deploy/safrat
+sudo install -o root -g root -m 0755 \
+  deploy/nginx/install-nginx \
+  /usr/local/sbin/safrat-install-nginx
+
+echo 'deploy ALL=(root) NOPASSWD: /usr/local/sbin/safrat-install-nginx' \
+  | sudo tee /etc/sudoers.d/safrat-nginx >/dev/null
+sudo chmod 0440 /etc/sudoers.d/safrat-nginx
+sudo visudo -cf /etc/sudoers.d/safrat-nginx
+sudo -u deploy sudo -n /usr/local/sbin/safrat-install-nginx
+```
+
+The workflow invokes the helper only after database migrations succeed. The
+helper validates with `nginx -t`, restores the previous configuration on any
+validation failure, and only then reloads nginx before the application restart.
 
 **Step 1 — HTTP only first** (before SSL):
 
