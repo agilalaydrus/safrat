@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useMemo, useState } from "react";
+import { ChangeEvent, useCallback, useMemo, useState } from "react";
 import Papa from "papaparse";
 import { Timestamp } from "@bufbuild/protobuf";
 import { Gender } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
@@ -26,22 +26,22 @@ function boolCode(raw:string):boolean{return["true","ya","yes","1"].includes(nor
 
 export default function CsvImportWizard({open,onClose,seasonId,onComplete}:{open:boolean;onClose:()=>void;seasonId:string;onComplete:(message:string)=>void}) {
   const [step,setStep]=useState(1); const [rows,setRows]=useState<Row[]>([]); const [mapping,setMapping]=useState<Record<string,string>>({}); const [progress,setProgress]=useState(0); const [summary,setSummary]=useState(""); const [notice,setNotice]=useState("");
-  const headers=Object.keys(rows[0]??{});
+  const headers=useMemo(()=>Object.keys(rows[0]??{}),[rows]);
   // Explicit mapping (step 2) wins; then an exact header match on the
   // internal key (old English CSVs); then an alias match against every
   // header spelling we recognize (new Indonesian CSVs), matched
   // punctuation/case-insensitively via norm().
-  const guessHeader=(key:string)=>{
+  const guessHeader=useCallback((key:string)=>{
     if(headers.includes(key)) return key;
     const wanted=[norm(key),...(HEADER_ALIASES[key]??[]).map(norm)];
     return headers.find((header)=>wanted.includes(norm(header)))??"";
-  };
-  const mapped=(row:Row,key:string)=>{
+  },[headers]);
+  const mapped=useCallback((row:Row,key:string)=>{
     const header=mapping[key]||guessHeader(key)||key;
     return row[header]?.trim()??"";
-  };
-  const errors=(row:Row,index:number)=>{ const missing=required.filter((key)=>!mapped(row,key)); const date=mapped(row,"date_of_birth"); const duplicate=rows.slice(0,index).some((item)=>mapped(item,"passport_number").toUpperCase()===mapped(row,"passport_number").toUpperCase()); return [...missing, ...(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date)?["invalid date"]:[]), ...(!genderCode(mapped(row,"gender"))?["invalid gender"]:[]), ...(duplicate?["duplicate passport"]:[])]; };
-  const valid=useMemo(()=>rows.filter((row,index)=>!errors(row,index).length),[rows,mapping]);
+  },[guessHeader,mapping]);
+  const errors=useCallback((row:Row,index:number)=>{ const missing=required.filter((key)=>!mapped(row,key)); const date=mapped(row,"date_of_birth"); const duplicate=rows.slice(0,index).some((item)=>mapped(item,"passport_number").toUpperCase()===mapped(row,"passport_number").toUpperCase()); return [...missing, ...(date&&!/^\d{4}-\d{2}-\d{2}$/.test(date)?["invalid date"]:[]), ...(!genderCode(mapped(row,"gender"))?["invalid gender"]:[]), ...(duplicate?["duplicate passport"]:[])]; },[mapped,rows]);
+  const valid=useMemo(()=>rows.filter((row,index)=>!errors(row,index).length),[errors,rows]);
   if(!open) return null;
   function upload(event:ChangeEvent<HTMLInputElement>){const file=event.target.files?.[0];if(!file)return;const MAX_SIZE=5*1024*1024;if(file.size>MAX_SIZE){setNotice("Ukuran file terlalu besar. Maksimal 5MB (±5.000 jamaah).");return;}Papa.parse<Row>(file,{header:true,skipEmptyLines:true,complete:(result)=>{if(result.data.length>500){setNotice("Maksimal 500 baris per impor. Bagi CSV Anda menjadi beberapa batch.");return;}setNotice("");setRows(result.data);setMapping({});setStep(2);}})}
   function template(){const content="Nama Lengkap,Nomor Paspor,Kewarganegaraan,Tanggal Lahir,Jenis Kelamin,Telepon,Email,Kontak Darurat,Bahasa Pilihan,Catatan Medis,Butuh Kursi Roda,NIK,Alamat,Tempat Lahir,Status Pernikahan,Pekerjaan,Nama Ayah Kandung\nAisha Ahmad,P1234567,Indonesia,1980-01-15,P,+628123456,aisha@example.com,+628123456999,ar,,Tidak,3271012345670001,Jl. Merdeka No. 1 Jakarta,Jakarta,Menikah,Guru,Ahmad Yusuf\n";const link=document.createElement("a");link.href=URL.createObjectURL(new Blob([content],{type:"text/csv"}));link.download="safrat-pilgrims-template.csv";link.click();URL.revokeObjectURL(link.href)}

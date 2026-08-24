@@ -14,7 +14,7 @@ type ChatHandler struct{ chatService *service.ChatService }
 func NewChatHandler(chatService *service.ChatService) *ChatHandler {
 	return &ChatHandler{chatService: chatService}
 }
-func (h *ChatHandler) ListMyMessages(ctx context.Context, req *connect.Request[hajjv1.ChatAppRequest]) (*connect.Response[hajjv1.ListChatMessagesResponse], error) {
+func (h *ChatHandler) ListMyMessages(ctx context.Context, req *connect.Request[hajjv1.ListMyMessagesRequest]) (*connect.Response[hajjv1.ListChatMessagesResponse], error) {
 	result, err := h.chatService.ListMyMessages(ctx, req.Msg)
 	if err != nil {
 		return nil, connectError(err)

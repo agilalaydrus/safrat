@@ -1,5 +1,5 @@
 "use client";
-import { useEffect,useState } from "react";
+import { useCallback,useEffect,useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconMessageCircle,IconPencil,IconPlus,IconTrash,IconUserCheck,IconUserPlus,IconUsers,IconUsersGroup } from "@tabler/icons-react";
 import { Group } from "@hajj-saas/proto-gen/hajj/v1/group_pb";
@@ -13,9 +13,9 @@ import { RoleGate } from "@/components/auth/RoleGate";
 export default function GroupsDashboard(){
   const router=useRouter();
   const[seasons,setSeasons]=useState<{id:string;name:string;isActive:boolean}[]>([]),[seasonId,setSeasonId]=useState(""),[groups,setGroups]=useState<Group[]>([]),[open,setOpen]=useState(false),[edit,setEdit]=useState<Group|undefined>(),[notice,setNotice]=useState(""),[chatGroup,setChatGroup]=useState<Group|undefined>(),[rosterGroup,setRosterGroup]=useState<Group|undefined>(),[addJamaahGroup,setAddJamaahGroup]=useState<Group|undefined>();
-  const load=async(id=seasonId)=>{if(!id)return;try{setGroups((await groupClient.listGroups({seasonId:id})).groups)}catch{setNotice("Gagal memuat data grup.")}};
+  const load=useCallback(async(id=seasonId)=>{if(!id)return;try{setGroups((await groupClient.listGroups({seasonId:id})).groups)}catch{setNotice("Gagal memuat data grup.")}},[seasonId]);
   useEffect(()=>{seasonClient.listSeasons({}).then(r=>{setSeasons(r.seasons);setSeasonId(r.seasons.find(s=>s.isActive)?.id??r.seasons[0]?.id??"")}).catch(()=>setNotice("Gagal memuat data musim."))},[]);
-  useEffect(()=>{void load()},[seasonId]);
+  useEffect(()=>{void load()},[load]);
   return <main style={page}>
     <header style={header}><div><p style={eyebrow}>OPERASIONAL / GRUP</p><h1 style={title}>Grup</h1></div>
       <div style={actions}><select value={seasonId} onChange={e=>setSeasonId(e.target.value)} style={select}>{seasons.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select><button style={emerald} onClick={()=>{setEdit(undefined);setOpen(true)}}><IconPlus size={18}/>Tambah Grup</button></div>

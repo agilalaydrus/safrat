@@ -69,7 +69,7 @@ func (h *OperatorHandler) ListAuditLogs(ctx context.Context, req *connect.Reques
 	return connect.NewResponse(&hajjv1.ListAuditLogsResponse{Logs: logs}), nil
 }
 
-func (h *OperatorHandler) UpdateMyProfile(ctx context.Context, req *connect.Request[hajjv1.UpdateOperatorProfileRequest]) (*connect.Response[hajjv1.Operator], error) {
+func (h *OperatorHandler) UpdateMyProfile(ctx context.Context, req *connect.Request[hajjv1.UpdateMyProfileRequest]) (*connect.Response[hajjv1.Operator], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}

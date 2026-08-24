@@ -6,6 +6,7 @@ import (
 
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -68,6 +69,14 @@ func (r *KloterRepository) Update(ctx context.Context, operatorID, kloterID, cod
 }
 
 func (r *KloterRepository) UpdateStatus(ctx context.Context, operatorID, kloterID, status string) (*domain.Kloter, error) {
+	return r.updateStatus(ctx, r.queries, operatorID, kloterID, status)
+}
+
+func (r *KloterRepository) UpdateStatusTx(ctx context.Context, tx pgx.Tx, operatorID, kloterID, status string) (*domain.Kloter, error) {
+	return r.updateStatus(ctx, r.queries.WithTx(tx), operatorID, kloterID, status)
+}
+
+func (r *KloterRepository) updateStatus(ctx context.Context, queries *db.Queries, operatorID, kloterID, status string) (*domain.Kloter, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -76,7 +85,7 @@ func (r *KloterRepository) UpdateStatus(ctx context.Context, operatorID, kloterI
 	if err != nil {
 		return nil, err
 	}
-	v, err := r.queries.UpdateKloterStatus(ctx, db.UpdateKloterStatusParams{ID: kloterUUID, OperatorID: opUUID, Status: status})
+	v, err := queries.UpdateKloterStatus(ctx, db.UpdateKloterStatusParams{ID: kloterUUID, OperatorID: opUUID, Status: status})
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +111,14 @@ func (r *KloterRepository) Delete(ctx context.Context, operatorID, kloterID stri
 // before trusting a kloter_id from a request body, same pattern as
 // GroupRepository.EnsureGroupBelongsToOperator.
 func (r *KloterRepository) GetForOperator(ctx context.Context, operatorID, kloterID string) (*domain.Kloter, error) {
+	return r.getForOperator(ctx, r.queries, operatorID, kloterID, false)
+}
+
+func (r *KloterRepository) GetForOperatorForUpdateTx(ctx context.Context, tx pgx.Tx, operatorID, kloterID string) (*domain.Kloter, error) {
+	return r.getForOperator(ctx, r.queries.WithTx(tx), operatorID, kloterID, true)
+}
+
+func (r *KloterRepository) getForOperator(ctx context.Context, queries *db.Queries, operatorID, kloterID string, forUpdate bool) (*domain.Kloter, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -110,7 +127,12 @@ func (r *KloterRepository) GetForOperator(ctx context.Context, operatorID, klote
 	if err != nil {
 		return nil, err
 	}
-	v, err := r.queries.GetKloterForOperator(ctx, db.GetKloterForOperatorParams{ID: kloterUUID, OperatorID: opUUID})
+	var v db.Kloter
+	if forUpdate {
+		v, err = queries.GetKloterForOperatorForUpdate(ctx, db.GetKloterForOperatorForUpdateParams{ID: kloterUUID, OperatorID: opUUID})
+	} else {
+		v, err = queries.GetKloterForOperator(ctx, db.GetKloterForOperatorParams{ID: kloterUUID, OperatorID: opUUID})
+	}
 	if err != nil {
 		return nil, err
 	}

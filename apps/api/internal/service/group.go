@@ -12,6 +12,8 @@ import (
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/repository"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -21,13 +23,13 @@ type GroupService struct {
 	groupRepository    *repository.GroupRepository
 	auditRepository    *repository.AuditRepository
 	agentRepository    *repository.AgentRepository
-	journeyService     *JourneyService
-	pushNotifier       PushNotifier
+	outboxRepository   *repository.OutboxRepository
+	db                 *pgxpool.Pool
 	eventBus           *events.Bus
 }
 
-func NewGroupService(operators *repository.OperatorRepository, groups *repository.GroupRepository, audit *repository.AuditRepository, agents *repository.AgentRepository, journey *JourneyService, push PushNotifier, bus *events.Bus) *GroupService {
-	return &GroupService{operatorRepository: operators, groupRepository: groups, auditRepository: audit, agentRepository: agents, journeyService: journey, pushNotifier: push, eventBus: bus}
+func NewGroupService(operators *repository.OperatorRepository, groups *repository.GroupRepository, audit *repository.AuditRepository, agents *repository.AgentRepository, outbox *repository.OutboxRepository, db *pgxpool.Pool, bus *events.Bus) *GroupService {
+	return &GroupService{operatorRepository: operators, groupRepository: groups, auditRepository: audit, agentRepository: agents, outboxRepository: outbox, db: db, eventBus: bus}
 }
 
 // cityToJourneyStatus cascades a Muttawwif's location update to every
@@ -222,21 +224,26 @@ func (s *GroupService) UpdateGroupCity(ctx context.Context, orgID string, req *h
 	if err != nil {
 		return nil, serviceError("GroupService.UpdateGroupCity", err)
 	}
-	group, err := s.groupRepository.UpdateCity(ctx, op.ID, req.GroupId, req.City, req.Activity, req.Location, middleware.UserIDFromCtx(ctx))
+	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, serviceError("GroupService.UpdateGroupCity", err)
 	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	userID := middleware.UserIDFromCtx(ctx)
+	group, err := s.groupRepository.UpdateCityTx(ctx, tx, op.ID, req.GroupId, req.City, req.Activity, req.Location, userID)
+	if err != nil {
+		return nil, serviceError("GroupService.UpdateGroupCity", err)
+	}
+	journeyStatus := cityToJourneyStatus[req.City]
+	if err := s.outboxRepository.EnqueueTx(ctx, tx, op.ID, domain.EventGroupCityUpdated, group.ID, domain.GroupCityUpdatedPayload{
+		GroupID: group.ID, City: req.City, JourneyStatus: journeyStatus, Notes: req.Notes, UpdatedBy: userID, NotificationBody: groupCityPushBody(req.City),
+	}); err != nil {
+		return nil, serviceError("GroupService.UpdateGroupCity", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, serviceError("GroupService.UpdateGroupCity", err)
+	}
 	s.logActivity(ctx, op.ID, "group_city_updated", group.ID, fmt.Sprintf("Grup %s kini di %s", group.Name, req.City))
-	// Cascade: best-effort, never rolls back the location update itself —
-	// see kloterToJourneyStatus for the same pattern.
-	if journeyStatus, ok := cityToJourneyStatus[req.City]; ok && s.journeyService != nil {
-		if _, err := s.journeyService.BulkUpdateForGroup(ctx, op.ID, group.ID, journeyStatus, req.Notes); err != nil {
-			sentry.CaptureException(fmt.Errorf("GroupService.UpdateGroupCity: journey cascade: %w", err))
-		}
-	}
-	if s.pushNotifier != nil {
-		s.pushNotifier.NotifyGroupPilgrims(ctx, op.ID, group.ID, "Tawafiq Hub", groupCityPushBody(req.City))
-	}
 	s.eventBus.Publish(op.ID, "group_location", group.ID)
 	return groupMessage(group), nil
 }

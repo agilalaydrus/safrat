@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { IconGenderFemale, IconGenderMale, IconSearch, IconUsersGroup, IconUserMinus, IconUserPlus } from "@tabler/icons-react";
 import { Gender, Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { VehicleManifest } from "@hajj-saas/proto-gen/hajj/v1/transport_pb";
@@ -20,10 +20,10 @@ export default function VehicleManifestPanel({ vehicleId, seasonId, movementStat
   const [notice, setNotice] = useState("");
   const [workingId, setWorkingId] = useState("");
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try { setManifest(await transportClient.getVehicleManifest({ vehicleId })); }
     catch { setNotice("Gagal memuat manifest kendaraan ini."); }
-  };
+  }, [vehicleId]);
 
   useEffect(() => {
     if (!open || !vehicleId) return;
@@ -37,10 +37,10 @@ export default function VehicleManifestPanel({ vehicleId, seasonId, movementStat
       pilgrimClient.listPilgrims({ seasonId, limit: 1000, offset: 0 }).then((response) => setPilgrims(response.pilgrims)).catch(() => setNotice("Gagal memuat data jamaah."));
       groupClient.listGroups({ seasonId }).then((response) => setGroupNames(Object.fromEntries(response.groups.map((g) => [g.id, g.name])))).catch(() => {});
     }
-  }, [open, vehicleId, seasonId]);
+  }, [open, refresh, seasonId, vehicleId]);
   useEffect(() => { const timeout = window.setTimeout(() => setTerm(query), 300); return () => window.clearTimeout(timeout); }, [query]);
 
-  const occupants = manifest?.pilgrims ?? [];
+  const occupants = useMemo(() => manifest?.pilgrims ?? [], [manifest]);
   const vehicle = manifest?.vehicle;
 	const full = vehicle ? occupants.length >= vehicle.capacity : false;
   const canAssign = vehicle?.status === "scheduled" && movementStatus === "scheduled";

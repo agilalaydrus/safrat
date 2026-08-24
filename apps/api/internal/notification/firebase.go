@@ -5,7 +5,10 @@ package notification
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
+	"time"
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/messaging"
@@ -42,30 +45,79 @@ func NewFirebasePusher(ctx context.Context, logger *slog.Logger, serviceAccountJ
 	return &FirebasePusher{logger: logger, client: client, tokens: tokens}, nil
 }
 
-func (p *FirebasePusher) NotifySOSAlert(ctx context.Context, operatorID string, alert *domain.SOSAlert) {
+func (p *FirebasePusher) NotifySOSAlert(ctx context.Context, operatorID string, alert *domain.SOSAlert) error {
 	if p == nil || p.client == nil {
-		return
+		return nil
 	}
 	tokens, err := p.tokens.ListTokensForOperator(ctx, operatorID)
 	if err != nil {
-		p.logger.Error("list push tokens", "error", err)
-		return
+		return fmt.Errorf("list SOS push tokens: %w", err)
 	}
 	if len(tokens) == 0 {
-		return
+		return nil
 	}
 	title, body := sosNotificationText(alert)
-	response, err := p.client.SendEachForMulticast(ctx, &messaging.MulticastMessage{
-		Tokens:       tokens,
-		Notification: &messaging.Notification{Title: title, Body: body},
-	})
-	if err != nil {
-		p.logger.Error("send SOS push", "error", err)
-		return
+	return p.send(ctx, operatorID, tokens, title, body)
+}
+
+// send performs a bounded, low-latency retry for transport-level Firebase
+// failures. After a partial response only transiently failed tokens are
+// retried, so successful recipients do not get duplicates. Unregistered
+// tokens are removed from both staff and pilgrim token stores.
+func (p *FirebasePusher) send(ctx context.Context, operatorID string, tokens []string, title, body string) error {
+	if p == nil || p.client == nil || len(tokens) == 0 {
+		return nil
 	}
-	if response.FailureCount > 0 {
-		p.logger.Warn("SOS push partial failure", "failure_count", response.FailureCount, "success_count", response.SuccessCount)
+	retryCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+	delays := [...]time.Duration{0, 100 * time.Millisecond, 250 * time.Millisecond}
+	var lastErr error
+	pending := tokens
+	for attempt, delay := range delays {
+		if delay > 0 {
+			timer := time.NewTimer(delay)
+			select {
+			case <-retryCtx.Done():
+				timer.Stop()
+				return errors.Join(lastErr, retryCtx.Err())
+			case <-timer.C:
+			}
+		}
+		response, err := p.client.SendEachForMulticast(retryCtx, &messaging.MulticastMessage{
+			Tokens:       pending,
+			Notification: &messaging.Notification{Title: title, Body: body},
+		})
+		if err == nil {
+			retryTokens := make([]string, 0, response.FailureCount)
+			for index, result := range response.Responses {
+				if result.Success || result.Error == nil {
+					continue
+				}
+				token := pending[index]
+				if messaging.IsUnregistered(result.Error) {
+					if deleteErr := p.tokens.DeleteInvalidToken(retryCtx, operatorID, token); deleteErr != nil {
+						p.logger.Warn("delete unregistered push token", "error", deleteErr)
+					}
+					continue
+				}
+				if messaging.IsInvalidArgument(result.Error) || messaging.IsSenderIDMismatch(result.Error) || messaging.IsThirdPartyAuthError(result.Error) {
+					p.logger.Warn("permanent push failure", "error", result.Error, "title", title)
+					continue
+				}
+				retryTokens = append(retryTokens, token)
+			}
+			if len(retryTokens) == 0 {
+				return nil
+			}
+			pending = retryTokens
+			lastErr = fmt.Errorf("%d transient per-token push failures", len(retryTokens))
+			p.logger.Warn("push partial transient failure", "attempt", attempt+1, "retry_count", len(retryTokens), "success_count", response.SuccessCount, "title", title)
+			continue
+		}
+		lastErr = err
+		p.logger.Warn("push attempt failed", "attempt", attempt+1, "max_attempts", len(delays), "error", err, "title", title)
 	}
+	return fmt.Errorf("send push after %d attempts: %w", len(delays), lastErr)
 }
 
 // NotifyLostReport pushes to every registered coordinator/leader device for
@@ -74,91 +126,60 @@ func (p *FirebasePusher) NotifySOSAlert(ctx context.Context, operatorID string, 
 // not to a specific leader/group), so a leader learns about their own
 // group's report the same way any coordinator does: via this broadcast,
 // then filters to their group in the leader app UI.
-func (p *FirebasePusher) NotifyLostReport(ctx context.Context, operatorID, pilgrimName string) {
+func (p *FirebasePusher) NotifyLostReport(ctx context.Context, operatorID, pilgrimName string) error {
 	if p == nil || p.client == nil {
-		return
+		return nil
 	}
 	tokens, err := p.tokens.ListTokensForOperator(ctx, operatorID)
 	if err != nil {
-		p.logger.Error("list push tokens", "error", err)
-		return
+		return fmt.Errorf("list lost-report push tokens: %w", err)
 	}
 	if len(tokens) == 0 {
-		return
+		return nil
 	}
-	response, err := p.client.SendEachForMulticast(ctx, &messaging.MulticastMessage{
-		Tokens:       tokens,
-		Notification: &messaging.Notification{Title: "🟡 Jamaah Terpisah", Body: pilgrimName + " melaporkan diri terpisah dari rombongan."},
-	})
-	if err != nil {
-		p.logger.Error("send lost report push", "error", err)
-		return
-	}
-	if response.FailureCount > 0 {
-		p.logger.Warn("lost report push partial failure", "failure_count", response.FailureCount, "success_count", response.SuccessCount)
-	}
-}
-
-func (p *FirebasePusher) send(ctx context.Context, tokens []string, title, body string) {
-	if p == nil || p.client == nil || len(tokens) == 0 {
-		return
-	}
-	response, err := p.client.SendEachForMulticast(ctx, &messaging.MulticastMessage{
-		Tokens:       tokens,
-		Notification: &messaging.Notification{Title: title, Body: body},
-	})
-	if err != nil {
-		p.logger.Error("send push", "error", err)
-		return
-	}
-	if response.FailureCount > 0 {
-		p.logger.Warn("push partial failure", "failure_count", response.FailureCount, "success_count", response.SuccessCount)
-	}
+	return p.send(ctx, operatorID, tokens, "🟡 Jamaah Terpisah", pilgrimName+" melaporkan diri terpisah dari rombongan.")
 }
 
 // NotifyOperatorStaff broadcasts to every registered coordinator/leader
 // device for the operator — same scope as NotifySOSAlert/NotifyLostReport,
 // generalized for cascade events (health BERAT, kloter milestones the
 // operator should know about even without watching the dashboard).
-func (p *FirebasePusher) NotifyOperatorStaff(ctx context.Context, operatorID, title, body string) {
+func (p *FirebasePusher) NotifyOperatorStaff(ctx context.Context, operatorID, title, body string) error {
 	if p == nil || p.client == nil {
-		return
+		return nil
 	}
 	tokens, err := p.tokens.ListTokensForOperator(ctx, operatorID)
 	if err != nil {
-		p.logger.Error("list push tokens", "error", err)
-		return
+		return fmt.Errorf("list operator push tokens: %w", err)
 	}
-	p.send(ctx, tokens, title, body)
+	return p.send(ctx, operatorID, tokens, title, body)
 }
 
 // NotifyGroupPilgrims pushes to every pilgrim in the group who has
 // registered a device (pilgrim_push_tokens) — used for the Muttawwif's
 // location-update cascade ("Rombongan Anda kini di Makkah").
-func (p *FirebasePusher) NotifyGroupPilgrims(ctx context.Context, operatorID, groupID, title, body string) {
+func (p *FirebasePusher) NotifyGroupPilgrims(ctx context.Context, operatorID, groupID, title, body string) error {
 	if p == nil || p.client == nil {
-		return
+		return nil
 	}
 	tokens, err := p.tokens.ListTokensForGroup(ctx, operatorID, groupID)
 	if err != nil {
-		p.logger.Error("list group push tokens", "error", err)
-		return
+		return fmt.Errorf("list group push tokens: %w", err)
 	}
-	p.send(ctx, tokens, title, body)
+	return p.send(ctx, operatorID, tokens, title, body)
 }
 
 // NotifyKloterPilgrims is the kloter-wide equivalent, used by
 // KloterService's status-change cascade ("Perjalanan ibadah Anda dimulai").
-func (p *FirebasePusher) NotifyKloterPilgrims(ctx context.Context, operatorID, kloterID, title, body string) {
+func (p *FirebasePusher) NotifyKloterPilgrims(ctx context.Context, operatorID, kloterID, title, body string) error {
 	if p == nil || p.client == nil {
-		return
+		return nil
 	}
 	tokens, err := p.tokens.ListTokensForKloter(ctx, operatorID, kloterID)
 	if err != nil {
-		p.logger.Error("list kloter push tokens", "error", err)
-		return
+		return fmt.Errorf("list kloter push tokens: %w", err)
 	}
-	p.send(ctx, tokens, title, body)
+	return p.send(ctx, operatorID, tokens, title, body)
 }
 
 func sosNotificationText(alert *domain.SOSAlert) (string, string) {

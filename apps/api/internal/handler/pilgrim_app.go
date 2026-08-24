@@ -14,14 +14,14 @@ type PilgrimAppHandler struct{ pilgrimAppService *service.PilgrimAppService }
 func NewPilgrimAppHandler(pilgrimAppService *service.PilgrimAppService) *PilgrimAppHandler {
 	return &PilgrimAppHandler{pilgrimAppService: pilgrimAppService}
 }
-func (h *PilgrimAppHandler) GetMyInfo(ctx context.Context, req *connect.Request[hajjv1.PilgrimAppRequest]) (*connect.Response[hajjv1.PilgrimAppInfo], error) {
+func (h *PilgrimAppHandler) GetMyInfo(ctx context.Context, req *connect.Request[hajjv1.GetMyInfoRequest]) (*connect.Response[hajjv1.PilgrimAppInfo], error) {
 	result, err := h.pilgrimAppService.GetMyInfo(ctx, req.Msg)
 	if err != nil {
 		return nil, connectError(err)
 	}
 	return connect.NewResponse(result), nil
 }
-func (h *PilgrimAppHandler) ListMySchedule(ctx context.Context, req *connect.Request[hajjv1.PilgrimAppRequest]) (*connect.Response[hajjv1.ListMyScheduleResponse], error) {
+func (h *PilgrimAppHandler) ListMySchedule(ctx context.Context, req *connect.Request[hajjv1.ListMyScheduleRequest]) (*connect.Response[hajjv1.ListMyScheduleResponse], error) {
 	result, err := h.pilgrimAppService.ListMySchedule(ctx, req.Msg)
 	if err != nil {
 		return nil, connectError(err)
@@ -49,14 +49,14 @@ func (h *PilgrimAppHandler) LinkGoogleAccount(ctx context.Context, req *connect.
 	}
 	return connect.NewResponse(result), nil
 }
-func (h *PilgrimAppHandler) ListMyProducts(ctx context.Context, req *connect.Request[hajjv1.PilgrimAppRequest]) (*connect.Response[hajjv1.ListMyProductsResponse], error) {
+func (h *PilgrimAppHandler) ListMyProducts(ctx context.Context, req *connect.Request[hajjv1.ListMyProductsRequest]) (*connect.Response[hajjv1.ListMyProductsResponse], error) {
 	result, err := h.pilgrimAppService.ListMyProducts(ctx, req.Msg)
 	if err != nil {
 		return nil, connectError(err)
 	}
 	return connect.NewResponse(result), nil
 }
-func (h *PilgrimAppHandler) GetMyCertificate(ctx context.Context, req *connect.Request[hajjv1.PilgrimAppRequest]) (*connect.Response[hajjv1.CertificateData], error) {
+func (h *PilgrimAppHandler) GetMyCertificate(ctx context.Context, req *connect.Request[hajjv1.GetMyCertificateRequest]) (*connect.Response[hajjv1.CertificateData], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
@@ -78,7 +78,7 @@ func (h *PilgrimAppHandler) SubmitMyPilgrimKyc(ctx context.Context, req *connect
 	return connect.NewResponse(result), nil
 }
 
-func (h *PilgrimAppHandler) ListMyBroadcasts(ctx context.Context, req *connect.Request[hajjv1.PilgrimAppRequest]) (*connect.Response[hajjv1.ListBroadcastsResponse], error) {
+func (h *PilgrimAppHandler) ListMyBroadcasts(ctx context.Context, req *connect.Request[hajjv1.ListMyBroadcastsRequest]) (*connect.Response[hajjv1.ListBroadcastsResponse], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
@@ -89,7 +89,7 @@ func (h *PilgrimAppHandler) ListMyBroadcasts(ctx context.Context, req *connect.R
 	return connect.NewResponse(result), nil
 }
 
-func (h *PilgrimAppHandler) ListMyRituals(ctx context.Context, req *connect.Request[hajjv1.PilgrimAppRequest]) (*connect.Response[hajjv1.ListMyRitualsResponse], error) {
+func (h *PilgrimAppHandler) ListMyRituals(ctx context.Context, req *connect.Request[hajjv1.ListMyRitualsRequest]) (*connect.Response[hajjv1.ListMyRitualsResponse], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}

@@ -5,6 +5,9 @@ package domain
 // cascade_events.event_type.
 const (
 	EventHealthReportCreated = "health.report_created"
+	EventGroupCityUpdated    = "group.city_updated"
+	EventKloterStatusUpdated = "kloter.status_updated"
+	EventRitualBulkCompleted = "ritual.bulk_completed"
 )
 
 // HealthReportCreatedPayload is the JSON payload for EventHealthReportCreated.
@@ -12,6 +15,31 @@ const (
 type HealthReportCreatedPayload struct {
 	Severity    string `json:"severity"`
 	PilgrimName string `json:"pilgrim_name"`
+}
+
+type GroupCityUpdatedPayload struct {
+	GroupID          string `json:"group_id"`
+	City             string `json:"city"`
+	JourneyStatus    string `json:"journey_status,omitempty"`
+	Notes            string `json:"notes,omitempty"`
+	UpdatedBy        string `json:"updated_by,omitempty"`
+	NotificationBody string `json:"notification_body"`
+}
+
+type KloterStatusUpdatedPayload struct {
+	KloterID         string `json:"kloter_id"`
+	KloterCode       string `json:"kloter_code"`
+	Status           string `json:"status"`
+	JourneyStatus    string `json:"journey_status,omitempty"`
+	UpdatedBy        string `json:"updated_by,omitempty"`
+	NotificationBody string `json:"notification_body,omitempty"`
+}
+
+type RitualBulkCompletedPayload struct {
+	GroupID          string `json:"group_id"`
+	RitualID         string `json:"ritual_id"`
+	CompletedCount   int32  `json:"completed_count"`
+	NotificationBody string `json:"notification_body"`
 }
 
 // CascadeEvent is one row of the transactional outbox — a durable record that

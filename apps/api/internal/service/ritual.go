@@ -11,6 +11,8 @@ import (
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/repository"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -20,12 +22,13 @@ type RitualService struct {
 	ritualRepository   *repository.RitualRepository
 	journeyRepository  *repository.JourneyRepository
 	auditRepository    *repository.AuditRepository
-	pushNotifier       PushNotifier
+	outboxRepository   *repository.OutboxRepository
+	db                 *pgxpool.Pool
 	eventBus           *events.Bus
 }
 
-func NewRitualService(operators *repository.OperatorRepository, rituals *repository.RitualRepository, journeys *repository.JourneyRepository, audit *repository.AuditRepository, push PushNotifier, bus *events.Bus) *RitualService {
-	return &RitualService{operatorRepository: operators, ritualRepository: rituals, journeyRepository: journeys, auditRepository: audit, pushNotifier: push, eventBus: bus}
+func NewRitualService(operators *repository.OperatorRepository, rituals *repository.RitualRepository, journeys *repository.JourneyRepository, audit *repository.AuditRepository, outbox *repository.OutboxRepository, db *pgxpool.Pool, bus *events.Bus) *RitualService {
+	return &RitualService{operatorRepository: operators, ritualRepository: rituals, journeyRepository: journeys, auditRepository: audit, outboxRepository: outbox, db: db, eventBus: bus}
 }
 
 func (s *RitualService) logActivity(ctx context.Context, operatorID, action, entityID, message string) {
@@ -132,7 +135,12 @@ func (s *RitualService) BulkCompleteRitual(ctx context.Context, orgID string, re
 	if err != nil {
 		return nil, serviceError("RitualService.BulkCompleteRitual", err)
 	}
-	pilgrimIDs, err := s.journeyRepository.ListPilgrimIDsByGroup(ctx, op.ID, req.GroupId)
+	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return nil, serviceError("RitualService.BulkCompleteRitual", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	pilgrimIDs, err := s.journeyRepository.ListPilgrimIDsByGroupTx(ctx, tx, op.ID, req.GroupId)
 	if err != nil {
 		return nil, serviceError("RitualService.BulkCompleteRitual", err)
 	}
@@ -146,15 +154,20 @@ func (s *RitualService) BulkCompleteRitual(ctx context.Context, orgID string, re
 		if excluded[pilgrimID] {
 			continue
 		}
-		if err := s.ritualRepository.CompletePilgrimRitual(ctx, op.ID, pilgrimID, req.RitualId, userID, req.Notes); err != nil {
+		if err := s.ritualRepository.CompletePilgrimRitualTx(ctx, tx, op.ID, pilgrimID, req.RitualId, userID, req.Notes); err != nil {
 			return nil, serviceError("RitualService.BulkCompleteRitual", err)
 		}
 		count++
 	}
-	s.logActivity(ctx, op.ID, "ritual_bulk_completed", req.GroupId, fmt.Sprintf("%d jamaah menyelesaikan ritual", count))
-	if s.pushNotifier != nil {
-		s.pushNotifier.NotifyGroupPilgrims(ctx, op.ID, req.GroupId, "Tawafiq Hub", "Sebuah ritual ibadah telah diselesaikan ✓")
+	if err := s.outboxRepository.EnqueueTx(ctx, tx, op.ID, domain.EventRitualBulkCompleted, req.GroupId, domain.RitualBulkCompletedPayload{
+		GroupID: req.GroupId, RitualID: req.RitualId, CompletedCount: count, NotificationBody: "Sebuah ritual ibadah telah diselesaikan ✓",
+	}); err != nil {
+		return nil, serviceError("RitualService.BulkCompleteRitual", err)
 	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, serviceError("RitualService.BulkCompleteRitual", err)
+	}
+	s.logActivity(ctx, op.ID, "ritual_bulk_completed", req.GroupId, fmt.Sprintf("%d jamaah menyelesaikan ritual", count))
 	s.eventBus.Publish(op.ID, "ritual", req.GroupId)
 	return &hajjv1.BulkCompleteRitualResponse{CompletedCount: count}, nil
 }

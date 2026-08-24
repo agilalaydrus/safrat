@@ -20,9 +20,9 @@ option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 // organization membership, since a pilgrim's Google identity is never an
 // org member. See sessionOnlyProcedures in internal/middleware/auth.go.
 service PilgrimAppService {
-  rpc GetMyInfo(PilgrimAppRequest) returns (PilgrimAppInfo);
-  rpc ListMySchedule(PilgrimAppRequest) returns (ListMyScheduleResponse);
-  rpc ListMyProducts(PilgrimAppRequest) returns (ListMyProductsResponse);
+  rpc GetMyInfo(GetMyInfoRequest) returns (PilgrimAppInfo);
+  rpc ListMySchedule(ListMyScheduleRequest) returns (ListMyScheduleResponse);
+  rpc ListMyProducts(ListMyProductsRequest) returns (ListMyProductsResponse);
   // UpdateMyLocation is called every 5 minutes by the pilgrim PWA (and once
   // more, best-effort, right before an SOS alert is sent) so a coordinator
   // or leader always has a recent GPS fix to work from during an emergency.
@@ -39,12 +39,12 @@ service PilgrimAppService {
   // ListMyBroadcasts is public (app_access_code), like the rest of this
   // service — resolves the pilgrim's operator+season from the code, then
   // lists that season's broadcasts. See publicProcedures in auth.go.
-  rpc ListMyBroadcasts(PilgrimAppRequest) returns (ListBroadcastsResponse);
+  rpc ListMyBroadcasts(ListMyBroadcastsRequest) returns (ListBroadcastsResponse);
   // GetMyCertificate is public (app_access_code), same as the rest of
   // this service. Also reachable via /certificate/[code] with no
   // pilgrim session at all — see family_tracker.proto for the same
   // "public, code-authenticated, minimal fields" pattern.
-  rpc GetMyCertificate(PilgrimAppRequest) returns (CertificateData);
+  rpc GetMyCertificate(GetMyCertificateRequest) returns (CertificateData);
   // SubmitMyPilgrimKyc lets a pilgrim fill in their own NIK/address instead
   // of waiting on an admin — public (app_access_code), like the rest of
   // this service. Always lands in PENDING_REVIEW regardless of who
@@ -55,7 +55,7 @@ service PilgrimAppService {
   // ListMyRituals is public (app_access_code) — powers the "Ibadah Saya"
   // tab. Read-only; completion is always recorded by a Muttawwif via
   // RitualService, never self-reported.
-  rpc ListMyRituals(PilgrimAppRequest) returns (ListMyRitualsResponse);
+  rpc ListMyRituals(ListMyRitualsRequest) returns (ListMyRitualsResponse);
   // RegisterMyPushToken is public (app_access_code) — the pilgrim PWA has
   // no guaranteed Better Auth session, so push tokens for pilgrims are
   // keyed to pilgrim_id directly (pilgrim_push_tokens), not to a Better
@@ -73,9 +73,12 @@ message RegisterMyPushTokenRequest {
 }
 message RegisterMyPushTokenResponse {}
 
-message PilgrimAppRequest {
-  string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
-}
+message GetMyInfoRequest { string app_access_code = 1 [(buf.validate.field).string.min_len = 1]; }
+message ListMyScheduleRequest { string app_access_code = 1 [(buf.validate.field).string.min_len = 1]; }
+message ListMyProductsRequest { string app_access_code = 1 [(buf.validate.field).string.min_len = 1]; }
+message ListMyBroadcastsRequest { string app_access_code = 1 [(buf.validate.field).string.min_len = 1]; }
+message GetMyCertificateRequest { string app_access_code = 1 [(buf.validate.field).string.min_len = 1]; }
+message ListMyRitualsRequest { string app_access_code = 1 [(buf.validate.field).string.min_len = 1]; }
 
 message PilgrimAppInfo {
   string id = 1;

@@ -63,7 +63,22 @@ func main() {
 		}
 		defer pool.Close()
 		queries := db.New(pool)
-		operatorRepository := repository.NewOperatorRepository(queries)
+		var redisClient *redis.Client
+		if redisURL := strings.TrimSpace(os.Getenv("REDIS_URL")); redisURL != "" {
+			opt, parseErr := redis.ParseURL(redisURL)
+			if parseErr != nil {
+				logger.Error("parse REDIS_URL", "error", parseErr)
+				os.Exit(1)
+			}
+			redisClient = redis.NewClient(opt)
+			defer func() { _ = redisClient.Close() }()
+			pingCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			if pingErr := redisClient.Ping(pingCtx).Err(); pingErr != nil {
+				logger.Warn("redis unavailable at startup; resilient fallbacks are active", "error", pingErr)
+			}
+			cancel()
+		}
+		operatorRepository := repository.NewRedisOperatorRepository(ctx, queries, redisClient, logger)
 		pilgrimRepository := repository.NewPilgrimRepository(queries)
 		seasonRepository := repository.NewSeasonRepository(queries)
 		accommodationRepository := repository.NewAccommodationRepository(queries)
@@ -103,23 +118,16 @@ func main() {
 			logger.Error("init firebase", "error", err)
 			sentry.CaptureException(err)
 		}
-		// firebasePusher (nilable *notification.FirebasePusher) satisfies both
-		// SOSNotifier and PushNotifier — a nil pointer stored in the interface
-		// still works because every method checks its own receiver for nil.
-		var pushNotifier service.PushNotifier = firebasePusher
+		// firebasePusher is nilable; its methods are nil-receiver safe so local
+		// development without Firebase credentials remains a no-op.
 		// eventBus feeds the operator monitoring dashboard's real-time stream
 		// (MonitoringService.StreamEvents). Redis-backed when REDIS_URL is set
 		// (cross-replica delivery, horizontal-scale ready); otherwise an
 		// in-process bus that only works for a single instance. See
 		// internal/events/bus.go.
 		var eventBus *events.Bus
-		if redisURL := strings.TrimSpace(os.Getenv("REDIS_URL")); redisURL != "" {
-			opt, parseErr := redis.ParseURL(redisURL)
-			if parseErr != nil {
-				logger.Error("parse REDIS_URL for event bus", "error", parseErr)
-				os.Exit(1)
-			}
-			eventBus = events.NewRedisBus(redis.NewClient(opt))
+		if redisClient != nil {
+			eventBus = events.NewRedisBus(redisClient)
 			logger.Info("event bus backend", "type", "redis", "note", "multi-replica ready")
 		} else {
 			eventBus = events.NewBus()
@@ -134,14 +142,14 @@ func main() {
 		productService := service.NewProductService(operatorRepository, productRepository)
 		agentService := service.NewAgentService(operatorRepository, agentRepository, auditRepository, pool)
 		journeyService := service.NewJourneyService(operatorRepository, journeyRepository, auditRepository)
-		groupService := service.NewGroupService(operatorRepository, groupRepository, auditRepository, agentRepository, journeyService, pushNotifier, eventBus)
+		groupService := service.NewGroupService(operatorRepository, groupRepository, auditRepository, agentRepository, outboxRepository, pool, eventBus)
 		pilgrimAppService := service.NewPilgrimAppService(pilgrimRepository, productRepository, auditRepository, identityRepository, broadcastRepository, journeyRepository, ritualRepository, notificationRepository)
 		sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, auditRepository, firebasePusher, eventBus)
 		chatService := service.NewChatService(operatorRepository, pilgrimRepository, chatRepository, groupRepository, groupLeaderRepository)
-		groupLeaderService := service.NewGroupLeaderService(operatorRepository, groupLeaderRepository, sosRepository, pilgrimRepository, groupRepository, journeyService, pushNotifier, eventBus)
+		groupLeaderService := service.NewGroupLeaderService(operatorRepository, groupLeaderRepository, sosRepository, pilgrimRepository, groupRepository, outboxRepository, pool, eventBus)
 		notificationService := service.NewNotificationService(operatorRepository, notificationRepository)
-		kloterService := service.NewKloterService(operatorRepository, kloterRepository, auditRepository, journeyService, pushNotifier, eventBus)
-		ritualService := service.NewRitualService(operatorRepository, ritualRepository, journeyRepository, auditRepository, pushNotifier, eventBus)
+		kloterService := service.NewKloterService(operatorRepository, kloterRepository, auditRepository, outboxRepository, pool, eventBus)
+		ritualService := service.NewRitualService(operatorRepository, ritualRepository, journeyRepository, auditRepository, outboxRepository, pool, eventBus)
 		healthReportService := service.NewHealthReportService(operatorRepository, healthReportRepository, pilgrimRepository, auditRepository, outboxRepository, pool, eventBus)
 		monitoringService := service.NewMonitoringService(operatorRepository, monitoringRepository, groupRepository, eventBus)
 		identityService := service.NewIdentityService(identityRepository)
@@ -191,8 +199,12 @@ func main() {
 		ritualHandler := handler.NewRitualHandler(ritualService)
 		healthReportHandler := handler.NewHealthReportHandler(healthReportService)
 		monitoringHandler := handler.NewMonitoringHandler(monitoringService)
+		rateLimitInterceptor := middleware.NewRateLimitInterceptor()
+		if redisClient != nil {
+			rateLimitInterceptor = middleware.NewRedisRateLimitInterceptor(redisClient, logger)
+		}
 		handlerOptions := []connect.HandlerOption{connect.WithInterceptors(
-			middleware.NewRateLimitInterceptor(),
+			rateLimitInterceptor,
 			middleware.NewAuthInterceptor(pool, identityRepository),
 		)}
 		operatorPath, operatorServiceHandler := hajjv1connect.NewOperatorServiceHandler(operatorHandler, handlerOptions...)

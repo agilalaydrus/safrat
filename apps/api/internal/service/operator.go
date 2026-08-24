@@ -148,7 +148,7 @@ func (s *OperatorService) ResolveSlug(ctx context.Context, request *hajjv1.Resol
 // UpdateMyProfile saves the public-profile fields for the operator behind the
 // caller's Better Auth org (same authenticatedOrgID -> GetByBetterAuthOrgID
 // resolution as Update/GetMy). Flips is_profile_complete TRUE.
-func (s *OperatorService) UpdateMyProfile(ctx context.Context, authenticatedOrgID string, request *hajjv1.UpdateOperatorProfileRequest) (*hajjv1.Operator, error) {
+func (s *OperatorService) UpdateMyProfile(ctx context.Context, authenticatedOrgID string, request *hajjv1.UpdateMyProfileRequest) (*hajjv1.Operator, error) {
 	if request == nil {
 		return nil, serviceError("OperatorService.UpdateMyProfile", apperror.ErrValidation)
 	}

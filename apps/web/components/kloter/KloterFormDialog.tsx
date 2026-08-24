@@ -1,5 +1,5 @@
 "use client";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Timestamp } from "@bufbuild/protobuf";
 import { IconPlane, IconTrash, IconX } from "@tabler/icons-react";
 import { Kloter } from "@hajj-saas/proto-gen/hajj/v1/kloter_pb";
@@ -21,10 +21,10 @@ export default function KloterFormDialog({ open, seasonId, initial, onClose, onS
   const [legError, setLegError] = useState("");
   const [legSaving, setLegSaving] = useState(false);
 
-  const loadLegs = () => {
+  const loadLegs = useCallback(() => {
     if (!initial || !seasonId) { setLegs([]); return; }
     transportClient.listMovements({ seasonId }).then((r) => setLegs(r.movements.filter((m) => m.kloterId === initial.id && m.mode === "FLIGHT").sort((a, b) => (a.scheduledAt?.toDate().getTime() ?? 0) - (b.scheduledAt?.toDate().getTime() ?? 0)))).catch(() => setLegs([]));
-  };
+  }, [initial, seasonId]);
 
   useEffect(() => {
     if (!open) return;
@@ -44,7 +44,7 @@ export default function KloterFormDialog({ open, seasonId, initial, onClose, onS
       setForm({ code: "", embarkation: "", flightNumber: "", departureDate: "", capacity: "" });
       setLegs([]);
     }
-  }, [open, initial]);
+  }, [initial, loadLegs, open]);
 
   if (!open) return null;
 

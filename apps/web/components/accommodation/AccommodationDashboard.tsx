@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { IconBed, IconBuilding, IconPlus } from "@tabler/icons-react";
 import { Hotel, Room } from "@hajj-saas/proto-gen/hajj/v1/accommodation_pb";
@@ -29,7 +29,7 @@ export default function AccommodationDashboard() {
       .catch(() => setNotice("Gagal memuat data musim."));
   }, []);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     if (!seasonId) {
       setHotels([]);
       setLoading(false);
@@ -48,9 +48,9 @@ export default function AccommodationDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [seasonId]);
 
-  useEffect(() => { void refresh(); }, [seasonId]);
+  useEffect(() => { void refresh(); }, [refresh]);
 
   const grouped = useMemo(() => {
     const matchingHotels = hotels.filter((hotel) =>

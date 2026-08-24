@@ -96,16 +96,16 @@ export default function GroupDetail({ id }: { id: string }) {
     }
   }
 
-  const kloterCode = (kloterId: string) => kloters.find((k) => k.id === kloterId)?.code;
+  const kloterCodes = useMemo(() => new Map(kloters.map((kloter) => [kloter.id, kloter.code])), [kloters]);
 
   const kloterBreakdown = useMemo(() => {
     const map = new Map<string, number>();
     for (const p of roster) {
-      const key = (p.kloterId && kloterCode(p.kloterId)) || "Belum Ada Kloter";
+      const key = (p.kloterId && kloterCodes.get(p.kloterId)) || "Belum Ada Kloter";
       map.set(key, (map.get(key) ?? 0) + 1);
     }
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
-  }, [roster, kloters]);
+  }, [kloterCodes, roster]);
 
   const hotelBreakdown = useMemo(() => {
     const map = new Map<string, number>();
@@ -234,7 +234,7 @@ export default function GroupDetail({ id }: { id: string }) {
                   <tr key={p.id} style={tr}>
                     <td style={td}><Link href={`/dashboard/pilgrims/${p.id}`} style={{ color: "var(--color-emerald-900)", fontWeight: 700 }}>{p.fullName}</Link>{p.requiresWheelchair && <IconWheelchair size={14} color="var(--color-gold-800)" style={{ marginLeft: 6, verticalAlign: "-2px" }} />}</td>
                     <td style={{ ...td, fontFamily: "ui-monospace,monospace", color: "var(--color-warm-500)" }}>{p.gender === Gender.FEMALE ? <IconGenderFemale size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} /> : <IconGenderMale size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />}{p.passportNumber}</td>
-                    <td style={td}>{(p.kloterId && kloterCode(p.kloterId)) || <span style={{ color: "var(--color-warm-400)" }}>-</span>}</td>
+                    <td style={td}>{(p.kloterId && kloterCodes.get(p.kloterId)) || <span style={{ color: "var(--color-warm-400)" }}>-</span>}</td>
                     <td style={td}>{rooms[p.id]?.length ? <div style={{ display: "grid", gap: 4 }}>{rooms[p.id]!.map((room, i) => <span key={i}>{room.hotelName}<span style={{ display: "block", fontSize: 11, color: "var(--color-warm-400)" }}>Kamar {room.roomNumber}</span></span>)}</div> : <span style={{ color: "var(--color-warm-400)" }}>-</span>}</td>
                     <td style={td}><span style={{ ...badgeBase, color: state === "CANCELLED" ? "var(--color-danger-600)" : state === "CONFIRMED" ? "var(--color-emerald-900)" : "var(--color-gold-800)", background: state === "CANCELLED" ? "var(--color-danger-100)" : state === "CONFIRMED" ? "var(--color-emerald-50)" : "var(--color-gold-50)" }}>{state === "CANCELLED" ? "Dibatalkan" : state === "CONFIRMED" ? "Terkonfirmasi" : "Menunggu"}</span></td>
                     <td style={td}><span style={{ ...badgeBase, color: paymentMeta.color, background: paymentMeta.bg }}>{paymentMeta.label}</span></td>

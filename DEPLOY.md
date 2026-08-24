@@ -8,9 +8,9 @@
 > - `5432` NOT exposed — PostgreSQL stays inside Docker network only
 > - `6379` NOT exposed — Redis stays inside Docker network only (§4). The
 >   `worker` reads it for the asynq job queue; the `api` reads it too when
->   `REDIS_URL` is set, for the Redis-backed monitoring event bus
->   (`internal/events/bus.go`) — optional, and required only to run more than
->   one `api` replica
+>   `REDIS_URL` is set, for the monitoring event bus, shared operator cache
+>   invalidation, and distributed public-endpoint rate limiter. Keep it set
+>   whenever more than one `api` replica is running.
 > - `worker` (§4, `cmd/worker`) has no host port at all — it's a
 >   background scheduler, not an HTTP service
 
@@ -188,8 +188,8 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 
 # Redis — self-hosted via the `redis` compose service above, not Upstash;
-# cmd/worker always reads REDIS_URL (asynq queue); the api also reads it when
-# set, for the Redis-backed monitoring event bus (optional, multi-replica).
+# cmd/worker always reads REDIS_URL (asynq queue); the api also reads it for
+# monitoring pub/sub, operator-cache invalidation, and distributed rate limits.
 # REDIS_URL is hardcoded to redis://redis:6379 in the worker service block
 # above since it's an internal-network hostname, not a secret — nothing
 # needed here.

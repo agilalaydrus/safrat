@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { IconFile, IconTrash, IconUpload } from "@tabler/icons-react";
 import { Timestamp } from "@bufbuild/protobuf";
 import { Pilgrim, PilgrimDocument } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
@@ -71,8 +71,8 @@ export default function PilgrimDocumentChecklist({ pilgrim, onUpdated }: { pilgr
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  const refresh = () => pilgrimClient.listPilgrimDocuments({ pilgrimId: pilgrim.id }).then((r) => setDocs(r.documents)).catch(() => setError("Gagal memuat dokumen."));
-  useEffect(() => { void refresh(); }, [pilgrim.id]);
+  const refresh = useCallback(() => pilgrimClient.listPilgrimDocuments({ pilgrimId: pilgrim.id }).then((r) => setDocs(r.documents)).catch(() => setError("Gagal memuat dokumen.")), [pilgrim.id]);
+  useEffect(() => { void refresh(); }, [refresh]);
 
   const monthsToExpiry = monthsUntil(pilgrim.passportExpiryDate);
   const expiryWarning = monthsToExpiry !== undefined && monthsToExpiry < 6;

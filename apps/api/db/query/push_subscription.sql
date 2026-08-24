@@ -24,3 +24,11 @@ SELECT DISTINCT t.fcm_token
 FROM pilgrim_push_tokens t
 JOIN pilgrims p ON p.id = t.pilgrim_id
 WHERE t.operator_id = $1 AND p.kloter_id = $2 AND p.is_substituted = false;
+
+-- name: DeletePushSubscriptionToken :exec
+DELETE FROM push_subscriptions
+WHERE operator_id = $1 AND fcm_token = $2;
+
+-- name: DeletePilgrimPushToken :exec
+DELETE FROM pilgrim_push_tokens
+WHERE operator_id = $1 AND fcm_token = $2;

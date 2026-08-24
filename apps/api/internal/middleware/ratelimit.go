@@ -2,7 +2,10 @@ package middleware
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -10,6 +13,7 @@ import (
 	"time"
 
 	"connectrpc.com/connect"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/time/rate"
 )
 
@@ -81,10 +85,30 @@ type rateLimiter struct {
 	limiters map[string]map[string]*ipLimiter // procedure -> client IP -> limiter
 }
 
-// NewRateLimitInterceptor throttles the procedures listed in
-// rateLimitedProcedures by client IP. State is in-memory and per-process —
-// fine for the single-API-instance deployment in DEPLOY.md; move to Redis if
-// the API ever runs more than one replica.
+type redisRateLimiter struct {
+	client *redis.Client
+}
+
+var tokenBucketScript = redis.NewScript(`
+local now_parts = redis.call('TIME')
+local now_ms = tonumber(now_parts[1]) * 1000 + math.floor(tonumber(now_parts[2]) / 1000)
+local values = redis.call('HMGET', KEYS[1], 'tokens', 'last_refill')
+local tokens = tonumber(values[1]) or tonumber(ARGV[2])
+local last_refill = tonumber(values[2]) or now_ms
+local elapsed = math.max(0, now_ms - last_refill)
+tokens = math.min(tonumber(ARGV[2]), tokens + elapsed / tonumber(ARGV[1]))
+local allowed = 0
+if tokens >= 1 then
+  tokens = tokens - 1
+  allowed = 1
+end
+redis.call('HSET', KEYS[1], 'tokens', tokens, 'last_refill', now_ms)
+redis.call('PEXPIRE', KEYS[1], ARGV[3])
+return allowed
+`)
+
+// NewRateLimitInterceptor is the in-memory fallback used when REDIS_URL is not
+// configured. Multi-replica deployments use NewRedisRateLimitInterceptor.
 // Implemented as a full connect.Interceptor, not connect.UnaryInterceptorFunc
 // — see the identical rationale on authInterceptor in auth.go. No procedure
 // in rateLimitedProcedures is a streaming RPC today, but a
@@ -93,14 +117,30 @@ type rateLimiter struct {
 func NewRateLimitInterceptor() connect.Interceptor {
 	limiter := &rateLimiter{limiters: make(map[string]map[string]*ipLimiter)}
 	go limiter.cleanupLoop()
-	return &rateLimitInterceptor{limiter: limiter}
+	return &rateLimitInterceptor{local: limiter}
 }
 
-type rateLimitInterceptor struct{ limiter *rateLimiter }
+// NewRedisRateLimitInterceptor uses one atomic Redis token bucket per
+// procedure/IP, so every API replica shares the same allowance. Runtime Redis
+// failures fall back to the local limiter instead of taking public endpoints
+// offline completely.
+func NewRedisRateLimitInterceptor(client *redis.Client, logger *slog.Logger) connect.Interceptor {
+	limiter := &rateLimiter{limiters: make(map[string]map[string]*ipLimiter)}
+	go limiter.cleanupLoop()
+	return &rateLimitInterceptor{local: limiter, redis: &redisRateLimiter{client: client}, logger: logger}
+}
+
+type rateLimitInterceptor struct {
+	local            *rateLimiter
+	redis            *redisRateLimiter
+	logger           *slog.Logger
+	warningMu        sync.Mutex
+	lastRedisWarning time.Time
+}
 
 func (r *rateLimitInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	return func(ctx context.Context, request connect.AnyRequest) (connect.AnyResponse, error) {
-		if err := r.check(request.Spec().Procedure, clientIP(request.Header(), request.Peer().Addr)); err != nil {
+		if err := r.check(ctx, request.Spec().Procedure, clientIP(request.Header(), request.Peer().Addr)); err != nil {
 			return nil, err
 		}
 		return next(ctx, request)
@@ -113,22 +153,67 @@ func (r *rateLimitInterceptor) WrapStreamingClient(next connect.StreamingClientF
 
 func (r *rateLimitInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
 	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
-		if err := r.check(conn.Spec().Procedure, clientIP(conn.RequestHeader(), conn.Peer().Addr)); err != nil {
+		if err := r.check(ctx, conn.Spec().Procedure, clientIP(conn.RequestHeader(), conn.Peer().Addr)); err != nil {
 			return err
 		}
 		return next(ctx, conn)
 	}
 }
 
-func (r *rateLimitInterceptor) check(procedure, ip string) error {
+func (r *rateLimitInterceptor) check(ctx context.Context, procedure, ip string) error {
 	limit, limited := rateLimitedProcedures[procedure]
 	if !limited {
 		return nil
 	}
-	if !r.limiter.allow(procedure, ip, limit) {
+	allowed := false
+	if r.redis != nil && r.redis.client != nil {
+		var err error
+		allowed, err = r.redis.allow(ctx, procedure, ip, limit)
+		if err != nil {
+			r.warnRedisFallback(err)
+			allowed = r.local.allow(procedure, ip, limit)
+		}
+	} else {
+		allowed = r.local.allow(procedure, ip, limit)
+	}
+	if !allowed {
 		return connect.NewError(connect.CodeResourceExhausted, errors.New("too many requests — try again later"))
 	}
 	return nil
+}
+
+func (rl *redisRateLimiter) allow(ctx context.Context, procedure, ip string, limit rate.Limit) (bool, error) {
+	if limit <= 0 {
+		return false, nil
+	}
+	interval := time.Duration(float64(time.Second) / float64(limit))
+	if interval < time.Millisecond {
+		interval = time.Millisecond
+	}
+	ttl := interval * time.Duration(rateLimitBurst) * 2
+	if ttl < time.Minute {
+		ttl = time.Minute
+	}
+	digest := sha256.Sum256([]byte(procedure + "\x00" + ip))
+	key := fmt.Sprintf("safrat:ratelimit:%x", digest[:16])
+	result, err := tokenBucketScript.Run(ctx, rl.client, []string{key}, interval.Milliseconds(), rateLimitBurst, ttl.Milliseconds()).Int()
+	if err != nil {
+		return false, err
+	}
+	return result == 1, nil
+}
+
+func (r *rateLimitInterceptor) warnRedisFallback(err error) {
+	if r.logger == nil {
+		return
+	}
+	r.warningMu.Lock()
+	defer r.warningMu.Unlock()
+	if time.Since(r.lastRedisWarning) < time.Minute {
+		return
+	}
+	r.lastRedisWarning = time.Now()
+	r.logger.Warn("redis rate limiter unavailable; using per-process fallback", "error", err)
 }
 
 func (rl *rateLimiter) allow(procedure, ip string, limit rate.Limit) bool {

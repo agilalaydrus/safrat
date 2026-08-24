@@ -5,6 +5,7 @@ import (
 
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -53,6 +54,14 @@ func (r *RitualRepository) CreateTemplate(ctx context.Context, operatorID, seaso
 // CompletePilgrimRitual upserts the completion — RitualService.BulkCompleteRitual
 // calls this once per pilgrim in the group.
 func (r *RitualRepository) CompletePilgrimRitual(ctx context.Context, operatorID, pilgrimID, ritualID, completedByUserID, notes string) error {
+	return r.completePilgrimRitual(ctx, r.queries, operatorID, pilgrimID, ritualID, completedByUserID, notes)
+}
+
+func (r *RitualRepository) CompletePilgrimRitualTx(ctx context.Context, tx pgx.Tx, operatorID, pilgrimID, ritualID, completedByUserID, notes string) error {
+	return r.completePilgrimRitual(ctx, r.queries.WithTx(tx), operatorID, pilgrimID, ritualID, completedByUserID, notes)
+}
+
+func (r *RitualRepository) completePilgrimRitual(ctx context.Context, queries *db.Queries, operatorID, pilgrimID, ritualID, completedByUserID, notes string) error {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return err
@@ -65,7 +74,7 @@ func (r *RitualRepository) CompletePilgrimRitual(ctx context.Context, operatorID
 	if err != nil {
 		return err
 	}
-	_, err = r.queries.UpsertPilgrimRitual(ctx, db.UpsertPilgrimRitualParams{
+	_, err = queries.UpsertPilgrimRitual(ctx, db.UpsertPilgrimRitualParams{
 		OperatorID: opUUID, PilgrimID: pilgrimUUID, RitualID: ritualUUID,
 		CompletedBy: pgtype.Text{String: completedByUserID, Valid: completedByUserID != ""}, Notes: notes,
 	})

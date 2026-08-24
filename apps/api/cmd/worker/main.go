@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/hajj-saas/api/internal/events"
 	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/hajj-saas/api/internal/notification"
 	"github.com/hajj-saas/api/internal/repository"
@@ -14,6 +15,7 @@ import (
 	"github.com/hajj-saas/api/internal/worker"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -37,7 +39,14 @@ func main() {
 	defer pool.Close()
 
 	queries := db.New(pool)
-	operatorRepository := repository.NewOperatorRepository(queries)
+	redisOptions, err := redis.ParseURL(redisURL)
+	if err != nil {
+		logger.Error("parse REDIS_URL", "error", err)
+		os.Exit(1)
+	}
+	redisClient := redis.NewClient(redisOptions)
+	defer func() { _ = redisClient.Close() }()
+	operatorRepository := repository.NewRedisOperatorRepository(context.Background(), queries, redisClient, logger)
 	agentRepository := repository.NewAgentRepository(queries)
 	pilgrimRepository := repository.NewPilgrimRepository(queries)
 	sosRepository := repository.NewSOSRepository(queries)
@@ -45,22 +54,23 @@ func main() {
 	notificationRepository := repository.NewNotificationRepository(queries)
 	auditRepository := repository.NewAuditRepository(queries)
 	outboxRepository := repository.NewOutboxRepository(queries)
+	journeyRepository := repository.NewJourneyRepository(queries)
 	agentService := service.NewAgentService(operatorRepository, agentRepository, auditRepository, pool)
+	journeyService := service.NewJourneyService(operatorRepository, journeyRepository, auditRepository)
 	tierHandler := worker.NewTierHandler(logger, operatorRepository, agentService)
 
 	firebasePusher, err := notification.NewFirebasePusher(context.Background(), logger, strings.TrimSpace(os.Getenv("FIREBASE_SERVICE_ACCOUNT_JSON")), notificationRepository)
 	if err != nil {
 		logger.Error("init firebase", "error", err)
 	}
-	// eventBus is nil here — the worker is a separate process from the API
-	// server, so it has no monitoring-dashboard subscribers to publish to
-	// (those live in the server's in-process events.Bus). Bus.Publish is a
-	// documented nil-safe no-op for exactly this case.
-	sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, auditRepository, firebasePusher, nil)
+	// Redis pub/sub carries worker-originated escalation/cascade completion
+	// events to monitoring subscribers connected to any API replica.
+	eventBus := events.NewRedisBus(redisClient)
+	sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, auditRepository, firebasePusher, eventBus)
 	sosHandler := worker.NewSOSHandler(logger, sosService)
 	waitlistHandler := worker.NewWaitlistHandler(logger, waitlistRepository)
 	cashFlowHandler := worker.NewCashFlowHandler(logger, queries)
-	outboxHandler := worker.NewOutboxHandler(logger, outboxRepository, firebasePusher)
+	outboxHandler := worker.NewOutboxHandler(logger, outboxRepository, firebasePusher, journeyService, eventBus)
 
 	redisOpt, err := asynq.ParseRedisURI(redisURL)
 	if err != nil {

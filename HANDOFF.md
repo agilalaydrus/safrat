@@ -14,6 +14,22 @@
 
 ## Continuation after this snapshot
 
+- The hardening continuation fixes all proto RPC request naming violations;
+  `buf lint` is now clean while RPC paths and field numbers stay wire-compatible.
+- Group-city (both admin and Muttawwif entry points), kloter-status, and ritual
+  bulk producers now commit their authoritative writes and outbox events in one
+  PostgreSQL transaction. Migration 079 adds 30-second worker leases and bounded
+  exponential retry backoff to prevent concurrent duplicate dispatch.
+- Firebase push methods return errors and retry transport failures immediately
+  (100ms/250ms backoff within a 4-second budget). SOS stays on the direct path;
+  alert persistence never rolls back if push ultimately fails, and Sentry records
+  the failure. Outbox delivery now receives push errors and can retry correctly.
+- Redis now backs the shared operator cache and distributed token-bucket rate
+  limiter in addition to monitoring pub/sub. Operator updates publish cross-replica
+  L1 invalidations; Redis failure falls back to PostgreSQL/local limiting.
+- All 23 historical React Hook warnings were resolved with stable callbacks and
+  memo dependencies. ESLint now reports 0 errors and 0 warnings.
+
 - The cold-start offline item below is committed as `c76f460` with Serwist 9:
   `app/sw.ts` is the source and production builds generate the ignored
   `public/sw.js`. All 20 `/pilgrim` + `/leader` routes and build assets are in
@@ -45,15 +61,15 @@
   per operator. Migrations 077–078 safely remove empty duplicates. Same-name
   rows with dependent data make the migration fail for manual merge rather
   than cascading data loss.
-- Verified locally: web typecheck, ESLint (0 errors; 23 pre-existing hook
-  warnings), production build, and generated-manifest inspection (20/20 PWA
+- Verified locally: web typecheck, ESLint (0 errors; 0 warnings), production
+  build, and generated-manifest inspection (20/20 PWA
   routes present). A real-browser/device offline test is still recommended.
 - The offline continuation is committed locally as `c76f460`; nothing has been
   pushed or deployed.
 
 ## Repo / deploy state
 
-- **15 commits sit on local `main`, NOT pushed** after the FAQ cascade fix
+- **16 commits sit on local `main`, NOT pushed** after the hardening continuation
   in the current work (see `git log origin/main..main`).
   **Pushing `main` triggers a production deploy** (`.github/workflows/deploy.yml`
   → builds images, runs goose migrations, redeploys `app.tawafiqhub.id`). The
@@ -62,7 +78,7 @@
   and rebuilt by CI — never commit it. `apps/web/tsconfig.tsbuildinfo` and
   untracked scratch `*.md` / media are also excluded.
 - **Local dev DB was wiped clean** (all rows truncated, schema kept) for fresh
-  manual testing. Migrations **073–078 are applied locally**; in prod goose
+  manual testing. Migrations **073–079 are applied locally**; in prod goose
   applies them on deploy.
 - Local processes: web dev on `:3131`; Go API on `:8131`. Both are expected to
   be restarted from current source after the latest local commit.
@@ -100,23 +116,11 @@
   test: load each PWA online once, close it, enable offline mode, then cold-open
   the installed PWA and exercise cached reads/queued writes.
 
-### Medium value, low risk (reuses the outbox pattern from commit 4)
-- **#1 Migrate more cascade producers to the outbox**: group-city, kloter-status,
-  ritual bulk. Follow the health reference in `service/health_report.go` +
-  `worker/outbox.go`. **Caveat discovered:** do NOT move the **SOS coordinator
-  notification** onto the polled relay — it would add up to 10s latency to an
-  *emergency*. Keep SOS notify immediate; if you want durability there, give
-  `NotifySOSAlert`/`NotifyOperatorStaff` an internal retry, or return an `error`
-  so a fast follow-up mechanism can react (they're currently `void`, which also
-  blocks the outbox relay from retrying pushes — a real follow-up).
-
-### Lower urgency (only bites at >1 replica; touches hot paths)
-- **#4 Finish multi-replica readiness**: the event bus is Redis-backed now, but
-  still per-process and stale-cross-replica: the **operator cache**
-  (`repository/operator.go`, 5-min TTL, invalidated only in-process) and the
-  **rate limiter** (`middleware/ratelimit.go`). Move both to Redis (pub/sub
-  invalidation for the cache; a distributed limiter). Single-instance today, so
-  not urgent.
+### Completed in the hardening continuation
+- Group-city, kloter-status, and ritual bulk cascades use the transactional
+  outbox; SOS remains direct with bounded fast retry.
+- Operator cache invalidation and public RPC rate limits are Redis-distributed,
+  with bounded local/DB fallbacks for availability.
 
 ### Skip / already handled
 - **Check-in idempotency** — redundant: `check_ins` already has
@@ -124,13 +128,12 @@
 - **Chat idempotency** — possible but low value (duplicate message only).
 
 ## CI note
-- `ci.yml` is red on a pre-existing `buf lint` proto-naming issue
-  (`PilgrimAppRequest`/`ChatAppRequest` reused across RPCs). It does **not** gate
-  the deploy workflow. Fixable by renaming those request types.
+- `buf lint` is clean. Request message names are now method-specific; generated
+  clients must be rebuilt with `pnpm buf:generate` (CI already does this).
 
 ## Local verify recipe
 - Go: `cd apps/api && go build ./... && go vet ./... && go test ./...`
 - Web: `pnpm --filter @hajj-saas/web typecheck && (cd apps/web && npx eslint .)`
-- Redis bus cross-instance test: `REDIS_TEST_URL=redis://localhost:6380 go test ./internal/events/`
+- Redis cross-instance tests: `REDIS_TEST_URL=redis://localhost:6380 go test ./internal/events/ ./internal/middleware/ ./internal/repository/`
 - Backend smoke tests run a throwaway server on `:8132` against the local DB
   (`PORT=8132 go run ./cmd/server`) — insert a temp operator, curl the RPC, clean up.

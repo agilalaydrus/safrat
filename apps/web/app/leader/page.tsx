@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { IconCheck, IconGenderFemale, IconGenderMale, IconMapPin, IconMapPinExclamation, IconPlane, IconSos, IconUsersGroup, IconWheelchair, IconWifiOff, IconX } from "@tabler/icons-react";
 import { Gender, Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
@@ -46,19 +46,19 @@ export default function LeaderRosterPage() {
       .catch(() => setError("Gagal memuat daftar jamaah grup ini."));
   }, [selectedGroupId]);
 
-  const refreshLost = () => {
+  const refreshLost = useCallback(() => {
     if (!selectedGroupId) return;
     lostReportClient.listGroupLostReports({ groupId: selectedGroupId }).then((response) => {
       setLostReports(response.reports.filter((r) => r.status !== "RESOLVED"));
     }).catch(() => {});
-  };
+  }, [selectedGroupId]);
 
   useEffect(() => {
     if (!selectedGroupId) return;
     refreshLost();
     const interval = window.setInterval(refreshLost, 10000);
     return () => window.clearInterval(interval);
-  }, [selectedGroupId]);
+  }, [refreshLost, selectedGroupId]);
 
   async function resolveLost(id: string) {
     if (!selectedGroupId) return;
@@ -66,17 +66,17 @@ export default function LeaderRosterPage() {
     try { await lostReportClient.resolveGroupLostReport({ groupId: selectedGroupId, id }); refreshLost(); } catch { setError("Gagal menandai laporan sebagai ditemukan."); } finally { setResolvingLostId(""); }
   }
 
-  const refreshSos = () => {
+  const refreshSos = useCallback(() => {
     groupLeaderClient.listMySOSAlerts({}).then((response) => {
       setSosAlerts(response.alerts.filter((a) => a.status !== "RESOLVED"));
     }).catch(() => {});
-  };
+  }, []);
 
   useEffect(() => {
     refreshSos();
     const interval = window.setInterval(refreshSos, 10000);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [refreshSos]);
 
   async function acknowledgeSos(id: string) {
     setAckingSosId(id);

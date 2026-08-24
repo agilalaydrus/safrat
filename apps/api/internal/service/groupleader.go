@@ -2,17 +2,17 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	"github.com/hajj-saas/api/internal/events"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/repository"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -22,13 +22,13 @@ type GroupLeaderService struct {
 	sosRepository         *repository.SOSRepository
 	pilgrimRepository     *repository.PilgrimRepository
 	groupRepository       *repository.GroupRepository
-	journeyService        *JourneyService
-	pushNotifier          PushNotifier
+	outboxRepository      *repository.OutboxRepository
+	db                    *pgxpool.Pool
 	eventBus              *events.Bus
 }
 
-func NewGroupLeaderService(operators *repository.OperatorRepository, groupLeaders *repository.GroupLeaderRepository, sos *repository.SOSRepository, pilgrims *repository.PilgrimRepository, groups *repository.GroupRepository, journey *JourneyService, push PushNotifier, bus *events.Bus) *GroupLeaderService {
-	return &GroupLeaderService{operatorRepository: operators, groupLeaderRepository: groupLeaders, sosRepository: sos, pilgrimRepository: pilgrims, groupRepository: groups, journeyService: journey, pushNotifier: push, eventBus: bus}
+func NewGroupLeaderService(operators *repository.OperatorRepository, groupLeaders *repository.GroupLeaderRepository, sos *repository.SOSRepository, pilgrims *repository.PilgrimRepository, groups *repository.GroupRepository, outbox *repository.OutboxRepository, db *pgxpool.Pool, bus *events.Bus) *GroupLeaderService {
+	return &GroupLeaderService{operatorRepository: operators, groupLeaderRepository: groupLeaders, sosRepository: sos, pilgrimRepository: pilgrims, groupRepository: groups, outboxRepository: outbox, db: db, eventBus: bus}
 }
 
 // ListMySOSAlerts scopes the coordinator-wide SOS surface down to only
@@ -74,17 +74,23 @@ func (s *GroupLeaderService) UpdateMyGroupCity(ctx context.Context, orgID string
 	if err != nil {
 		return nil, err
 	}
-	group, err := s.groupRepository.UpdateCity(ctx, op, req.GroupId, req.City, req.Activity, req.Location, middleware.UserIDFromCtx(ctx))
+	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, serviceError("GroupLeaderService.UpdateMyGroupCity", err)
 	}
-	if journeyStatus, ok := cityToJourneyStatus[req.City]; ok && s.journeyService != nil {
-		if _, err := s.journeyService.BulkUpdateForGroup(ctx, op, group.ID, journeyStatus, req.Notes); err != nil {
-			sentry.CaptureException(fmt.Errorf("GroupLeaderService.UpdateMyGroupCity: journey cascade: %w", err))
-		}
+	defer func() { _ = tx.Rollback(ctx) }()
+	userID := middleware.UserIDFromCtx(ctx)
+	group, err := s.groupRepository.UpdateCityTx(ctx, tx, op, req.GroupId, req.City, req.Activity, req.Location, userID)
+	if err != nil {
+		return nil, serviceError("GroupLeaderService.UpdateMyGroupCity", err)
 	}
-	if s.pushNotifier != nil {
-		s.pushNotifier.NotifyGroupPilgrims(ctx, op, group.ID, "Tawafiq Hub", groupCityPushBody(req.City))
+	if err := s.outboxRepository.EnqueueTx(ctx, tx, op, domain.EventGroupCityUpdated, group.ID, domain.GroupCityUpdatedPayload{
+		GroupID: group.ID, City: req.City, JourneyStatus: cityToJourneyStatus[req.City], Notes: req.Notes, UpdatedBy: userID, NotificationBody: groupCityPushBody(req.City),
+	}); err != nil {
+		return nil, serviceError("GroupLeaderService.UpdateMyGroupCity", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, serviceError("GroupLeaderService.UpdateMyGroupCity", err)
 	}
 	s.eventBus.Publish(op, "group_location", group.ID)
 	return &hajjv1.LeaderGroup{Id: group.ID, Name: group.Name, Capacity: group.Capacity, SeasonId: group.SeasonID, CurrentCity: group.CurrentCity, LastUpdate: timestampOrNil(group.LastUpdate), CurrentActivity: group.CurrentActivity}, nil

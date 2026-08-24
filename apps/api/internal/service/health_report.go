@@ -35,7 +35,7 @@ func (s *HealthReportService) logActivity(ctx context.Context, operatorID, actio
 }
 
 // CreateHealthReport: BERAT severity automatically pushes to the operator —
-// see PushNotifier.NotifyOperatorStaff. Never deletable, only resolvable —
+// see the outbox worker's NotifyOperatorStaff dispatch. Never deletable, only resolvable —
 // see HealthReportService.ResolveHealthReport.
 func (s *HealthReportService) CreateHealthReport(ctx context.Context, orgID string, req *hajjv1.CreateHealthReportRequest) (*hajjv1.HealthReport, error) {
 	if req == nil || strings.TrimSpace(req.PilgrimId) == "" || strings.TrimSpace(req.Symptoms) == "" {

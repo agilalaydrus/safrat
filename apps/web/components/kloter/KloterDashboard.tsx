@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconPencil, IconPlane, IconPlus, IconTrash } from "@tabler/icons-react";
 import { Kloter } from "@hajj-saas/proto-gen/hajj/v1/kloter_pb";
@@ -20,19 +20,19 @@ export default function KloterDashboard() {
   const [edit, setEdit] = useState<Kloter | undefined>();
   const [notice, setNotice] = useState("");
 
-  const load = async (id = seasonId) => {
+  const load = useCallback(async (id = seasonId) => {
     if (!id) return;
     try {
       const [klotersResponse, movementsResponse] = await Promise.all([kloterClient.listKloters({ seasonId: id }), transportClient.listMovements({ seasonId: id })]);
       setKloters(klotersResponse.kloters);
       setMovements(movementsResponse.movements);
     } catch { setNotice("Gagal memuat data kloter."); }
-  };
+  }, [seasonId]);
 
   useEffect(() => {
     seasonClient.listSeasons({}).then((r) => { setSeasons(r.seasons); setSeasonId(r.seasons.find((s) => s.isActive)?.id ?? r.seasons[0]?.id ?? ""); }).catch(() => setNotice("Gagal memuat data musim."));
   }, []);
-  useEffect(() => { void load(); }, [seasonId]);
+  useEffect(() => { void load(); }, [load]);
 
   // The full flight itinerary for a kloter — departure leg(s), any transit,
   // and the return leg(s) — is whatever FLIGHT movements are scoped to it,

@@ -10,6 +10,11 @@ ORDER BY k.departure_date ASC NULLS LAST, k.code ASC;
 SELECT * FROM kloters
 WHERE id = $1 AND operator_id = $2;
 
+-- name: GetKloterForOperatorForUpdate :one
+SELECT * FROM kloters
+WHERE id = $1 AND operator_id = $2
+FOR UPDATE;
+
 -- name: CreateKloter :one
 INSERT INTO kloters (operator_id, season_id, code, embarkation, flight_number, departure_date, capacity)
 VALUES ($1, $2, $3, $4, $5, $6, $7)

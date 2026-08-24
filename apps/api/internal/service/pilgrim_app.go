@@ -36,7 +36,7 @@ var certificateUnlockStatuses = map[string]bool{"ARRIVED_INDONESIA": true, "COMP
 // other PilgrimAppService method. Gated on journey status per the
 // business rule "ARRIVED_INDONESIA otomatis unlock sertifikat digital" —
 // returns Unlocked:false with every other field zero-valued until then.
-func (s *PilgrimAppService) GetMyCertificate(ctx context.Context, req *hajjv1.PilgrimAppRequest) (*hajjv1.CertificateData, error) {
+func (s *PilgrimAppService) GetMyCertificate(ctx context.Context, req *hajjv1.GetMyCertificateRequest) (*hajjv1.CertificateData, error) {
 	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" {
 		return nil, serviceError("PilgrimAppService.GetMyCertificate", apperror.ErrValidation)
 	}
@@ -69,7 +69,7 @@ func (s *PilgrimAppService) GetMyCertificate(ctx context.Context, req *hajjv1.Pi
 // ListMyBroadcasts is public (app_access_code), same pattern as every other
 // PilgrimAppService method — resolves operator+season from the code, then
 // lists that season's broadcasts (same repository BroadcastService uses).
-func (s *PilgrimAppService) ListMyBroadcasts(ctx context.Context, req *hajjv1.PilgrimAppRequest) (*hajjv1.ListBroadcastsResponse, error) {
+func (s *PilgrimAppService) ListMyBroadcasts(ctx context.Context, req *hajjv1.ListMyBroadcastsRequest) (*hajjv1.ListBroadcastsResponse, error) {
 	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" {
 		return nil, serviceError("PilgrimAppService.ListMyBroadcasts", apperror.ErrValidation)
 	}
@@ -88,7 +88,7 @@ func (s *PilgrimAppService) ListMyBroadcasts(ctx context.Context, req *hajjv1.Pi
 	return result, nil
 }
 
-func (s *PilgrimAppService) GetMyInfo(ctx context.Context, req *hajjv1.PilgrimAppRequest) (*hajjv1.PilgrimAppInfo, error) {
+func (s *PilgrimAppService) GetMyInfo(ctx context.Context, req *hajjv1.GetMyInfoRequest) (*hajjv1.PilgrimAppInfo, error) {
 	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" {
 		return nil, serviceError("PilgrimAppService.GetMyInfo", apperror.ErrValidation)
 	}
@@ -116,7 +116,7 @@ func (s *PilgrimAppService) GetMyInfo(ctx context.Context, req *hajjv1.PilgrimAp
 }
 
 // ListMyRituals is public (app_access_code) — powers the "Ibadah Saya" tab.
-func (s *PilgrimAppService) ListMyRituals(ctx context.Context, req *hajjv1.PilgrimAppRequest) (*hajjv1.ListMyRitualsResponse, error) {
+func (s *PilgrimAppService) ListMyRituals(ctx context.Context, req *hajjv1.ListMyRitualsRequest) (*hajjv1.ListMyRitualsResponse, error) {
 	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" {
 		return nil, serviceError("PilgrimAppService.ListMyRituals", apperror.ErrValidation)
 	}
@@ -239,7 +239,7 @@ func (s *PilgrimAppService) LinkGoogleAccount(ctx context.Context, req *hajjv1.L
 	return &hajjv1.LinkGoogleAccountResponse{LinkedGoogleEmail: userEmail}, nil
 }
 
-func (s *PilgrimAppService) ListMySchedule(ctx context.Context, req *hajjv1.PilgrimAppRequest) (*hajjv1.ListMyScheduleResponse, error) {
+func (s *PilgrimAppService) ListMySchedule(ctx context.Context, req *hajjv1.ListMyScheduleRequest) (*hajjv1.ListMyScheduleResponse, error) {
 	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" {
 		return nil, serviceError("PilgrimAppService.ListMySchedule", apperror.ErrValidation)
 	}
@@ -258,7 +258,7 @@ func (s *PilgrimAppService) ListMySchedule(ctx context.Context, req *hajjv1.Pilg
 	return result, nil
 }
 
-func (s *PilgrimAppService) ListMyProducts(ctx context.Context, req *hajjv1.PilgrimAppRequest) (*hajjv1.ListMyProductsResponse, error) {
+func (s *PilgrimAppService) ListMyProducts(ctx context.Context, req *hajjv1.ListMyProductsRequest) (*hajjv1.ListMyProductsResponse, error) {
 	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" {
 		return nil, serviceError("PilgrimAppService.ListMyProducts", apperror.ErrValidation)
 	}

@@ -97,18 +97,24 @@ func (s *JourneyService) BulkUpdateStatus(ctx context.Context, orgID string, req
 // KloterService/GroupService cascades — they already have op.ID and a
 // user id from context, no need to re-resolve the operator.
 func (s *JourneyService) bulkUpdateStatus(ctx context.Context, operatorID, kloterID, status, notes string) (int32, error) {
+	return s.BulkUpdateForKloterAs(ctx, operatorID, kloterID, status, middleware.UserIDFromCtx(ctx), notes)
+}
+
+// BulkUpdateForKloterAs is the worker-safe kloter cascade entry point. The
+// initiating user is carried in the durable event because worker contexts do
+// not contain the original HTTP identity.
+func (s *JourneyService) BulkUpdateForKloterAs(ctx context.Context, operatorID, kloterID, status, updatedByUserID, notes string) (int32, error) {
 	statuses, err := s.journeyRepository.ListByKloter(ctx, operatorID, kloterID)
 	if err != nil {
 		return 0, err
 	}
 	targetIdx := domain.JourneyStatusIndex(status)
-	userID := middleware.UserIDFromCtx(ctx)
 	var count int32
 	for pilgrimID, from := range statuses {
 		if domain.JourneyStatusIndex(from) >= targetIdx {
 			continue
 		}
-		if _, err := s.journeyRepository.UpdateStatus(ctx, operatorID, pilgrimID, from, status, userID, notes); err != nil {
+		if _, err := s.journeyRepository.UpdateStatus(ctx, operatorID, pilgrimID, from, status, updatedByUserID, notes); err != nil {
 			return count, err
 		}
 		count++
@@ -123,6 +129,12 @@ func (s *JourneyService) bulkUpdateStatus(ctx context.Context, operatorID, klote
 // GroupService.UpdateGroupCity — same semantics as bulkUpdateStatus but
 // resolving pilgrim ids from a group instead of a kloter.
 func (s *JourneyService) BulkUpdateForGroup(ctx context.Context, operatorID, groupID, status, notes string) (int32, error) {
+	return s.BulkUpdateForGroupAs(ctx, operatorID, groupID, status, middleware.UserIDFromCtx(ctx), notes)
+}
+
+// BulkUpdateForGroupAs is the worker-safe group cascade counterpart to
+// BulkUpdateForKloterAs.
+func (s *JourneyService) BulkUpdateForGroupAs(ctx context.Context, operatorID, groupID, status, updatedByUserID, notes string) (int32, error) {
 	targetIdx := domain.JourneyStatusIndex(status)
 	if targetIdx == -1 {
 		return 0, apperror.ErrValidation
@@ -131,14 +143,13 @@ func (s *JourneyService) BulkUpdateForGroup(ctx context.Context, operatorID, gro
 	if err != nil {
 		return 0, err
 	}
-	userID := middleware.UserIDFromCtx(ctx)
 	var count int32
 	for _, pilgrimID := range pilgrimIDs {
 		from := s.currentStatus(ctx, operatorID, pilgrimID)
 		if domain.JourneyStatusIndex(from) >= targetIdx {
 			continue
 		}
-		if _, err := s.journeyRepository.UpdateStatus(ctx, operatorID, pilgrimID, from, status, userID, notes); err != nil {
+		if _, err := s.journeyRepository.UpdateStatus(ctx, operatorID, pilgrimID, from, status, updatedByUserID, notes); err != nil {
 			return count, err
 		}
 		count++

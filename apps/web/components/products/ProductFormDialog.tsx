@@ -1,5 +1,5 @@
 "use client";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { IconPlus, IconTrash, IconX } from "@tabler/icons-react";
 import { Product, ItineraryDay } from "@hajj-saas/proto-gen/hajj/v1/product_pb";
 import { Hotel } from "@hajj-saas/proto-gen/hajj/v1/accommodation_pb";
@@ -34,6 +34,8 @@ export default function ProductFormDialog({ open, seasonId, initial, onClose, on
   const [kloters, setKloters] = useState<Kloter[]>([]);
   const initialRef = useRef(empty);
 
+  const close = useCallback(() => { if (JSON.stringify(form) !== JSON.stringify(initialRef.current) && !window.confirm("Ada perubahan yang belum disimpan. Batalkan?")) return; onClose(); }, [form, onClose]);
+
   useEffect(() => {
     if (!open) return;
     const v: Values = initial ? {
@@ -59,10 +61,9 @@ export default function ProductFormDialog({ open, seasonId, initial, onClose, on
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [open, form]);
+  }, [close, open]);
 
   const update = (key: keyof Values, value: Values[keyof Values]) => setForm((v) => ({ ...v, [key]: value }));
-  const close = () => { if (JSON.stringify(form) !== JSON.stringify(initialRef.current) && !window.confirm("Ada perubahan yang belum disimpan. Batalkan?")) return; onClose(); };
   const isTravelPackage = form.category === "TRAVEL_PACKAGE";
   const marginSum = (Number(form.platformMargin) || 0) + (Number(form.operatorMargin) || 0) + (Number(form.agentMargin) || 0);
 

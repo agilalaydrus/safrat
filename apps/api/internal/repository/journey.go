@@ -5,6 +5,7 @@ import (
 
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -101,6 +102,14 @@ func (r *JourneyRepository) CountByKloter(ctx context.Context, operatorID, klote
 // cascade (used by GroupService.UpdateGroupCity) — reuses the same
 // operator/group scoping as GroupRepository.GetRoster.
 func (r *JourneyRepository) ListPilgrimIDsByGroup(ctx context.Context, operatorID, groupID string) ([]string, error) {
+	return r.listPilgrimIDsByGroup(ctx, r.queries, operatorID, groupID)
+}
+
+func (r *JourneyRepository) ListPilgrimIDsByGroupTx(ctx context.Context, tx pgx.Tx, operatorID, groupID string) ([]string, error) {
+	return r.listPilgrimIDsByGroup(ctx, r.queries.WithTx(tx), operatorID, groupID)
+}
+
+func (r *JourneyRepository) listPilgrimIDsByGroup(ctx context.Context, queries *db.Queries, operatorID, groupID string) ([]string, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -109,7 +118,7 @@ func (r *JourneyRepository) ListPilgrimIDsByGroup(ctx context.Context, operatorI
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListGroupRoster(ctx, db.ListGroupRosterParams{GroupID: groupUUID, OperatorID: opUUID})
+	rows, err := queries.ListGroupRoster(ctx, db.ListGroupRosterParams{GroupID: groupUUID, OperatorID: opUUID})
 	if err != nil {
 		return nil, err
 	}

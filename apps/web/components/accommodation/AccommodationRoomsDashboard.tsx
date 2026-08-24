@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { IconArrowBack, IconBed, IconDownload, IconPlus } from "@tabler/icons-react";
 import { Hotel, Room, RoomManifest } from "@hajj-saas/proto-gen/hajj/v1/accommodation_pb";
@@ -12,14 +12,14 @@ import RoomFormDialog from "./RoomFormDialog";
 
 export default function AccommodationRoomsDashboard({ hotelId }: { hotelId: string }) {
   const [hotel, setHotel] = useState<Hotel>(); const [rooms, setRooms] = useState<Room[]>([]); const [manifests, setManifests] = useState<Record<string, RoomManifest>>({}); const [selected, setSelected] = useState<Room | null>(null); const [roomOpen, setRoomOpen] = useState(false); const [bulkOpen, setBulkOpen] = useState(false); const [notice, setNotice] = useState(""); const [loading, setLoading] = useState(true); const [allocatedPilgrimIds, setAllocatedPilgrimIds] = useState<Set<string>>(new Set());
-  const refresh = async () => { setLoading(true); try { const [hotelValue, roomsResponse] = await Promise.all([accommodationClient.getHotel({ hotelId }), accommodationClient.listRooms({ hotelId })]); setHotel(hotelValue); setRooms(roomsResponse.rooms); const pairs = await Promise.all(roomsResponse.rooms.map(async (room) => [room.id, await accommodationClient.getRoomManifest({ roomId: room.id })] as const)); setManifests(Object.fromEntries(pairs));
+  const refresh = useCallback(async () => { setLoading(true); try { const [hotelValue, roomsResponse] = await Promise.all([accommodationClient.getHotel({ hotelId }), accommodationClient.listRooms({ hotelId })]); setHotel(hotelValue); setRooms(roomsResponse.rooms); const pairs = await Promise.all(roomsResponse.rooms.map(async (room) => [room.id, await accommodationClient.getRoomManifest({ roomId: room.id })] as const)); setManifests(Object.fromEntries(pairs));
     // A pilgrim can hold one room PER HOTEL (Makkah + Madinah are both
     // valid at once) — so "already has a room" only excludes them here if
     // that room is in THIS hotel; being housed elsewhere doesn't disqualify
     // them from also getting a room in this one.
     if (hotelValue.seasonId) { const assignments = await accommodationClient.listPilgrimRoomAssignments({ seasonId: hotelValue.seasonId }); setAllocatedPilgrimIds(new Set(assignments.assignments.filter((a) => a.hotelId === hotelId).map((a) => a.pilgrimId))); }
-  } catch { setNotice("Gagal memuat data kamar hotel."); } finally { setLoading(false); } };
-  useEffect(() => { void refresh(); }, [hotelId]);
+  } catch { setNotice("Gagal memuat data kamar hotel."); } finally { setLoading(false); } }, [hotelId]);
+  useEffect(() => { void refresh(); }, [refresh]);
   const byFloor = useMemo(() => rooms.reduce<Record<string, Room[]>>((groups, room) => { const floor = room.floor ? `Lantai ${room.floor}` : "Lantai belum ditentukan"; (groups[floor] ??= []).push(room); return groups; }, {}), [rooms]);
   function exportRooms() {
     const headers = ["No. Kamar", "Lantai", "Tipe", "Jenis Kelamin", "Kapasitas", "Terisi", "Penghuni"];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { IconGenderFemale, IconGenderMale, IconSearch, IconUserMinus, IconUserPlus } from "@tabler/icons-react";
 import { Gender, Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { Room, RoomManifest } from "@hajj-saas/proto-gen/hajj/v1/accommodation_pb";
@@ -11,15 +11,15 @@ type Props = { open: boolean; room: Room | null; seasonId: string; allocatedPilg
 export default function RoomAllocationPanel({ open, room, seasonId, allocatedPilgrimIds, onClose, onChanged }: Props) {
   const [manifest, setManifest] = useState<RoomManifest>(); const [pilgrims, setPilgrims] = useState<Pilgrim[]>([]); const [query, setQuery] = useState(""); const [term, setTerm] = useState(""); const [notice, setNotice] = useState(""); const [workingId, setWorkingId] = useState("");
   const roomId = room?.id;
-  const refresh = (id = roomId) => { if (!id) return; accommodationClient.getRoomManifest({ roomId: id }).then(setManifest).catch(() => setNotice("Gagal memuat penghuni kamar.")); };
-  useEffect(() => { if (open && roomId) { setNotice(""); setQuery(""); refresh(roomId); pilgrimClient.listPilgrims({ seasonId, limit: 100, offset: 0 }).then((response) => setPilgrims(response.pilgrims)).catch(() => setNotice("Gagal memuat data jamaah.")); } }, [open, roomId, seasonId]);
+  const refresh = useCallback((id = roomId) => { if (!id) return; accommodationClient.getRoomManifest({ roomId: id }).then(setManifest).catch(() => setNotice("Gagal memuat penghuni kamar.")); }, [roomId]);
+  useEffect(() => { if (open && roomId) { setNotice(""); setQuery(""); refresh(roomId); pilgrimClient.listPilgrims({ seasonId, limit: 100, offset: 0 }).then((response) => setPilgrims(response.pilgrims)).catch(() => setNotice("Gagal memuat data jamaah.")); } }, [open, refresh, roomId, seasonId]);
   useEffect(() => { const timeout = window.setTimeout(() => setTerm(query), 300); return () => window.clearTimeout(timeout); }, [query]);
-  const occupants = manifest?.pilgrims ?? []; const full = !!manifest && manifest.availableCapacity <= 0;
-  const isMahramSuggested = (pilgrim: Pilgrim) => occupants.some((occupant) => occupant.id === pilgrim.mahramId || pilgrim.id === occupant.mahramId);
+  const occupants = useMemo(() => manifest?.pilgrims ?? [], [manifest]); const full = !!manifest && manifest.availableCapacity <= 0;
+  const isMahramSuggested = useCallback((pilgrim: Pilgrim) => occupants.some((occupant) => occupant.id === pilgrim.mahramId || pilgrim.id === occupant.mahramId), [occupants]);
   const mahramWarnings = useMemo(() => occupants.filter((occupant) => occupant.mahramId && !occupants.some((other) => other.id === occupant.mahramId)).map((occupant) => { const mahram = pilgrims.find((p) => p.id === occupant.mahramId); return { occupant, mahramName: mahram?.fullName ?? "pasangan mahram-nya" }; }), [occupants, pilgrims]);
   const candidates = useMemo(() => pilgrims
     .filter((pilgrim) => !allocatedPilgrimIds.has(pilgrim.id) && !pilgrim.isSubstituted && `${pilgrim.fullName} ${pilgrim.passportNumber}`.toLowerCase().includes(term.toLowerCase()))
-    .sort((a, b) => Number(isMahramSuggested(b)) - Number(isMahramSuggested(a))), [allocatedPilgrimIds, pilgrims, term, occupants]);
+    .sort((a, b) => Number(isMahramSuggested(b)) - Number(isMahramSuggested(a))), [allocatedPilgrimIds, pilgrims, term, isMahramSuggested]);
   if (!open || !room || !roomId) return null;
   const activeRoom = room;
   async function remove(pilgrimId: string) { setWorkingId(pilgrimId); setNotice(""); try { await accommodationClient.deallocatePilgrim({ pilgrimId, roomId }); refresh(); onChanged(); } catch (caught) { setNotice(caught instanceof Error ? caught.message : "Gagal mengeluarkan jamaah."); } finally { setWorkingId(""); } }

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	db "github.com/hajj-saas/api/internal/gen/db"
 )
@@ -10,6 +11,17 @@ type NotificationRepository struct{ queries *db.Queries }
 
 func NewNotificationRepository(queries *db.Queries) *NotificationRepository {
 	return &NotificationRepository{queries: queries}
+}
+
+func (r *NotificationRepository) DeleteInvalidToken(ctx context.Context, operatorID, fcmToken string) error {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return err
+	}
+	params := db.DeletePushSubscriptionTokenParams{OperatorID: opUUID, FcmToken: fcmToken}
+	staffErr := r.queries.DeletePushSubscriptionToken(ctx, params)
+	pilgrimErr := r.queries.DeletePilgrimPushToken(ctx, db.DeletePilgrimPushTokenParams(params))
+	return errors.Join(staffErr, pilgrimErr)
 }
 
 func (r *NotificationRepository) RegisterToken(ctx context.Context, operatorID, userID, fcmToken string) error {

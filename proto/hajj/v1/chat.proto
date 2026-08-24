@@ -9,7 +9,7 @@ option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 
 service ChatService {
   // Public (app_access_code) — the pilgrim side of a group's chat board.
-  rpc ListMyMessages(ChatAppRequest) returns (ListChatMessagesResponse);
+  rpc ListMyMessages(ListMyMessagesRequest) returns (ListChatMessagesResponse);
   rpc SendMyMessage(SendMyMessageRequest) returns (ChatMessage);
 
   // Authenticated — the group leader side. Server resolves the caller's
@@ -27,7 +27,7 @@ message ChatMessage {
   google.protobuf.Timestamp created_at = 6;
 }
 
-message ChatAppRequest {
+message ListMyMessagesRequest {
   string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
 }
 

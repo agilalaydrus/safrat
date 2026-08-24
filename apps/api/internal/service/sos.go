@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	"github.com/hajj-saas/api/internal/events"
@@ -26,7 +27,7 @@ type SOSService struct {
 // implementation (internal/notification) — nil is a valid no-op notifier for
 // local dev without FIREBASE_SERVICE_ACCOUNT_JSON set.
 type SOSNotifier interface {
-	NotifySOSAlert(ctx context.Context, operatorID string, alert *domain.SOSAlert)
+	NotifySOSAlert(ctx context.Context, operatorID string, alert *domain.SOSAlert) error
 }
 
 func NewSOSService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, sos *repository.SOSRepository, audit *repository.AuditRepository, notifier SOSNotifier, bus *events.Bus) *SOSService {
@@ -67,7 +68,9 @@ func (s *SOSService) CreateSOSAlert(ctx context.Context, req *hajjv1.CreateSOSAl
 	}
 	s.logActivity(ctx, pilgrim.OperatorID, "", "sos_created", alert.ID, fmt.Sprintf("SOS dari %s", pilgrim.FullName))
 	if s.notifier != nil {
-		s.notifier.NotifySOSAlert(ctx, pilgrim.OperatorID, alert)
+		if err := s.notifier.NotifySOSAlert(ctx, pilgrim.OperatorID, alert); err != nil {
+			sentry.CaptureException(fmt.Errorf("SOSService.CreateSOSAlert: notify coordinators: %w", err))
+		}
 	}
 	s.eventBus.Publish(pilgrim.OperatorID, "sos", alert.ID)
 	return sosAlertMessage(alert), nil
@@ -106,7 +109,9 @@ func (s *SOSService) EscalateStaleAlerts(ctx context.Context) error {
 	for _, alert := range alerts {
 		s.logActivity(ctx, alert.OperatorID, "", "sos_escalated", alert.ID, fmt.Sprintf("SOS %s dieskalasi — belum dikonfirmasi 10 menit", alert.PilgrimName))
 		if s.notifier != nil {
-			s.notifier.NotifySOSAlert(ctx, alert.OperatorID, alert)
+			if err := s.notifier.NotifySOSAlert(ctx, alert.OperatorID, alert); err != nil {
+				sentry.CaptureException(fmt.Errorf("SOSService.EscalateStaleAlerts: notify coordinators: %w", err))
+			}
 		}
 		s.eventBus.Publish(alert.OperatorID, "sos", alert.ID)
 	}

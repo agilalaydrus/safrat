@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Timestamp } from "@bufbuild/protobuf";
 import { IconX } from "@tabler/icons-react";
 import { Gender, Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
@@ -124,15 +124,6 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
     kloterClient.listKloters({ seasonId }).then((response) => setKloters(response.kloters)).catch(() => setKloters([]));
   }, [open, seasonId]);
 
-  useEffect(() => {
-    if (!open) return;
-    const handler = (event: KeyboardEvent) => {
-      if (event.key === "Escape") requestClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [open, form, saving]);
-
   const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormValues.current);
   const eligibleMahrams = mahramPilgrims.filter((pilgrim) => {
     if (pilgrim.id === initial?.id) return false;
@@ -140,11 +131,20 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
     return true;
   });
 
-  function requestClose(force = false) {
+  const requestClose = useCallback((force = false) => {
     if (!force && saving) return;
     if (!force && isDirty && !window.confirm("Buang perubahan yang belum disimpan?")) return;
     onClose();
-  }
+  }, [isDirty, onClose, saving]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === "Escape") requestClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, requestClose]);
 
   function update(key: keyof FormValues, value: string | boolean) {
     setForm((current) => ({ ...current, [key]: value }) as FormValues);

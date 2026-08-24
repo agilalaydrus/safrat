@@ -156,8 +156,8 @@ func (b *Bus) subscribeRedis(operatorID string) (chan Event, func(), bool) {
 
 // Publish is non-blocking — a slow/stalled subscriber (in-memory) or a slow
 // Redis (redis backend) never backs up the service call that triggered the
-// event. A nil *Bus is a valid no-op, same defensive-nil pattern as
-// PushNotifier/SOSNotifier — callers never need to nil-check before calling.
+// event. A nil *Bus is a valid no-op, matching the notifier pattern — callers
+// never need to nil-check before calling.
 func (b *Bus) Publish(operatorID, eventType, entityID string) {
 	if b == nil {
 		return

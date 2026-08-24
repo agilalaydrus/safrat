@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { IconCopy, IconPlus, IconShoppingCart } from "@tabler/icons-react";
 import { Order } from "@hajj-saas/proto-gen/hajj/v1/order_pb";
 import { orderClient, seasonClient } from "@/lib/rpc";
@@ -27,7 +27,7 @@ export default function OrdersDashboard() {
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState("");
 
-  const load = async (id = seasonId) => {
+  const load = useCallback(async (id = seasonId) => {
     if (!id) return;
     setLoading(true);
     try {
@@ -36,13 +36,13 @@ export default function OrdersDashboard() {
       setTotal(Number(response.totalCount));
     } catch { setNotice("Gagal memuat daftar pesanan."); }
     finally { setLoading(false); }
-  };
+  }, [offset, seasonId]);
 
   useEffect(() => {
     seasonClient.listSeasons({}).then((r) => { setSeasons(r.seasons); setSeasonId(r.seasons.find((s) => s.isActive)?.id ?? r.seasons[0]?.id ?? ""); }).catch(() => setNotice("Gagal memuat daftar musim."));
   }, []);
   useEffect(() => { setOffset(0); }, [seasonId]);
-  useEffect(() => { void load(); }, [seasonId, offset]);
+  useEffect(() => { void load(); }, [load]);
 
   // Only the current page is loaded — accurate as long as everything fits
   // on one page (the common case today). Once a season has more than

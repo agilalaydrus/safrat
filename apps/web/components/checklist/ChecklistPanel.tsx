@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { IconTrash } from "@tabler/icons-react";
 import { ChecklistStat, ChecklistTemplate } from "@hajj-saas/proto-gen/hajj/v1/checklist_pb";
 import { checklistClient } from "@/lib/rpc";
@@ -26,16 +26,16 @@ export default function ChecklistPanel({ seasonId }: { seasonId: string }) {
   const [isRequired, setIsRequired] = useState(true);
   const [adding, setAdding] = useState(false);
 
-  const refreshTemplates = () => {
+  const refreshTemplates = useCallback(() => {
     setLoading(true);
     checklistClient.listChecklistTemplates({ seasonId }).then((response) => setTemplates(response.templates)).catch(() => setNotice("Gagal memuat template.")).finally(() => setLoading(false));
-  };
-  const refreshStats = () => {
+  }, [seasonId]);
+  const refreshStats = useCallback(() => {
     setLoading(true);
     checklistClient.getChecklistStats({ seasonId }).then((response) => setStats(response.stats)).catch(() => setNotice("Gagal memuat progres.")).finally(() => setLoading(false));
-  };
+  }, [seasonId]);
 
-  useEffect(() => { if (tab === "templates") refreshTemplates(); else refreshStats(); }, [tab, seasonId]);
+  useEffect(() => { if (tab === "templates") refreshTemplates(); else refreshStats(); }, [refreshStats, refreshTemplates, tab]);
 
   const addTemplate = async (t: { title: string; category: string; description?: string; isRequired?: boolean }) => {
     setAdding(true);

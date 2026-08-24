@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { IconFile, IconTrash, IconUpload } from "@tabler/icons-react";
 import { Timestamp } from "@bufbuild/protobuf";
 import { Pilgrim, PilgrimDocument } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
@@ -58,8 +58,8 @@ export default function PilgrimDocumentsPanel({ pilgrim, onUpdated }: { pilgrim:
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
   const [receiptError, setReceiptError] = useState("");
 
-  const refreshReceipts = () => pilgrimClient.listPilgrimDocuments({ pilgrimId: pilgrim.id }).then((r) => setReceipts(r.documents.filter((d) => d.docType === "PAYMENT_RECEIPT"))).catch(() => setReceiptError("Gagal memuat bukti pembayaran."));
-  useEffect(() => { void refreshReceipts(); }, [pilgrim.id]);
+  const refreshReceipts = useCallback(() => pilgrimClient.listPilgrimDocuments({ pilgrimId: pilgrim.id }).then((r) => setReceipts(r.documents.filter((d) => d.docType === "PAYMENT_RECEIPT"))).catch(() => setReceiptError("Gagal memuat bukti pembayaran.")), [pilgrim.id]);
+  useEffect(() => { void refreshReceipts(); }, [refreshReceipts]);
 
   const uploadReceipt = async (file: File) => {
     setUploadingReceipt(true);

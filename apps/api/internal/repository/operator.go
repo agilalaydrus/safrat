@@ -2,8 +2,10 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 	"sync"
@@ -16,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/redis/go-redis/v9"
 )
 
 const operatorSlugBaseMaxLength = 55
@@ -57,10 +60,13 @@ func slugBase(name string) string {
 // essentially never after onboarding, and GetByBetterAuthOrgID is the
 // hottest lookup in the whole API: it's the first thing ~50 service methods
 // do on every authenticated RPC (resolve orgID -> operator before touching
-// any real data). Same in-memory, per-process tradeoff as the MyAccess
-// cache in identity.go — fine for the single-API-instance deployment; move
-// to Redis if the API ever runs more than one replica.
+// any real data). With Redis configured, the shared value keeps this 5-minute
+// TTL while each replica's L1 is bounded to 30 seconds and invalidated by
+// pub/sub on writes.
 const operatorCacheTTL = 5 * time.Minute
+const operatorRedisLocalCacheTTL = 30 * time.Second
+
+const operatorCacheInvalidationChannel = "safrat:cache:operator:invalidate"
 
 type operatorCacheEntry struct {
 	value     *domain.Operator
@@ -69,6 +75,8 @@ type operatorCacheEntry struct {
 
 type OperatorRepository struct {
 	queries *db.Queries
+	rdb     *redis.Client
+	logger  *slog.Logger
 
 	mu    sync.Mutex
 	cache map[string]operatorCacheEntry // betterAuthOrgID -> cached Operator
@@ -76,6 +84,17 @@ type OperatorRepository struct {
 
 func NewOperatorRepository(queries *db.Queries) *OperatorRepository {
 	return &OperatorRepository{queries: queries, cache: make(map[string]operatorCacheEntry)}
+}
+
+// NewRedisOperatorRepository adds a shared Redis cache plus pub/sub
+// invalidation to the small per-process hot cache. PostgreSQL remains the
+// source of truth and every Redis failure degrades to the normal DB path.
+func NewRedisOperatorRepository(ctx context.Context, queries *db.Queries, rdb *redis.Client, logger *slog.Logger) *OperatorRepository {
+	repository := &OperatorRepository{queries: queries, rdb: rdb, logger: logger, cache: make(map[string]operatorCacheEntry)}
+	if rdb != nil {
+		go repository.listenForInvalidations(ctx)
+	}
+	return repository
 }
 
 func (r *OperatorRepository) Create(ctx context.Context, betterAuthOrgID, name, country, email, licenseNumber, requestedSlug string) (*domain.Operator, error) {
@@ -105,7 +124,9 @@ func (r *OperatorRepository) Create(ctx context.Context, betterAuthOrgID, name, 
 		}
 		return nil, err
 	}
-	return toOperator(operator), nil
+	result := toOperator(operator)
+	r.cacheOperator(ctx, result, true)
+	return result, nil
 }
 
 // IsSlugAvailable is only a friendly onboarding preflight. The database's
@@ -185,9 +206,7 @@ func (r *OperatorRepository) Update(ctx context.Context, operatorID, name, count
 		return nil, err
 	}
 	result := toOperator(operator)
-	r.mu.Lock()
-	r.cache[result.BetterAuthOrgID] = operatorCacheEntry{value: result, expiresAt: time.Now().Add(operatorCacheTTL)}
-	r.mu.Unlock()
+	r.cacheOperator(ctx, result, true)
 	return result, nil
 }
 
@@ -215,14 +234,16 @@ func (r *OperatorRepository) UpdateProfile(ctx context.Context, operatorID strin
 	// Same cache invalidation as Update — GetByBetterAuthOrgID is cached, and
 	// a stale entry would hide the just-saved profile from every subsequent
 	// authenticated RPC for up to operatorCacheTTL.
-	r.mu.Lock()
-	r.cache[result.BetterAuthOrgID] = operatorCacheEntry{value: result, expiresAt: time.Now().Add(operatorCacheTTL)}
-	r.mu.Unlock()
+	r.cacheOperator(ctx, result, true)
 	return result, nil
 }
 
 func (r *OperatorRepository) GetByBetterAuthOrgID(ctx context.Context, betterAuthOrgID string) (*domain.Operator, error) {
 	if cached, ok := r.cachedOperator(betterAuthOrgID); ok {
+		return cached, nil
+	}
+	if cached, ok := r.redisCachedOperator(ctx, betterAuthOrgID); ok {
+		r.setLocalCache(betterAuthOrgID, cached)
 		return cached, nil
 	}
 	operator, err := r.queries.GetOperatorByBetterAuthOrgID(ctx, betterAuthOrgID)
@@ -233,10 +254,88 @@ func (r *OperatorRepository) GetByBetterAuthOrgID(ctx context.Context, betterAut
 		return nil, err
 	}
 	result := toOperator(operator)
-	r.mu.Lock()
-	r.cache[betterAuthOrgID] = operatorCacheEntry{value: result, expiresAt: time.Now().Add(operatorCacheTTL)}
-	r.mu.Unlock()
+	r.cacheOperator(ctx, result, false)
 	return result, nil
+}
+
+func operatorRedisKey(betterAuthOrgID string) string {
+	return "safrat:cache:operator:org:" + betterAuthOrgID
+}
+
+func (r *OperatorRepository) setLocalCache(betterAuthOrgID string, operator *domain.Operator) {
+	ttl := operatorCacheTTL
+	if r.rdb != nil {
+		ttl = operatorRedisLocalCacheTTL
+	}
+	r.mu.Lock()
+	r.cache[betterAuthOrgID] = operatorCacheEntry{value: operator, expiresAt: time.Now().Add(ttl)}
+	r.mu.Unlock()
+}
+
+func (r *OperatorRepository) cacheOperator(ctx context.Context, operator *domain.Operator, invalidatePeers bool) {
+	if operator == nil || operator.BetterAuthOrgID == "" {
+		return
+	}
+	r.setLocalCache(operator.BetterAuthOrgID, operator)
+	if r.rdb == nil {
+		return
+	}
+	raw, err := json.Marshal(operator)
+	if err != nil {
+		return
+	}
+	if err := r.rdb.Set(ctx, operatorRedisKey(operator.BetterAuthOrgID), raw, operatorCacheTTL).Err(); err != nil {
+		r.logRedisFailure("set operator cache", err)
+		return
+	}
+	if invalidatePeers {
+		if err := r.rdb.Publish(ctx, operatorCacheInvalidationChannel, operator.BetterAuthOrgID).Err(); err != nil {
+			r.logRedisFailure("publish operator cache invalidation", err)
+		}
+	}
+}
+
+func (r *OperatorRepository) redisCachedOperator(ctx context.Context, betterAuthOrgID string) (*domain.Operator, bool) {
+	if r.rdb == nil {
+		return nil, false
+	}
+	raw, err := r.rdb.Get(ctx, operatorRedisKey(betterAuthOrgID)).Bytes()
+	if errors.Is(err, redis.Nil) {
+		return nil, false
+	}
+	if err != nil {
+		r.logRedisFailure("get operator cache", err)
+		return nil, false
+	}
+	var operator domain.Operator
+	if err := json.Unmarshal(raw, &operator); err != nil || operator.BetterAuthOrgID != betterAuthOrgID {
+		_ = r.rdb.Del(ctx, operatorRedisKey(betterAuthOrgID)).Err()
+		return nil, false
+	}
+	return &operator, true
+}
+
+func (r *OperatorRepository) listenForInvalidations(ctx context.Context) {
+	pubsub := r.rdb.Subscribe(ctx, operatorCacheInvalidationChannel)
+	defer func() { _ = pubsub.Close() }()
+	for {
+		message, err := pubsub.ReceiveMessage(ctx)
+		if err != nil {
+			if ctx.Err() == nil {
+				r.logRedisFailure("receive operator cache invalidation", err)
+			}
+			return
+		}
+		r.mu.Lock()
+		delete(r.cache, message.Payload)
+		r.mu.Unlock()
+	}
+}
+
+func (r *OperatorRepository) logRedisFailure(operation string, err error) {
+	if r.logger != nil {
+		r.logger.Warn(operation, "error", err)
+	}
 }
 
 func (r *OperatorRepository) cachedOperator(betterAuthOrgID string) (*domain.Operator, bool) {

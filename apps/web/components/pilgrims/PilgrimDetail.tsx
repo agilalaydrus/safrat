@@ -39,7 +39,7 @@ export default function PilgrimDetail({ id }: { id: string }) {
   useEffect(() => {
     if (!confirmSubstitution || !pilgrim) return;
     pilgrimClient.listPilgrims({ seasonId: pilgrim.seasonId, limit: 100, offset: 0 }).then((response) => setReplacementPilgrims(response.pilgrims)).catch(() => setNotice("Gagal memuat calon pengganti."));
-  }, [confirmSubstitution, pilgrim?.seasonId]);
+  }, [confirmSubstitution, pilgrim]);
 
   useEffect(() => { const timeout = window.setTimeout(() => setReplacementTerm(replacementSearch), 300); return () => window.clearTimeout(timeout); }, [replacementSearch]);
 

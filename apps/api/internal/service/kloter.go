@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	"github.com/hajj-saas/api/internal/events"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/repository"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -21,13 +22,13 @@ type KloterService struct {
 	operatorRepository *repository.OperatorRepository
 	kloterRepository   *repository.KloterRepository
 	auditRepository    *repository.AuditRepository
-	journeyService     *JourneyService
-	pushNotifier       PushNotifier
+	outboxRepository   *repository.OutboxRepository
+	db                 *pgxpool.Pool
 	eventBus           *events.Bus
 }
 
-func NewKloterService(operators *repository.OperatorRepository, kloters *repository.KloterRepository, audit *repository.AuditRepository, journey *JourneyService, push PushNotifier, bus *events.Bus) *KloterService {
-	return &KloterService{operatorRepository: operators, kloterRepository: kloters, auditRepository: audit, journeyService: journey, pushNotifier: push, eventBus: bus}
+func NewKloterService(operators *repository.OperatorRepository, kloters *repository.KloterRepository, audit *repository.AuditRepository, outbox *repository.OutboxRepository, db *pgxpool.Pool, bus *events.Bus) *KloterService {
+	return &KloterService{operatorRepository: operators, kloterRepository: kloters, auditRepository: audit, outboxRepository: outbox, db: db, eventBus: bus}
 }
 
 // kloterStatusPushText is the "seluruh jamaah kloter" push copy per the
@@ -142,7 +143,12 @@ func (s *KloterService) updateStatus(ctx context.Context, operatorID, kloterID, 
 	if targetIdx == -1 {
 		return nil, apperror.ErrValidation
 	}
-	current, err := s.kloterRepository.GetForOperator(ctx, operatorID, kloterID)
+	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	current, err := s.kloterRepository.GetForOperatorForUpdateTx(ctx, tx, operatorID, kloterID)
 	if err != nil {
 		return nil, err
 	}
@@ -151,22 +157,20 @@ func (s *KloterService) updateStatus(ctx context.Context, operatorID, kloterID, 
 	if !isRollback && targetIdx <= currentIdx {
 		return nil, errors.New("status kloter hanya bisa maju")
 	}
-	kloter, err := s.kloterRepository.UpdateStatus(ctx, operatorID, kloterID, status)
+	kloter, err := s.kloterRepository.UpdateStatusTx(ctx, tx, operatorID, kloterID, status)
 	if err != nil {
 		return nil, err
 	}
+	journeyStatus := kloterToJourneyStatus[status]
+	if err := s.outboxRepository.EnqueueTx(ctx, tx, operatorID, domain.EventKloterStatusUpdated, kloter.ID, domain.KloterStatusUpdatedPayload{
+		KloterID: kloter.ID, KloterCode: kloter.Code, Status: status, JourneyStatus: journeyStatus, UpdatedBy: middleware.UserIDFromCtx(ctx), NotificationBody: kloterStatusPushText[status],
+	}); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
 	s.logActivity(ctx, operatorID, "kloter_status_changed", kloter.ID, fmt.Sprintf("Status kloter %s: %s -> %s", kloter.Code, current.Status, status))
-	// Cascade: best-effort, never rolls back the status change itself —
-	// full async event-bus/SSE/push delivery is a later phase, but the
-	// core data effect (bulk journey status + push) happens synchronously.
-	if journeyStatus, ok := kloterToJourneyStatus[status]; ok && s.journeyService != nil {
-		if _, err := s.journeyService.bulkUpdateStatus(ctx, operatorID, kloter.ID, journeyStatus, fmt.Sprintf("Cascade dari kloter %s -> %s", kloter.Code, status)); err != nil {
-			sentry.CaptureException(fmt.Errorf("KloterService.updateStatus: journey cascade: %w", err))
-		}
-	}
-	if body, ok := kloterStatusPushText[status]; ok && s.pushNotifier != nil {
-		s.pushNotifier.NotifyKloterPilgrims(ctx, operatorID, kloter.ID, "Tawafiq Hub", body)
-	}
 	s.eventBus.Publish(operatorID, "kloter_status", kloter.ID)
 	return kloter, nil
 }

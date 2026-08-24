@@ -26,7 +26,7 @@ func NewChatService(operators *repository.OperatorRepository, pilgrims *reposito
 
 // ListMyMessages / SendMyMessage are public (app_access_code) — the pilgrim
 // side of a group's chat board.
-func (s *ChatService) ListMyMessages(ctx context.Context, req *hajjv1.ChatAppRequest) (*hajjv1.ListChatMessagesResponse, error) {
+func (s *ChatService) ListMyMessages(ctx context.Context, req *hajjv1.ListMyMessagesRequest) (*hajjv1.ListChatMessagesResponse, error) {
 	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" {
 		return nil, serviceError("ChatService.ListMyMessages", apperror.ErrValidation)
 	}

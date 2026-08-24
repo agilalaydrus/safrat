@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -61,6 +62,14 @@ func (r *GroupRepository) ListByKloter(ctx context.Context, operatorID, kloterID
 // UpdateCity is the Muttawwif's one-tap location update — also appends an
 // immutable group_location_log row so the trip trail can be reconstructed.
 func (r *GroupRepository) UpdateCity(ctx context.Context, operatorID, groupID, city, activity, location, updatedByUserID string) (*domain.Group, error) {
+	return r.updateCity(ctx, r.queries, operatorID, groupID, city, activity, location, updatedByUserID)
+}
+
+func (r *GroupRepository) UpdateCityTx(ctx context.Context, tx pgx.Tx, operatorID, groupID, city, activity, location, updatedByUserID string) (*domain.Group, error) {
+	return r.updateCity(ctx, r.queries.WithTx(tx), operatorID, groupID, city, activity, location, updatedByUserID)
+}
+
+func (r *GroupRepository) updateCity(ctx context.Context, queries *db.Queries, operatorID, groupID, city, activity, location, updatedByUserID string) (*domain.Group, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -69,11 +78,11 @@ func (r *GroupRepository) UpdateCity(ctx context.Context, operatorID, groupID, c
 	if err != nil {
 		return nil, err
 	}
-	v, err := r.queries.UpdateGroupCity(ctx, db.UpdateGroupCityParams{ID: groupUUID, OperatorID: opUUID, CurrentCity: city, CurrentActivity: activity})
+	v, err := queries.UpdateGroupCity(ctx, db.UpdateGroupCityParams{ID: groupUUID, OperatorID: opUUID, CurrentCity: city, CurrentActivity: activity})
 	if err != nil {
 		return nil, err
 	}
-	if err := r.queries.InsertGroupLocationLog(ctx, db.InsertGroupLocationLogParams{
+	if err := queries.InsertGroupLocationLog(ctx, db.InsertGroupLocationLogParams{
 		OperatorID: opUUID, GroupID: groupUUID, City: city, Location: location, UpdatedBy: pgtype.Text{String: updatedByUserID, Valid: updatedByUserID != ""},
 	}); err != nil {
 		return nil, err
