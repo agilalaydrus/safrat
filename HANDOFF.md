@@ -24,8 +24,8 @@
   Better Auth, CORS, build URLs, and deployment defaults use the apex. The VPS
   deploy script re-exports the canonical CORS origin after sourcing `.env.prod`
   so a stale persisted `app` value cannot override the compose default. The VPS
-  must bootstrap the latest root-owned `safrat-install-nginx` helper and its
-  single-command sudoers rule from `DEPLOY.md` before this corrected rollout.
+  already has the corrected root-owned `safrat-install-nginx` helper and its
+  single-command sudoers rule.
   Before production rollout, add
   `https://tawafiqhub.id/api/auth/callback/google` to the Google OAuth client's
   authorized redirect URIs. Existing host-only sessions on `app` will require
@@ -66,9 +66,17 @@
   `/p/{slug}` address permanently redirects to `{slug}.tawafiqhub.id/`; share
   buttons use the tenant URL, and package CTAs use season slugs instead of UUIDs.
   API/database uniqueness remains the final race-safe guard for chosen slugs.
-  Production DNS currently has no wildcard `*.tawafiqhub.id` record and the
-  installed certificates do not cover the wildcard; those infrastructure items
-  are still required before arbitrary operator subdomains resolve publicly.
+  The wildcard continuation is implemented locally: shared frontend hostname
+  parsing, reserved platform slugs, migration 080's database constraint,
+  wildcard Nginx routing, automated Hostinger DNS-01 certificate renewal, and
+  deploy smoke tests. It is intentionally not on production yet. Before any
+  push to `main`, add Hostinger DNS `A * -> 103.179.66.25`, bootstrap the
+  root-only `lego` certificate/timer, and reinstall the updated Nginx helper in
+  the exact order documented in `DEPLOY.md`.
+  Local verification passed: migration 080 plus a non-persisting reserved-slug
+  constraint probe, all Go tests/vet/build, web lint/typecheck/production build,
+  `buf lint`, shell syntax, Dockerized `nginx -t`, and Host-header routing
+  (`tenant-probe.localhost` 404; legacy `/p/tenant-probe` 308).
 - Landing hero messaging now sells one end-to-end operational control surface
   from Indonesia to Saudi, with gold-gradient emphasis and off-white dark-mode
   headings. FAQ dark mode separates active questions in warm gold from muted
@@ -83,12 +91,12 @@
 - Verified locally: web typecheck, ESLint (0 errors; 0 warnings), production
   build, and generated-manifest inspection (20/20 PWA
   routes present). A real-browser/device offline test is still recommended.
-- The offline and hardening continuations through `fb24df4` were pushed and
-  deployed successfully on 2026-08-24.
+- The apex-domain deployment through `dfabc98` was pushed and deployed
+  successfully on 2026-08-24 (GitHub Actions run `32711294125`).
 
 ## Repo / deploy state
 
-- The production release through `fb24df4` is on `origin/main` and passed CI,
+- The production release through `dfabc98` is on `origin/main` and passed CI,
   image builds, migrations, VPS restart, and public smoke tests.
   **Pushing `main` triggers a production deploy** (`.github/workflows/deploy.yml`
   → builds images, runs goose migrations, installs validated nginx config, and
@@ -97,7 +105,7 @@
   and rebuilt by CI — never commit it. `apps/web/tsconfig.tsbuildinfo` and
   untracked scratch `*.md` / media are also excluded.
 - **Local dev DB was wiped clean** (all rows truncated, schema kept) for fresh
-  manual testing. Migrations **073–079 are applied locally**; in prod goose
+  manual testing. Migrations **073–080 are applied locally**; in prod goose
   applies them on deploy.
 - Local processes: web dev on `:3131`; Go API on `:8131`. Both are expected to
   be restarted from current source after the latest local commit.

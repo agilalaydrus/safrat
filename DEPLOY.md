@@ -417,145 +417,103 @@ helper promotes the combined config to the VPS's active
 `tawafiqhub-root` config with a tracked neutral file. It verifies both enabled
 symlinks before writing, validates with `nginx -t`, and restores both previous
 files on any promotion, validation, or reload failure. Post-deploy smoke tests
-then require apex/service-worker/API success, exact app/www/HTTP redirects, and
-the apex CORS origin before the workflow can turn green.
+also cover wildcard TLS/HTTP routing, reserved hosts, tenant CORS, and the
+canonical apex redirects before the workflow can turn green.
 
-**Step 1 — HTTP only first** (before SSL):
+### Wildcard tenant DNS and TLS
 
-```nginx
-server {
-    listen 80;
-    server_name api.tawafiqhub.id;
-    location / {
-        proxy_pass http://127.0.0.1:9100;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-server {
-    listen 80;
-    server_name tawafiqhub.id www.tawafiqhub.id app.tawafiqhub.id;
-    location / {
-        proxy_pass http://127.0.0.1:9101;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
+`deploy/nginx/safrat.conf` serves every first-level operator hostname through
+the web container, while exact `api`, `app`, and `www` blocks retain priority.
+Complete these prerequisites **before pushing the wildcard nginx config to
+`main`**, otherwise nginx validation will intentionally stop the deployment:
+
+First, preflight existing production data. This query must return no rows;
+migration 080 deliberately fails rather than silently rename a live public URL:
 
 ```bash
-# These are the historical Certbot-managed names on the current VPS. Keep the
-# links; deploy/nginx/install-nginx owns the contents behind them.
-sudo ln -s /etc/nginx/sites-available/tawafiqhub /etc/nginx/sites-enabled/
-sudo ln -s /etc/nginx/sites-available/tawafiqhub-root /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
+cd /home/deploy/safrat
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres \
+  psql -U safrat -d safrat -c "
+    SELECT slug FROM operators
+    WHERE slug IS NOT NULL AND (
+      length(slug) NOT BETWEEN 3 AND 63 OR
+      slug !~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$' OR
+      slug IN ('admin','api','app','auth','dashboard','docs','help','status','support','www')
+    );"
 ```
 
-**Step 2 — Issue SSL:**
+1. In Hostinger DNS, add an `A` record with name `*`, value
+   `103.179.66.25`, and TTL `300` during rollout (`3600` afterward is fine).
+   Do not delete the existing apex, `www`, or `api` records. Verify from two
+   public resolvers:
+
+   ```bash
+   dig +short tenant-probe.tawafiqhub.id A @1.1.1.1
+   dig +short tenant-probe.tawafiqhub.id A @8.8.8.8
+   ```
+
+   Both commands must return `103.179.66.25`.
+
+2. Make the `deploy/tls` files available on the VPS from a non-production
+   branch or other reviewed checkout, then issue the wildcard certificate:
+
+   ```bash
+   cd /home/deploy/safrat
+   sudo ./deploy/tls/install-wildcard-tls halo@tawafiqhub.id
+   ```
+
+   The prompt reads the Hostinger API token without echoing it. The installer
+   downloads pinned `lego` v5.3.1, verifies the published SHA-256 checksum,
+   stores the token at `/etc/safrat/secrets/hostinger-api-token` with mode
+   `0600`, obtains one EC certificate for `tawafiqhub.id` plus
+   `*.tawafiqhub.id`, and enables a daily systemd renewal check. To rotate the
+   token later, rerun with `--replace-token`. Never place this token in
+   `.env.prod`, GitHub Secrets used by the application, or the repository;
+   Hostinger tokens currently carry broad account permissions.
+
+3. Verify the certificate and automated renewal unit:
+
+   ```bash
+   sudo openssl x509 \
+     -in /etc/safrat/lego/certificates/tawafiqhub.id.crt \
+     -noout -subject -issuer -dates -ext subjectAltName
+   sudo systemctl status safrat-wildcard-tls.timer --no-pager
+   sudo systemctl start safrat-wildcard-tls.service
+   sudo journalctl -u safrat-wildcard-tls.service -n 100 --no-pager
+   ```
+
+   The renewal hook validates expiry, both SAN entries, and the certificate/key
+   pair before `nginx -t` and reload. The existing Certbot timer can remain
+   while its legacy exact-host certificates are still referenced.
+
+4. Reinstall the root-owned nginx promotion helper because the wildcard release
+   adds certificate preconditions:
+
+   ```bash
+   cd /home/deploy/safrat
+   sudo install -o root -g root -m 0755 \
+     deploy/nginx/install-nginx \
+     /usr/local/sbin/safrat-install-nginx
+   sudo -u deploy sudo -n /usr/local/sbin/safrat-install-nginx
+   ```
+
+   The helper refuses promotion if the wildcard certificate is missing, checks
+   both active historical symlinks, and restores both prior configs if
+   installation, `nginx -t`, or reload fails.
+
+5. Only after DNS and TLS pass, push/deploy `main`. The workflow then requires:
+   API/apex/service-worker success; canonical redirects; wildcard HTTP→HTTPS;
+   wildcard TLS reaching the Next.js 404 for an unknown tenant; direct Nginx
+   rejection of `admin`; and tenant-origin CORS.
+
+Useful production checks:
 
 ```bash
-sudo certbot --nginx -d tawafiqhub.id -d www.tawafiqhub.id
-sudo certbot --nginx -d app.tawafiqhub.id -d api.tawafiqhub.id
-```
-
-**Step 3 — Full TLS config** (replace after cert issued):
-
-```nginx
-# API — Go backend
-server {
-    listen 80;
-    server_name api.tawafiqhub.id;
-    return 301 https://$host$request_uri;
-}
-server {
-    listen 443 ssl http2;
-    server_name api.tawafiqhub.id;
-
-    ssl_certificate     /etc/letsencrypt/live/app.tawafiqhub.id/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/app.tawafiqhub.id/privkey.pem;
-
-    add_header X-Frame-Options SAMEORIGIN;
-    add_header X-Content-Type-Options nosniff;
-    add_header Referrer-Policy strict-origin-when-cross-origin;
-    # Pins the browser to HTTPS for a year (incl. subdomains) after the first
-    # successful HTTPS response — closes the window where a plain-HTTP
-    # request (e.g. a stale bookmark, a typed URL without https://) would
-    # otherwise carry the Bearer session token in the clear before the 301.
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-
-    location / {
-        proxy_pass         http://127.0.0.1:9100;
-        proxy_http_version 1.1;
-        proxy_set_header   Host $host;
-        proxy_set_header   X-Real-IP $remote_addr;
-        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
-        # Connect streaming RPCs
-        proxy_buffering    off;
-        proxy_read_timeout 3600s;
-        proxy_send_timeout 3600s;
-    }
-}
-
-# Web — Next.js
-server {
-    listen 80;
-    server_name tawafiqhub.id www.tawafiqhub.id app.tawafiqhub.id;
-    return 301 https://tawafiqhub.id$request_uri;
-}
-server {
-    listen 443 ssl http2;
-    server_name tawafiqhub.id www.tawafiqhub.id;
-
-    ssl_certificate     /etc/letsencrypt/live/tawafiqhub.id/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/tawafiqhub.id/privkey.pem;
-
-    add_header X-Frame-Options SAMEORIGIN;
-    add_header X-Content-Type-Options nosniff;
-    add_header Referrer-Policy strict-origin-when-cross-origin;
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-
-    # /pilgrim/[code] and /leader/[groupId] put a bearer-equivalent
-    # identifier (app_access_code / session-adjacent group id) directly in
-    # the URL path — a deliberate trade-off for a one-tap link a jamaah can
-    # open from WhatsApp without typing a password. nginx's default combined
-    # log format writes the full request path to disk, so those values land
-    # in plaintext in this server's access logs. Turn access logging off for
-    # those two paths (or route them to a log with restricted permissions)
-    # before this box holds real jamaah data — the identifiers themselves
-    # are unguessable UUIDs, but a leaked log file defeats that.
-    location ~ ^/(pilgrim|leader)/ {
-        access_log off;
-        proxy_pass         http://127.0.0.1:9101;
-        proxy_http_version 1.1;
-        proxy_set_header   Host $host;
-        proxy_set_header   X-Real-IP $remote_addr;
-        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
-    }
-
-    # PWA service worker — never cache
-    location = /sw.js {
-        proxy_pass http://127.0.0.1:9101;
-        add_header Cache-Control "no-cache, no-store, must-revalidate";
-        proxy_set_header Host $host;
-    }
-
-    location / {
-        proxy_pass         http://127.0.0.1:9101;
-        proxy_http_version 1.1;
-        proxy_set_header   Host $host;
-        proxy_set_header   X-Real-IP $remote_addr;
-        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-```bash
-sudo nginx -t && sudo systemctl reload nginx
-sudo certbot renew --dry-run
-sudo systemctl status certbot.timer
+curl -I http://tenant-probe.tawafiqhub.id/probe
+curl -I https://tenant-probe.tawafiqhub.id/
+curl -I https://admin.tawafiqhub.id/
+sudo nginx -t
+sudo systemctl is-active nginx safrat-wildcard-tls.timer
 ```
 
 ---
@@ -649,8 +607,9 @@ docker compose -f docker-compose.prod.yml exec postgres psql -U safrat -d safrat
 # nginx
 sudo nginx -t && sudo systemctl reload nginx
 
-# SSL cert expiry
-sudo certbot certificates
+# Wildcard cert expiry + renewal timer (Certbot still owns legacy exact hosts)
+sudo openssl x509 -in /etc/safrat/lego/certificates/tawafiqhub.id.crt -noout -dates
+sudo systemctl status safrat-wildcard-tls.timer --no-pager
 
 # Verify ports are NOT exposed externally (must show 127.0.0.1, never 0.0.0.0)
 sudo ss -tlnp | grep -E '9100|9101|5432'
@@ -712,8 +671,10 @@ leakage. **Already production-grade, verified live, no action needed:**
   (Google OAuth, `BETTER_AUTH_SECRET`, Sentry DSNs) lives only in
   gitignored `.env.local`/`.env`. Nothing hardcoded in source (audited via
   full-repo grep).
-- **CORS** — exact-origin allowlist (`cors()` in `main.go`), not a
-  wildcard or reflected-origin.
+- **CORS** — the configured canonical origin plus structurally validated,
+  first-level tenant origins on the same scheme/base domain. Arbitrary,
+  nested, wrong-scheme, and lookalike origins are rejected; no `*` response is
+  used.
 - **API responses** — unmapped internal errors are reported to Sentry but
   never returned to the client; the caller only ever sees a generic
   "internal error" (`serviceError` in `internal/service/errors.go`), never

@@ -1,0 +1,16 @@
+[Unit]
+Description=Renew Tawafiq Hub wildcard TLS certificate
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=/etc/safrat/secrets/hostinger-api-token
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/safrat-renew-wildcard-tls
+UMask=0077
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=/etc/safrat/secrets /etc/safrat/lego-email
+ReadWritePaths=/etc/safrat/lego /run /var/log/nginx
+NoNewPrivileges=true

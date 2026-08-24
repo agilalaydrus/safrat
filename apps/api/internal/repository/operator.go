@@ -31,7 +31,8 @@ var (
 		"kbih": {}, "kbihu": {}, "yayasan": {},
 	}
 	operatorReservedSlugs = map[string]struct{}{
-		"app": {}, "api": {}, "www": {},
+		"admin": {}, "api": {}, "app": {}, "auth": {}, "dashboard": {},
+		"docs": {}, "help": {}, "status": {}, "support": {}, "www": {},
 	}
 )
 
@@ -99,7 +100,17 @@ func NewRedisOperatorRepository(ctx context.Context, queries *db.Queries, rdb *r
 
 func (r *OperatorRepository) Create(ctx context.Context, betterAuthOrgID, name, country, email, licenseNumber, requestedSlug string) (*domain.Operator, error) {
 	slug := requestedSlug
-	if slug == "" {
+	if slug != "" {
+		// Service-layer availability checks are a friendly preflight, not a
+		// security boundary. Keep repository callers and future jobs from ever
+		// persisting an invalid or platform-reserved hostname.
+		if !IsValidOperatorSlug(slug) {
+			return nil, apperror.ErrValidation
+		}
+		if IsReservedOperatorSlug(slug) {
+			return nil, apperror.ErrAlreadyExists
+		}
+	} else {
 		var err error
 		slug, err = r.uniqueSlug(ctx, name)
 		if err != nil {
@@ -136,7 +147,7 @@ func (r *OperatorRepository) IsSlugAvailable(ctx context.Context, slug string) (
 	if !IsValidOperatorSlug(slug) {
 		return false, nil
 	}
-	if _, reserved := operatorReservedSlugs[slug]; reserved {
+	if IsReservedOperatorSlug(slug) {
 		return false, nil
 	}
 	exists, err := r.queries.OperatorSlugExists(ctx, pgtype.Text{String: slug, Valid: true})
@@ -147,6 +158,15 @@ func IsValidOperatorSlug(slug string) bool {
 	return len(slug) >= 3 && len(slug) <= 63 && operatorSlugPattern.MatchString(slug)
 }
 
+func IsReservedOperatorSlug(slug string) bool {
+	_, reserved := operatorReservedSlugs[slug]
+	return reserved
+}
+
+func IsUsableOperatorSlug(slug string) bool {
+	return IsValidOperatorSlug(slug) && !IsReservedOperatorSlug(slug)
+}
+
 // uniqueSlug tries the readable base candidate, then -2, -3, ... until it
 // finds one not already taken. Bounded at 50 attempts — if the name is generic
 // enough to collide 50 times, something else is wrong; the
@@ -154,7 +174,7 @@ func IsValidOperatorSlug(slug string) bool {
 // failure), just without a subdomain until someone sets one manually.
 func (r *OperatorRepository) uniqueSlug(ctx context.Context, name string) (string, error) {
 	base := slugBase(name)
-	if base == "" {
+	if !IsValidOperatorSlug(base) {
 		return "", nil
 	}
 	for attempt := 1; attempt <= 50; attempt++ {
@@ -162,7 +182,7 @@ func (r *OperatorRepository) uniqueSlug(ctx context.Context, name string) (strin
 		if attempt > 1 {
 			candidate = fmt.Sprintf("%s-%d", base, attempt)
 		}
-		if _, reserved := operatorReservedSlugs[candidate]; reserved {
+		if IsReservedOperatorSlug(candidate) {
 			continue
 		}
 		exists, err := r.queries.OperatorSlugExists(ctx, pgtype.Text{String: candidate, Valid: true})
@@ -177,6 +197,9 @@ func (r *OperatorRepository) uniqueSlug(ctx context.Context, name string) (strin
 }
 
 func (r *OperatorRepository) GetBySlug(ctx context.Context, slug string) (*domain.Operator, error) {
+	if !IsUsableOperatorSlug(slug) {
+		return nil, apperror.ErrValidation
+	}
 	operator, err := r.queries.GetOperatorBySlug(ctx, pgtype.Text{String: slug, Valid: true})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.ErrNotFound

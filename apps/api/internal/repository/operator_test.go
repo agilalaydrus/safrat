@@ -68,3 +68,30 @@ func TestIsValidOperatorSlug(t *testing.T) {
 		}
 	}
 }
+
+func TestReservedOperatorSlugsCannotBeUsed(t *testing.T) {
+	t.Parallel()
+
+	reserved := []string{
+		"admin", "api", "app", "auth", "dashboard",
+		"docs", "help", "status", "support", "www",
+	}
+	for _, slug := range reserved {
+		if !IsValidOperatorSlug(slug) {
+			t.Errorf("reserved slug %q should remain syntactically valid", slug)
+		}
+		if !IsReservedOperatorSlug(slug) {
+			t.Errorf("expected %q to be reserved", slug)
+		}
+		if IsUsableOperatorSlug(slug) {
+			t.Errorf("reserved slug %q must not be usable", slug)
+		}
+	}
+
+	if !IsUsableOperatorSlug("vacana-indonesia") {
+		t.Error("ordinary DNS-safe operator slug should be usable")
+	}
+	if IsReservedOperatorSlug("vacana-indonesia") {
+		t.Error("ordinary operator slug must not be reserved")
+	}
+}

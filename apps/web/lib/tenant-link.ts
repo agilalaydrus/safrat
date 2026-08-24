@@ -1,18 +1,11 @@
+import { platformBaseHostname } from "@/lib/tenant-host";
+
 // Builds a public link on the operator's own subdomain (e.g.
 // vacana.tawafiqhub.id/register/[seasonId]) instead of the old
 // operatorId-in-path form (tawafiqhub.id/register/[operatorId]/[seasonId])
 // — apps/web/middleware.ts resolves the subdomain back to operatorId and
 // rewrites onto the same underlying route, so the page itself is unchanged.
 //
-const PLATFORM_BASE_HOSTS = ["tawafiqhub.id", "safrat.com", "localhost"];
-
-function platformBaseHostname(hostname: string): string {
-  if (hostname === "127.0.0.1" || hostname === "localhost") return "localhost";
-  for (const base of PLATFORM_BASE_HOSTS) {
-    if (hostname === base || hostname.endsWith(`.${base}`)) return base;
-  }
-  return hostname;
-}
 
 // 127.0.0.1 can't carry a subdomain, so local dev substitutes "localhost"
 // (browsers resolve *.localhost to loopback automatically — no /etc/hosts

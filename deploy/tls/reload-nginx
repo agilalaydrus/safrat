@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly certificate="/etc/safrat/lego/certificates/tawafiqhub.id.crt"
+readonly private_key="/etc/safrat/lego/certificates/tawafiqhub.id.key"
+
+for required_file in "${certificate}" "${private_key}"; do
+  if [[ ! -s "${required_file}" ]]; then
+    echo "missing or empty wildcard TLS file: ${required_file}" >&2
+    exit 1
+  fi
+done
+
+/usr/bin/openssl x509 -in "${certificate}" -noout -checkend 604800
+/usr/bin/openssl x509 -in "${certificate}" -noout -ext subjectAltName \
+  | /usr/bin/grep -Eq '(^|[ ,])DNS:tawafiqhub\.id([,[:space:]]|$)'
+/usr/bin/openssl x509 -in "${certificate}" -noout -ext subjectAltName \
+  | /usr/bin/grep -Eq '(^|[ ,])DNS:\*\.tawafiqhub\.id([,[:space:]]|$)'
+
+certificate_public_key="$({
+  /usr/bin/openssl x509 -in "${certificate}" -pubkey -noout \
+    | /usr/bin/openssl pkey -pubin -outform DER
+} | /usr/bin/sha256sum)"
+private_public_key="$({
+  /usr/bin/openssl pkey -in "${private_key}" -pubout -outform DER
+} | /usr/bin/sha256sum)"
+if [[ "${certificate_public_key}" != "${private_public_key}" ]]; then
+  echo "wildcard certificate and private key do not match" >&2
+  exit 1
+fi
+
+/usr/sbin/nginx -t
+/usr/bin/systemctl reload nginx

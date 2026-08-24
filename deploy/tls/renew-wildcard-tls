@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly token_file="/etc/safrat/secrets/hostinger-api-token"
+readonly email_file="/etc/safrat/lego-email"
+readonly lego_path="/etc/safrat/lego"
+
+for required_file in \
+  /usr/local/bin/lego \
+  /usr/local/sbin/safrat-reload-nginx \
+  "${token_file}" \
+  "${email_file}"; do
+  if [[ ! -f "${required_file}" ]]; then
+    echo "missing wildcard TLS dependency: ${required_file}" >&2
+    exit 1
+  fi
+done
+
+readonly acme_email="$(<"${email_file}")"
+if [[ -z "${acme_email}" ]]; then
+  echo "ACME contact email is empty" >&2
+  exit 1
+fi
+
+# lego's Hostinger provider reads the token content from this root-only file.
+# The token itself never appears in process arguments or the service unit.
+export HOSTINGER_API_TOKEN_FILE="${token_file}"
+
+/usr/local/bin/lego run \
+  --accept-tos \
+  --email "${acme_email}" \
+  --dns hostinger \
+  --domains tawafiqhub.id \
+  --domains '*.tawafiqhub.id' \
+  --cert.name tawafiqhub.id \
+  --force-cert-domains \
+  --key-type EC256 \
+  --path "${lego_path}" \
+  --deploy-hook /usr/local/sbin/safrat-reload-nginx
+
+# The deploy hook runs only when a certificate changes. Validate on every timer
+# run as well, so an expired/corrupt on-disk certificate makes the unit fail.
+readonly certificate="${lego_path}/certificates/tawafiqhub.id.crt"
+/usr/bin/openssl x509 -in "${certificate}" -noout -checkend 604800
+/usr/bin/openssl x509 -in "${certificate}" -noout -ext subjectAltName \
+  | /usr/bin/grep -Eq '(^|[ ,])DNS:tawafiqhub\.id([,[:space:]]|$)'
+/usr/bin/openssl x509 -in "${certificate}" -noout -ext subjectAltName \
+  | /usr/bin/grep -Eq '(^|[ ,])DNS:\*\.tawafiqhub\.id([,[:space:]]|$)'

@@ -20,6 +20,9 @@ func TestOriginMatcherCanonicalRootAndTenantSubdomains(t *testing.T) {
 		"http://tawafiqhub.id",
 		"https://evil.example",
 		"https://nested.vacana.tawafiqhub.id",
+		"https://ab.tawafiqhub.id",
+		"https://-invalid.tawafiqhub.id",
+		"https://invalid-.tawafiqhub.id",
 	}
 	for _, origin := range rejected {
 		if matcher.allows(origin) {

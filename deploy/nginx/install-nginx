@@ -7,6 +7,8 @@ readonly target_config="/etc/nginx/sites-available/tawafiqhub"
 readonly root_target_config="/etc/nginx/sites-available/tawafiqhub-root"
 readonly enabled_config="/etc/nginx/sites-enabled/tawafiqhub"
 readonly enabled_root_config="/etc/nginx/sites-enabled/tawafiqhub-root"
+readonly wildcard_certificate="/etc/safrat/lego/certificates/tawafiqhub.id.crt"
+readonly wildcard_private_key="/etc/safrat/lego/certificates/tawafiqhub.id.key"
 readonly backup_config="$(mktemp /etc/nginx/sites-available/tawafiqhub.backup.XXXXXX)"
 readonly backup_root_config="$(mktemp /etc/nginx/sites-available/tawafiqhub-root.backup.XXXXXX)"
 
@@ -30,7 +32,9 @@ for required_file in \
   "${source_config}" \
   "${neutral_config}" \
   "${target_config}" \
-  "${root_target_config}"; do
+  "${root_target_config}" \
+  "${wildcard_certificate}" \
+  "${wildcard_private_key}"; do
   if [[ ! -f "${required_file}" ]]; then
     echo "missing required nginx file: ${required_file}" >&2
     exit 1

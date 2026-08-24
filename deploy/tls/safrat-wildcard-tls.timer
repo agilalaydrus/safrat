@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Tawafiq Hub wildcard TLS renewal check
+
+[Timer]
+OnCalendar=*-*-* 03:35:00
+RandomizedDelaySec=1h
+Persistent=true
+AccuracySec=5m
+
+[Install]
+WantedBy=timers.target

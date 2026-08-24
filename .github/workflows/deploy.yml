@@ -231,6 +231,11 @@ jobs:
             wait_for_status "https://api.tawafiqhub.id/readyz" "200"
             wait_for_status "https://tawafiqhub.id/" "200"
             wait_for_status "https://tawafiqhub.id/sw.js" "200"
+            # Unknown tenants must reach the wildcard TLS/web route and then
+            # produce the application's real 404. Reserved names are rejected
+            # directly by nginx rather than entering the tenant middleware.
+            wait_for_status "https://tenant-probe.tawafiqhub.id/" "404"
+            wait_for_status "https://admin.tawafiqhub.id/" "404"
             expect_redirect \
               "https://app.tawafiqhub.id/deploy-probe?source=app" \
               "https://tawafiqhub.id/deploy-probe?source=app"
@@ -240,6 +245,9 @@ jobs:
             expect_redirect \
               "http://tawafiqhub.id/deploy-probe?source=http" \
               "https://tawafiqhub.id/deploy-probe?source=http"
+            expect_redirect \
+              "http://tenant-probe.tawafiqhub.id/deploy-probe?source=tenant" \
+              "https://tenant-probe.tawafiqhub.id/deploy-probe?source=tenant"
 
             cors_origin=$(curl --silent --show-error \
               --connect-timeout 5 --max-time 15 \
@@ -250,5 +258,17 @@ jobs:
               | awk -F ': ' 'tolower($1) == "access-control-allow-origin" {print $2; exit}')
             if [ "${cors_origin}" != "https://tawafiqhub.id" ]; then
               echo "unexpected CORS origin: ${cors_origin}" >&2
+              exit 1
+            fi
+
+            tenant_cors_origin=$(curl --silent --show-error \
+              --connect-timeout 5 --max-time 15 \
+              --dump-header - --output /dev/null \
+              --header "Origin: https://tenant-probe.tawafiqhub.id" \
+              "https://api.tawafiqhub.id/healthz" \
+              | tr -d '\r' \
+              | awk -F ': ' 'tolower($1) == "access-control-allow-origin" {print $2; exit}')
+            if [ "${tenant_cors_origin}" != "https://tenant-probe.tawafiqhub.id" ]; then
+              echo "unexpected tenant CORS origin: ${tenant_cors_origin}" >&2
               exit 1
             fi

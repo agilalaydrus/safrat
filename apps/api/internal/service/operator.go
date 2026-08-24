@@ -127,7 +127,7 @@ func (s *OperatorService) ListAuditLogs(ctx context.Context, authenticatedOrgID 
 // /waitlist path-based routes already expect. Deliberately returns only
 // id + name, nothing an anonymous caller shouldn't see.
 func (s *OperatorService) ResolveSlug(ctx context.Context, request *hajjv1.ResolveOperatorSlugRequest) (*hajjv1.ResolveOperatorSlugResponse, error) {
-	if request == nil || request.Slug == "" {
+	if request == nil || !repository.IsUsableOperatorSlug(request.Slug) {
 		return nil, serviceError("OperatorService.ResolveSlug", apperror.ErrValidation)
 	}
 	operator, err := s.repository.GetBySlug(ctx, request.Slug)
@@ -178,7 +178,7 @@ func (s *OperatorService) UpdateMyProfile(ctx context.Context, authenticatedOrgI
 // fields plus available
 // (not-yet-ended) seasons.
 func (s *OperatorService) GetPublicProfile(ctx context.Context, request *hajjv1.GetPublicProfileRequest) (*hajjv1.GetPublicProfileResponse, error) {
-	if request == nil || request.Slug == "" {
+	if request == nil || !repository.IsUsableOperatorSlug(request.Slug) {
 		return nil, serviceError("OperatorService.GetPublicProfile", apperror.ErrValidation)
 	}
 	operator, err := s.repository.GetBySlug(ctx, request.Slug)

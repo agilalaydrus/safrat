@@ -1,0 +1,114 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly lego_version="5.3.1"
+readonly source_dir="/home/deploy/safrat/deploy/tls"
+readonly secret_dir="/etc/safrat/secrets"
+readonly token_file="${secret_dir}/hostinger-api-token"
+readonly email_file="/etc/safrat/lego-email"
+
+usage() {
+  echo "usage: sudo $0 ACME_EMAIL [--replace-token]" >&2
+}
+
+if [[ "${EUID}" -ne 0 ]]; then
+  echo "run this installer as root" >&2
+  exit 1
+fi
+
+if [[ "$#" -lt 1 || "$#" -gt 2 ]]; then
+  usage
+  exit 1
+fi
+
+readonly acme_email="$1"
+readonly token_mode="${2:-}"
+if [[ "${acme_email}" != *@* || "${acme_email}" == *[[:space:]]* ]]; then
+  echo "invalid ACME contact email" >&2
+  exit 1
+fi
+if [[ -n "${token_mode}" && "${token_mode}" != "--replace-token" ]]; then
+  usage
+  exit 1
+fi
+
+for source_file in \
+  "${source_dir}/renew-wildcard-tls" \
+  "${source_dir}/reload-nginx" \
+  "${source_dir}/safrat-wildcard-tls.service" \
+  "${source_dir}/safrat-wildcard-tls.timer"; do
+  if [[ ! -f "${source_file}" ]]; then
+    echo "missing TLS source file: ${source_file}" >&2
+    exit 1
+  fi
+done
+
+case "$(/usr/bin/uname -m)" in
+  x86_64) lego_arch="amd64" ;;
+  aarch64|arm64) lego_arch="arm64" ;;
+  *)
+    echo "unsupported architecture: $(/usr/bin/uname -m)" >&2
+    exit 1
+    ;;
+esac
+
+readonly archive="lego_v${lego_version}_linux_${lego_arch}.tar.gz"
+readonly release_url="https://github.com/go-acme/lego/releases/download/v${lego_version}"
+readonly work_dir="$(/usr/bin/mktemp -d)"
+
+cleanup() {
+  /usr/bin/rm -rf "${work_dir}"
+}
+trap cleanup EXIT
+
+/usr/bin/curl --fail --silent --show-error --location \
+  --proto '=https' --proto-redir '=https' --tlsv1.2 \
+  --output "${work_dir}/${archive}" \
+  "${release_url}/${archive}"
+/usr/bin/curl --fail --silent --show-error --location \
+  --proto '=https' --proto-redir '=https' --tlsv1.2 \
+  --output "${work_dir}/checksums.txt" \
+  "${release_url}/lego_${lego_version}_checksums.txt"
+
+(
+  cd "${work_dir}"
+  /usr/bin/grep " ${archive}$" checksums.txt > selected-checksum.txt
+  /usr/bin/sha256sum --check selected-checksum.txt
+  /usr/bin/tar -xzf "${archive}" lego
+)
+
+/usr/bin/install -o root -g root -m 0755 "${work_dir}/lego" /usr/local/bin/lego
+/usr/bin/install -d -o root -g root -m 0700 "${secret_dir}"
+/usr/bin/install -d -o root -g root -m 0700 /etc/safrat/lego
+
+if [[ ! -f "${token_file}" || "${token_mode}" == "--replace-token" ]]; then
+  printf 'Hostinger API token (input hidden): ' > /dev/tty
+  IFS= read -r -s hostinger_token < /dev/tty
+  printf '\n' > /dev/tty
+  if [[ -z "${hostinger_token}" ]]; then
+    echo "Hostinger API token cannot be empty" >&2
+    exit 1
+  fi
+  printf '%s' "${hostinger_token}" > "${work_dir}/hostinger-api-token"
+  unset hostinger_token
+  /usr/bin/install -o root -g root -m 0600 \
+    "${work_dir}/hostinger-api-token" "${token_file}"
+fi
+
+printf '%s\n' "${acme_email}" > "${work_dir}/lego-email"
+/usr/bin/install -o root -g root -m 0644 "${work_dir}/lego-email" "${email_file}"
+/usr/bin/install -o root -g root -m 0755 \
+  "${source_dir}/renew-wildcard-tls" /usr/local/sbin/safrat-renew-wildcard-tls
+/usr/bin/install -o root -g root -m 0755 \
+  "${source_dir}/reload-nginx" /usr/local/sbin/safrat-reload-nginx
+/usr/bin/install -o root -g root -m 0644 \
+  "${source_dir}/safrat-wildcard-tls.service" /etc/systemd/system/safrat-wildcard-tls.service
+/usr/bin/install -o root -g root -m 0644 \
+  "${source_dir}/safrat-wildcard-tls.timer" /etc/systemd/system/safrat-wildcard-tls.timer
+
+/usr/bin/systemctl daemon-reload
+/usr/local/sbin/safrat-renew-wildcard-tls
+/usr/bin/systemctl enable --now safrat-wildcard-tls.timer
+
+echo "wildcard certificate installed; renewal timer is active"
+/usr/bin/systemctl --no-pager list-timers safrat-wildcard-tls.timer

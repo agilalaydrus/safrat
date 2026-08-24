@@ -366,7 +366,7 @@ func (m originMatcher) allows(origin string) bool {
 		return false
 	}
 	sub, rest, found := strings.Cut(parsed.Hostname(), ".")
-	return found && sub != "" && rest == m.baseHost
+	return found && repository.IsValidOperatorSlug(sub) && rest == m.baseHost
 }
 
 func cors(allowedOrigin string, next http.Handler) http.Handler {

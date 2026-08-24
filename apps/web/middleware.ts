@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { extractTenantSlug, isUsableTenantSlug, platformBaseHostname } from "@/lib/tenant-host";
 
 const PUBLIC_PATHS = [
   "/login",
@@ -32,39 +33,11 @@ const PUBLIC_PATHS = [
 const SUBDOMAIN_ROUTES = ["/register", "/apply", "/waitlist"];
 const SEASON_AWARE_ROUTES = new Set(["/register", "/waitlist"]);
 
-// Hostnames that are the platform itself, never a tenant's operator slug.
-const RESERVED_SUBDOMAINS = new Set(["app", "api", "www"]);
-// Base domains a subdomain can sit in front of — extend when a new base
-// domain goes live (e.g. once tawafiqhub.id's own Safe Browsing flag clears
-// and it becomes the canonical root again).
-const BASE_HOSTS = ["tawafiqhub.id", "safrat.com", "localhost"];
-
-function baseHostname(hostname: string): string {
-  if (hostname === "127.0.0.1" || hostname === "localhost") return "localhost";
-  for (const base of BASE_HOSTS) {
-    if (hostname === base || hostname.endsWith(`.${base}`)) return base;
-  }
-  return hostname;
-}
-
 function tenantUrl(request: NextRequest, slug: string, pathname: string) {
   const target = request.nextUrl.clone();
-  target.hostname = `${slug}.${baseHostname(target.hostname)}`;
+  target.hostname = `${slug}.${platformBaseHostname(target.hostname)}`;
   target.pathname = pathname;
   return target;
-}
-
-function extractSlug(host: string): string | null {
-  const hostname = host.split(":")[0] ?? ""; // strip port (e.g. vacana.localhost:3131)
-  for (const base of BASE_HOSTS) {
-    if (hostname === base) return null; // bare root domain — not a tenant
-    if (hostname.endsWith(`.${base}`)) {
-      const sub = hostname.slice(0, -(base.length + 1));
-      if (sub === "" || sub.includes(".") || RESERVED_SUBDOMAINS.has(sub)) return null;
-      return sub;
-    }
-  }
-  return null;
 }
 
 // In-memory, per-process — same tradeoff as every other cache in this
@@ -128,12 +101,12 @@ async function resolveSeason(operatorId: string, seasonSlug: string): Promise<st
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  const slug = extractSlug(request.headers.get("host") ?? "");
+  const slug = extractTenantSlug(request.headers.get("host") ?? "");
 
   // /p/{slug} was the original public URL. Keep old bookmarks working, but
   // make the tenant subdomain root the one canonical address visitors see.
   const legacyProfile = pathname.match(/^\/p\/([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)\/?$/);
-  if (!slug && legacyProfile?.[1]) {
+  if (!slug && legacyProfile?.[1] && isUsableTenantSlug(legacyProfile[1])) {
     return NextResponse.redirect(tenantUrl(request, legacyProfile[1], "/"), 308);
   }
 
