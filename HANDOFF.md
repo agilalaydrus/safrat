@@ -14,12 +14,18 @@
 
 ## Continuation after this snapshot
 
-- The platform apex `https://tawafiqhub.id` is being made the canonical app
-  origin. Root/www TLS and DNS already reach the VPS; the version-controlled
-  nginx config proxies the apex and permanently redirects the old `app` host.
-  Better Auth, CORS, build URLs, and deployment defaults now use the apex.
-  The VPS must bootstrap the root-owned `safrat-install-nginx` helper and its
-  single-command sudoers rule from `DEPLOY.md` before the first rollout.
+- The platform apex `https://tawafiqhub.id` is the canonical app origin.
+  Root/www TLS and DNS reach the VPS; the version-controlled nginx config
+  proxies the apex and permanently redirects the old `app` host. The promotion
+  helper owns the two historical active VPS targets (`tawafiqhub` and the now
+  neutral `tawafiqhub-root`) with validation and two-file rollback. The deploy
+  workflow also smoke-tests public apex, service worker, API, exact redirects,
+  and CORS so inactive-config regressions cannot produce a green deployment.
+  Better Auth, CORS, build URLs, and deployment defaults use the apex. The VPS
+  deploy script re-exports the canonical CORS origin after sourcing `.env.prod`
+  so a stale persisted `app` value cannot override the compose default. The VPS
+  must bootstrap the latest root-owned `safrat-install-nginx` helper and its
+  single-command sudoers rule from `DEPLOY.md` before this corrected rollout.
   Before production rollout, add
   `https://tawafiqhub.id/api/auth/callback/google` to the Google OAuth client's
   authorized redirect URIs. Existing host-only sessions on `app` will require

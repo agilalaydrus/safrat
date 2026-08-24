@@ -29,6 +29,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: apps/api/go.mod
+          cache-dependency-path: apps/api/go.sum
 
       - name: Install Buf CLI
         uses: bufbuild/buf-setup-action@v1
@@ -126,7 +127,6 @@ jobs:
             set -e
             export GITHUB_REPOSITORY_OWNER=${{ github.repository_owner }}
             export IMAGE_TAG=${{ github.event.inputs.skip_build == 'y' && 'latest' || github.sha }}
-            export CORS_ALLOWED_ORIGIN=https://tawafiqhub.id
             cd /home/deploy/safrat
 
             # Prune old images first — runs even if the previous deploy
@@ -144,6 +144,9 @@ jobs:
             sleep 5
 
             source .env.prod
+            # The canonical deployment value deliberately overrides any stale
+            # app-subdomain value that may still exist in .env.prod.
+            export CORS_ALLOWED_ORIGIN=https://tawafiqhub.id
             NETWORK=$(docker network ls --filter name=safrat_internal --format '{{.Name}}' | head -1)
 
             # Better Auth owns its own tables (user/session/account/etc.) and
@@ -187,3 +190,65 @@ jobs:
             sleep 5
             docker compose -f docker-compose.prod.yml --env-file .env.prod \
               up -d --no-deps web
+
+            # A green SSH step must also mean the public routing is correct.
+            # Retry readiness because the new containers may still be warming.
+            wait_for_status() {
+              url="$1"
+              expected="$2"
+              attempts=0
+
+              while [ "${attempts}" -lt 15 ]; do
+                actual=$(curl --silent --show-error \
+                  --connect-timeout 5 --max-time 15 \
+                  --output /dev/null --write-out '%{http_code}' \
+                  "${url}" || true)
+                if [ "${actual}" = "${expected}" ]; then
+                  return 0
+                fi
+                attempts=$((attempts + 1))
+                sleep 2
+              done
+
+              echo "unexpected status for ${url}: expected ${expected}, got ${actual}" >&2
+              return 1
+            }
+
+            expect_redirect() {
+              url="$1"
+              expected="$2"
+              actual=$(curl --silent --show-error \
+                --connect-timeout 5 --max-time 15 \
+                --output /dev/null --write-out '%{http_code} %{redirect_url}' \
+                "${url}")
+
+              if [ "${actual}" != "301 ${expected}" ]; then
+                echo "unexpected redirect for ${url}: ${actual}" >&2
+                return 1
+              fi
+            }
+
+            wait_for_status "https://api.tawafiqhub.id/readyz" "200"
+            wait_for_status "https://tawafiqhub.id/" "200"
+            wait_for_status "https://tawafiqhub.id/sw.js" "200"
+            expect_redirect \
+              "https://app.tawafiqhub.id/deploy-probe?source=app" \
+              "https://tawafiqhub.id/deploy-probe?source=app"
+            expect_redirect \
+              "https://www.tawafiqhub.id/deploy-probe?source=www" \
+              "https://tawafiqhub.id/deploy-probe?source=www"
+            expect_redirect \
+              "http://tawafiqhub.id/deploy-probe?source=http" \
+              "https://tawafiqhub.id/deploy-probe?source=http"
+
+            cors_origin=$(curl --silent --show-error \
+              --connect-timeout 5 --max-time 15 \
+              --dump-header - --output /dev/null \
+              --header "Origin: https://tawafiqhub.id" \
+              "https://api.tawafiqhub.id/healthz" \
+              | tr -d '\r' \
+              | awk -F ': ' 'tolower($1) == "access-control-allow-origin" {print $2; exit}')
+            if [ "${cors_origin}" != "https://tawafiqhub.id" ]; then
+              echo "unexpected CORS origin: ${cors_origin}" >&2
+              exit 1
+            fi

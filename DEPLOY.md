@@ -412,8 +412,13 @@ sudo -u deploy sudo -n /usr/local/sbin/safrat-install-nginx
 ```
 
 The workflow invokes the helper only after database migrations succeed. The
-helper validates with `nginx -t`, restores the previous configuration on any
-validation failure, and only then reloads nginx before the application restart.
+helper promotes the combined config to the VPS's active
+`/etc/nginx/sites-available/tawafiqhub` target and replaces the legacy
+`tawafiqhub-root` config with a tracked neutral file. It verifies both enabled
+symlinks before writing, validates with `nginx -t`, and restores both previous
+files on any promotion, validation, or reload failure. Post-deploy smoke tests
+then require apex/service-worker/API success, exact app/www/HTTP redirects, and
+the apex CORS origin before the workflow can turn green.
 
 **Step 1 — HTTP only first** (before SSL):
 
@@ -439,7 +444,10 @@ server {
 ```
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/safrat /etc/nginx/sites-enabled/
+# These are the historical Certbot-managed names on the current VPS. Keep the
+# links; deploy/nginx/install-nginx owns the contents behind them.
+sudo ln -s /etc/nginx/sites-available/tawafiqhub /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/tawafiqhub-root /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 

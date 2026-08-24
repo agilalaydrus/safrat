@@ -2,26 +2,60 @@
 set -euo pipefail
 
 readonly source_config="/home/deploy/safrat/deploy/nginx/safrat.conf"
-readonly target_config="/etc/nginx/sites-available/safrat"
-readonly backup_config="$(mktemp /etc/nginx/sites-available/safrat.backup.XXXXXX)"
+readonly neutral_config="/home/deploy/safrat/deploy/nginx/tawafiqhub-root.disabled.conf"
+readonly target_config="/etc/nginx/sites-available/tawafiqhub"
+readonly root_target_config="/etc/nginx/sites-available/tawafiqhub-root"
+readonly enabled_config="/etc/nginx/sites-enabled/tawafiqhub"
+readonly enabled_root_config="/etc/nginx/sites-enabled/tawafiqhub-root"
+readonly backup_config="$(mktemp /etc/nginx/sites-available/tawafiqhub.backup.XXXXXX)"
+readonly backup_root_config="$(mktemp /etc/nginx/sites-available/tawafiqhub-root.backup.XXXXXX)"
 
 restore_previous_config() {
   /usr/bin/cp "${backup_config}" "${target_config}"
-  /usr/sbin/nginx -t
+  /usr/bin/cp "${backup_root_config}" "${root_target_config}"
+
+  if /usr/sbin/nginx -t; then
+    /usr/bin/systemctl reload nginx
+  else
+    echo "restored nginx configuration is invalid; manual recovery required" >&2
+  fi
 }
 
 cleanup() {
-  /usr/bin/rm -f "${backup_config}"
+  /usr/bin/rm -f "${backup_config}" "${backup_root_config}"
 }
 trap cleanup EXIT
 
-if [[ ! -f "${source_config}" ]]; then
-  echo "missing nginx source config: ${source_config}" >&2
+for required_file in \
+  "${source_config}" \
+  "${neutral_config}" \
+  "${target_config}" \
+  "${root_target_config}"; do
+  if [[ ! -f "${required_file}" ]]; then
+    echo "missing required nginx file: ${required_file}" >&2
+    exit 1
+  fi
+done
+
+if [[ "$(/usr/bin/readlink -f "${enabled_config}")" != "${target_config}" ]]; then
+  echo "unexpected active nginx config: ${enabled_config}" >&2
+  exit 1
+fi
+
+if [[ "$(/usr/bin/readlink -f "${enabled_root_config}")" != "${root_target_config}" ]]; then
+  echo "unexpected active nginx root config: ${enabled_root_config}" >&2
   exit 1
 fi
 
 /usr/bin/cp "${target_config}" "${backup_config}"
-/usr/bin/install -o root -g root -m 0644 "${source_config}" "${target_config}"
+/usr/bin/cp "${root_target_config}" "${backup_root_config}"
+
+if ! /usr/bin/install -o root -g root -m 0644 "${source_config}" "${target_config}" || \
+   ! /usr/bin/install -o root -g root -m 0644 "${neutral_config}" "${root_target_config}"; then
+  echo "nginx promotion failed; restoring previous configuration" >&2
+  restore_previous_config
+  exit 1
+fi
 
 if ! /usr/sbin/nginx -t; then
   echo "nginx validation failed; restoring previous configuration" >&2
@@ -32,6 +66,5 @@ fi
 if ! /usr/bin/systemctl reload nginx; then
   echo "nginx reload failed; restoring previous configuration" >&2
   restore_previous_config
-  /usr/bin/systemctl reload nginx
   exit 1
 fi
