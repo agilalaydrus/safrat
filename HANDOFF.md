@@ -69,10 +69,11 @@
   The wildcard continuation is implemented locally: shared frontend hostname
   parsing, reserved platform slugs, migration 080's database constraint,
   wildcard Nginx routing, automated Hostinger DNS-01 certificate renewal, and
-  deploy smoke tests. It is intentionally not on production yet. Before any
-  push to `main`, add Hostinger DNS `A * -> 103.179.66.25`, bootstrap the
-  root-only `lego` certificate/timer, and reinstall the updated Nginx helper in
-  the exact order documented in `DEPLOY.md`.
+  deploy smoke tests. It is intentionally not on production yet. Hostinger DNS
+  `A * -> 103.179.66.25` is now active and verified through Cloudflare, Google,
+  and both authoritative nameservers. Before any push to `main`, bootstrap the
+  root-only `lego` certificate/timer from a staging worktree and reinstall the
+  updated Nginx helper in the exact order documented in `DEPLOY.md`.
   Local verification passed: migration 080 plus a non-persisting reserved-slug
   constraint probe, all Go tests/vet/build, web lint/typecheck/production build,
   `buf lint`, shell syntax, Dockerized `nginx -t`, and Host-header routing

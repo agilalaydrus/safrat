@@ -454,12 +454,17 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres 
 
    Both commands must return `103.179.66.25`.
 
-2. Make the `deploy/tls` files available on the VPS from a non-production
-   branch or other reviewed checkout, then issue the wildcard certificate:
+2. Make the `deploy/tls` files available from the reviewed non-production
+   branch in a separate worktree. This leaves `/home/deploy/safrat` on the
+   currently deployed `main` commit while TLS is bootstrapped:
 
    ```bash
-   cd /home/deploy/safrat
-   sudo ./deploy/tls/install-wildcard-tls halo@tawafiqhub.id
+   sudo -u deploy git -C /home/deploy/safrat fetch origin codex/wildcard-tenants
+   sudo -u deploy git -C /home/deploy/safrat worktree add \
+     /home/deploy/safrat-wildcard \
+     origin/codex/wildcard-tenants
+   sudo /home/deploy/safrat-wildcard/deploy/tls/install-wildcard-tls \
+     halo@tawafiqhub.id
    ```
 
    The prompt reads the Hostinger API token without echoing it. The installer
@@ -490,9 +495,8 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres 
    adds certificate preconditions:
 
    ```bash
-   cd /home/deploy/safrat
    sudo install -o root -g root -m 0755 \
-     deploy/nginx/install-nginx \
+     /home/deploy/safrat-wildcard/deploy/nginx/install-nginx \
      /usr/local/sbin/safrat-install-nginx
    sudo -u deploy sudo -n /usr/local/sbin/safrat-install-nginx
    ```

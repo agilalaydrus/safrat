@@ -2,7 +2,8 @@
 set -euo pipefail
 
 readonly lego_version="5.3.1"
-readonly source_dir="/home/deploy/safrat/deploy/tls"
+readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+readonly source_dir="${script_dir}"
 readonly secret_dir="/etc/safrat/secrets"
 readonly token_file="${secret_dir}/hostinger-api-token"
 readonly email_file="/etc/safrat/lego-email"
