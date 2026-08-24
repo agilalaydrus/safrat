@@ -25,7 +25,7 @@ export default function ModuleTabs() {
           <span className="mb-3 inline-block rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
             Interactive Dashboard
           </span>
-          <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl dark:text-white">
+          <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl dark:text-slate-100">
             Eksplorasi Modul Operasional Unggulan
           </h3>
           <p className="mt-3 text-sm text-slate-600 sm:text-base dark:text-slate-300">

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Compass, Mail, MessageCircle, Phone } from "lucide-react";
+import { ArrowRight, Compass, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import { FOOTER_LAYANAN, FOOTER_MODULES, WA_NUMBER_DISPLAY, WA_SALES_LINK } from "./content";
 
 export default function CtaAndFooter() {
@@ -88,7 +88,9 @@ export default function CtaAndFooter() {
                     <Phone className="h-4 w-4 text-emerald-400" /> {WA_NUMBER_DISPLAY}
                   </a>
                 </li>
-                <li>Jakarta • Surabaya • Jeddah Center</li>
+                <li className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-amber-300" /> Kantor: DKI Jakarta dan Kota Bekasi
+                </li>
               </ul>
             </div>
           </div>

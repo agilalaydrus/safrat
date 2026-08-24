@@ -57,6 +57,23 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; font-weight: 5
    so Tailwind weight/leading/color utilities (font-black, leading-[1.15],
    text-slate-900, …) still win the cascade for everything else. */
 .landing-scope :is(h1, h2, h3, h4) { font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif; }
+.landing-gold-text {
+  color: #8a5a00;
+}
+.dark .landing-gold-text {
+  color: #f2d675;
+}
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+  .landing-gold-text {
+    background-image: linear-gradient(100deg, #8a5a00 0%, #c58a16 42%, #9f6700 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .dark .landing-gold-text {
+    background-image: linear-gradient(100deg, #fff0ad 0%, #d6a84b 42%, #f5dc83 72%, #c8922f 100%);
+  }
+}
 a { color: inherit; text-decoration: none; }
 button { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; cursor: pointer; }
 input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; font-size: 14px; }

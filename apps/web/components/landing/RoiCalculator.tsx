@@ -18,8 +18,8 @@ export default function RoiCalculator() {
           <span className="mb-3 inline-block rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
             Kalkulator Efisiensi PPIU
           </span>
-          <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl dark:text-white">
-            Hitung Waktu &amp; Biaya yang <span className="text-emerald-600 dark:text-emerald-400">Dihemat Travel Anda</span>
+          <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl dark:text-slate-100">
+            Hitung Waktu &amp; Biaya yang <span className="landing-gold-text">Dihemat Travel Anda</span>
           </h3>
           <p className="mt-3 text-sm text-slate-600 sm:text-base dark:text-slate-300">
             Berapa banyak jam lembur staf admin dan risiko salah kamar yang bisa Anda hilangkan di musim depan?

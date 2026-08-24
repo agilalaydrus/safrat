@@ -19,12 +19,12 @@ export default function Navbar() {
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Brand */}
         <Link href="/" aria-label="TawafiqHub" className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 text-white shadow-md shadow-emerald-600/20">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-700 via-emerald-600 to-amber-500 text-white shadow-md shadow-emerald-600/20">
             <Compass className="h-6 w-6" />
           </span>
           <span className="leading-tight">
-            <span className="block text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-              Tawafiq<span className="text-emerald-600 dark:text-emerald-400">Hub</span>
+            <span className="block text-xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+              Tawafiq<span className="landing-gold-text">Hub</span>
             </span>
             <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Sistem Operasi PPIU &amp; PIHK

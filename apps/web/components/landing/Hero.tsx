@@ -18,20 +18,19 @@ export default function Hero() {
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#e2e8f030_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f030_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
 
       <div className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-3xl text-center">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-emerald-800 shadow-sm dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-            <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>Platform Manajemen Umrah &amp; Haji Terpadu</span>
+        <div className="mx-auto max-w-4xl text-center">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-amber-900 shadow-sm dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200">
+            <Sparkles className="h-3.5 w-3.5 text-amber-600 dark:text-amber-300" />
+            <span>Sistem Operasi PPIU &amp; PIHK</span>
           </div>
 
-          <h1 className="text-4xl font-black leading-[1.15] tracking-tight text-slate-900 sm:text-5xl lg:text-6xl dark:text-white">
-            Tinggalkan Spreadsheet. Kelola Musim Umrah{" "}
-            <span className="text-emerald-600 dark:text-emerald-400">Lebih Tenang &amp; Teratur.</span>
+          <h1 className="text-4xl font-black leading-[1.12] tracking-tight text-slate-900 sm:text-5xl lg:text-[3.5rem] dark:text-slate-100">
+            Satu Kendali untuk Operasional PPIU &amp; PIHK, dari{" "}
+            <span className="landing-gold-text">Indonesia hingga Saudi.</span>
           </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-600 sm:text-lg dark:text-slate-300">
-            Sistem operasi all-in-one untuk PPIU &amp; PIHK di Indonesia: Validasi kamar mahram otomatis, manifest bus
-            real-time Saudi, dan gateway darurat SOS terpusat.
+            Tawafiq Hub menyatukan pendaftaran, jamaah, kamar, transportasi, keuangan, agen, dokumen, dan respons darurat dalam satu sistem.
           </p>
 
           <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">

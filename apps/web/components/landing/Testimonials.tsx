@@ -8,7 +8,7 @@ export default function Testimonials() {
           <span className="mb-3 inline-block rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
             Kisah Sukses Operator
           </span>
-          <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl dark:text-white">
+          <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl dark:text-slate-100">
             Dipercaya Direksi &amp; Tim Operasional PPIU
           </h3>
         </div>

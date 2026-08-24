@@ -14,7 +14,7 @@ export default function Faq() {
           <span className="mb-3 inline-block rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
             Frequently Asked Questions
           </span>
-          <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+          <h3 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
             Pertanyaan yang Sering Diajukan PPIU
           </h3>
         </div>

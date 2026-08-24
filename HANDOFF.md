@@ -34,11 +34,14 @@
   `/p/{slug}` address permanently redirects to `{slug}.tawafiqhub.id/`; share
   buttons use the tenant URL, and package CTAs use season slugs instead of UUIDs.
   API/database uniqueness remains the final race-safe guard for chosen slugs.
+- Landing hero messaging now sells one end-to-end operational control surface
+  from Indonesia to Saudi, with gold-gradient emphasis and off-white dark-mode
+  headings. Footer office coverage is DKI Jakarta and Kota Bekasi.
 - Season creation is idempotent and protected at three layers: synchronous UI
   submit locks, backend exact-retry upsert, and a unique normalized season name
-  per operator. Migrations 077–078 safely removed empty local duplicates; one
-  `Umrah Musim Dingin 2026` row remains. Same-name rows with dependent data make
-  the migration fail for manual merge rather than cascading data loss.
+  per operator. Migrations 077–078 safely remove empty duplicates. Same-name
+  rows with dependent data make the migration fail for manual merge rather
+  than cascading data loss.
 - Verified locally: web typecheck, ESLint (0 errors; 23 pre-existing hook
   warnings), production build, and generated-manifest inspection (20/20 PWA
   routes present). A real-browser/device offline test is still recommended.
@@ -47,7 +50,7 @@
 
 ## Repo / deploy state
 
-- **12 commits sit on local `main`, NOT pushed** after the selectable-subdomain work
+- **13 commits sit on local `main`, NOT pushed** after the landing-message work
   in the current work (see `git log origin/main..main`).
   **Pushing `main` triggers a production deploy** (`.github/workflows/deploy.yml`
   → builds images, runs goose migrations, redeploys `app.tawafiqhub.id`). The

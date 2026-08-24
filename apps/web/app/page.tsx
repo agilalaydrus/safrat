@@ -14,7 +14,7 @@ import CtaAndFooter from "@/components/landing/CtaAndFooter";
 export default function LandingPage() {
   return (
     <ThemeProvider>
-      <div className="landing-scope min-h-screen bg-slate-50 text-slate-900 antialiased selection:bg-emerald-100 selection:text-emerald-900 dark:bg-slate-950 dark:text-white">
+      <div className="landing-scope min-h-screen bg-slate-50 text-slate-900 antialiased selection:bg-amber-100 selection:text-amber-950 dark:bg-slate-950 dark:text-slate-100">
         <Navbar />
         <Hero />
         <ProblemSolution />
