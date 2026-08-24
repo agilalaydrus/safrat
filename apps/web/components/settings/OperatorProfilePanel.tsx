@@ -1,234 +1,231 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import {
+  IconArrowUpRight,
+  IconDeviceFloppy,
+  IconEye,
+  IconPhoto,
+  IconPlus,
+  IconRocket,
+  IconTrash,
+  IconUpload,
+} from "@tabler/icons-react";
+import { StorefrontAssetKind } from "@hajj-saas/proto-gen/hajj/v1/operator_pb";
 import { operatorClient } from "@/lib/rpc";
 import { buildTenantLink } from "@/lib/tenant-link";
+import { uploadStorefrontImage } from "@/lib/storefront-upload";
+import type { StorefrontContent, StorefrontPackage, StorefrontSeason } from "@/components/storefront/TenantStorefront";
+
+type Tab = "brand" | "packages" | "gallery" | "trust";
+
+const EMPTY_CONTENT: StorefrontContent = { brandColor: "#059669", packages: [], gallery: [], testimonials: [], faqs: [] };
 
 export default function OperatorProfilePanel() {
-  const [name, setName] = useState("");
-  const [country, setCountry] = useState("");
-  const [email, setEmail] = useState("");
-  const [licenseNumber, setLicenseNumber] = useState("");
-  // Public profile fields
-  const [logoUrl, setLogoUrl] = useState("");
-  const [description, setDescription] = useState("");
-  const [whatsappNumber, setWhatsappNumber] = useState("");
-  const [website, setWebsite] = useState("");
-  const [address, setAddress] = useState("");
-  const [city, setCity] = useState("");
-  const [slug, setSlug] = useState("");
-  const [brandColor, setBrandColor] = useState("#059669");
-  const [heroEyebrow, setHeroEyebrow] = useState("");
-  const [heroTitle, setHeroTitle] = useState("");
-  const [heroSubtitle, setHeroSubtitle] = useState("");
-  const [heroImageUrl, setHeroImageUrl] = useState("");
-
-  const [loaded, setLoaded] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [content, setContent] = useState<StorefrontContent>(EMPTY_CONTENT);
+  const [seasons, setSeasons] = useState<StorefrontSeason[]>([]);
+  const [operator, setOperator] = useState({ name: "", country: "", email: "", licenseNumber: "", slug: "" });
+  const [draftRevision, setDraftRevision] = useState(0n);
+  const [publishedRevision, setPublishedRevision] = useState(0n);
+  const [publishedAt, setPublishedAt] = useState("");
+  const [tab, setTab] = useState<Tab>("brand");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    operatorClient
-      .getMyOperator({})
-      .then((operator) => {
-        setName(operator.name);
-        setCountry(operator.country);
-        setEmail(operator.email);
-        setLicenseNumber(operator.licenseNumber);
-        setLogoUrl(operator.logoUrl);
-        setDescription(operator.description);
-        setWhatsappNumber(operator.whatsappNumber);
-        setWebsite(operator.website);
-        setAddress(operator.address);
-        setCity(operator.city);
-        setSlug(operator.slug);
-        setBrandColor(operator.brandColor || "#059669");
-        setHeroEyebrow(operator.heroEyebrow);
-        setHeroTitle(operator.heroTitle);
-        setHeroSubtitle(operator.heroSubtitle);
-        setHeroImageUrl(operator.heroImageUrl);
-        setLoaded(true);
-      })
-      .catch(() => setNotice("Gagal memuat profil operator."));
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const [editor, current] = await Promise.all([operatorClient.getMyStorefront({}), operatorClient.getMyOperator({})]);
+      setContent(toDraftContent(editor.content));
+      setSeasons(editor.activeSeasons.map((season) => ({ id: season.id, name: season.name, slug: season.slug, type: season.type, startDate: season.startDate?.toDate().toISOString(), endDate: season.endDate?.toDate().toISOString(), pilgrimCount: season.pilgrimCount })));
+      setDraftRevision(editor.draftRevision);
+      setPublishedRevision(editor.publishedRevision);
+      setPublishedAt(editor.publishedAt?.toDate().toLocaleString("id-ID") ?? "");
+      setOperator({ name: current.name, country: current.country, email: current.email, licenseNumber: current.licenseNumber, slug: current.slug });
+    } catch (cause) { setError(message(cause, "CMS storefront gagal dimuat.")); }
+    finally { setLoading(false); }
   }, []);
 
-  const publicUrl = slug
-    ? buildTenantLink(slug, "/")
-    : "";
+  useEffect(() => { void load(); }, [load]);
 
-  const copyLink = async () => {
-    if (!publicUrl) return;
+  const saveDraft = async () => {
+    setBusy(true); setError(""); setNotice("");
     try {
-      await navigator.clipboard.writeText(publicUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setNotice("Gagal menyalin link.");
+      validateContent(content);
+      const editor = await operatorClient.saveMyStorefrontDraft({ content: content as never, expectedRevision: draftRevision });
+      setDraftRevision(editor.draftRevision);
+      setPublishedRevision(editor.publishedRevision);
+      setPublishedAt(editor.publishedAt?.toDate().toLocaleString("id-ID") ?? "");
+      setNotice("Draft tersimpan. Halaman publik belum berubah.");
+      return editor.draftRevision;
+    } catch (cause) {
+      setError(conflictMessage(cause));
+      return null;
+    } finally { setBusy(false); }
+  };
+
+  const preview = async () => {
+    const previewWindow = window.open("", "_blank");
+    const revision = await saveDraft();
+    if (revision !== null && previewWindow) {
+      previewWindow.opener = null;
+      previewWindow.location.href = "/storefront-preview";
+    } else {
+      previewWindow?.close();
+      if (!previewWindow) setError("Browser memblokir tab preview. Izinkan pop-up untuk situs ini lalu coba lagi.");
     }
   };
 
-  const save = async () => {
-    if (!name.trim()) {
-      setNotice("Nama operator wajib diisi.");
-      return;
-    }
-    if (country && country.trim().length !== 2) {
-      setNotice("Kode negara harus 2 huruf, mis. ID.");
-      return;
-    }
-    if (!/^#[0-9a-f]{6}$/i.test(brandColor)) {
-      setNotice("Warna brand harus menggunakan format hex 6 digit, mis. #059669.");
-      return;
-    }
-    const invalidURL = [logoUrl, website, heroImageUrl].find((value) => value.trim() && !isHTTPURL(value));
-    if (invalidURL) {
-      setNotice("Logo, website, dan foto hero harus menggunakan URL http atau https yang valid.");
-      return;
-    }
-    setSaving(true);
-    setNotice("");
+  const publish = async () => {
+    setBusy(true); setError(""); setNotice("");
     try {
-      await operatorClient.updateOperator({ name: name.trim(), country: country.trim().toUpperCase(), email: email.trim(), licenseNumber: licenseNumber.trim() });
-      await operatorClient.updateMyProfile({
-        logoUrl: logoUrl.trim(),
-        description: description.trim(),
-        whatsappNumber: whatsappNumber.trim(),
-        website: website.trim(),
-        address: address.trim(),
-        city: city.trim(),
-        brandColor,
-        heroEyebrow: heroEyebrow.trim(),
-        heroTitle: heroTitle.trim(),
-        heroSubtitle: heroSubtitle.trim(),
-        heroImageUrl: heroImageUrl.trim(),
-      });
-      setNotice("Profil operator diperbarui.");
-    } catch (error) {
-      setNotice(`Gagal menyimpan: ${error instanceof Error ? error.message : "tidak diketahui"}`);
-    } finally {
-      setSaving(false);
-    }
+      validateContent(content);
+      const saved = await operatorClient.saveMyStorefrontDraft({ content: content as never, expectedRevision: draftRevision });
+      const editor = await operatorClient.publishMyStorefront({ expectedRevision: saved.draftRevision });
+      setDraftRevision(editor.draftRevision);
+      setPublishedRevision(editor.publishedRevision);
+      setPublishedAt(editor.publishedAt?.toDate().toLocaleString("id-ID") ?? "");
+      setNotice("Perubahan berhasil dipublikasikan.");
+    } catch (cause) { setError(conflictMessage(cause)); }
+    finally { setBusy(false); }
   };
 
-  if (!loaded) return <p style={{ color: "var(--color-warm-500)" }}>Memuat...</p>;
+  const saveOperator = async () => {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await operatorClient.updateOperator({ name: operator.name.trim(), country: operator.country.trim().toUpperCase(), email: operator.email.trim(), licenseNumber: operator.licenseNumber.trim() });
+      setNotice("Data legal operator diperbarui.");
+    } catch (cause) { setError(message(cause, "Data operator gagal disimpan.")); }
+    finally { setBusy(false); }
+  };
 
-  return (
-    <div style={{ display: "grid", gap: 20 }}>
-      {notice && <p role="status" style={{ color: "var(--color-gold-800)", margin: 0 }}>{notice}</p>}
+  if (loading) return <div style={skeleton}>Memuat CMS storefront...</div>;
+  const publicURL = operator.slug ? buildTenantLink(operator.slug, "/") : "";
+  const dirty = draftRevision !== publishedRevision;
 
-      {/* Share link */}
-      {publicUrl && (
-        <section style={{ ...card, background: "var(--color-emerald-50)", border: "1px solid var(--color-emerald-200)" }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--color-emerald-900)" }}>Bagikan profil publik Anda:</span>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <code style={{ flex: 1, minWidth: 220, padding: "10px 12px", background: "white", border: "1px solid var(--color-emerald-200)", borderRadius: 8, fontSize: 13, color: "var(--color-warm-900)", overflowX: "auto" }}>{publicUrl}</code>
-            <button onClick={copyLink} style={{ ...emerald, minHeight: 40, padding: "0 16px" }}>{copied ? "Tersalin ✓" : "Salin Link"}</button>
-            <a href={publicUrl} target="_blank" rel="noreferrer" style={{ ...ghost, minHeight: 40, padding: "0 16px", display: "inline-flex", alignItems: "center" }}>Lihat</a>
-          </div>
-        </section>
-      )}
+  return <div style={{ display: "grid", gap: 18 }}>
+    <header style={cmsHeader}>
+      <div><p style={eyebrow}>STOREFRONT CMS</p><h2 style={{ margin: 0, fontSize: 24 }}>Landing page travel</h2><p style={muted}>Simpan sebagai draft, tinjau halaman sebenarnya, lalu publikasikan saat siap.</p></div>
+      <div style={statusBox}><strong style={{ color: dirty ? "var(--color-gold-800)" : "var(--color-emerald-900)" }}>{dirty ? "Ada draft baru" : "Sudah sinkron"}</strong><span>Draft {draftRevision.toString()} · Live {publishedRevision.toString()}</span>{publishedAt && <span>Terbit {publishedAt}</span>}</div>
+    </header>
 
-      {/* Basic operator info */}
-      <section style={card}>
-        <h3 style={sectionTitle}>Informasi Dasar</h3>
-        <label style={field}>Nama Operator<input value={name} onChange={(e) => setName(e.target.value)} style={input} /></label>
-        <label style={field}>Kode Negara (2 huruf)<input value={country} onChange={(e) => setCountry(e.target.value)} maxLength={2} placeholder="ID" style={input} /></label>
-        <label style={field}>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={input} /></label>
-        <label style={field}>Nomor Izin Usaha (PPIU/PIHK)<input value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} style={input} /></label>
-      </section>
+    {(notice || error) && <p role={error ? "alert" : "status"} style={{ ...alert, color: error ? "var(--color-danger-600)" : "var(--color-emerald-900)" }}>{error || notice}</p>}
 
-      {/* Public storefront */}
-      <section style={card}>
-        <div>
-          <h3 style={sectionTitle}>Landing Page Travel</h3>
-          <p style={sectionDescription}>Atur identitas dan konten yang tampil di subdomain publik travel Anda.</p>
-        </div>
-        <label style={field}>Logo URL<input type="url" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://... (opsional)" style={input} /></label>
-        <label style={field}>
-          Warna brand
-          <div style={colorRow}>
-            <input aria-label="Pilih warna brand" type="color" value={brandColor} onChange={(e) => setBrandColor(e.target.value)} style={colorPicker} />
-            <input value={brandColor} onChange={(e) => setBrandColor(e.target.value)} maxLength={7} placeholder="#059669" style={{ ...input, flex: 1 }} />
-          </div>
-          <span style={hint}>Warna ini dipakai konsisten untuk tombol, aksen, dan area CTA.</span>
-        </label>
-        <label style={field}>
-          Label hero
-          <input value={heroEyebrow} onChange={(e) => setHeroEyebrow(e.target.value)} maxLength={80} placeholder="Pendamping perjalanan Umrah dan Haji" style={input} />
-          <span style={hint}>{heroEyebrow.length}/80</span>
-        </label>
-        <label style={field}>
-          Judul utama
-          <textarea value={heroTitle} onChange={(e) => setHeroTitle(e.target.value)} maxLength={120} rows={2} placeholder={`Perjalanan ibadah yang tenang bersama ${name || "travel Anda"}`} style={{ ...input, minHeight: 70, resize: "vertical" }} />
-          <span style={hint}>{heroTitle.length}/120</span>
-        </label>
-        <label style={field}>
-          Deskripsi hero
-          <textarea value={heroSubtitle} onChange={(e) => setHeroSubtitle(e.target.value)} maxLength={240} rows={3} placeholder="Jelaskan manfaat utama dan bentuk pendampingan travel Anda." style={{ ...input, minHeight: 80, resize: "vertical" }} />
-          <span style={hint}>{heroSubtitle.length}/240</span>
-        </label>
-        <label style={field}>
-          Foto hero URL
-          <input type="url" value={heroImageUrl} onChange={(e) => setHeroImageUrl(e.target.value)} placeholder="https://... (kosongkan untuk foto bawaan)" style={input} />
-          <span style={hint}>Gunakan foto vertikal 4:5, minimal 1120 x 1400 px, tanpa teks di dalam gambar.</span>
-        </label>
+    <nav style={tabs} aria-label="Bagian CMS">
+      <TabButton active={tab === "brand"} onClick={() => setTab("brand")}>Brand &amp; Hero</TabButton>
+      <TabButton active={tab === "packages"} onClick={() => setTab("packages")}>Paket</TabButton>
+      <TabButton active={tab === "gallery"} onClick={() => setTab("gallery")}>Galeri</TabButton>
+      <TabButton active={tab === "trust"} onClick={() => setTab("trust")}>Testimonial &amp; FAQ</TabButton>
+    </nav>
 
-        <div style={{ ...preview, borderColor: brandColor }}>
-          <span style={{ ...previewMark, background: brandColor, color: readableColor(brandColor) }}>{name.slice(0, 2).toUpperCase() || "TR"}</span>
-          <div style={{ minWidth: 0 }}>
-            <strong style={{ display: "block", color: "var(--color-warm-900)" }}>{heroTitle || `Perjalanan ibadah bersama ${name || "travel Anda"}`}</strong>
-            <span style={{ display: "block", marginTop: 3, color: "var(--color-warm-400)", fontSize: 12 }}>Preview singkat brand storefront</span>
-          </div>
-        </div>
-      </section>
+    {tab === "brand" && <div style={{ display: "grid", gap: 16 }}>
+      <Section title="Identitas publik" description="Nama display, logo, warna, dan kontak yang tampil di storefront.">
+        <Field label="Nama brand"><input value={content.displayName ?? ""} onChange={(event) => patch(setContent, { displayName: event.target.value })} maxLength={120} style={input} /></Field>
+        <ImageField label="Logo travel" value={content.logoUrl ?? ""} kind={StorefrontAssetKind.LOGO} hint="PNG/JPG akan dikonversi ke WebP. Maksimal sumber 20 MB." onChange={(logoUrl) => patch(setContent, { logoUrl })} />
+        <Field label="Warna brand"><div style={{ display: "flex", gap: 10 }}><input aria-label="Pilih warna" type="color" value={content.brandColor ?? "#059669"} onChange={(event) => patch(setContent, { brandColor: event.target.value })} style={colorInput} /><input value={content.brandColor ?? ""} onChange={(event) => patch(setContent, { brandColor: event.target.value })} maxLength={7} style={input} /></div></Field>
+        <Field label="Tentang travel"><textarea value={content.description ?? ""} onChange={(event) => patch(setContent, { description: event.target.value })} maxLength={1200} rows={5} style={textarea} /></Field>
+        <div style={twoColumns}><Field label="WhatsApp CS"><input value={content.whatsappNumber ?? ""} onChange={(event) => patch(setContent, { whatsappNumber: event.target.value })} maxLength={40} style={input} /></Field><Field label="Website"><input type="url" value={content.website ?? ""} onChange={(event) => patch(setContent, { website: event.target.value })} style={input} /></Field></div>
+        <div style={twoColumns}><Field label="Alamat kantor"><input value={content.address ?? ""} onChange={(event) => patch(setContent, { address: event.target.value })} maxLength={300} style={input} /></Field><Field label="Kota"><input value={content.city ?? ""} onChange={(event) => patch(setContent, { city: event.target.value })} maxLength={120} style={input} /></Field></div>
+      </Section>
+      <Section title="Hero" description="Pesan utama dan foto yang pertama kali dilihat calon jamaah.">
+        <Field label="Label hero"><input value={content.heroEyebrow ?? ""} onChange={(event) => patch(setContent, { heroEyebrow: event.target.value })} maxLength={80} style={input} /></Field>
+        <Field label="Judul utama"><textarea value={content.heroTitle ?? ""} onChange={(event) => patch(setContent, { heroTitle: event.target.value })} maxLength={120} rows={2} style={textarea} /></Field>
+        <Field label="Deskripsi hero"><textarea value={content.heroSubtitle ?? ""} onChange={(event) => patch(setContent, { heroSubtitle: event.target.value })} maxLength={240} rows={3} style={textarea} /></Field>
+        <ImageField label="Foto hero" value={content.heroImageUrl ?? ""} kind={StorefrontAssetKind.HERO} hint="Gunakan foto vertikal 4:5. Otomatis dikecilkan maksimal 2400 px dan dikompresi WebP." onChange={(heroImageUrl) => patch(setContent, { heroImageUrl })} />
+      </Section>
+      <Section title="Data legal operator" description="Data ini dipakai sistem utama dan disimpan terpisah dari draft storefront.">
+        <div style={twoColumns}><Field label="Nama badan usaha"><input value={operator.name} onChange={(event) => setOperator({ ...operator, name: event.target.value })} style={input} /></Field><Field label="Nomor izin PPIU/PIHK"><input value={operator.licenseNumber} onChange={(event) => setOperator({ ...operator, licenseNumber: event.target.value })} style={input} /></Field></div>
+        <div style={twoColumns}><Field label="Email"><input type="email" value={operator.email} onChange={(event) => setOperator({ ...operator, email: event.target.value })} style={input} /></Field><Field label="Kode negara"><input value={operator.country} onChange={(event) => setOperator({ ...operator, country: event.target.value })} maxLength={2} style={input} /></Field></div>
+        <button type="button" onClick={saveOperator} disabled={busy} style={secondaryButton}><IconDeviceFloppy size={17} /> Simpan Data Operator</button>
+      </Section>
+    </div>}
 
-      <section style={card}>
-        <h3 style={sectionTitle}>Profil dan Kontak Publik</h3>
-        <label style={field}>
-          Tentang travel
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} rows={3} placeholder="Ceritakan tentang travel Anda..." style={{ ...input, minHeight: 80, resize: "vertical" }} />
-          <span style={{ fontSize: 12, color: "var(--color-warm-400)" }}>{description.length}/500</span>
-        </label>
-        <label style={field}>Nomor WhatsApp CS<input value={whatsappNumber} onChange={(e) => setWhatsappNumber(e.target.value)} placeholder="+62 812-xxxx-xxxx" style={input} /></label>
-        <label style={field}>Website<input type="url" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="https://..." style={input} /></label>
-        <label style={field}>Alamat Kantor<input value={address} onChange={(e) => setAddress(e.target.value)} style={input} /></label>
-        <label style={field}>Kota<input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Jakarta" style={input} /></label>
-      </section>
+    {tab === "packages" && <Section title="Konten paket" description="Musim berasal dari data operasional. CMS menambahkan foto, ringkasan, harga, fasilitas, dan itinerary.">
+      {seasons.length === 0 ? <Empty text="Belum ada musim aktif. Buat musim terlebih dahulu agar paket muncul di CMS." /> : seasons.map((season) => <PackageEditor key={season.id} season={season} value={(content.packages ?? []).find((item) => item.seasonId === season.id)} onChange={(value) => setContent({ ...content, packages: upsertPackage(content.packages ?? [], value) })} />)}
+    </Section>}
 
-      <button disabled={saving} onClick={save} style={{ ...emerald, justifySelf: "start" }}>{saving ? "Menyimpan..." : "Simpan Perubahan"}</button>
-    </div>
-  );
+    {tab === "gallery" && <Section title="Galeri perjalanan" description="Maksimal 12 foto. Alt text wajib agar galeri tetap aksesibel.">
+      <ImageField label="Tambah foto" value="" kind={StorefrontAssetKind.GALLERY} hint="Foto baru ditambahkan setelah upload selesai." onChange={(imageUrl) => setContent({ ...content, gallery: [...(content.gallery ?? []), { imageUrl, altText: "", caption: "" }] })} />
+      {(content.gallery ?? []).length === 0 ? <Empty text="Belum ada foto galeri." /> : <div style={mediaGrid}>{content.gallery?.map((item, index) => <article key={`${item.imageUrl}-${index}`} style={mediaCard}><img src={item.imageUrl} alt="" style={thumbnail} /><Field label="Alt text"><input value={item.altText} onChange={(event) => updateGallery(setContent, content, index, { altText: event.target.value })} maxLength={160} style={input} /></Field><Field label="Caption"><input value={item.caption ?? ""} onChange={(event) => updateGallery(setContent, content, index, { caption: event.target.value })} maxLength={160} style={input} /></Field><Remove onClick={() => setContent({ ...content, gallery: content.gallery?.filter((_, itemIndex) => itemIndex !== index) })} /></article>)}</div>}
+    </Section>}
+
+    {tab === "trust" && <div style={{ display: "grid", gap: 16 }}>
+      <Section title="Testimonial" description="Maksimal 6 testimonial. Gunakan kutipan singkat yang dapat diverifikasi.">
+        {(content.testimonials ?? []).map((item, index) => <div key={index} style={listEditor}><Field label="Kutipan"><textarea value={item.quote} onChange={(event) => updateList(setContent, content, "testimonials", index, { quote: event.target.value })} maxLength={360} rows={3} style={textarea} /></Field><div style={twoColumns}><Field label="Nama jamaah"><input value={item.name} onChange={(event) => updateList(setContent, content, "testimonials", index, { name: event.target.value })} style={input} /></Field><Field label="Keterangan"><input value={item.role ?? ""} onChange={(event) => updateList(setContent, content, "testimonials", index, { role: event.target.value })} placeholder="Jamaah Umrah Ramadhan" style={input} /></Field></div><Remove onClick={() => setContent({ ...content, testimonials: content.testimonials?.filter((_, itemIndex) => itemIndex !== index) })} /></div>)}
+        {(content.testimonials?.length ?? 0) < 6 && <Add onClick={() => setContent({ ...content, testimonials: [...(content.testimonials ?? []), { quote: "", name: "", role: "" }] })}>Tambah Testimonial</Add>}
+      </Section>
+      <Section title="FAQ" description="Maksimal 10 pertanyaan yang paling sering ditanyakan calon jamaah.">
+        {(content.faqs ?? []).map((item, index) => <div key={index} style={listEditor}><Field label="Pertanyaan"><input value={item.question} onChange={(event) => updateList(setContent, content, "faqs", index, { question: event.target.value })} maxLength={180} style={input} /></Field><Field label="Jawaban"><textarea value={item.answer} onChange={(event) => updateList(setContent, content, "faqs", index, { answer: event.target.value })} maxLength={600} rows={4} style={textarea} /></Field><Remove onClick={() => setContent({ ...content, faqs: content.faqs?.filter((_, itemIndex) => itemIndex !== index) })} /></div>)}
+        {(content.faqs?.length ?? 0) < 10 && <Add onClick={() => setContent({ ...content, faqs: [...(content.faqs ?? []), { question: "", answer: "" }] })}>Tambah FAQ</Add>}
+      </Section>
+    </div>}
+
+    <footer style={actions}>
+      <div>{publicURL && <a href={publicURL} target="_blank" rel="noreferrer" style={publicLink}>Buka halaman live <IconArrowUpRight size={16} /></a>}</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}><button type="button" onClick={saveDraft} disabled={busy} style={secondaryButton}><IconDeviceFloppy size={17} /> Simpan Draft</button><button type="button" onClick={preview} disabled={busy} style={secondaryButton}><IconEye size={17} /> Preview</button><button type="button" onClick={publish} disabled={busy} style={primaryButton}><IconRocket size={17} /> {busy ? "Memproses..." : "Publikasikan"}</button></div>
+    </footer>
+  </div>;
 }
 
-const card: React.CSSProperties = { display: "grid", gap: 14, background: "var(--color-cream-200)", border: "1px solid var(--color-cream-400)", borderRadius: 12, padding: 20 };
-const sectionTitle: React.CSSProperties = { margin: "0 0 2px", fontSize: 15, fontWeight: 700, color: "var(--color-warm-900)" };
-const sectionDescription: React.CSSProperties = { margin: "4px 0 0", fontSize: 12, color: "var(--color-warm-400)" };
-const field: React.CSSProperties = { display: "grid", gap: 6, color: "var(--color-warm-500)", fontSize: 14 };
-const input: React.CSSProperties = { minHeight: 44, width: "100%", border: "1px solid var(--color-cream-500)", borderRadius: 8, padding: "10px 12px", background: "white", color: "var(--color-warm-900)", font: "inherit" };
-const hint: React.CSSProperties = { fontSize: 12, color: "var(--color-warm-400)" };
-const colorRow: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10 };
-const colorPicker: React.CSSProperties = { width: 52, minHeight: 44, border: "1px solid var(--color-cream-500)", borderRadius: 8, padding: 4, background: "white" };
-const preview: React.CSSProperties = { display: "flex", alignItems: "center", gap: 12, border: "1px solid", borderRadius: 12, padding: 14, background: "white" };
-const previewMark: React.CSSProperties = { display: "grid", width: 42, height: 42, flexShrink: 0, placeItems: "center", borderRadius: 10, fontSize: 12, fontWeight: 800 };
-const emerald: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, background: "var(--color-emerald-900)", color: "white", fontWeight: 700, padding: "0 18px", cursor: "pointer" };
-const ghost: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-emerald-200)", borderRadius: 8, background: "white", color: "var(--color-emerald-900)", fontWeight: 700, padding: "0 18px", cursor: "pointer" };
-
-function isHTTPURL(value: string) {
-  try {
-    const url = new URL(value.trim());
-    return url.protocol === "https:" || url.protocol === "http:";
-  } catch {
-    return false;
-  }
+function PackageEditor({ season, value, onChange }: { season: StorefrontSeason; value?: StorefrontPackage; onChange: (value: StorefrontPackage) => void }) {
+  const item = value ?? { seasonId: season.id, facilities: [], itinerary: [] };
+  return <article style={packageCard}><div><strong>{season.name}</strong><p style={muted}>{season.slug}</p></div><ImageField label="Foto paket" value={item.imageUrl ?? ""} kind={StorefrontAssetKind.PACKAGE} hint="Foto lanskap disarankan." onChange={(imageUrl) => onChange({ ...item, imageUrl })} /><div style={twoColumns}><Field label="Label harga"><input value={item.priceLabel ?? ""} onChange={(event) => onChange({ ...item, priceLabel: event.target.value })} placeholder="Mulai Rp 28 juta" maxLength={80} style={input} /></Field><Field label="Ringkasan"><input value={item.summary ?? ""} onChange={(event) => onChange({ ...item, summary: event.target.value })} maxLength={300} style={input} /></Field></div><Field label="Fasilitas (satu per baris, maksimal 12)"><textarea value={(item.facilities ?? []).join("\n")} onChange={(event) => onChange({ ...item, facilities: lines(event.target.value).slice(0, 12) })} rows={5} style={textarea} /></Field><Field label="Itinerary (format: Judul | Deskripsi, satu per baris)"><textarea value={(item.itinerary ?? []).map((entry) => `${entry.title}${entry.description ? ` | ${entry.description}` : ""}`).join("\n")} onChange={(event) => onChange({ ...item, itinerary: lines(event.target.value).slice(0, 20).map((line) => { const parts = line.split("|"); const title = parts.shift() ?? ""; return { title: title.trim(), description: parts.join("|").trim() }; }) })} rows={6} style={textarea} /></Field></article>;
 }
 
-function readableColor(hex: string) {
-  if (!/^#[0-9a-f]{6}$/i.test(hex)) return "#f8fafc";
-  const linear = (channel: number) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
-  const red = linear(Number.parseInt(hex.slice(1, 3), 16) / 255);
-  const green = linear(Number.parseInt(hex.slice(3, 5), 16) / 255);
-  const blue = linear(Number.parseInt(hex.slice(5, 7), 16) / 255);
-  const luminance = red * 0.2126 + green * 0.7152 + blue * 0.0722;
-  return luminance > 0.179 ? "#0f172a" : "#f8fafc";
+function ImageField({ label, value, kind, hint, onChange }: { label: string; value: string; kind: StorefrontAssetKind; hint: string; onChange: (url: string) => void }) {
+  const [uploading, setUploading] = useState(false); const [info, setInfo] = useState("");
+  const upload = async (file?: File) => { if (!file) return; setUploading(true); setInfo(""); try { const result = await uploadStorefrontImage(file, kind); onChange(result.url); setInfo(`WebP ${formatBytes(result.optimizedBytes)} dari ${formatBytes(result.originalBytes)}`); } catch (cause) { setInfo(message(cause, "Upload gagal.")); } finally { setUploading(false); } };
+  return <Field label={label}><div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><label style={{ ...uploadButton, opacity: uploading ? 0.6 : 1 }}><IconUpload size={17} /> {uploading ? "Mengoptimalkan..." : "Pilih Gambar"}<input type="file" accept="image/jpeg,image/png,image/webp,image/avif" disabled={uploading} onChange={(event) => { void upload(event.target.files?.[0]); event.currentTarget.value = ""; }} style={{ display: "none" }} /></label>{value && <button type="button" onClick={() => onChange("")} style={iconButton} aria-label={`Hapus ${label}`}><IconTrash size={17} /></button>}</div>{value && <div style={imagePreview}><img src={value} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /><span>{value}</span></div>}<span style={hintStyle}>{info || hint}</span></Field>;
 }
+
+function Section({ title, description, children }: { title: string; description: string; children: React.ReactNode }) { return <section style={section}><div><h3 style={{ margin: 0, fontSize: 17 }}>{title}</h3><p style={muted}>{description}</p></div>{children}</section>; }
+function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label style={field}><span>{label}</span>{children}</label>; }
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) { return <button type="button" onClick={onClick} style={{ ...tabButton, ...(active ? activeTab : {}) }}>{children}</button>; }
+function Add({ onClick, children }: { onClick: () => void; children: React.ReactNode }) { return <button type="button" onClick={onClick} style={secondaryButton}><IconPlus size={17} />{children}</button>; }
+function Remove({ onClick }: { onClick: () => void }) { return <button type="button" onClick={onClick} style={removeButton}><IconTrash size={16} /> Hapus</button>; }
+function Empty({ text }: { text: string }) { return <div style={empty}><IconPhoto size={24} /><span>{text}</span></div>; }
+
+function toDraftContent(value: unknown): StorefrontContent { if (!value || typeof value !== "object") return { ...EMPTY_CONTENT }; const raw = value as StorefrontContent; return { displayName: raw.displayName ?? "", logoUrl: raw.logoUrl ?? "", description: raw.description ?? "", whatsappNumber: raw.whatsappNumber ?? "", website: raw.website ?? "", address: raw.address ?? "", city: raw.city ?? "", brandColor: raw.brandColor || "#059669", heroEyebrow: raw.heroEyebrow ?? "", heroTitle: raw.heroTitle ?? "", heroSubtitle: raw.heroSubtitle ?? "", heroImageUrl: raw.heroImageUrl ?? "", packages: raw.packages?.map((item) => ({ seasonId: item.seasonId, imageUrl: item.imageUrl, summary: item.summary, priceLabel: item.priceLabel, facilities: [...(item.facilities ?? [])], itinerary: item.itinerary?.map((entry) => ({ title: entry.title, description: entry.description })) })) ?? [], gallery: raw.gallery?.map((item) => ({ ...item })) ?? [], testimonials: raw.testimonials?.map((item) => ({ ...item })) ?? [], faqs: raw.faqs?.map((item) => ({ ...item })) ?? [] }; }
+function patch(setter: React.Dispatch<React.SetStateAction<StorefrontContent>>, value: Partial<StorefrontContent>) { setter((current) => ({ ...current, ...value })); }
+function upsertPackage(items: StorefrontPackage[], value: StorefrontPackage) { const index = items.findIndex((item) => item.seasonId === value.seasonId); return index < 0 ? [...items, value] : items.map((item, itemIndex) => itemIndex === index ? value : item); }
+function updateGallery(setter: React.Dispatch<React.SetStateAction<StorefrontContent>>, content: StorefrontContent, index: number, value: Partial<NonNullable<StorefrontContent["gallery"]>[number]>) { setter({ ...content, gallery: content.gallery?.map((item, itemIndex) => itemIndex === index ? { ...item, ...value } : item) }); }
+function updateList<K extends "testimonials" | "faqs">(setter: React.Dispatch<React.SetStateAction<StorefrontContent>>, content: StorefrontContent, key: K, index: number, value: Partial<NonNullable<StorefrontContent[K]>[number]>) { const current = content[key] ?? []; setter({ ...content, [key]: current.map((item, itemIndex) => itemIndex === index ? { ...item, ...value } : item) }); }
+function lines(value: string) { return value.split("\n").map((item) => item.trim()).filter(Boolean); }
+function validateContent(content: StorefrontContent) { if (!content.displayName?.trim()) throw new Error("Nama brand wajib diisi."); if (!/^#[0-9a-f]{6}$/i.test(content.brandColor ?? "")) throw new Error("Warna brand harus berupa hex 6 digit."); const invalidGallery = content.gallery?.find((item) => !item.altText.trim()); if (invalidGallery) throw new Error("Alt text setiap foto galeri wajib diisi."); }
+function conflictMessage(cause: unknown) { const text = message(cause, "Perubahan gagal disimpan."); return text.toLowerCase().includes("aborted") || text.toLowerCase().includes("conflict") ? "Draft berubah dari tab lain. Muat ulang CMS sebelum melanjutkan agar perubahan tidak tertimpa." : text; }
+function message(cause: unknown, fallback: string) { return cause instanceof Error && cause.message ? cause.message : fallback; }
+function formatBytes(bytes: number) { return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`; }
+
+const cmsHeader: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20, flexWrap: "wrap" };
+const eyebrow: React.CSSProperties = { margin: "0 0 5px", color: "var(--color-gold-800)", fontSize: 11, fontWeight: 800, letterSpacing: "0.12em" };
+const muted: React.CSSProperties = { margin: "4px 0 0", color: "var(--color-warm-400)", fontSize: 12 };
+const statusBox: React.CSSProperties = { display: "grid", gap: 2, minWidth: 180, border: "1px solid var(--color-cream-400)", borderRadius: 10, padding: "10px 12px", background: "var(--color-cream-200)", fontSize: 11, color: "var(--color-warm-400)" };
+const alert: React.CSSProperties = { margin: 0, border: "1px solid var(--color-cream-400)", borderRadius: 10, padding: "10px 12px", background: "var(--color-cream-200)", fontSize: 13 };
+const tabs: React.CSSProperties = { display: "flex", gap: 6, overflowX: "auto", borderBottom: "1px solid var(--color-cream-400)", paddingBottom: 8 };
+const tabButton: React.CSSProperties = { minHeight: 38, flexShrink: 0, border: 0, borderRadius: 8, padding: "0 12px", background: "transparent", color: "var(--color-warm-400)", fontWeight: 700, cursor: "pointer" };
+const activeTab: React.CSSProperties = { background: "var(--color-emerald-900)", color: "white" };
+const section: React.CSSProperties = { display: "grid", gap: 16, border: "1px solid var(--color-cream-400)", borderRadius: 12, padding: 20, background: "var(--color-cream-200)" };
+const field: React.CSSProperties = { display: "grid", gap: 6, color: "var(--color-warm-500)", fontSize: 13, fontWeight: 600 };
+const input: React.CSSProperties = { width: "100%", minHeight: 44, border: "1px solid var(--color-cream-500)", borderRadius: 8, padding: "9px 11px", background: "white", color: "var(--color-warm-900)", font: "inherit", fontWeight: 400 };
+const textarea: React.CSSProperties = { ...input, resize: "vertical" };
+const colorInput: React.CSSProperties = { width: 54, minHeight: 44, border: "1px solid var(--color-cream-500)", borderRadius: 8, padding: 4, background: "white" };
+const twoColumns: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 };
+const actions: React.CSSProperties = { position: "sticky", bottom: 12, zIndex: 5, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", border: "1px solid var(--color-cream-500)", borderRadius: 12, padding: 12, background: "color-mix(in srgb, var(--color-cream-100) 92%, transparent)", boxShadow: "0 14px 34px rgba(15,23,42,.12)", backdropFilter: "blur(12px)" };
+const primaryButton: React.CSSProperties = { display: "inline-flex", minHeight: 42, alignItems: "center", gap: 7, border: 0, borderRadius: 8, padding: "0 14px", background: "var(--color-emerald-900)", color: "white", fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" };
+const secondaryButton: React.CSSProperties = { ...primaryButton, border: "1px solid var(--color-cream-500)", background: "white", color: "var(--color-warm-700)" };
+const uploadButton: React.CSSProperties = { ...secondaryButton, cursor: "pointer" };
+const iconButton: React.CSSProperties = { display: "grid", width: 42, height: 42, placeItems: "center", border: "1px solid var(--color-cream-500)", borderRadius: 8, background: "white", color: "var(--color-danger-600)", cursor: "pointer" };
+const removeButton: React.CSSProperties = { display: "inline-flex", justifySelf: "start", alignItems: "center", gap: 6, border: 0, background: "transparent", color: "var(--color-danger-600)", fontWeight: 700, cursor: "pointer" };
+const imagePreview: React.CSSProperties = { display: "grid", gridTemplateColumns: "88px 1fr", alignItems: "center", gap: 10, minWidth: 0, height: 72, overflow: "hidden", border: "1px solid var(--color-cream-400)", borderRadius: 8, background: "white", color: "var(--color-warm-400)", fontSize: 10, wordBreak: "break-all" };
+const hintStyle: React.CSSProperties = { color: "var(--color-warm-400)", fontSize: 11, fontWeight: 400 };
+const packageCard: React.CSSProperties = { display: "grid", gap: 14, borderTop: "1px solid var(--color-cream-500)", paddingTop: 18 };
+const mediaGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 };
+const mediaCard: React.CSSProperties = { display: "grid", gap: 10, border: "1px solid var(--color-cream-400)", borderRadius: 10, padding: 12, background: "white" };
+const thumbnail: React.CSSProperties = { width: "100%", aspectRatio: "16/9", borderRadius: 8, objectFit: "cover", background: "var(--color-cream-300)" };
+const listEditor: React.CSSProperties = { display: "grid", gap: 12, borderTop: "1px solid var(--color-cream-500)", paddingTop: 16 };
+const empty: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, border: "1px dashed var(--color-cream-500)", borderRadius: 10, padding: 18, color: "var(--color-warm-400)", fontSize: 13 };
+const publicLink: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, color: "var(--color-emerald-900)", fontSize: 12, fontWeight: 800 };
+const skeleton: React.CSSProperties = { borderRadius: 12, padding: 28, background: "var(--color-cream-200)", color: "var(--color-warm-400)" };

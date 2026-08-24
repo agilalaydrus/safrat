@@ -29,6 +29,8 @@ func serviceError(method string, err error) error {
 		return connect.NewError(connect.CodeInvalidArgument, err)
 	case errors.Is(err, apperror.ErrFailedPrecondition):
 		return connect.NewError(connect.CodeFailedPrecondition, err)
+	case errors.Is(err, apperror.ErrConflict):
+		return connect.NewError(connect.CodeAborted, err)
 	case errors.Is(err, apperror.ErrForbidden):
 		return connect.NewError(connect.CodePermissionDenied, err)
 	case errors.Is(err, apperror.ErrUnauthorized):

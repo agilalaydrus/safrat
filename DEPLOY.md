@@ -229,13 +229,39 @@ XENDIT_WEBHOOK_TOKEN=...
 SENTRY_DSN=...
 NEXT_PUBLIC_SENTRY_DSN=...
 
-# Cloudflare R2 — reserved for future file storage (product images, PDF
-# exports); not read by any code path yet, nothing consumes these today.
-# R2_ACCOUNT_ID=...
-# R2_ACCESS_KEY_ID=...
-# R2_SECRET_ACCESS_KEY=...
-# R2_BUCKET_NAME=safrat-uploads
+# Storefront media on S3-compatible storage (Cloudflare R2 example). Create a
+# bucket API token limited to Object Read & Write for this bucket. The public
+# base should be an R2 custom domain or r2.dev URL; presigned PUT itself always
+# uses the S3 API endpoint.
+S3_ENDPOINT=https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com
+S3_REGION=auto
+S3_BUCKET=safrat-uploads
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+S3_PUBLIC_BASE_URL=https://assets.tawafiqhub.id
+S3_FORCE_PATH_STYLE=true
 ```
+
+Configure bucket CORS before enabling upload from the CMS. Only the apex needs
+upload permission because the authenticated dashboard lives there:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://tawafiqhub.id"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+The API signs both `Content-Type: image/webp` and the optimized byte length,
+uses random tenant-scoped object keys, and expires upload URLs after 10 minutes.
+Never expose `S3_SECRET_ACCESS_KEY` through a `NEXT_PUBLIC_*` variable. Add a
+bucket lifecycle rule for abandoned `storefront/` objects after the retention
+period chosen by the business; published assets must remain public-readable.
 
 Start services:
 

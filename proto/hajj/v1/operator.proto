@@ -29,6 +29,16 @@ service OperatorService {
   // only non-sensitive fields plus available (not-yet-ended) seasons. In
   // publicProcedures (auth.go) and rateLimitedProcedures (ratelimit.go).
   rpc GetPublicProfile(GetPublicProfileRequest) returns (GetPublicProfileResponse);
+  // Authenticated CMS endpoints. Draft writes never affect the public
+  // storefront until PublishMyStorefront atomically copies the current draft
+  // to the published snapshot.
+  rpc GetMyStorefront(GetMyStorefrontRequest) returns (StorefrontEditor);
+  rpc SaveMyStorefrontDraft(SaveMyStorefrontDraftRequest) returns (StorefrontEditor);
+  rpc PublishMyStorefront(PublishMyStorefrontRequest) returns (StorefrontEditor);
+  // Returns a short-lived, tenant-scoped PUT URL. The browser uploads the
+  // already-compressed WebP directly to S3-compatible storage.
+  rpc CreateStorefrontUpload(CreateStorefrontUploadRequest) returns (CreateStorefrontUploadResponse);
+  rpc ConfirmStorefrontUpload(ConfirmStorefrontUploadRequest) returns (ConfirmStorefrontUploadResponse);
 }
 
 message Operator {
@@ -101,6 +111,112 @@ message GetPublicProfileResponse {
   string hero_title = 15;
   string hero_subtitle = 16;
   string hero_image_url = 17;
+  StorefrontContent content = 18;
+}
+
+message StorefrontContent {
+  string display_name = 1 [(buf.validate.field).string.max_len = 120];
+  string logo_url = 2 [(buf.validate.field).string.max_len = 2048];
+  string description = 3 [(buf.validate.field).string.max_len = 1200];
+  string whatsapp_number = 4 [(buf.validate.field).string.max_len = 40];
+  string website = 5 [(buf.validate.field).string.max_len = 2048];
+  string address = 6 [(buf.validate.field).string.max_len = 300];
+  string city = 7 [(buf.validate.field).string.max_len = 120];
+  string brand_color = 8 [(buf.validate.field).string = {pattern: "^$|^#[0-9A-Fa-f]{6}$"}];
+  string hero_eyebrow = 9 [(buf.validate.field).string.max_len = 80];
+  string hero_title = 10 [(buf.validate.field).string.max_len = 120];
+  string hero_subtitle = 11 [(buf.validate.field).string.max_len = 240];
+  string hero_image_url = 12 [(buf.validate.field).string.max_len = 2048];
+  repeated StorefrontPackage packages = 13;
+  repeated StorefrontGalleryItem gallery = 14;
+  repeated StorefrontTestimonial testimonials = 15;
+  repeated StorefrontFaq faqs = 16;
+}
+
+message StorefrontPackage {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+  string image_url = 2 [(buf.validate.field).string.max_len = 2048];
+  string summary = 3 [(buf.validate.field).string.max_len = 300];
+  string price_label = 4 [(buf.validate.field).string.max_len = 80];
+  repeated string facilities = 5;
+  repeated StorefrontItineraryItem itinerary = 6;
+}
+
+message StorefrontItineraryItem {
+  string title = 1 [(buf.validate.field).string.max_len = 120];
+  string description = 2 [(buf.validate.field).string.max_len = 300];
+}
+
+message StorefrontGalleryItem {
+  string image_url = 1 [(buf.validate.field).string.max_len = 2048];
+  string alt_text = 2 [(buf.validate.field).string.max_len = 160];
+  string caption = 3 [(buf.validate.field).string.max_len = 160];
+}
+
+message StorefrontTestimonial {
+  string quote = 1 [(buf.validate.field).string.max_len = 360];
+  string name = 2 [(buf.validate.field).string.max_len = 100];
+  string role = 3 [(buf.validate.field).string.max_len = 120];
+}
+
+message StorefrontFaq {
+  string question = 1 [(buf.validate.field).string.max_len = 180];
+  string answer = 2 [(buf.validate.field).string.max_len = 600];
+}
+
+message GetMyStorefrontRequest {}
+
+message StorefrontEditor {
+  StorefrontContent content = 1;
+  repeated PublicSeasonSummary active_seasons = 2;
+  int64 draft_revision = 3;
+  int64 published_revision = 4;
+  google.protobuf.Timestamp published_at = 5;
+  string operator_name = 6;
+  string operator_slug = 7;
+  string license_number = 8;
+  string country = 9;
+}
+
+message SaveMyStorefrontDraftRequest {
+  StorefrontContent content = 1 [(buf.validate.field).required = true];
+  int64 expected_revision = 2 [(buf.validate.field).int64.gte = 0];
+}
+
+message PublishMyStorefrontRequest {
+  int64 expected_revision = 1 [(buf.validate.field).int64.gte = 0];
+}
+
+enum StorefrontAssetKind {
+  STOREFRONT_ASSET_KIND_UNSPECIFIED = 0;
+  STOREFRONT_ASSET_KIND_LOGO = 1;
+  STOREFRONT_ASSET_KIND_HERO = 2;
+  STOREFRONT_ASSET_KIND_GALLERY = 3;
+  STOREFRONT_ASSET_KIND_PACKAGE = 4;
+}
+
+message CreateStorefrontUploadRequest {
+  StorefrontAssetKind kind = 1 [(buf.validate.field).enum = {defined_only: true, not_in: [0]}];
+  int64 size_bytes = 2 [(buf.validate.field).int64 = {gt: 0, lte: 5242880}];
+}
+
+message CreateStorefrontUploadResponse {
+  string upload_url = 1;
+  // Reserved for wire compatibility. The usable URL is returned only by
+  // ConfirmStorefrontUpload after the uploaded object has been verified.
+  string public_url = 2;
+  string method = 3;
+  string content_type = 4;
+  google.protobuf.Timestamp expires_at = 5;
+  string object_key = 6;
+}
+
+message ConfirmStorefrontUploadRequest {
+  string object_key = 1 [(buf.validate.field).string = {min_len: 1, max_len: 300}];
+}
+
+message ConfirmStorefrontUploadResponse {
+  string public_url = 1;
 }
 
 message CreateOperatorRequest {

@@ -91,6 +91,58 @@ func (h *OperatorHandler) GetPublicProfile(ctx context.Context, req *connect.Req
 	return connect.NewResponse(result), nil
 }
 
+func (h *OperatorHandler) GetMyStorefront(ctx context.Context, _ *connect.Request[hajjv1.GetMyStorefrontRequest]) (*connect.Response[hajjv1.StorefrontEditor], error) {
+	result, err := h.operatorService.GetMyStorefront(ctx, middleware.OperatorIDFromCtx(ctx))
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *OperatorHandler) SaveMyStorefrontDraft(ctx context.Context, req *connect.Request[hajjv1.SaveMyStorefrontDraftRequest]) (*connect.Response[hajjv1.StorefrontEditor], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.operatorService.SaveMyStorefrontDraft(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *OperatorHandler) PublishMyStorefront(ctx context.Context, req *connect.Request[hajjv1.PublishMyStorefrontRequest]) (*connect.Response[hajjv1.StorefrontEditor], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.operatorService.PublishMyStorefront(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *OperatorHandler) CreateStorefrontUpload(ctx context.Context, req *connect.Request[hajjv1.CreateStorefrontUploadRequest]) (*connect.Response[hajjv1.CreateStorefrontUploadResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.operatorService.CreateStorefrontUpload(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *OperatorHandler) ConfirmStorefrontUpload(ctx context.Context, req *connect.Request[hajjv1.ConfirmStorefrontUploadRequest]) (*connect.Response[hajjv1.ConfirmStorefrontUploadResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.operatorService.ConfirmStorefrontUpload(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *OperatorHandler) ResolveOperatorSlug(ctx context.Context, req *connect.Request[hajjv1.ResolveOperatorSlugRequest]) (*connect.Response[hajjv1.ResolveOperatorSlugResponse], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

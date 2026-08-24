@@ -44,3 +44,25 @@ func TestStorefrontBrandingMigrationProtectsPublicInput(t *testing.T) {
 		}
 	}
 }
+
+func TestStorefrontCMSMigrationSeparatesDraftAndPublishedSnapshots(t *testing.T) {
+	t.Parallel()
+
+	contents, err := os.ReadFile("../migrations/082_operator_storefront_cms.sql")
+	if err != nil {
+		t.Fatalf("read CMS migration: %v", err)
+	}
+	migration := string(contents)
+	for _, contract := range []string{
+		"operator_storefronts",
+		"draft              JSONB",
+		"published          JSONB",
+		"draft_revision",
+		"published_revision",
+		"REFERENCES operators(id) ON DELETE CASCADE",
+	} {
+		if !strings.Contains(migration, contract) {
+			t.Errorf("storefront CMS migration must contain %q", contract)
+		}
+	}
+}

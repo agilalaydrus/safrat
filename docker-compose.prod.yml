@@ -31,6 +31,20 @@ services:
       FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON}
       XENDIT_SECRET_KEY: ${XENDIT_SECRET_KEY}
       XENDIT_WEBHOOK_TOKEN: ${XENDIT_WEBHOOK_TOKEN}
+      # Direct browser upload. Configure either the generic S3_* values or
+      # their R2_* aliases in .env.prod. Secrets are consumed by API only.
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
+      R2_BUCKET_NAME: ${R2_BUCKET_NAME}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL}
       # Shared monitoring event bus, operator cache invalidation, and public
       # endpoint rate limiter. Required for consistent multi-replica behavior.
       REDIS_URL: redis://redis:6379

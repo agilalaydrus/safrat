@@ -1,7 +1,7 @@
 # Handoff Notes
 
 > Working state + prioritized roadmap for the next agent. Point-in-time snapshot
-> (2026-08-24). Verify against current code before trusting any file:line.
+> (2026-08-25). Verify against current code before trusting any file:line.
 
 ## Owner workflow preferences
 
@@ -14,6 +14,34 @@
 
 ## Continuation after this snapshot
 
+- The tenant storefront now has a full CMS in Dashboard Settings with separate
+  draft and published JSON snapshots, optimistic revision checks, authenticated
+  preview, and an atomic publish operation. Public tenant pages only read the
+  published snapshot, while preview uses the exact same renderer as production.
+  Operators can edit brand/hero/contact content, package photos and descriptions,
+  facilities, itinerary, gallery with required alt text, testimonials, and FAQ.
+  Package choices remain tied to active operational seasons, so CMS content cannot
+  invent or duplicate a season.
+- Storefront media uploads now go directly from the browser to an S3-compatible
+  bucket through a tenant-scoped, 10-minute presigned PUT. The browser redraws
+  images to strip metadata, resizes them, and creates WebP before upload; the API
+  then HEADs, downloads, signature-checks, fully decodes, and dimension-checks the
+  object before returning its usable public URL. Local development uses MinIO on
+  `:9000` (console `:9001`) with tested browser CORS. Production still needs the
+  documented R2/S3 bucket, credentials, public base URL, CORS, and abandoned-object
+  lifecycle configured before deployment.
+- Migration 082 creates `operator_storefronts` and seeds every existing operator's
+  legacy public profile into draft and published revision 1. The migration is
+  applied locally. Repository integration tests prove draft isolation, atomic
+  publish, and stale-tab conflicts; storage integration tests prove real presign,
+  CORS preflight, WebP upload, verification, and cleanup against MinIO. The QA
+  fixture cleanup ordering was corrected and the local database is empty again.
+- The rich tenant renderer keeps TawafiqHub attribution and adds package details,
+  itinerary, gallery, testimonial, and FAQ sections while retaining brand-driven
+  light/dark styling. Local tenant-host smoke testing returned HTTP 200 and found
+  all representative CMS sections in server-rendered HTML. In-app browser
+  automation was unavailable in this session, so a signed-in visual interaction
+  pass for CMS editing/upload/preview remains recommended.
 - The tenant subdomain root is now a full white-label travel storefront rather
   than a compact public-profile card. Migration 081 adds one brand color plus
   editable hero eyebrow/title/subtitle/image fields; the existing operator
@@ -128,7 +156,7 @@
   and rebuilt by CI — never commit it. `apps/web/tsconfig.tsbuildinfo` and
   untracked scratch `*.md` / media are also excluded.
 - **Local dev DB was wiped clean** (all rows truncated, schema kept) for fresh
-  manual testing. Migrations **073–080 are applied locally**; in prod goose
+  manual testing. Migrations **073–082 are applied locally**; in prod goose
   applies them on deploy.
 - Local processes: web dev on `:3131`; Go API on `:8131`. Both are expected to
   be restarted from current source after the latest local commit.

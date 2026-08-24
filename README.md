@@ -29,9 +29,15 @@ go run ./cmd/worker
 Copy `.env.example` to `.env`, set `BETTER_AUTH_SECRET`, then start PostgreSQL and Redis and apply migrations:
 
 ```bash
-docker compose up -d postgres redis
+docker compose up -d postgres redis minio minio-init
 goose -dir apps/api/db/migrations postgres "$DATABASE_URL" up
 ```
+
+For the storefront CMS, export the `S3_*` values from `.env.example` before
+starting the API. MinIO runs at `http://localhost:9000`, its console is at
+`http://localhost:9001`, and the init container creates the public-read
+`safrat-uploads` bucket. Production media should use a dedicated S3-compatible
+bucket and public asset domain, not these local credentials.
 
 The Go API fails closed unless `DATABASE_URL`, `BETTER_AUTH_SECRET`, and `CORS_ALLOWED_ORIGIN` are configured. `cmd/worker` additionally requires `REDIS_URL` and periodically recalculates agent tiers (Bronze/Silver/Gold) from referred pilgrim counts — it does not compute payouts, which need order data that doesn't exist yet.
 

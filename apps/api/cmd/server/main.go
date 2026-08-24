@@ -23,6 +23,7 @@ import (
 	"github.com/hajj-saas/api/internal/payment"
 	"github.com/hajj-saas/api/internal/repository"
 	"github.com/hajj-saas/api/internal/service"
+	"github.com/hajj-saas/api/internal/storage"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 )
@@ -112,6 +113,16 @@ func main() {
 		outboxRepository := repository.NewOutboxRepository(queries)
 		monitoringRepository := repository.NewMonitoringRepository(queries)
 		analyticsRepository := repository.NewAnalyticsRepository(queries)
+		storefrontRepository := repository.NewStorefrontRepository(pool)
+
+		objectStorage, storageErr := storage.New(ctx, storage.Config{
+			Endpoint: config.S3Endpoint, Region: config.S3Region, Bucket: config.S3Bucket,
+			AccessKeyID: config.S3AccessKeyID, SecretAccessKey: config.S3SecretAccessKey,
+			PublicBaseURL: config.S3PublicBaseURL, ForcePathStyle: config.S3ForcePathStyle,
+		})
+		if storageErr != nil {
+			logger.Warn("storefront object storage disabled", "error", storageErr)
+		}
 
 		firebasePusher, err := notification.NewFirebasePusher(ctx, logger, config.FirebaseServiceAccountJSON, notificationRepository)
 		if err != nil {
@@ -134,7 +145,7 @@ func main() {
 			logger.Info("event bus backend", "type", "in-memory", "note", "single instance only")
 		}
 
-		operatorService := service.NewOperatorService(operatorRepository, seasonRepository)
+		operatorService := service.NewOperatorService(operatorRepository, seasonRepository, storefrontRepository, objectStorage)
 		pilgrimService := service.NewPilgrimService(operatorRepository, pilgrimRepository, accommodationRepository, transportRepository, auditRepository, pool)
 		seasonService := service.NewSeasonService(operatorRepository, seasonRepository, auditRepository, analyticsRepository, monitoringRepository)
 		accommodationService := service.NewAccommodationService(operatorRepository, pilgrimRepository, accommodationRepository, auditRepository)
