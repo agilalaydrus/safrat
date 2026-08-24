@@ -37,7 +37,9 @@
 - Landing hero messaging now sells one end-to-end operational control surface
   from Indonesia to Saudi, with gold-gradient emphasis and off-white dark-mode
   headings. FAQ dark mode separates active questions in warm gold from muted
-  slate answers. Footer office coverage is DKI Jakarta and Kota Bekasi.
+  slate answers using unlayered semantic CSS, avoiding the Tailwind cascade
+  issue that left accordion cards white. Footer office coverage is DKI Jakarta
+  and Kota Bekasi.
 - Season creation is idempotent and protected at three layers: synchronous UI
   submit locks, backend exact-retry upsert, and a unique normalized season name
   per operator. Migrations 077–078 safely remove empty duplicates. Same-name
@@ -51,7 +53,7 @@
 
 ## Repo / deploy state
 
-- **14 commits sit on local `main`, NOT pushed** after the FAQ dark-mode work
+- **15 commits sit on local `main`, NOT pushed** after the FAQ cascade fix
   in the current work (see `git log origin/main..main`).
   **Pushing `main` triggers a production deploy** (`.github/workflows/deploy.yml`
   → builds images, runs goose migrations, redeploys `app.tawafiqhub.id`). The

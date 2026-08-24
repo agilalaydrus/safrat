@@ -23,31 +23,24 @@ export default function Faq() {
           {FAQ_ITEMS.map((item, idx) => (
             <div
               key={item.q}
-              className={`overflow-hidden rounded-2xl border bg-white shadow-sm transition-colors dark:bg-slate-950 ${
-                openFaq === idx
-                  ? "border-amber-200 dark:border-amber-800/60"
-                  : "border-slate-200 dark:border-slate-800"
-              }`}
+              data-open={openFaq === idx}
+              className="landing-faq-card overflow-hidden rounded-2xl border shadow-sm transition-colors"
             >
               <button
                 type="button"
                 onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
                 aria-expanded={openFaq === idx}
-                className={`flex w-full items-center justify-between gap-4 p-5 text-left text-sm font-bold transition-colors sm:text-base ${
-                  openFaq === idx
-                    ? "bg-amber-50/60 text-amber-900 dark:bg-amber-950/20 dark:text-amber-200"
-                    : "text-slate-900 hover:text-amber-800 dark:text-slate-200 dark:hover:text-amber-300"
-                }`}
+                className="landing-faq-question flex w-full items-center justify-between gap-4 p-5 text-left text-sm font-bold transition-colors sm:text-base"
               >
                 <span>{item.q}</span>
                 {openFaq === idx ? (
-                  <ChevronUp className="h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-300" />
+                  <ChevronUp className="landing-faq-chevron landing-faq-chevron-open h-5 w-5 flex-shrink-0" />
                 ) : (
-                  <ChevronDown className="h-5 w-5 flex-shrink-0 text-slate-400 dark:text-slate-500" />
+                  <ChevronDown className="landing-faq-chevron h-5 w-5 flex-shrink-0" />
                 )}
               </button>
               {openFaq === idx && (
-                <div className="border-t border-amber-100 px-5 pb-5 pt-3 text-xs leading-relaxed text-slate-600 sm:text-sm dark:border-amber-900/40 dark:text-slate-400">
+                <div className="landing-faq-answer border-t px-5 pb-5 pt-3 text-xs leading-relaxed sm:text-sm">
                   {item.a}
                 </div>
               )}
