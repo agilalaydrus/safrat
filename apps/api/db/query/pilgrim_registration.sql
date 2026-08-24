@@ -21,12 +21,15 @@ WHERE id = $1 AND operator_id = $2
 RETURNING *;
 
 -- name: GetOperatorSeasonForRegistration :one
--- Dipakai untuk validasi public form: cek apakah operator+season aktif menerima pendaftaran
+-- Public storefronts list every operator-owned season that has not ended yet.
+-- Keep form validation on that same availability rule: is_active selects the
+-- operator's current operational season and must not close registration for
+-- other future packages that are still publicly advertised.
 SELECT o.id AS operator_id, o.name AS operator_name,
        s.id AS season_id, s.name AS season_name, s.is_active
 FROM operators o
 JOIN seasons s ON s.operator_id = o.id
-WHERE o.id = $1 AND s.id = $2 AND s.is_active = true;
+WHERE o.id = $1 AND s.id = $2 AND s.end_date >= NOW();
 
 -- name: ListActiveProductsForRegistration :many
 SELECT id, name FROM products

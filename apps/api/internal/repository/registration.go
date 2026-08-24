@@ -94,10 +94,12 @@ func (r *RegistrationRepository) UpdateStatus(ctx context.Context, operatorID, r
 	return toRegistration(row), nil
 }
 
-// GetOperatorSeasonInfo validates that operatorID+seasonID form a real,
-// currently-active season before the public registration form is shown or
-// accepted — a stale/inactive/mismatched pair is treated as not found, not
-// as a 500, since this is reachable by anyone with the link.
+// GetOperatorSeasonInfo validates that operatorID+seasonID form a real season
+// which has not ended before the public registration form is shown or
+// accepted. is_active identifies the current operational season; it does not
+// close registration for other future packages advertised by the storefront.
+// A stale/ended/mismatched pair is treated as not found, not as a 500, since
+// this is reachable by anyone with the link.
 func (r *RegistrationRepository) GetOperatorSeasonInfo(ctx context.Context, operatorID, seasonID string) (operatorName, seasonName string, err error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
