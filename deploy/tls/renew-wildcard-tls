@@ -25,11 +25,19 @@ fi
 # lego's Hostinger provider reads the token content from this root-only file.
 # The token itself never appears in process arguments or the service unit.
 export HOSTINGER_API_TOKEN_FILE="${token_file}"
+# systemd-resolved's local stub (127.0.0.53) can retain a negative TXT answer
+# longer than Hostinger needs to publish a fresh ACME record. Query two public
+# recursive resolvers directly and give Hostinger's authoritative DNS enough
+# time to converge before treating issuance as failed.
+export HOSTINGER_PROPAGATION_TIMEOUT="${HOSTINGER_PROPAGATION_TIMEOUT:-600}"
+export HOSTINGER_POLLING_INTERVAL="${HOSTINGER_POLLING_INTERVAL:-5}"
 
 /usr/local/bin/lego run \
   --accept-tos \
   --email "${acme_email}" \
   --dns hostinger \
+  --dns.resolvers 1.1.1.1:53 \
+  --dns.resolvers 8.8.8.8:53 \
   --domains tawafiqhub.id \
   --domains '*.tawafiqhub.id' \
   --cert.name tawafiqhub.id \
