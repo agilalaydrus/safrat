@@ -157,8 +157,11 @@ jobs:
               -e PGUSER=safrat \
               -e PGPASSWORD="${POSTGRES_PASSWORD}" \
               -e PGDATABASE=safrat \
+              -e BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET}" \
+              -e BETTER_AUTH_URL="https://app.tawafiqhub.id" \
+              -e NEXT_PUBLIC_APP_URL="https://app.tawafiqhub.id" \
               node:20-alpine \
-              sh -c 'apk add --no-cache python3 make g++ && corepack enable && corepack prepare pnpm@9 --activate && pnpm install --frozen-lockfile --config.node-linker=hoisted && cd apps/web && npx @better-auth/cli@1.4.21 migrate --yes'
+              sh -c 'apk add --no-cache python3 make g++ && corepack enable && corepack prepare pnpm@9 --activate && pnpm install --frozen-lockfile --config.node-linker=hoisted && cd apps/web && npx auth@1.6.28 migrate --yes'
 
             # Run goose migrations before restarting API
             docker run --rm \
