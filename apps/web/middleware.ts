@@ -174,5 +174,8 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icons|manifest.json|sw.js).*)"],
+  // Keep public image assets out of tenant/auth routing. Without this,
+  // /images/* is treated as an application page on a tenant subdomain and
+  // redirects to /sign-in instead of returning the actual image file.
+  matcher: ["/((?!_next/static|_next/image|images|favicon.ico|icons|manifest.json|sw.js).*)"],
 };
