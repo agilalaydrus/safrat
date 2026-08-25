@@ -114,6 +114,23 @@ message GetPublicProfileResponse {
   StorefrontContent content = 18;
 }
 
+message StorefrontTheme {
+  string accent_color = 1 [(buf.validate.field).string = {pattern: "^$|^#[0-9A-Fa-f]{6}$"}];
+  string secondary_color = 2 [(buf.validate.field).string = {pattern: "^$|^#[0-9A-Fa-f]{6}$"}];
+  string light_background_color = 3 [(buf.validate.field).string = {pattern: "^$|^#[0-9A-Fa-f]{6}$"}];
+  string light_surface_color = 4 [(buf.validate.field).string = {pattern: "^$|^#[0-9A-Fa-f]{6}$"}];
+  string light_heading_color = 5 [(buf.validate.field).string = {pattern: "^$|^#[0-9A-Fa-f]{6}$"}];
+  string light_body_color = 6 [(buf.validate.field).string = {pattern: "^$|^#[0-9A-Fa-f]{6}$"}];
+  string light_muted_color = 7 [(buf.validate.field).string = {pattern: "^$|^#[0-9A-Fa-f]{6}$"}];
+  string dark_background_color = 8 [(buf.validate.field).string = {pattern: "^$|^#[0-9A-Fa-f]{6}$"}];
+  string dark_surface_color = 9 [(buf.validate.field).string = {pattern: "^$|^#[0-9A-Fa-f]{6}$"}];
+  string dark_heading_color = 10 [(buf.validate.field).string = {pattern: "^$|^#[0-9A-Fa-f]{6}$"}];
+  string dark_body_color = 11 [(buf.validate.field).string = {pattern: "^$|^#[0-9A-Fa-f]{6}$"}];
+  string dark_muted_color = 12 [(buf.validate.field).string = {pattern: "^$|^#[0-9A-Fa-f]{6}$"}];
+  string hero_heading_color = 13 [(buf.validate.field).string = {pattern: "^$|^#[0-9A-Fa-f]{6}$"}];
+  string hero_body_color = 14 [(buf.validate.field).string = {pattern: "^$|^#[0-9A-Fa-f]{6}$"}];
+}
+
 message StorefrontContent {
   string display_name = 1 [(buf.validate.field).string.max_len = 120];
   string logo_url = 2 [(buf.validate.field).string.max_len = 2048];
@@ -151,6 +168,9 @@ message StorefrontContent {
   string map_url = 31 [(buf.validate.field).string.max_len = 2048];
   string manager_whatsapp = 32 [(buf.validate.field).string.max_len = 40];
   repeated string trust_badges = 33;
+  // Semantic colors keep headings, body copy, and secondary text independently
+  // legible in both modes while preserving brand customization.
+  StorefrontTheme theme = 34;
 }
 
 message StorefrontPackage {

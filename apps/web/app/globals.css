@@ -59,14 +59,33 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; font-weight: 5
 .landing-scope :is(h1, h2, h3, h4) { font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif; }
 .tenant-scope {
   --tenant-brand: #059669;
+  --tenant-secondary: #07825f;
   --tenant-brand-text: #f8fafc;
-  --tenant-brand-soft: color-mix(in srgb, var(--tenant-brand) 11%, #f8fafc);
-  --tenant-brand-muted: color-mix(in srgb, var(--tenant-brand) 24%, #f8fafc);
-  --tenant-brand-strong: color-mix(in srgb, var(--tenant-brand) 78%, #0f172a);
+  --tenant-light-bg: #f7f8f5;
+  --tenant-light-surface: #ffffff;
+  --tenant-light-heading: #142019;
+  --tenant-light-body: #46544b;
+  --tenant-light-muted: #66736b;
+  --tenant-dark-bg: #07110d;
+  --tenant-dark-surface: #101b16;
+  --tenant-dark-heading: #f5f1e8;
+  --tenant-dark-body: #c5cec8;
+  --tenant-dark-muted: #89968e;
+  --tenant-hero-heading: #fffdf7;
+  --tenant-hero-body: #d8e0db;
+  --tenant-page-bg: var(--tenant-light-bg);
+  --tenant-surface: var(--tenant-light-surface);
+  --tenant-heading: var(--tenant-light-heading);
+  --tenant-body: var(--tenant-light-body);
+  --tenant-muted: var(--tenant-light-muted);
+  --tenant-border: color-mix(in srgb, var(--tenant-heading) 14%, var(--tenant-surface));
+  --tenant-brand-soft: color-mix(in srgb, var(--tenant-brand) 11%, var(--tenant-surface));
+  --tenant-brand-muted: color-mix(in srgb, var(--tenant-brand) 24%, var(--tenant-surface));
+  --tenant-brand-strong: color-mix(in srgb, var(--tenant-brand) 78%, var(--tenant-heading));
   min-height: 100dvh;
   overflow-x: hidden;
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--tenant-page-bg);
+  color: var(--tenant-body);
   font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif;
 }
 .tenant-scope :is(h1, h2, h3, h4) { font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif; }
@@ -81,10 +100,16 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; font-weight: 5
   font-weight: 800;
 }
 .dark .tenant-scope {
-  --tenant-brand-soft: color-mix(in srgb, var(--tenant-brand) 14%, #020617);
-  --tenant-brand-muted: color-mix(in srgb, var(--tenant-brand) 28%, #020617);
-  background: #020617;
-  color: #e2e8f0;
+  --tenant-page-bg: var(--tenant-dark-bg);
+  --tenant-surface: var(--tenant-dark-surface);
+  --tenant-heading: var(--tenant-dark-heading);
+  --tenant-body: var(--tenant-dark-body);
+  --tenant-muted: var(--tenant-dark-muted);
+  --tenant-border: color-mix(in srgb, var(--tenant-heading) 15%, var(--tenant-surface));
+  --tenant-brand-soft: color-mix(in srgb, var(--tenant-brand) 14%, var(--tenant-page-bg));
+  --tenant-brand-muted: color-mix(in srgb, var(--tenant-brand) 28%, var(--tenant-page-bg));
+  background: var(--tenant-page-bg);
+  color: var(--tenant-body);
 }
 .tenant-nav {
   position: sticky;
@@ -168,24 +193,96 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; font-weight: 5
 .dark .tenant-secondary-cta { border-color: #334155; background: #0f172a; color: #e2e8f0; }
 .tenant-hero {
   position: relative;
+  display: grid;
+  min-height: min(780px, calc(100svh - 72px));
   overflow: hidden;
-  background:
-    radial-gradient(circle at 83% 18%, color-mix(in srgb, var(--tenant-brand) 17%, transparent), transparent 30%),
-    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  isolation: isolate;
+  background: var(--tenant-dark-bg);
 }
-.tenant-hero::before {
+.tenant-hero-backdrop,
+.tenant-hero-scrim {
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(to right, rgba(148, 163, 184, 0.11) 1px, transparent 1px), linear-gradient(to bottom, rgba(148, 163, 184, 0.11) 1px, transparent 1px);
-  background-size: 64px 64px;
-  mask-image: radial-gradient(circle at 75% 35%, #020617 0%, transparent 66%);
-  content: "";
+  width: 100%;
+  height: 100%;
+}
+.tenant-hero-backdrop {
+  z-index: -3;
+  object-fit: cover;
+  object-position: center 48%;
+  transform: scale(1.015);
+}
+.tenant-hero-scrim {
+  z-index: -2;
+  background:
+    linear-gradient(180deg, rgba(3, 12, 8, .42) 0%, rgba(3, 12, 8, .64) 58%, rgba(3, 12, 8, .82) 100%),
+    radial-gradient(circle at 50% 42%, rgba(3, 12, 8, .08) 0%, rgba(3, 12, 8, .46) 72%);
   pointer-events: none;
 }
-.dark .tenant-hero {
-  background:
-    radial-gradient(circle at 83% 18%, color-mix(in srgb, var(--tenant-brand) 20%, transparent), transparent 32%),
-    linear-gradient(180deg, #020617 0%, #0f172a 100%);
+.tenant-hero-content {
+  width: 100%;
+  min-height: min(780px, calc(100svh - 72px));
+}
+.tenant-hero-copy { color: var(--tenant-hero-body); }
+.tenant-hero-copy h1 {
+  color: var(--tenant-hero-heading);
+  font-family: 'Playfair Display', Georgia, serif;
+  text-wrap: balance;
+  text-shadow: 0 4px 28px rgba(0, 0, 0, .38);
+}
+.tenant-hero-copy > p:not(.tenant-eyebrow) {
+  color: var(--tenant-hero-body);
+  text-wrap: pretty;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, .42);
+}
+.tenant-hero .tenant-eyebrow {
+  border-color: color-mix(in srgb, var(--tenant-brand) 60%, rgba(255, 255, 255, .3));
+  background: rgba(4, 16, 11, .62);
+  color: color-mix(in srgb, var(--tenant-brand) 72%, #fff7d6);
+  backdrop-filter: blur(10px);
+}
+.tenant-hero-secondary {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, .46);
+  border-radius: 12px;
+  background: rgba(4, 16, 11, .48);
+  padding: 0 18px;
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 800;
+  backdrop-filter: blur(12px);
+  transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+.tenant-hero-secondary:hover {
+  border-color: rgba(255, 255, 255, .72);
+  background: rgba(4, 16, 11, .66);
+  transform: translateY(-1px);
+}
+.tenant-hero-assurance {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 24px;
+  color: rgba(248, 250, 252, .82);
+  text-align: left;
+}
+.tenant-hero-assurance > span { display: grid; gap: 1px; }
+.tenant-hero-assurance strong { color: var(--tenant-hero-heading); font-size: 12px; }
+.tenant-hero-assurance small { color: var(--tenant-hero-body); font-size: 11px; opacity: .78; }
+.tenant-hero-assurance svg { color: var(--tenant-brand); }
+.tenant-hero::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: -1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--tenant-brand) 70%, transparent), transparent);
+  content: "";
 }
 .tenant-eyebrow {
   display: inline-flex;
@@ -202,47 +299,6 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; font-weight: 5
   text-transform: uppercase;
 }
 .dark .tenant-eyebrow { color: color-mix(in srgb, var(--tenant-brand) 64%, #f8fafc); }
-.tenant-hero-media {
-  position: relative;
-  z-index: 1;
-  min-height: 460px;
-  max-height: 690px;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--tenant-brand) 20%, #cbd5e1);
-  border-radius: 24px;
-  aspect-ratio: 4 / 5;
-  background: #e2e8f0;
-  box-shadow: 0 30px 70px color-mix(in srgb, var(--tenant-brand) 13%, rgba(15, 23, 42, 0.18));
-}
-.dark .tenant-hero-media { border-color: color-mix(in srgb, var(--tenant-brand) 28%, #334155); background: #0f172a; }
-.tenant-hero-media::after {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, transparent 55%, rgba(2, 6, 23, 0.35));
-  content: "";
-  pointer-events: none;
-}
-.tenant-hero-badge {
-  position: absolute;
-  right: 18px;
-  bottom: 18px;
-  left: 18px;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border: 1px solid rgba(248, 250, 252, 0.34);
-  border-radius: 16px;
-  background: rgba(2, 6, 23, 0.72);
-  padding: 14px 16px;
-  color: #f8fafc;
-  box-shadow: inset 0 1px 0 rgba(248, 250, 252, 0.12);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-.tenant-hero-badge > span { display: grid; gap: 1px; }
-.tenant-hero-badge strong { font-size: 13px; }
-.tenant-hero-badge small { color: #cbd5e1; font-size: 11px; }
 .tenant-proof { border-block: 1px solid #e2e8f0; background: #f8fafc; }
 .dark .tenant-proof { border-color: #1e293b; background: #020617; }
 .tenant-proof-item { display: flex; min-width: 0; align-items: center; gap: 12px; color: var(--tenant-brand-strong); }
@@ -454,7 +510,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; font-weight: 5
   box-shadow: 0 24px 60px color-mix(in srgb, var(--tenant-brand) 22%, rgba(15, 23, 42, 0.14));
 }
 .tenant-contact h2 { color: inherit; }
-.tenant-contact-cta { border: 1px solid color-mix(in srgb, var(--tenant-brand-text) 18%, transparent); background: var(--tenant-brand-text); color: var(--tenant-brand-strong); }
+.tenant-contact-cta { border: 1px solid color-mix(in srgb, var(--tenant-brand-text) 18%, transparent); background: var(--tenant-brand-text); color: var(--tenant-brand); }
 .tenant-contact-ghost { border: 1px solid color-mix(in srgb, var(--tenant-brand-text) 48%, transparent); background: transparent; color: var(--tenant-brand-text); }
 .tenant-powered { color: #64748b; }
 .tenant-powered strong { color: var(--tenant-brand-strong); }
@@ -528,14 +584,117 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; font-weight: 5
 .dark .tenant-access-options article, .dark .tenant-access-footer { border-color: #334155; }
 .dark .tenant-access-options h3 { color: #f1f5f9; }
 .dark .tenant-access-close { color: #cbd5e1; }
+
+/* Semantic tenant theme. These late overrides keep every text role independent
+   without changing the established section layout below the hero. */
+.tenant-nav {
+  border-color: var(--tenant-border);
+  background: color-mix(in srgb, var(--tenant-surface) 94%, transparent);
+}
+.dark .tenant-nav { border-color: var(--tenant-border); background: color-mix(in srgb, var(--tenant-surface) 94%, transparent); }
+.tenant-nav :is(strong, .text-slate-950, .dark\:text-slate-100) { color: var(--tenant-heading); }
+.tenant-nav :is(.text-slate-500, .dark\:text-slate-400) { color: var(--tenant-muted); }
+.tenant-nav nav, .tenant-login-link { color: var(--tenant-body); }
+.dark .tenant-login-link { color: var(--tenant-body); }
+.tenant-icon-button, .tenant-secondary-cta {
+  border-color: var(--tenant-border);
+  background: var(--tenant-surface);
+  color: var(--tenant-body);
+}
+.dark :is(.tenant-icon-button, .tenant-secondary-cta) { border-color: var(--tenant-border); background: var(--tenant-surface); color: var(--tenant-body); }
+.tenant-proof,
+.tenant-trust-strip,
+.tenant-profile,
+.tenant-gallery-section,
+.tenant-editorial-hub,
+.tenant-testimonials,
+.tenant-faq,
+.tenant-about {
+  border-color: var(--tenant-border);
+  background: var(--tenant-page-bg);
+}
+.dark :is(.tenant-proof, .tenant-trust-strip, .tenant-profile, .tenant-gallery-section, .tenant-editorial-hub, .tenant-testimonials, .tenant-faq, .tenant-about) {
+  border-color: var(--tenant-border);
+  background: var(--tenant-page-bg);
+}
+.tenant-scope :is(.tenant-proof, .tenant-trust-strip, .tenant-profile, .tenant-section, .tenant-gallery-section, .tenant-editorial-hub, .tenant-about, .tenant-testimonials, .tenant-faq) :is(h2, h3, h4) { color: var(--tenant-heading); }
+.tenant-scope :is(.tenant-profile, .tenant-section, .tenant-editorial-hub, .tenant-about, .tenant-testimonials, .tenant-faq) p { color: var(--tenant-body); }
+.tenant-proof-item strong,
+.tenant-profile-legal strong,
+.tenant-package-row h3,
+.tenant-about-facts strong,
+.tenant-testimonial footer strong,
+.tenant-testimonial-featured footer strong,
+.tenant-faq summary { color: var(--tenant-heading); }
+.tenant-proof-item small,
+.tenant-trust-strip span,
+.tenant-profile-legal span,
+.tenant-package-index,
+.tenant-package-row p:not(.tenant-eyebrow),
+.tenant-package-meta,
+.tenant-package-facilities span,
+.tenant-season-option span,
+.tenant-gallery figcaption,
+.tenant-editorial-placeholder-link,
+.tenant-about-facts small,
+.tenant-testimonial footer span,
+.tenant-testimonial-featured footer span,
+.tenant-powered { color: var(--tenant-muted); }
+.dark :is(.tenant-proof-item strong, .tenant-profile-legal strong, .tenant-package-row h3, .tenant-about-facts strong, .tenant-testimonial footer strong, .tenant-testimonial-featured footer strong, .tenant-faq summary) { color: var(--tenant-heading); }
+.dark :is(.tenant-proof-item small, .tenant-trust-strip span, .tenant-package-row p:not(.tenant-eyebrow), .tenant-package-facilities span, .tenant-season-option span, .tenant-gallery figcaption, .tenant-about-facts small, .tenant-testimonial footer span, .tenant-testimonial-featured footer span, .tenant-powered) { color: var(--tenant-muted); }
+.tenant-package-row,
+.tenant-package-expand > div,
+.tenant-profile-legal { border-color: var(--tenant-border); }
+.dark :is(.tenant-package-row, .tenant-package-expand > div, .tenant-profile-legal) { border-color: var(--tenant-border); }
+.tenant-article,
+.tenant-testimonial,
+.tenant-testimonial-featured,
+.tenant-faq details,
+.tenant-editorial-tabs,
+.tenant-seo-preview,
+.tenant-room-prices > span,
+.tenant-modal,
+.tenant-access-panel {
+  border-color: var(--tenant-border);
+  background: var(--tenant-surface);
+}
+.dark :is(.tenant-article, .tenant-testimonial, .tenant-testimonial-featured, .tenant-faq details, .tenant-editorial-tabs, .tenant-seo-preview, .tenant-room-prices > span, .tenant-modal, .tenant-access-panel) {
+  border-color: var(--tenant-border);
+  background: var(--tenant-surface);
+}
+.tenant-testimonial p,
+.tenant-testimonial-featured p,
+.tenant-faq details p,
+.tenant-room-prices > span,
+.tenant-access-intro,
+.tenant-access-options p,
+.tenant-access-footer { color: var(--tenant-body); }
+.dark :is(.tenant-testimonial, .tenant-testimonial-featured) p,
+.dark .tenant-faq details p,
+.dark .tenant-room-prices > span,
+.dark :is(.tenant-access-intro, .tenant-access-options p, .tenant-access-footer) { color: var(--tenant-body); }
+.tenant-access-panel :is(h2, h3) { color: var(--tenant-heading); }
+.tenant-access-panel { color: var(--tenant-body); }
+.tenant-contact :is(h2, p) { color: var(--tenant-brand-text); }
+.tenant-contact .tenant-eyebrow { border-color: color-mix(in srgb, var(--tenant-brand-text) 38%, transparent); background: color-mix(in srgb, var(--tenant-brand-text) 10%, transparent); color: var(--tenant-brand-text); }
+.tenant-footer {
+  border-color: color-mix(in srgb, var(--tenant-dark-heading) 14%, var(--tenant-dark-surface));
+  background: var(--tenant-dark-surface);
+  color: var(--tenant-dark-body);
+}
+.tenant-footer strong { color: var(--tenant-dark-heading); }
+.tenant-footer p { color: var(--tenant-dark-muted); }
+.tenant-footer a { color: color-mix(in srgb, var(--tenant-brand) 74%, var(--tenant-dark-heading)); }
+.tenant-proof-item svg, .tenant-trust-strip svg { color: var(--tenant-secondary); }
 @media (min-width: 768px) {
   .tenant-contact { flex-direction: row; align-items: center; padding: 48px; }
   .tenant-testimonial-featured { grid-row: span 2; align-content: center; padding: 36px; }
 }
 @media (max-width: 767px) {
-  .tenant-hero-media { min-height: 420px; max-height: 620px; border-radius: 18px; }
-  .tenant-proof-item + .tenant-proof-item { border-top: 1px solid #e2e8f0; padding-top: 18px; }
-  .dark .tenant-proof-item + .tenant-proof-item { border-color: #1e293b; }
+  .tenant-hero, .tenant-hero-content { min-height: min(700px, calc(100svh - 72px)); }
+  .tenant-hero-backdrop { object-position: center; }
+  .tenant-proof-item + .tenant-proof-item { border-top: 1px solid var(--tenant-border); padding-top: 18px; }
+  .dark .tenant-proof-item + .tenant-proof-item { border-color: var(--tenant-border); }
   .tenant-section { padding-block: 64px; }
   .tenant-gallery { grid-template-columns: 1fr; }
   .tenant-gallery-featured { grid-column: auto; }

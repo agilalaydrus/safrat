@@ -77,6 +77,23 @@ export type StorefrontArticle = {
   seoDescription?: string;
 };
 
+export type StorefrontTheme = {
+  accentColor?: string;
+  secondaryColor?: string;
+  lightBackgroundColor?: string;
+  lightSurfaceColor?: string;
+  lightHeadingColor?: string;
+  lightBodyColor?: string;
+  lightMutedColor?: string;
+  darkBackgroundColor?: string;
+  darkSurfaceColor?: string;
+  darkHeadingColor?: string;
+  darkBodyColor?: string;
+  darkMutedColor?: string;
+  heroHeadingColor?: string;
+  heroBodyColor?: string;
+};
+
 export type StorefrontContent = {
   displayName?: string;
   logoUrl?: string;
@@ -111,6 +128,7 @@ export type StorefrontContent = {
   mapUrl?: string;
   managerWhatsapp?: string;
   trustBadges?: string[];
+  theme?: StorefrontTheme;
 };
 
 export type StorefrontProfile = {
@@ -135,6 +153,22 @@ export type StorefrontProfile = {
 };
 
 const DEFAULT_BRAND_COLOR = "#059669";
+export const DEFAULT_STOREFRONT_THEME: Required<StorefrontTheme> = {
+  accentColor: "#d2a84b",
+  secondaryColor: "#07825f",
+  lightBackgroundColor: "#f7f8f5",
+  lightSurfaceColor: "#ffffff",
+  lightHeadingColor: "#142019",
+  lightBodyColor: "#46544b",
+  lightMutedColor: "#66736b",
+  darkBackgroundColor: "#07110d",
+  darkSurfaceColor: "#101b16",
+  darkHeadingColor: "#f5f1e8",
+  darkBodyColor: "#c5cec8",
+  darkMutedColor: "#89968e",
+  heroHeadingColor: "#fffdf7",
+  heroBodyColor: "#d8e0db",
+};
 const DEFAULT_HERO_IMAGE = "/images/tenant-editorial/makkah_madinah_panoramic_1787650211904.webp";
 const DEFAULT_GALLERY = [
   { imageUrl: "/images/tenant-editorial/hero_kaaba_candid_1787645070767.webp", altText: "Jamaah di pelataran Masjidil Haram", caption: "Pendampingan jamaah dimulai dari momen pertama di Tanah Suci." },
@@ -210,7 +244,24 @@ export default function TenantStorefront({ profile, preview = false }: { profile
   const address = content.address || profile.address;
   const city = content.city || profile.city;
   const description = content.description || profile.description;
-  const themeStyle = { "--tenant-brand": brandColor, "--tenant-brand-text": readableText(brandColor) } as CSSProperties;
+  const theme = resolveTheme(content.theme, brandColor);
+  const themeStyle = {
+    "--tenant-brand": theme.accentColor,
+    "--tenant-brand-text": readableText(theme.accentColor),
+    "--tenant-secondary": theme.secondaryColor,
+    "--tenant-light-bg": theme.lightBackgroundColor,
+    "--tenant-light-surface": theme.lightSurfaceColor,
+    "--tenant-light-heading": theme.lightHeadingColor,
+    "--tenant-light-body": theme.lightBodyColor,
+    "--tenant-light-muted": theme.lightMutedColor,
+    "--tenant-dark-bg": theme.darkBackgroundColor,
+    "--tenant-dark-surface": theme.darkSurfaceColor,
+    "--tenant-dark-heading": theme.darkHeadingColor,
+    "--tenant-dark-body": theme.darkBodyColor,
+    "--tenant-dark-muted": theme.darkMutedColor,
+    "--tenant-hero-heading": theme.heroHeadingColor,
+    "--tenant-hero-body": theme.heroBodyColor,
+  } as CSSProperties;
   const configuredTrustBadges = content.trustBadges?.filter(Boolean) ?? [];
   const trustBadges = configuredTrustBadges.length ? configuredTrustBadges : DEFAULT_TRUST_BADGES;
 
@@ -246,19 +297,18 @@ export default function TenantStorefront({ profile, preview = false }: { profile
         </header>
 
         <section id="beranda" className="tenant-hero scroll-mt-24">
-          <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 md:min-h-[calc(100dvh-72px)] md:grid-cols-[1.02fr_0.98fr] md:py-16 lg:gap-16 lg:px-8">
-            <div className="max-w-2xl">
+          <img src={heroImage} alt={`Perjalanan Umrah bersama ${name}`} className="tenant-hero-backdrop" fetchPriority="high" />
+          <div className="tenant-hero-scrim" aria-hidden="true" />
+          <div className="tenant-hero-content mx-auto flex max-w-7xl items-center justify-center px-4 py-14 text-center sm:px-6 lg:px-8">
+            <div className="tenant-hero-copy max-w-4xl">
               <p className="tenant-eyebrow">{heroEyebrow}</p>
-              <h1 className="mt-5 text-4xl font-black leading-[1.08] tracking-[-0.035em] text-slate-950 sm:text-5xl lg:text-6xl dark:text-slate-100">{heroTitle}</h1>
-              <p className="mt-6 max-w-xl text-base leading-7 text-slate-600 sm:text-lg dark:text-slate-300">{heroSubtitle}</p>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <h1 className="mt-5 text-4xl font-black leading-[1.06] tracking-[-0.035em] sm:text-5xl lg:text-6xl">{heroTitle}</h1>
+              <p className="mx-auto mt-6 max-w-2xl text-base leading-7 sm:text-lg">{heroSubtitle}</p>
+              <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
                 <a href="#paket" className="tenant-primary-cta">Lihat Paket <IconArrowRight size={18} stroke={1.9} /></a>
-                {whatsapp && <a href={whatsapp} target="_blank" rel="noreferrer" className="tenant-secondary-cta"><IconBrandWhatsapp size={18} stroke={1.9} /> Konsultasi WhatsApp</a>}
+                {whatsapp && <a href={whatsapp} target="_blank" rel="noreferrer" className="tenant-hero-secondary"><IconBrandWhatsapp size={18} stroke={1.9} /> Konsultasi WhatsApp</a>}
               </div>
-            </div>
-            <div className="tenant-hero-media">
-              <img src={heroImage} alt={`Perjalanan Umrah bersama ${name}`} className="h-full w-full object-cover" fetchPriority="high" />
-              <div className="tenant-hero-badge"><IconShieldCheck size={22} stroke={1.8} /><span><strong>Pendampingan terpercaya</strong><small>Dari persiapan hingga kepulangan</small></span></div>
+              <div className="tenant-hero-assurance"><IconShieldCheck size={20} stroke={1.8} /><span><strong>Pendampingan terpercaya</strong><small>Dari persiapan hingga kepulangan</small></span></div>
             </div>
           </div>
         </section>
@@ -353,3 +403,22 @@ function safeImageLink(raw?: string): string { if (!raw) return DEFAULT_HERO_IMA
 function safeOptionalImageLink(raw?: string): string | null { if (!raw) return null; if (raw.startsWith("/")) return raw; return safeWebLink(raw); }
 function formatMonthYear(iso?: string) { return iso ? new Date(iso).toLocaleDateString("id-ID", { month: "short", year: "numeric" }) : ""; }
 function readableText(hex: string) { const linear = (channel: number) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4; const luminance = linear(Number.parseInt(hex.slice(1, 3), 16) / 255) * 0.2126 + linear(Number.parseInt(hex.slice(3, 5), 16) / 255) * 0.7152 + linear(Number.parseInt(hex.slice(5, 7), 16) / 255) * 0.0722; return luminance > 0.179 ? "#0f172a" : "#f8fafc"; }
+function resolveTheme(value: StorefrontTheme | undefined, legacyBrand: string): Required<StorefrontTheme> {
+  const color = (candidate: string | undefined, fallback: string) => candidate && HEX_COLOR.test(candidate) ? candidate : fallback;
+  return {
+    accentColor: color(value?.accentColor, legacyBrand || DEFAULT_STOREFRONT_THEME.accentColor),
+    secondaryColor: color(value?.secondaryColor, DEFAULT_STOREFRONT_THEME.secondaryColor),
+    lightBackgroundColor: color(value?.lightBackgroundColor, DEFAULT_STOREFRONT_THEME.lightBackgroundColor),
+    lightSurfaceColor: color(value?.lightSurfaceColor, DEFAULT_STOREFRONT_THEME.lightSurfaceColor),
+    lightHeadingColor: color(value?.lightHeadingColor, DEFAULT_STOREFRONT_THEME.lightHeadingColor),
+    lightBodyColor: color(value?.lightBodyColor, DEFAULT_STOREFRONT_THEME.lightBodyColor),
+    lightMutedColor: color(value?.lightMutedColor, DEFAULT_STOREFRONT_THEME.lightMutedColor),
+    darkBackgroundColor: color(value?.darkBackgroundColor, DEFAULT_STOREFRONT_THEME.darkBackgroundColor),
+    darkSurfaceColor: color(value?.darkSurfaceColor, DEFAULT_STOREFRONT_THEME.darkSurfaceColor),
+    darkHeadingColor: color(value?.darkHeadingColor, DEFAULT_STOREFRONT_THEME.darkHeadingColor),
+    darkBodyColor: color(value?.darkBodyColor, DEFAULT_STOREFRONT_THEME.darkBodyColor),
+    darkMutedColor: color(value?.darkMutedColor, DEFAULT_STOREFRONT_THEME.darkMutedColor),
+    heroHeadingColor: color(value?.heroHeadingColor, DEFAULT_STOREFRONT_THEME.heroHeadingColor),
+    heroBodyColor: color(value?.heroBodyColor, DEFAULT_STOREFRONT_THEME.heroBodyColor),
+  };
+}
