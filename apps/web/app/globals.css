@@ -461,6 +461,47 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; font-weight: 5
 .dark .tenant-powered { color: #94a3b8; }
 .dark .tenant-powered strong { color: color-mix(in srgb, var(--tenant-brand) 68%, #f8fafc); }
 .tenant-scope :is(a, button):focus-visible { outline: 3px solid color-mix(in srgb, var(--tenant-brand) 52%, transparent); outline-offset: 3px; }
+/* Editorial tenant landing template */
+.tenant-room-prices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.tenant-room-prices > span { display: grid; gap: 2px; min-width: 112px; border: 1px solid color-mix(in srgb, var(--tenant-brand) 18%, #cbd5e1); border-radius: 10px; background: rgba(255, 255, 255, .62); padding: 8px 10px; color: #334155; font-size: 12px; }
+.tenant-room-prices b { color: var(--tenant-brand-strong); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.dark .tenant-room-prices > span { border-color: #334155; background: #0f172a; color: #cbd5e1; }
+.tenant-profile { border-block: 1px solid #e2e8f0; background: #fff; }
+.dark .tenant-profile { border-color: #1e293b; background: #020617; }
+.tenant-profile-visual { position: relative; min-height: 340px; overflow: hidden; border-radius: 22px; background: #e2e8f0; }
+.tenant-profile-visual img { width: 100%; height: 100%; min-height: 340px; object-fit: cover; }
+.tenant-profile-visual::after { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 38%, rgba(2, 6, 23, .78)); content: ""; }
+.tenant-profile-visual > div { position: absolute; right: 22px; bottom: 22px; left: 22px; z-index: 1; display: grid; gap: 5px; color: #fff; }
+.tenant-profile-visual span { color: #d1fae5; font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.tenant-profile-visual strong { max-width: 28ch; font-size: 22px; line-height: 1.15; }
+.tenant-profile-legal { display: grid; gap: 10px; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+.tenant-profile-legal > div { display: grid; gap: 3px; }
+.tenant-profile-legal span { color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.tenant-profile-legal strong { color: #0f172a; font-size: 14px; }
+.dark .tenant-profile-legal { border-color: #334155; }
+.dark .tenant-profile-legal strong { color: #e2e8f0; }
+.tenant-editorial-hub { border-block: 1px solid #e2e8f0; background: #f8fafc; }
+.dark .tenant-editorial-hub { border-color: #1e293b; background: #020617; }
+.tenant-editorial-tabs { display: inline-flex; width: fit-content; gap: 4px; border: 1px solid #cbd5e1; border-radius: 999px; background: #fff; padding: 4px; }
+.tenant-editorial-tabs button { border: 0; border-radius: 999px; background: transparent; padding: 9px 13px; color: #64748b; font-size: 12px; font-weight: 800; cursor: pointer; }
+.tenant-editorial-tabs button.is-active { background: var(--tenant-brand); color: var(--tenant-brand-text); }
+.dark .tenant-editorial-tabs { border-color: #334155; background: #0f172a; }
+.tenant-editorial-grid { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 24px; align-items: start; }
+.tenant-editorial-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.tenant-editorial-placeholder-link { display: inline-flex; margin-top: 20px; color: #64748b; font-size: 13px; font-weight: 800; }
+.tenant-seo-preview { position: sticky; top: 100px; border: 1px solid #cbd5e1; border-radius: 16px; background: #fff; padding: 18px; box-shadow: 0 14px 36px rgba(15, 23, 42, .06); }
+.tenant-seo-label { display: inline-flex; border-radius: 999px; background: var(--tenant-brand-soft); padding: 5px 9px; color: var(--tenant-brand-strong); font-size: 10px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
+.tenant-seo-url { margin-top: 18px; overflow: hidden; color: #15803d; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.tenant-seo-preview h3 { margin-top: 7px; color: #1a0dab; font-family: Arial, sans-serif !important; font-size: 19px; font-weight: 500; line-height: 1.25; }
+.tenant-seo-preview > p:last-child { margin-top: 7px; color: #4d5156; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.45; }
+.dark .tenant-seo-preview { border-color: #334155; background: #0f172a; }
+.dark .tenant-seo-preview h3 { color: #8ab4f8; }
+.dark .tenant-seo-preview > p:last-child { color: #cbd5e1; }
+.tenant-about-image { position: relative; min-height: 420px; overflow: hidden; border-radius: 22px 22px 22px 4px; background: #e2e8f0; }
+.tenant-about-image img { width: 100%; height: 100%; min-height: 420px; object-fit: cover; }
+.tenant-about-image span { position: absolute; right: 18px; bottom: 18px; left: 18px; border-left: 3px solid var(--tenant-brand); padding-left: 12px; color: #fff; font-size: 18px; font-weight: 800; line-height: 1.2; text-shadow: 0 2px 12px rgba(2, 6, 23, .48); }
+.tenant-contact-details { display: grid; gap: 5px; margin-top: 22px; color: inherit; opacity: .86; font-size: 13px; }
+.tenant-contact-details a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 @media (min-width: 768px) {
   .tenant-contact { flex-direction: row; align-items: center; padding: 48px; }
   .tenant-testimonial-featured { grid-row: span 2; align-content: center; padding: 36px; }
@@ -481,6 +522,12 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; font-weight: 5
   .tenant-package-expand > div { grid-column: 1 / -1; }
   .tenant-season-option { align-items: flex-start; flex-direction: column; }
   .tenant-season-option > div:last-child { display: flex; width: 100%; align-items: center; justify-content: space-between; }
+  .tenant-editorial-grid { grid-template-columns: 1fr; }
+  .tenant-editorial-cards { grid-template-columns: 1fr; }
+  .tenant-seo-preview { position: static; }
+  .tenant-editorial-tabs { align-self: flex-start; }
+  .tenant-profile-visual, .tenant-profile-visual img, .tenant-about-image, .tenant-about-image img { min-height: 300px; }
+  .tenant-room-prices > span { flex: 1 1 90px; min-width: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .tenant-scope *, .tenant-scope *::before, .tenant-scope *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
