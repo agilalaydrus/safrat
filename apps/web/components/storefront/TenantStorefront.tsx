@@ -143,6 +143,9 @@ const DEFAULT_GALLERY = [
   { imageUrl: "/images/tenant-editorial/gallery_tasbih_macro_1787645138667.webp", altText: "Tasbih dan suasana ibadah", caption: "Ruang untuk menjaga ritme ibadah dengan khidmat." },
   { imageUrl: "/images/tenant-editorial/blog_nabawi_dusk_1787645116989.webp", altText: "Senja di Masjid Nabawi", caption: "Madinah dalam suasana sore yang teduh." },
   { imageUrl: "/images/tenant-editorial/gallery_communal_dinner_1787645180550.webp", altText: "Makan bersama rombongan", caption: "Kebersamaan rombongan yang dirawat sepanjang perjalanan." },
+  { imageUrl: "/images/tenant-editorial/happy_pilgrim_family_1787650258249.webp", altText: "Keluarga jamaah dalam perjalanan ibadah", caption: "Perjalanan yang nyaman memberi ruang bagi keluarga untuk beribadah bersama." },
+  { imageUrl: "/images/tenant-editorial/hotel_view_haram_1787650244269.webp", altText: "Pemandangan hotel dekat Masjidil Haram", caption: "Pilihan akomodasi yang membantu jamaah menjaga ritme ibadah." },
+  { imageUrl: "/images/tenant-editorial/muthowif_team_natural_1787650228839.webp", altText: "Tim muthawwif mendampingi jamaah", caption: "Tim lapangan siap mendampingi kebutuhan jamaah selama di Tanah Suci." },
 ];
 const DEFAULT_TRUST_BADGES = ["Izin dan dokumen transparan", "Hotel dekat masjid", "Pendampingan manasik", "Layanan WhatsApp responsif"];
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
