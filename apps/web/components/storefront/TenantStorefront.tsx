@@ -191,6 +191,7 @@ export default function TenantStorefront({ profile, preview = false }: { profile
   const [editorialTab, setEditorialTab] = useState<"news" | "blog">("news");
   const [lightbox, setLightbox] = useState<{ imageUrl: string; altText: string; caption?: string } | null>(null);
   const [booking, setBooking] = useState<{ packageTitle: string; seasonName?: string; whatsapp: string } | null>(null);
+  const [accessOpen, setAccessOpen] = useState(false);
   const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   const brandColorCandidate = content.brandColor || profile.brandColor;
   const brandColor = brandColorCandidate && HEX_COLOR.test(brandColorCandidate) ? brandColorCandidate : DEFAULT_BRAND_COLOR;
@@ -237,7 +238,7 @@ export default function TenantStorefront({ profile, preview = false }: { profile
               <a href="#agen" className="tenant-nav-link">Agen</a>
               {faqs.length > 0 && <a href="#faq" className="tenant-nav-link">FAQ</a>}
             </nav>
-            <TenantThemeToggle />
+            <div className="tenant-nav-actions"><a href="/sign-in" className="tenant-login-link">Masuk</a><button type="button" className="tenant-register-button" onClick={() => setAccessOpen(true)}>Daftar</button><TenantThemeToggle /></div>
           </div>
         </header>
 
@@ -311,9 +312,14 @@ export default function TenantStorefront({ profile, preview = false }: { profile
         <footer className="tenant-footer"><div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.2fr_0.8fr_1fr] lg:px-8"><div><div className="flex items-center gap-3">{logoImage ? <img src={logoImage} alt={`Logo ${name}`} className="h-12 w-12 rounded-xl object-contain" /> : <span className="tenant-logo-fallback">{initials}</span>}<strong>{name}</strong></div><p>{content.tagline || description || "Pendampingan perjalanan ibadah yang hangat dan terpercaya."}</p></div><div><strong>Navigasi</strong><nav className="mt-4 grid gap-2 text-sm"><a href="#beranda">Beranda</a><a href="#paket">Paket</a><a href="#tentang">Tentang Kami</a><a href="#kontak">Hubungi Kami</a></nav></div><div><strong>Kontak &amp; legalitas</strong><p>{address || city || "Alamat kantor tersedia melalui tim travel."}</p>{content.contactEmail && <a href={`mailto:${content.contactEmail}`}>{content.contactEmail}</a>}{profile.licenseNumber && <p className="mt-2">Izin PPIU/PIHK: {profile.licenseNumber}</p>}{content.mapUrl && <a className="tenant-footer-map" href={content.mapUrl} target="_blank" rel="noreferrer">Buka lokasi di Google Maps <IconExternalLink size={15} /></a>}</div></div><div className="mx-auto flex max-w-7xl flex-col gap-3 border-t border-white/10 px-4 py-5 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"><span>© {new Date().getFullYear()} {name}. All Rights Reserved.</span><a href="https://tawafiqhub.id" className="tenant-powered" target="_blank" rel="noreferrer">Powered by <strong>TawafiqHub</strong></a></div></footer>
         {lightbox && <div className="tenant-lightbox" role="dialog" aria-modal="true" aria-label={lightbox.altText} onClick={() => setLightbox(null)}><button type="button" onClick={() => setLightbox(null)} aria-label="Tutup foto">×</button><figure onClick={(event) => event.stopPropagation()}><img src={safeImageLink(lightbox.imageUrl)} alt={lightbox.altText} />{lightbox.caption && <figcaption>{lightbox.caption}</figcaption>}</figure></div>}
         {booking && <BookingModal booking={booking} onClose={() => setBooking(null)} />}
+        {accessOpen && <ClientAccessPanel name={name} whatsapp={managerWhatsapp} onClose={() => setAccessOpen(false)} />}
       </main>
     </ThemeProvider>
   );
+}
+
+function ClientAccessPanel({ name, whatsapp, onClose }: { name: string; whatsapp: string | null; onClose: () => void }) {
+  return <div className="tenant-access-backdrop" role="dialog" aria-modal="true" aria-labelledby="tenant-access-title" onClick={onClose}><section className="tenant-access-panel" onClick={(event) => event.stopPropagation()}><button type="button" className="tenant-modal-close tenant-access-close" onClick={onClose} aria-label="Tutup">×</button><p className="tenant-eyebrow">AKSES PORTAL {name}</p><h2 id="tenant-access-title">Pilih kebutuhan Anda</h2><p className="tenant-access-intro">Jalur pendaftaran berbeda untuk setiap peran agar data jamaah dan tim lapangan tetap aman.</p><div className="tenant-access-options"><article><span className="tenant-access-number">01</span><div><h3>Jamaah</h3><p>Daftar melalui paket perjalanan yang tersedia, lalu lengkapi data pendaftaran.</p><a href="#paket" className="tenant-primary-cta" onClick={onClose}>Pilih paket</a></div></article><article><span className="tenant-access-number">02</span><div><h3>Muttawwif</h3><p>Masuk dengan akun yang sudah diundang operator travel Anda.</p><div className="tenant-access-actions"><a href="/sign-in" className="tenant-secondary-cta">Masuk portal</a>{whatsapp && <a href={`${whatsapp}?text=${encodeURIComponent("Assalamu'alaikum, saya ingin meminta akses sebagai Muttawwif.")}`} target="_blank" rel="noreferrer" className="tenant-access-request">Minta undangan</a>}</div></div></article><article><span className="tenant-access-number">03</span><div><h3>Tour Leader</h3><p>Gunakan undangan operator untuk mendapatkan akses perjalanan dan grup jamaah.</p><div className="tenant-access-actions"><a href="/sign-in" className="tenant-secondary-cta">Masuk portal</a>{whatsapp && <a href={`${whatsapp}?text=${encodeURIComponent("Assalamu'alaikum, saya ingin meminta akses sebagai Tour Leader.")}`} target="_blank" rel="noreferrer" className="tenant-access-request">Minta undangan</a>}</div></div></article></div><p className="tenant-access-footer">Sudah punya akun? <a href="/sign-in">Masuk ke TawafiqHub</a></p></section></div>;
 }
 
 function EditorialHub({ news, blogPosts, activeTab, onTabChange }: { news: StorefrontArticle[]; blogPosts: StorefrontArticle[]; activeTab: "news" | "blog"; onTabChange: (tab: "news" | "blog") => void }) {

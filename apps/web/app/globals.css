@@ -502,6 +502,32 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; font-weight: 5
 .tenant-about-image span { position: absolute; right: 18px; bottom: 18px; left: 18px; border-left: 3px solid var(--tenant-brand); padding-left: 12px; color: #fff; font-size: 18px; font-weight: 800; line-height: 1.2; text-shadow: 0 2px 12px rgba(2, 6, 23, .48); }
 .tenant-contact-details { display: grid; gap: 5px; margin-top: 22px; color: inherit; opacity: .86; font-size: 13px; }
 .tenant-contact-details a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.tenant-nav-actions { display: flex; align-items: center; gap: 9px; }
+.tenant-login-link { color: #475569; font-size: 13px; font-weight: 800; }
+.tenant-login-link:hover { color: var(--tenant-brand-strong); }
+.tenant-register-button { min-height: 40px; border: 1px solid var(--tenant-brand); border-radius: 999px; background: var(--tenant-brand); padding: 0 15px; color: var(--tenant-brand-text); font-size: 13px; font-weight: 800; cursor: pointer; }
+.tenant-register-button:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.dark .tenant-login-link { color: #cbd5e1; }
+.tenant-access-backdrop { position: fixed; z-index: 70; inset: 0; display: grid; place-items: center; overflow-y: auto; background: rgba(2, 6, 23, .78); padding: 20px; }
+.tenant-access-panel { position: relative; width: min(100%, 720px); border: 1px solid #cbd5e1; border-radius: 22px; background: #fff; padding: 32px; color: #0f172a; box-shadow: 0 30px 90px rgba(2, 6, 23, .32); }
+.tenant-access-panel h2 { margin-top: 10px; font-size: 30px; letter-spacing: -.03em; }
+.tenant-access-intro { max-width: 54ch; margin-top: 9px; color: #64748b; font-size: 14px; line-height: 1.65; }
+.tenant-access-close { top: 18px; right: 18px; color: #475569; }
+.tenant-access-options { display: grid; gap: 12px; margin-top: 26px; }
+.tenant-access-options article { display: grid; grid-template-columns: 42px 1fr; gap: 16px; border-top: 1px solid #e2e8f0; padding-top: 18px; }
+.tenant-access-number { color: var(--tenant-brand-strong); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; font-weight: 800; }
+.tenant-access-options h3 { color: #0f172a; font-size: 19px; }
+.tenant-access-options p { max-width: 55ch; margin-top: 4px; color: #64748b; font-size: 13px; line-height: 1.6; }
+.tenant-access-options .tenant-primary-cta, .tenant-access-options .tenant-secondary-cta { margin-top: 13px; }
+.tenant-access-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.tenant-access-request { margin-top: 13px; color: var(--tenant-brand-strong); font-size: 13px; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+.tenant-access-footer { margin-top: 25px; border-top: 1px solid #e2e8f0; padding-top: 18px; color: #64748b; font-size: 12px; }
+.tenant-access-footer a { color: var(--tenant-brand-strong); font-weight: 800; }
+.dark .tenant-access-panel { border-color: #334155; background: #0f172a; color: #e2e8f0; }
+.dark .tenant-access-intro, .dark .tenant-access-options p, .dark .tenant-access-footer { color: #94a3b8; }
+.dark .tenant-access-options article, .dark .tenant-access-footer { border-color: #334155; }
+.dark .tenant-access-options h3 { color: #f1f5f9; }
+.dark .tenant-access-close { color: #cbd5e1; }
 @media (min-width: 768px) {
   .tenant-contact { flex-direction: row; align-items: center; padding: 48px; }
   .tenant-testimonial-featured { grid-row: span 2; align-content: center; padding: 36px; }
@@ -528,6 +554,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; font-weight: 5
   .tenant-editorial-tabs { align-self: flex-start; }
   .tenant-profile-visual, .tenant-profile-visual img, .tenant-about-image, .tenant-about-image img { min-height: 300px; }
   .tenant-room-prices > span { flex: 1 1 90px; min-width: 0; }
+  .tenant-access-panel { padding: 24px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .tenant-scope *, .tenant-scope *::before, .tenant-scope *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
