@@ -44,6 +44,8 @@ func TestS3CompatibleUploadIntegration(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		_, _ = store.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{Bucket: aws.String(store.bucket), Key: aws.String(upload.ObjectKey)})
+		liveKey := strings.Replace(upload.ObjectKey, "storefront-pending/", "storefront/", 1)
+		_, _ = store.client.DeleteObject(context.Background(), &s3.DeleteObjectInput{Bucket: aws.String(store.bucket), Key: aws.String(liveKey)})
 	})
 	preflight, err := http.NewRequest(http.MethodOptions, upload.UploadURL, nil)
 	if err != nil {
@@ -80,8 +82,12 @@ func TestS3CompatibleUploadIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("confirm: %v", err)
 	}
-	if publicURL != upload.PublicURL {
-		t.Fatalf("confirmed URL = %q, want %q", publicURL, upload.PublicURL)
+	wantURL := endpoint + "/safrat-uploads/" + strings.Replace(upload.ObjectKey, "storefront-pending/", "storefront/", 1)
+	if publicURL != wantURL {
+		t.Fatalf("confirmed URL = %q, want %q", publicURL, wantURL)
+	}
+	if _, err := store.client.HeadObject(context.Background(), &s3.HeadObjectInput{Bucket: aws.String(store.bucket), Key: aws.String(upload.ObjectKey)}); err == nil {
+		t.Fatal("pending object still exists after confirmation")
 	}
 }
 
@@ -110,7 +116,7 @@ func TestPresignStorefrontUploadScopesKeyAndContentType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse upload URL: %v", err)
 	}
-	if !strings.HasPrefix(parsed.Path, "/safrat-uploads/storefront/"+operatorID+"/hero/") || !strings.HasSuffix(parsed.Path, ".webp") {
+	if !strings.HasPrefix(parsed.Path, "/safrat-uploads/storefront-pending/"+operatorID+"/hero/") || !strings.HasSuffix(parsed.Path, ".webp") {
 		t.Fatalf("unexpected tenant-scoped key: %s", parsed.Path)
 	}
 	if !strings.Contains(parsed.Query().Get("X-Amz-SignedHeaders"), "content-type") {
@@ -118,9 +124,6 @@ func TestPresignStorefrontUploadScopesKeyAndContentType(t *testing.T) {
 	}
 	if !strings.Contains(parsed.Query().Get("X-Amz-SignedHeaders"), "content-length") {
 		t.Fatalf("content-length is not signed: %s", parsed.RawQuery)
-	}
-	if !strings.HasPrefix(upload.PublicURL, "http://127.0.0.1:9000/safrat-uploads/storefront/"+operatorID+"/hero/") {
-		t.Fatalf("unexpected public URL: %s", upload.PublicURL)
 	}
 }
 

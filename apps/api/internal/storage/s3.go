@@ -39,7 +39,6 @@ type Config struct {
 
 type PresignedUpload struct {
 	UploadURL string
-	PublicURL string
 	ObjectKey string
 	ExpiresAt time.Time
 }
@@ -111,7 +110,7 @@ func (s *Store) PresignStorefrontUpload(ctx context.Context, operatorID, kind st
 	if _, err := uuid.Parse(operatorID); err != nil {
 		return PresignedUpload{}, fmt.Errorf("invalid operator ID")
 	}
-	key := path.Join("storefront", operatorID, kind, uuid.NewString()+".webp")
+	key := path.Join("storefront-pending", operatorID, kind, uuid.NewString()+".webp")
 	request, err := s.presigner.PresignPutObject(ctx, &s3.PutObjectInput{
 		Bucket:        aws.String(s.bucket),
 		Key:           aws.String(key),
@@ -125,7 +124,6 @@ func (s *Store) PresignStorefrontUpload(ctx context.Context, operatorID, kind st
 	}
 	return PresignedUpload{
 		UploadURL: request.URL,
-		PublicURL: s.publicBaseURL + "/" + key,
 		ObjectKey: key,
 		ExpiresAt: time.Now().Add(presignLifetime),
 	}, nil
@@ -135,7 +133,7 @@ func (s *Store) ConfirmStorefrontUpload(ctx context.Context, operatorID, objectK
 	if s == nil {
 		return "", ErrNotConfigured
 	}
-	prefix := path.Join("storefront", operatorID) + "/"
+	prefix := path.Join("storefront-pending", operatorID) + "/"
 	if _, err := uuid.Parse(operatorID); err != nil || !strings.HasPrefix(objectKey, prefix) || !strings.HasSuffix(objectKey, ".webp") || path.Clean(objectKey) != objectKey {
 		return "", fmt.Errorf("invalid object key")
 	}
@@ -171,7 +169,17 @@ func (s *Store) ConfirmStorefrontUpload(ctx context.Context, operatorID, objectK
 		s.deleteInvalid(ctx, objectKey)
 		return "", fmt.Errorf("uploaded WebP payload is invalid")
 	}
-	return s.publicBaseURL + "/" + objectKey, nil
+	liveKey := path.Join("storefront", operatorID, strings.TrimPrefix(objectKey, prefix))
+	copySource := url.PathEscape(s.bucket + "/" + objectKey)
+	if _, err := s.client.CopyObject(ctx, &s3.CopyObjectInput{
+		Bucket: aws.String(s.bucket), Key: aws.String(liveKey), CopySource: aws.String(copySource),
+	}); err != nil {
+		return "", fmt.Errorf("promote storefront upload: %w", err)
+	}
+	// A failed delete is harmless: the pending-prefix lifecycle rule removes
+	// the verified source object later, while the promoted live object remains.
+	_, _ = s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(objectKey)})
+	return s.publicBaseURL + "/" + liveKey, nil
 }
 
 func (s *Store) deleteInvalid(ctx context.Context, objectKey string) {

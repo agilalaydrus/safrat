@@ -29,7 +29,11 @@
   object before returning its usable public URL. Local development uses MinIO on
   `:9000` (console `:9001`) with tested browser CORS. Production still needs the
   documented R2/S3 bucket, credentials, public base URL, CORS, and abandoned-object
-  lifecycle configured before deployment.
+  lifecycle configured before deployment. Upload tickets now target the
+  `storefront-pending/` prefix and confirmation promotes verified images to
+  `storefront/`; a 1-day lifecycle can therefore remove abandoned uploads
+  without ever expiring published media. The production Wrangler CORS input is
+  versioned at `deploy/r2/cors.production.json`.
 - Migration 082 creates `operator_storefronts` and seeds every existing operator's
   legacy public profile into draft and published revision 1. The migration is
   applied locally. Repository integration tests prove draft isolation, atomic

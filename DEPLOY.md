@@ -243,7 +243,8 @@ S3_FORCE_PATH_STYLE=true
 ```
 
 Configure bucket CORS before enabling upload from the CMS. Only the apex needs
-upload permission because the authenticated dashboard lives there:
+upload permission because the authenticated dashboard lives there. The
+version-controlled Wrangler input is `deploy/r2/cors.production.json`:
 
 ```json
 [
@@ -259,9 +260,26 @@ upload permission because the authenticated dashboard lives there:
 
 The API signs both `Content-Type: image/webp` and the optimized byte length,
 uses random tenant-scoped object keys, and expires upload URLs after 10 minutes.
-Never expose `S3_SECRET_ACCESS_KEY` through a `NEXT_PUBLIC_*` variable. Add a
-bucket lifecycle rule for abandoned `storefront/` objects after the retention
-period chosen by the business; published assets must remain public-readable.
+Never expose `S3_SECRET_ACCESS_KEY` through a `NEXT_PUBLIC_*` variable. Uploads
+first enter `storefront-pending/`; only a fully decoded and validated WebP is
+copied to the durable `storefront/` prefix. Configure the lifecycle rule only
+for the pending prefix so published assets are never expired:
+
+```bash
+npx wrangler r2 bucket cors set safrat-uploads \
+  --file deploy/r2/cors.production.json
+npx wrangler r2 bucket lifecycle add safrat-uploads \
+  expire-unconfirmed-storefront storefront-pending/ --expire-days 1 --force
+npx wrangler r2 bucket cors list safrat-uploads
+npx wrangler r2 bucket lifecycle list safrat-uploads
+```
+
+If TawafiqHub is not yet configured as a Cloudflare zone, do not use the
+bucket's `r2.dev` URL as the permanent production origin: Cloudflare documents
+that endpoint as rate-limited and non-production. Add the zone to the same
+account as the R2 bucket (full nameserver setup, or an eligible partial CNAME
+setup), then attach `assets.tawafiqhub.id` as the bucket custom domain and set
+that URL as `S3_PUBLIC_BASE_URL`.
 
 Start services:
 
