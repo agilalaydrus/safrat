@@ -145,6 +145,12 @@ message StorefrontContent {
   string agent_title = 25 [(buf.validate.field).string.max_len = 120];
   string agent_description = 26 [(buf.validate.field).string.max_len = 600];
   bool agent_applications_enabled = 27;
+  string tagline = 28 [(buf.validate.field).string.max_len = 240];
+  int32 founded_year = 29 [(buf.validate.field).int32 = {gte: 0, lte: 2100}];
+  string contact_email = 30 [(buf.validate.field).string.max_len = 320];
+  string map_url = 31 [(buf.validate.field).string.max_len = 2048];
+  string manager_whatsapp = 32 [(buf.validate.field).string.max_len = 40];
+  repeated string trust_badges = 33;
 }
 
 message StorefrontPackage {
@@ -169,6 +175,19 @@ message StorefrontPublicPackage {
   // public label, but preserves the existing registration workflow.
   string season_id = 9 [(buf.validate.field).string.max_len = 80];
   repeated string facilities = 10;
+  repeated StorefrontSeasonOption seasons = 11;
+}
+
+message StorefrontSeasonOption {
+  string season_id = 1 [(buf.validate.field).string.max_len = 80];
+  string hotel_makkah = 2 [(buf.validate.field).string.max_len = 160];
+  string hotel_madinah = 3 [(buf.validate.field).string.max_len = 160];
+  string hotel_rating = 4 [(buf.validate.field).string.max_len = 20];
+  string airline = 5 [(buf.validate.field).string.max_len = 120];
+  int32 seats_remaining = 6 [(buf.validate.field).int32 = {gte: 0, lte: 1000000}];
+  string quad_price = 7 [(buf.validate.field).string.max_len = 80];
+  string triple_price = 8 [(buf.validate.field).string.max_len = 80];
+  string double_price = 9 [(buf.validate.field).string.max_len = 80];
 }
 
 message StorefrontArticle {

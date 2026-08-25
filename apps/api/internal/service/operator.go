@@ -393,7 +393,7 @@ func (s *OperatorService) validateStorefront(ctx context.Context, operatorID str
 	if content.DisplayName == "" || !validHTTPURLOrEmpty(content.LogoUrl) || !validHTTPURLOrEmpty(content.Website) || !validHTTPURLOrEmpty(content.HeroImageUrl) {
 		return apperror.ErrValidation
 	}
-	if len(content.Packages) > 20 || len(content.PublicPackages) > 30 || len(content.Gallery) > 12 || len(content.Testimonials) > 6 || len(content.Faqs) > 10 || len(content.News) > 30 || len(content.BlogPosts) > 50 {
+	if len(content.Packages) > 20 || len(content.PublicPackages) > 30 || len(content.Gallery) > 12 || len(content.Testimonials) > 6 || len(content.Faqs) > 10 || len(content.News) > 30 || len(content.BlogPosts) > 50 || len(content.TrustBadges) > 8 {
 		return apperror.ErrValidation
 	}
 	seasons, err := s.seasonRepository.ListPublicSeasons(ctx, operatorID)
@@ -445,7 +445,7 @@ func (s *OperatorService) validateStorefront(ctx context.Context, operatorID str
 	seenPublicPackageIDs := make(map[string]struct{}, len(content.PublicPackages))
 	seenRegistrationSlugs := make(map[string]struct{}, len(content.PublicPackages))
 	for _, item := range content.PublicPackages {
-		if item == nil || strings.TrimSpace(item.Id) == "" || strings.TrimSpace(item.Title) == "" || !validHTTPURLOrEmpty(item.ImageUrl) || len(item.Facilities) > 12 {
+		if item == nil || strings.TrimSpace(item.Id) == "" || strings.TrimSpace(item.Title) == "" || !validHTTPURLOrEmpty(item.ImageUrl) || len(item.Facilities) > 12 || len(item.Seasons) > 12 {
 			return apperror.ErrValidation
 		}
 		if _, duplicate := seenPublicPackageIDs[item.Id]; duplicate {
@@ -468,6 +468,19 @@ func (s *OperatorService) validateStorefront(ctx context.Context, operatorID str
 				return apperror.ErrValidation
 			}
 		}
+		seenSeasonIDs := make(map[string]struct{}, len(item.Seasons))
+		for _, option := range item.Seasons {
+			if option == nil || option.SeasonId == "" {
+				return apperror.ErrValidation
+			}
+			if _, duplicate := seenSeasonIDs[option.SeasonId]; duplicate {
+				return apperror.ErrValidation
+			}
+			seenSeasonIDs[option.SeasonId] = struct{}{}
+			if _, ok := seasonIDs[option.SeasonId]; !ok {
+				return apperror.ErrValidation
+			}
+		}
 	}
 	seenArticleSlugs := make(map[string]struct{}, len(content.News)+len(content.BlogPosts))
 	for _, articles := range [][]*hajjv1.StorefrontArticle{content.News, content.BlogPosts} {
@@ -487,7 +500,7 @@ func (s *OperatorService) validateStorefront(ctx context.Context, operatorID str
 			seenArticleSlugs[item.Slug] = struct{}{}
 		}
 	}
-	if !validHTTPURLOrEmpty(content.OgImageUrl) {
+	if !validHTTPURLOrEmpty(content.OgImageUrl) || !validHTTPURLOrEmpty(content.MapUrl) {
 		return apperror.ErrValidation
 	}
 	return nil
