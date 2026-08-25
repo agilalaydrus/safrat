@@ -131,6 +131,20 @@ message StorefrontContent {
   repeated StorefrontGalleryItem gallery = 14;
   repeated StorefrontTestimonial testimonials = 15;
   repeated StorefrontFaq faqs = 16;
+  // Marketing content is kept inside the draft/published snapshot so a
+  // publish never exposes half of a landing page. Operational seasons remain
+  // internal; public packages may optionally reference one for registration.
+  repeated StorefrontPublicPackage public_packages = 17;
+  repeated StorefrontArticle news = 18;
+  repeated StorefrontArticle blog_posts = 19;
+  string about_title = 20 [(buf.validate.field).string.max_len = 120];
+  string about_body = 21 [(buf.validate.field).string.max_len = 4000];
+  string seo_title = 22 [(buf.validate.field).string.max_len = 70];
+  string seo_description = 23 [(buf.validate.field).string.max_len = 160];
+  string og_image_url = 24 [(buf.validate.field).string.max_len = 2048];
+  string agent_title = 25 [(buf.validate.field).string.max_len = 120];
+  string agent_description = 26 [(buf.validate.field).string.max_len = 600];
+  bool agent_applications_enabled = 27;
 }
 
 message StorefrontPackage {
@@ -140,6 +154,35 @@ message StorefrontPackage {
   string price_label = 4 [(buf.validate.field).string.max_len = 80];
   repeated string facilities = 5;
   repeated StorefrontItineraryItem itinerary = 6;
+}
+
+message StorefrontPublicPackage {
+  string id = 1 [(buf.validate.field).string.max_len = 80];
+  string title = 2 [(buf.validate.field).string.max_len = 140];
+  string category = 3 [(buf.validate.field).string.max_len = 40];
+  string summary = 4 [(buf.validate.field).string.max_len = 400];
+  string image_url = 5 [(buf.validate.field).string.max_len = 2048];
+  string price_label = 6 [(buf.validate.field).string.max_len = 80];
+  string duration_label = 7 [(buf.validate.field).string.max_len = 80];
+  string registration_slug = 8 [(buf.validate.field).string.max_len = 180];
+  // Optional internal season reference. It is never shown as the primary
+  // public label, but preserves the existing registration workflow.
+  string season_id = 9 [(buf.validate.field).string.max_len = 80];
+  repeated string facilities = 10;
+}
+
+message StorefrontArticle {
+  string id = 1 [(buf.validate.field).string.max_len = 80];
+  string title = 2 [(buf.validate.field).string.max_len = 180];
+  string slug = 3 [(buf.validate.field).string.max_len = 180];
+  string excerpt = 4 [(buf.validate.field).string.max_len = 320];
+  string body = 5 [(buf.validate.field).string.max_len = 20000];
+  string cover_image_url = 6 [(buf.validate.field).string.max_len = 2048];
+  string alt_text = 7 [(buf.validate.field).string.max_len = 160];
+  string author = 8 [(buf.validate.field).string.max_len = 120];
+  google.protobuf.Timestamp published_at = 9;
+  string seo_title = 10 [(buf.validate.field).string.max_len = 70];
+  string seo_description = 11 [(buf.validate.field).string.max_len = 160];
 }
 
 message StorefrontItineraryItem {

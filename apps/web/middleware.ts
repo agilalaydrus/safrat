@@ -118,6 +118,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(rewritten);
   }
 
+  // Tenant editorial pages stay on the tenant hostname while rendering from
+  // the same public profile snapshot as the homepage.
+  if (slug && (/^\/(blog|berita)\/[^/]+\/?$/.test(pathname))) {
+    const rewritten = request.nextUrl.clone();
+    rewritten.pathname = `/p/${slug}${pathname}`;
+    return NextResponse.rewrite(rewritten);
+  }
+
   const subdomainRoute = slug && SUBDOMAIN_ROUTES.find((route) => pathname === route || pathname.startsWith(`${route}/`));
   if (slug && subdomainRoute) {
     const { operatorId, activeSeasonId } = await resolveOperator(slug);

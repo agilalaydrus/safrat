@@ -393,7 +393,7 @@ func (s *OperatorService) validateStorefront(ctx context.Context, operatorID str
 	if content.DisplayName == "" || !validHTTPURLOrEmpty(content.LogoUrl) || !validHTTPURLOrEmpty(content.Website) || !validHTTPURLOrEmpty(content.HeroImageUrl) {
 		return apperror.ErrValidation
 	}
-	if len(content.Packages) > 20 || len(content.Gallery) > 12 || len(content.Testimonials) > 6 || len(content.Faqs) > 10 {
+	if len(content.Packages) > 20 || len(content.PublicPackages) > 30 || len(content.Gallery) > 12 || len(content.Testimonials) > 6 || len(content.Faqs) > 10 || len(content.News) > 30 || len(content.BlogPosts) > 50 {
 		return apperror.ErrValidation
 	}
 	seasons, err := s.seasonRepository.ListPublicSeasons(ctx, operatorID)
@@ -442,7 +442,67 @@ func (s *OperatorService) validateStorefront(ctx context.Context, operatorID str
 			return apperror.ErrValidation
 		}
 	}
+	seenPublicPackageIDs := make(map[string]struct{}, len(content.PublicPackages))
+	seenRegistrationSlugs := make(map[string]struct{}, len(content.PublicPackages))
+	for _, item := range content.PublicPackages {
+		if item == nil || strings.TrimSpace(item.Id) == "" || strings.TrimSpace(item.Title) == "" || !validHTTPURLOrEmpty(item.ImageUrl) || len(item.Facilities) > 12 {
+			return apperror.ErrValidation
+		}
+		if _, duplicate := seenPublicPackageIDs[item.Id]; duplicate {
+			return apperror.ErrValidation
+		}
+		seenPublicPackageIDs[item.Id] = struct{}{}
+		if item.SeasonId != "" {
+			if _, ok := seasonIDs[item.SeasonId]; !ok {
+				return apperror.ErrValidation
+			}
+		}
+		if item.RegistrationSlug != "" {
+			if _, duplicate := seenRegistrationSlugs[item.RegistrationSlug]; duplicate {
+				return apperror.ErrValidation
+			}
+			seenRegistrationSlugs[item.RegistrationSlug] = struct{}{}
+		}
+		for _, facility := range item.Facilities {
+			if strings.TrimSpace(facility) == "" || len(facility) > 120 {
+				return apperror.ErrValidation
+			}
+		}
+	}
+	seenArticleSlugs := make(map[string]struct{}, len(content.News)+len(content.BlogPosts))
+	for _, articles := range [][]*hajjv1.StorefrontArticle{content.News, content.BlogPosts} {
+		for _, item := range articles {
+			if item == nil || strings.TrimSpace(item.Id) == "" || strings.TrimSpace(item.Title) == "" || strings.TrimSpace(item.Slug) == "" || strings.TrimSpace(item.Body) == "" || !validHTTPURLOrEmpty(item.CoverImageUrl) {
+				return apperror.ErrValidation
+			}
+			if !validContentSlug(item.Slug) {
+				return apperror.ErrValidation
+			}
+			if item.CoverImageUrl != "" && strings.TrimSpace(item.AltText) == "" {
+				return apperror.ErrValidation
+			}
+			if _, duplicate := seenArticleSlugs[item.Slug]; duplicate {
+				return apperror.ErrValidation
+			}
+			seenArticleSlugs[item.Slug] = struct{}{}
+		}
+	}
+	if !validHTTPURLOrEmpty(content.OgImageUrl) {
+		return apperror.ErrValidation
+	}
 	return nil
+}
+
+func validContentSlug(value string) bool {
+	if len(value) < 3 || len(value) > 180 || strings.HasPrefix(value, "-") || strings.HasSuffix(value, "-") {
+		return false
+	}
+	for _, char := range value {
+		if (char < 'a' || char > 'z') && (char < '0' || char > '9') && char != '-' {
+			return false
+		}
+	}
+	return true
 }
 
 func validHTTPURLOrEmpty(value string) bool {

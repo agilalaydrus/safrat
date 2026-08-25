@@ -35,6 +35,33 @@ export type StorefrontPackage = {
   itinerary?: { title: string; description?: string }[];
 };
 
+export type StorefrontPublicPackage = {
+  id: string;
+  title: string;
+  category?: string;
+  summary?: string;
+  imageUrl?: string;
+  priceLabel?: string;
+  durationLabel?: string;
+  registrationSlug?: string;
+  seasonId?: string;
+  facilities?: string[];
+};
+
+export type StorefrontArticle = {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt?: string;
+  body: string;
+  coverImageUrl?: string;
+  altText?: string;
+  author?: string;
+  publishedAt?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+};
+
 export type StorefrontContent = {
   displayName?: string;
   logoUrl?: string;
@@ -52,6 +79,17 @@ export type StorefrontContent = {
   gallery?: { imageUrl: string; altText: string; caption?: string }[];
   testimonials?: { quote: string; name: string; role?: string }[];
   faqs?: { question: string; answer: string }[];
+  publicPackages?: StorefrontPublicPackage[];
+  news?: StorefrontArticle[];
+  blogPosts?: StorefrontArticle[];
+  aboutTitle?: string;
+  aboutBody?: string;
+  seoTitle?: string;
+  seoDescription?: string;
+  ogImageUrl?: string;
+  agentTitle?: string;
+  agentDescription?: string;
+  agentApplicationsEnabled?: boolean;
 };
 
 export type StorefrontProfile = {
@@ -102,6 +140,9 @@ export default function TenantStorefront({ profile, preview = false }: { profile
   const gallery = content.gallery ?? [];
   const testimonials = content.testimonials ?? [];
   const faqs = content.faqs ?? [];
+  const publicPackages = content.publicPackages ?? [];
+  const news = content.news ?? [];
+  const blogPosts = content.blogPosts ?? [];
   const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   const brandColorCandidate = content.brandColor || profile.brandColor;
   const brandColor = brandColorCandidate && HEX_COLOR.test(brandColorCandidate) ? brandColorCandidate : DEFAULT_BRAND_COLOR;
@@ -135,8 +176,11 @@ export default function TenantStorefront({ profile, preview = false }: { profile
             </a>
             <nav className="hidden items-center gap-7 text-sm font-semibold text-slate-600 md:flex dark:text-slate-300" aria-label="Navigasi utama">
               <a href="#paket" className="tenant-nav-link">Paket</a>
+              {news.length > 0 && <a href="#berita" className="tenant-nav-link">Berita</a>}
+              {blogPosts.length > 0 && <a href="#blog" className="tenant-nav-link">Blog</a>}
               {gallery.length > 0 && <a href="#galeri" className="tenant-nav-link">Galeri</a>}
               <a href="#tentang" className="tenant-nav-link">Tentang</a>
+              {content.agentApplicationsEnabled && <a href="#agen" className="tenant-nav-link">Agen</a>}
               {faqs.length > 0 && <a href="#faq" className="tenant-nav-link">FAQ</a>}
             </nav>
             <TenantThemeToggle />
@@ -172,10 +216,18 @@ export default function TenantStorefront({ profile, preview = false }: { profile
         <section id="paket" className="tenant-section scroll-mt-24">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="max-w-2xl"><h2 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl dark:text-slate-100">Paket perjalanan tersedia</h2><p className="mt-4 text-base leading-7 text-slate-600 dark:text-slate-300">Temukan jadwal yang sesuai, lalu isi formulir pendaftaran langsung untuk paket pilihan Anda.</p></div>
-            {seasons.length === 0 ? (
+            {publicPackages.length === 0 && seasons.length === 0 ? (
               <div className="tenant-empty mt-10"><IconCalendarEvent size={30} stroke={1.6} /><h3>Jadwal baru sedang disiapkan</h3><p>Hubungi tim travel untuk mendapatkan informasi keberangkatan berikutnya.</p>{whatsapp && <a href={whatsapp} target="_blank" rel="noreferrer" className="tenant-secondary-cta">Konsultasi WhatsApp</a>}</div>
             ) : (
               <div className="mt-10 grid gap-5 md:grid-cols-2">
+                {publicPackages.map((item) => {
+                  const packageImage = safeOptionalImageLink(item.imageUrl);
+                  const href = item.registrationSlug ? `/register/${item.registrationSlug}` : item.seasonId ? `/register/${item.seasonId}` : "#kontak";
+                  return <article key={item.id} className="tenant-package overflow-hidden p-0">
+                    {packageImage && <div className="aspect-[16/8] overflow-hidden"><img src={packageImage} alt={item.title} className="h-full w-full object-cover" /></div>}
+                    <div className="p-6 sm:p-7"><div className="flex items-start justify-between gap-4"><span className="tenant-season-label">{item.category || "Paket perjalanan"}</span>{item.priceLabel && <strong className="tenant-brand-ink text-sm">{item.priceLabel}</strong>}</div><h3 className="mt-5 text-xl font-extrabold tracking-tight text-slate-950 dark:text-slate-100">{item.title}</h3>{item.durationLabel && <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{item.durationLabel}</p>}{item.summary && <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">{item.summary}</p>}{(item.facilities?.length ?? 0) > 0 && <div className="mt-5 grid gap-2 sm:grid-cols-2">{item.facilities?.map((facility) => <span key={facility} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300"><IconCheck size={17} stroke={2} className="tenant-brand-ink mt-0.5 shrink-0" />{facility}</span>)}</div>}<Link href={href} className="tenant-package-link">Lihat Paket <IconArrowRight size={17} stroke={1.9} /></Link></div>
+                  </article>;
+                })}
                 {seasons.map((season) => {
                   const detail = packageContent.get(season.id);
                   const packageImage = safeOptionalImageLink(detail?.imageUrl);
@@ -201,11 +253,16 @@ export default function TenantStorefront({ profile, preview = false }: { profile
 
         {gallery.length > 0 && <section id="galeri" className="tenant-gallery-section scroll-mt-24"><div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24"><h2 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl dark:text-slate-100">Momen perjalanan jamaah</h2><div className="tenant-gallery mt-10">{gallery.map((item, index) => <figure key={`${item.imageUrl}-${index}`} className={index === 0 ? "tenant-gallery-featured" : ""}><img src={safeImageLink(item.imageUrl)} alt={item.altText} loading="lazy" />{item.caption && <figcaption>{item.caption}</figcaption>}</figure>)}</div></div></section>}
 
-        <section id="tentang" className="tenant-about scroll-mt-24"><div className="mx-auto grid max-w-7xl gap-10 px-4 py-20 sm:px-6 md:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:py-24"><div><h2 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl dark:text-slate-100">Mengenal {name}</h2><p className="mt-6 max-w-2xl text-base leading-8 text-slate-600 dark:text-slate-300">{description || `${name} membantu jamaah mempersiapkan perjalanan Umrah dan Haji dengan informasi yang jelas serta pendampingan yang mudah dihubungi.`}</p></div><div className="tenant-about-facts"><div><IconBuildingStore size={22} stroke={1.7} /><span><small>Brand travel</small><strong>{name}</strong></span></div>{city && <div><IconMapPin size={22} stroke={1.7} /><span><small>Lokasi kantor</small><strong>{city}</strong></span></div>}{profile.licenseNumber && <div><IconCertificate size={22} stroke={1.7} /><span><small>Nomor izin</small><strong>{profile.licenseNumber}</strong></span></div>}{website && <a href={website} target="_blank" rel="noreferrer"><IconExternalLink size={22} stroke={1.7} /><span><small>Website resmi</small><strong>Kunjungi website</strong></span></a>}</div></div></section>
+        {news.length > 0 && <ArticleStrip id="berita" title="Berita terbaru" articles={news} />}
+        {blogPosts.length > 0 && <ArticleStrip id="blog" title="Catatan perjalanan" articles={blogPosts} />}
+
+        <section id="tentang" className="tenant-about scroll-mt-24"><div className="mx-auto grid max-w-7xl gap-10 px-4 py-20 sm:px-6 md:grid-cols-[1.1fr_0.9fr] lg:px-8 lg:py-24"><div><h2 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl dark:text-slate-100">{content.aboutTitle || `Mengenal ${name}`}</h2><p className="mt-6 max-w-2xl whitespace-pre-line text-base leading-8 text-slate-600 dark:text-slate-300">{content.aboutBody || description || `${name} membantu jamaah mempersiapkan perjalanan Umrah dan Haji dengan informasi yang jelas serta pendampingan yang mudah dihubungi.`}</p></div><div className="tenant-about-facts"><div><IconBuildingStore size={22} stroke={1.7} /><span><small>Brand travel</small><strong>{name}</strong></span></div>{city && <div><IconMapPin size={22} stroke={1.7} /><span><small>Lokasi kantor</small><strong>{city}</strong></span></div>}{profile.licenseNumber && <div><IconCertificate size={22} stroke={1.7} /><span><small>Nomor izin</small><strong>{profile.licenseNumber}</strong></span></div>}{website && <a href={website} target="_blank" rel="noreferrer"><IconExternalLink size={22} stroke={1.7} /><span><small>Website resmi</small><strong>Kunjungi website</strong></span></a>}</div></div></section>
 
         {testimonials.length > 0 && <section className="tenant-testimonials"><div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24"><h2 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl dark:text-slate-100">Cerita dari jamaah</h2><div className="mt-10 grid gap-5 md:grid-cols-2">{testimonials.map((item, index) => <blockquote key={`${item.name}-${index}`} className={index === 0 && testimonials.length > 2 ? "tenant-testimonial-featured" : "tenant-testimonial"}><IconQuote size={26} stroke={1.5} /><p>{item.quote}</p><footer><strong>{item.name}</strong>{item.role && <span>{item.role}</span>}</footer></blockquote>)}</div></div></section>}
 
         {faqs.length > 0 && <section id="faq" className="tenant-faq scroll-mt-24"><div className="mx-auto max-w-4xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24"><h2 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl dark:text-slate-100">Pertanyaan yang sering diajukan</h2><div className="mt-10 grid gap-3">{faqs.map((item, index) => <details key={`${item.question}-${index}`}><summary>{item.question}</summary><p>{item.answer}</p></details>)}</div></div></section>}
+
+        {content.agentApplicationsEnabled && <section id="agen" className="tenant-section scroll-mt-24"><div className="tenant-contact mx-auto max-w-7xl"><div><h2 className="text-3xl font-black tracking-tight sm:text-4xl">{content.agentTitle || "Bergabung sebagai agen perjalanan"}</h2><p className="mt-4 max-w-xl text-base leading-7 opacity-80">{content.agentDescription || "Bantu lebih banyak keluarga berangkat dengan pendampingan yang aman dan program kemitraan yang jelas."}</p></div><Link href="/apply" className="tenant-contact-cta"><IconArrowRight size={19} stroke={1.9} /> Daftar sebagai agen</Link></div></section>}
 
         {(whatsapp || website) && <section id="kontak" className="scroll-mt-24 px-4 pb-20 sm:px-6 lg:px-8 lg:pb-24"><div className="tenant-contact mx-auto max-w-7xl"><div><h2 className="text-3xl font-black tracking-tight sm:text-4xl">Siap merencanakan perjalanan?</h2><p className="mt-4 max-w-xl text-base leading-7 opacity-80">Tim {name} siap membantu memilih jadwal dan menjawab kebutuhan perjalanan Anda.</p></div><div className="flex flex-col gap-3 sm:flex-row">{whatsapp && <a href={whatsapp} target="_blank" rel="noreferrer" className="tenant-contact-cta"><IconBrandWhatsapp size={19} stroke={1.9} /> Konsultasi WhatsApp</a>}{website && <a href={website} target="_blank" rel="noreferrer" className="tenant-contact-ghost"><IconExternalLink size={19} stroke={1.9} /> Website</a>}</div></div></section>}
 
@@ -213,6 +270,10 @@ export default function TenantStorefront({ profile, preview = false }: { profile
       </main>
     </ThemeProvider>
   );
+}
+
+function ArticleStrip({ id, title, articles }: { id: string; title: string; articles: StorefrontArticle[] }) {
+  return <section id={id} className="tenant-section scroll-mt-24"><div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24"><h2 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl dark:text-slate-100">{title}</h2><div className="mt-10 grid gap-6 md:grid-cols-3">{articles.slice(0, 6).map((article) => <article key={article.id} className="tenant-article overflow-hidden"><div className="aspect-[16/9] overflow-hidden">{article.coverImageUrl ? <img src={safeImageLink(article.coverImageUrl)} alt={article.altText || article.title} loading="lazy" className="h-full w-full object-cover" /> : <div className="h-full w-full tenant-article-placeholder" aria-hidden="true" />}</div><div className="p-5"><p className="text-xs font-semibold uppercase tracking-[0.14em] tenant-brand-ink">{article.author || "Catatan travel"}</p><h3 className="mt-3 text-xl font-extrabold tracking-tight text-slate-950 dark:text-slate-100">{article.title}</h3>{article.excerpt && <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{article.excerpt}</p>}<Link href={`/${id === "blog" ? "blog" : "berita"}/${article.slug}`} className="tenant-package-link mt-5">Baca selengkapnya <IconArrowRight size={17} stroke={1.9} /></Link></div></article>)}</div></div></section>;
 }
 
 function waLink(raw: string) { const digits = raw.replace(/\D/g, ""); return `https://wa.me/${digits.startsWith("0") ? `62${digits.slice(1)}` : digits}`; }

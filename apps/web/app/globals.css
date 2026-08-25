@@ -333,6 +333,10 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; font-weight: 5
 .dark .tenant-gallery figcaption { color: #cbd5e1; }
 .tenant-gallery-featured { grid-column: 1 / -1; }
 .tenant-gallery-featured img { aspect-ratio: 16 / 7; max-height: 520px; }
+.tenant-article { overflow: hidden; border: 1px solid #e2e8f0; border-radius: 18px; background: #fff; box-shadow: 0 16px 40px rgba(15, 23, 42, 0.07); }
+.tenant-article-placeholder { background: linear-gradient(135deg, color-mix(in srgb, var(--tenant-brand) 24%, #f8fafc), #e2e8f0); }
+.dark .tenant-article { border-color: #1e293b; background: #0f172a; box-shadow: 0 16px 40px rgba(2, 6, 23, 0.22); }
+.dark .tenant-article-placeholder { background: linear-gradient(135deg, color-mix(in srgb, var(--tenant-brand) 30%, #0f172a), #1e293b); }
 .tenant-testimonials { background: #f8fafc; }
 .dark .tenant-testimonials { background: #020617; }
 .tenant-testimonial,
