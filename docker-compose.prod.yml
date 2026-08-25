@@ -12,6 +12,50 @@ services:
     networks:
       - internal
 
+  minio:
+    image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    command: server /data --address ":9000" --console-address ":9001"
+    restart: always
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # The admin console stays disabled and unpublished in production. All
+      # bucket administration runs through the one-shot minio-init service.
+      MINIO_BROWSER: "off"
+      MINIO_API_CORS_ALLOW_ORIGIN: https://tawafiqhub.id
+    ports:
+      - "127.0.0.1:9102:9000" # nginx assets host -> MinIO S3 API
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - internal
+
+  # Idempotently creates the bucket, a least-privilege API user, public-read
+  # access only for published storefront objects, and the abandoned-upload
+  # lifecycle. Browser CORS is enforced by minio above. It exits after
+  # reconciliation.
+  minio-init:
+    image: quay.io/minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+    volumes:
+      - ./deploy/minio:/config:ro
+    entrypoint: ["/bin/sh", "/config/bootstrap"]
+    networks:
+      - internal
+
   api:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER}/safrat-api:${IMAGE_TAG:-latest}
     restart: always
@@ -31,8 +75,8 @@ services:
       FIREBASE_SERVICE_ACCOUNT_JSON: ${FIREBASE_SERVICE_ACCOUNT_JSON}
       XENDIT_SECRET_KEY: ${XENDIT_SECRET_KEY}
       XENDIT_WEBHOOK_TOKEN: ${XENDIT_WEBHOOK_TOKEN}
-      # Direct browser upload. Configure either the generic S3_* values or
-      # their R2_* aliases in .env.prod. Secrets are consumed by API only.
+      # Direct browser upload to the self-hosted MinIO endpoint. Credentials
+      # belong to a bucket-scoped service user and are consumed by API only.
       S3_ENDPOINT: ${S3_ENDPOINT}
       S3_REGION: ${S3_REGION:-auto}
       S3_BUCKET: ${S3_BUCKET}
@@ -40,19 +84,22 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
       S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL}
       S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
-      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
-      R2_BUCKET_NAME: ${R2_BUCKET_NAME}
-      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
-      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
-      R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL}
       # Shared monitoring event bus, operator cache invalidation, and public
       # endpoint rate limiter. Required for consistent multi-replica behavior.
       REDIS_URL: redis://redis:6379
     ports:
       - "127.0.0.1:9100:8080"   # nginx -> localhost:9100 -> container :8080
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    extra_hosts:
+      # Server-side HEAD/GET/COPY requests use the same externally signed host
+      # as browser PUTs, but stay on the VPS rather than hairpinning externally.
+      - "assets.tawafiqhub.id:host-gateway"
     networks:
       - internal
 
@@ -113,6 +160,7 @@ services:
 
 volumes:
   postgres_data:
+  minio_data:
 
 networks:
   internal:

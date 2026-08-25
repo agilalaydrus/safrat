@@ -229,57 +229,52 @@ XENDIT_WEBHOOK_TOKEN=...
 SENTRY_DSN=...
 NEXT_PUBLIC_SENTRY_DSN=...
 
-# Storefront media on S3-compatible storage (Cloudflare R2 example). Create a
-# bucket API token limited to Object Read & Write for this bucket. The public
-# base should be an R2 custom domain or r2.dev URL; presigned PUT itself always
-# uses the S3 API endpoint.
-S3_ENDPOINT=https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com
-S3_REGION=auto
+# Self-hosted MinIO storefront media. Keep the root credentials exclusive to
+# minio-init; the API receives the separate bucket-scoped S3 service user.
+MINIO_ROOT_USER=safrat-root
+MINIO_ROOT_PASSWORD=<openssl-rand-hex-32>
+S3_ENDPOINT=https://assets.tawafiqhub.id
+S3_REGION=us-east-1
 S3_BUCKET=safrat-uploads
-S3_ACCESS_KEY_ID=...
-S3_SECRET_ACCESS_KEY=...
-S3_PUBLIC_BASE_URL=https://assets.tawafiqhub.id
+S3_ACCESS_KEY_ID=safrat-storefront
+S3_SECRET_ACCESS_KEY=<openssl-rand-hex-32>
+S3_PUBLIC_BASE_URL=https://assets.tawafiqhub.id/safrat-uploads
 S3_FORCE_PATH_STYLE=true
 ```
 
-Configure bucket CORS before enabling upload from the CMS. Only the apex needs
-upload permission because the authenticated dashboard lives there. The
-version-controlled Wrangler input is `deploy/r2/cors.production.json`:
+`minio` stores data in the persistent `minio_data` Docker volume and publishes
+only its S3 API on loopback port 9102. The administrative console is disabled
+and port 9001 is not exposed. Nginx terminates wildcard TLS at
+`assets.tawafiqhub.id`; the API container maps that hostname to the Docker host
+so server-side validation and promotion do not hairpin through the public
+network.
 
-```json
-[
-  {
-    "AllowedOrigins": ["https://tawafiqhub.id"],
-    "AllowedMethods": ["PUT"],
-    "AllowedHeaders": ["Content-Type"],
-    "ExposeHeaders": ["ETag"],
-    "MaxAgeSeconds": 3600
-  }
-]
-```
+The one-shot `minio-init` service is idempotent and runs on every deployment.
+It creates the bucket, rotates/reconciles the least-privilege service user,
+limits anonymous reads to `storefront/`, and expires only
+`storefront-pending/` objects after one day. MinIO
+Community configures CORS cluster-wide rather than per bucket; the Compose
+service pins `MINIO_API_CORS_ALLOW_ORIGIN` to `https://tawafiqhub.id`. This
+instance hosts only TawafiqHub's bucket. Do not grant public access to the whole
+bucket and never expose either secret through a `NEXT_PUBLIC_*` variable.
 
 The API signs both `Content-Type: image/webp` and the optimized byte length,
 uses random tenant-scoped object keys, and expires upload URLs after 10 minutes.
-Never expose `S3_SECRET_ACCESS_KEY` through a `NEXT_PUBLIC_*` variable. Uploads
-first enter `storefront-pending/`; only a fully decoded and validated WebP is
-copied to the durable `storefront/` prefix. Configure the lifecycle rule only
-for the pending prefix so published assets are never expired:
+Uploads first enter `storefront-pending/`; only a fully decoded and validated
+WebP is copied to the durable `storefront/` prefix.
 
 ```bash
-npx wrangler r2 bucket cors set safrat-uploads \
-  --file deploy/r2/cors.production.json
-npx wrangler r2 bucket lifecycle add safrat-uploads \
-  expire-unconfirmed-storefront storefront-pending/ --expire-days 1 --force
-npx wrangler r2 bucket cors list safrat-uploads
-npx wrangler r2 bucket lifecycle list safrat-uploads
+cd /home/deploy/safrat
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d minio
+docker compose -f docker-compose.prod.yml --env-file .env.prod up --no-deps minio-init
+docker compose -f docker-compose.prod.yml --env-file .env.prod ps minio
+curl --fail https://assets.tawafiqhub.id/minio/health/live
 ```
 
-If TawafiqHub is not yet configured as a Cloudflare zone, do not use the
-bucket's `r2.dev` URL as the permanent production origin: Cloudflare documents
-that endpoint as rate-limited and non-production. Add the zone to the same
-account as the R2 bucket (full nameserver setup, or an eligible partial CNAME
-setup), then attach `assets.tawafiqhub.id` as the bucket custom domain and set
-that URL as `S3_PUBLIC_BASE_URL`.
+The wildcard DNS record already covers `assets.tawafiqhub.id`, and the existing
+apex-plus-wildcard certificate covers its HTTPS endpoint. Keep VPS snapshots
+enabled. A snapshot or backup stored on the same VPS is not a disaster-recovery
+copy; add an offsite target before media becomes business-critical.
 
 Start services:
 

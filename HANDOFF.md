@@ -27,13 +27,17 @@
   images to strip metadata, resizes them, and creates WebP before upload; the API
   then HEADs, downloads, signature-checks, fully decodes, and dimension-checks the
   object before returning its usable public URL. Local development uses MinIO on
-  `:9000` (console `:9001`) with tested browser CORS. Production still needs the
-  documented R2/S3 bucket, credentials, public base URL, CORS, and abandoned-object
-  lifecycle configured before deployment. Upload tickets now target the
+  `:9000` (console `:9001`) with tested browser CORS. Production is now designed
+  around self-hosted MinIO on the existing VPS rather than Cloudflare R2. The
+  versioned Compose/bootstrap/Nginx setup uses a persistent volume, a separate
+  least-privilege API user, global apex-only CORS, public reads only under
+  `storefront/`, and no exposed admin console. Upload tickets target the
   `storefront-pending/` prefix and confirmation promotes verified images to
   `storefront/`; a 1-day lifecycle can therefore remove abandoned uploads
-  without ever expiring published media. The production Wrangler CORS input is
-  versioned at `deploy/r2/cors.production.json`.
+  without ever expiring published media. The real production-isolated MinIO
+  integration passed CORS, signed upload, full WebP verification, promotion,
+  anonymous published read, pending privacy, cleanup, and repeatable bootstrap.
+  VPS secrets and the first production rollout still need to be completed.
 - Migration 082 creates `operator_storefronts` and seeds every existing operator's
   legacy public profile into draft and published revision 1. The migration is
   applied locally. Repository integration tests prove draft isolation, atomic
@@ -160,7 +164,7 @@
   and rebuilt by CI — never commit it. `apps/web/tsconfig.tsbuildinfo` and
   untracked scratch `*.md` / media are also excluded.
 - **Local dev DB was wiped clean** (all rows truncated, schema kept) for fresh
-  manual testing. Migrations **073–082 are applied locally**; in prod goose
+  manual testing. Migrations **073–083 are applied locally**; in prod goose
   applies them on deploy.
 - Local processes: web dev on `:3131`; Go API on `:8131`. Both are expected to
   be restarted from current source after the latest local commit.

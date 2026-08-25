@@ -31,8 +31,9 @@ var (
 		"kbih": {}, "kbihu": {}, "yayasan": {},
 	}
 	operatorReservedSlugs = map[string]struct{}{
-		"admin": {}, "api": {}, "app": {}, "auth": {}, "dashboard": {},
-		"docs": {}, "help": {}, "status": {}, "support": {}, "www": {},
+		"admin": {}, "api": {}, "app": {}, "assets": {}, "auth": {},
+		"cdn": {}, "dashboard": {}, "docs": {}, "help": {}, "media": {},
+		"status": {}, "storage": {}, "support": {}, "www": {},
 	}
 )
 

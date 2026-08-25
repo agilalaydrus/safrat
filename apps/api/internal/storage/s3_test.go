@@ -31,8 +31,9 @@ func TestS3CompatibleUploadIntegration(t *testing.T) {
 	}
 	store, err := New(context.Background(), Config{
 		Endpoint: endpoint, Region: "us-east-1", Bucket: "safrat-uploads",
-		AccessKeyID: "safrat-local", SecretAccessKey: "safrat-local-secret",
-		PublicBaseURL: endpoint + "/safrat-uploads", ForcePathStyle: true,
+		AccessKeyID:     integrationValue("S3_INTEGRATION_ACCESS_KEY_ID", "safrat-local"),
+		SecretAccessKey: integrationValue("S3_INTEGRATION_SECRET_ACCESS_KEY", "safrat-local-secret"),
+		PublicBaseURL:   endpoint + "/safrat-uploads", ForcePathStyle: true,
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -51,7 +52,8 @@ func TestS3CompatibleUploadIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new OPTIONS request: %v", err)
 	}
-	preflight.Header.Set("Origin", "http://localhost:3131")
+	integrationOrigin := integrationValue("S3_INTEGRATION_ORIGIN", "http://localhost:3131")
+	preflight.Header.Set("Origin", integrationOrigin)
 	preflight.Header.Set("Access-Control-Request-Method", http.MethodPut)
 	preflight.Header.Set("Access-Control-Request-Headers", "content-type")
 	preflightResponse, err := http.DefaultClient.Do(preflight)
@@ -62,7 +64,7 @@ func TestS3CompatibleUploadIntegration(t *testing.T) {
 	if preflightResponse.StatusCode < 200 || preflightResponse.StatusCode >= 300 {
 		t.Fatalf("OPTIONS status = %d", preflightResponse.StatusCode)
 	}
-	if allowedOrigin := preflightResponse.Header.Get("Access-Control-Allow-Origin"); allowedOrigin != "http://localhost:3131" && allowedOrigin != "*" {
+	if allowedOrigin := preflightResponse.Header.Get("Access-Control-Allow-Origin"); allowedOrigin != integrationOrigin && allowedOrigin != "*" {
 		t.Fatalf("Access-Control-Allow-Origin = %q", allowedOrigin)
 	}
 	request, err := http.NewRequest(http.MethodPut, upload.UploadURL, bytes.NewReader(imageBytes))
@@ -86,9 +88,27 @@ func TestS3CompatibleUploadIntegration(t *testing.T) {
 	if publicURL != wantURL {
 		t.Fatalf("confirmed URL = %q, want %q", publicURL, wantURL)
 	}
+	publicResponse, err := http.Get(publicURL)
+	if err != nil {
+		t.Fatalf("public GET: %v", err)
+	}
+	publicResponse.Body.Close()
+	if publicResponse.StatusCode != http.StatusOK {
+		t.Fatalf("public GET status = %d", publicResponse.StatusCode)
+	}
+	if contentType := publicResponse.Header.Get("Content-Type"); contentType != StorefrontContentType {
+		t.Fatalf("public GET Content-Type = %q", contentType)
+	}
 	if _, err := store.client.HeadObject(context.Background(), &s3.HeadObjectInput{Bucket: aws.String(store.bucket), Key: aws.String(upload.ObjectKey)}); err == nil {
 		t.Fatal("pending object still exists after confirmation")
 	}
+}
+
+func integrationValue(key, fallback string) string {
+	if current := os.Getenv(key); current != "" {
+		return current
+	}
+	return fallback
 }
 
 func TestNewRejectsPartialConfiguration(t *testing.T) {

@@ -73,8 +73,8 @@ func TestReservedOperatorSlugsCannotBeUsed(t *testing.T) {
 	t.Parallel()
 
 	reserved := []string{
-		"admin", "api", "app", "auth", "dashboard",
-		"docs", "help", "status", "support", "www",
+		"admin", "api", "app", "assets", "auth", "cdn", "dashboard",
+		"docs", "help", "media", "status", "storage", "support", "www",
 	}
 	for _, slug := range reserved {
 		if !IsValidOperatorSlug(slug) {

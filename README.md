@@ -37,7 +37,10 @@ For the storefront CMS, export the `S3_*` values from `.env.example` before
 starting the API. MinIO runs at `http://localhost:9000`, its console is at
 `http://localhost:9001`, and the init container creates the public-read
 `safrat-uploads` bucket. Production media should use a dedicated S3-compatible
-bucket and public asset domain, not these local credentials.
+bucket and credentials. The current production deployment self-hosts MinIO on a
+persistent Docker volume and exposes only its S3 API through
+`https://assets.tawafiqhub.id`; see `DEPLOY.md` for bootstrap and recovery
+requirements.
 
 The Go API fails closed unless `DATABASE_URL`, `BETTER_AUTH_SECRET`, and `CORS_ALLOWED_ORIGIN` are configured. `cmd/worker` additionally requires `REDIS_URL` and periodically recalculates agent tiers (Bronze/Silver/Gold) from referred pilgrim counts — it does not compute payouts, which need order data that doesn't exist yet.
 

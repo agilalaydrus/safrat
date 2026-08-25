@@ -139,10 +139,6 @@ jobs:
             # Pull new images
             docker compose -f docker-compose.prod.yml --env-file .env.prod pull
 
-            # Start postgres dulu supaya network terbentuk
-            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d postgres
-            sleep 5
-
             set -a
             source .env.prod
             set +a
@@ -151,6 +147,7 @@ jobs:
             # best-effort dependency. Fail before migrations/restarts when a
             # bucket secret or public origin is missing from the VPS.
             for required_name in \
+              MINIO_ROOT_USER MINIO_ROOT_PASSWORD \
               S3_ENDPOINT S3_REGION S3_BUCKET S3_ACCESS_KEY_ID \
               S3_SECRET_ACCESS_KEY S3_PUBLIC_BASE_URL S3_FORCE_PATH_STYLE; do
               if [ -z "${!required_name:-}" ]; then
@@ -161,6 +158,15 @@ jobs:
             # The canonical deployment value deliberately overrides any stale
             # app-subdomain value that may still exist in .env.prod.
             export CORS_ALLOWED_ORIGIN=https://tawafiqhub.id
+
+            # Start stateful dependencies and reconcile MinIO before any API
+            # can issue upload tickets. minio-init is safe to run every deploy.
+            docker compose -f docker-compose.prod.yml --env-file .env.prod \
+              up -d postgres redis minio
+            docker compose -f docker-compose.prod.yml --env-file .env.prod \
+              up --no-deps minio-init
+            sleep 5
+
             NETWORK=$(docker network ls --filter name=safrat_internal --format '{{.Name}}' | head -1)
 
             # Better Auth owns its own tables (user/session/account/etc.) and
@@ -245,6 +251,7 @@ jobs:
             wait_for_status "https://api.tawafiqhub.id/readyz" "200"
             wait_for_status "https://tawafiqhub.id/" "200"
             wait_for_status "https://tawafiqhub.id/sw.js" "200"
+            wait_for_status "https://assets.tawafiqhub.id/minio/health/live" "200"
             # Unknown tenants must reach the wildcard TLS/web route and then
             # produce the application's real 404. Reserved names are rejected
             # directly by nginx rather than entering the tenant middleware.
@@ -286,3 +293,36 @@ jobs:
               echo "unexpected tenant CORS origin: ${tenant_cors_origin}" >&2
               exit 1
             fi
+
+            asset_cors_response=$(curl --silent --show-error \
+              --connect-timeout 5 --max-time 15 \
+              --request OPTIONS \
+              --dump-header - --output /dev/null \
+              --write-out $'\n%{http_code}' \
+              --header "Origin: https://tawafiqhub.id" \
+              --header "Access-Control-Request-Method: PUT" \
+              --header "Access-Control-Request-Headers: Content-Type" \
+              "https://assets.tawafiqhub.id/${S3_BUCKET}/storefront-pending/deploy-probe.webp" \
+              | tr -d '\r')
+            asset_cors_status=$(printf '%s\n' "${asset_cors_response}" | tail -1)
+            asset_cors_origin=$(printf '%s\n' "${asset_cors_response}" \
+              | awk -F ': ' 'tolower($1) == "access-control-allow-origin" {print $2; exit}')
+            if { [ "${asset_cors_status}" != "200" ] && [ "${asset_cors_status}" != "204" ]; } \
+              || [ "${asset_cors_origin}" != "https://tawafiqhub.id" ]; then
+              echo "unexpected asset CORS response: status=${asset_cors_status} origin=${asset_cors_origin}" >&2
+              exit 1
+            fi
+
+            # A missing published key must be anonymously readable far enough
+            # to return NoSuchKey, not the AccessDenied response of a private
+            # bucket. No probe object is left behind.
+            asset_probe=$(curl --silent --show-error \
+              --connect-timeout 5 --max-time 15 \
+              "https://assets.tawafiqhub.id/${S3_BUCKET}/storefront/.deploy-probe" || true)
+            case "${asset_probe}" in
+              *"<Code>NoSuchKey</Code>"*) ;;
+              *)
+                echo "published asset prefix is not anonymously readable" >&2
+                exit 1
+                ;;
+            esac
