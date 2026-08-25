@@ -162,6 +162,10 @@ export default function TenantStorefront({ profile, preview = false }: { profile
   const testimonials = content.testimonials ?? [];
   const faqs = content.faqs ?? [];
   const publicPackages = content.publicPackages ?? [];
+  const packageRows: StorefrontPublicPackage[] = publicPackages.length > 0 ? publicPackages : seasons.map((season) => {
+    const detail = packageContent.get(season.id);
+    return { id: season.id, title: season.name, category: SEASON_LABEL[season.type] ?? season.type, summary: detail?.summary, imageUrl: detail?.imageUrl, priceLabel: detail?.priceLabel, durationLabel: `${formatMonthYear(season.startDate)}${season.endDate ? ` - ${formatMonthYear(season.endDate)}` : ""}`, registrationSlug: season.slug, seasonId: season.id, facilities: detail?.facilities };
+  });
   const news = content.news ?? [];
   const blogPosts = content.blogPosts ?? [];
   const [lightbox, setLightbox] = useState<{ imageUrl: string; altText: string; caption?: string } | null>(null);
@@ -244,32 +248,14 @@ export default function TenantStorefront({ profile, preview = false }: { profile
         <section id="paket" className="tenant-section scroll-mt-24">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="max-w-2xl"><h2 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl dark:text-slate-100">Paket perjalanan tersedia</h2><p className="mt-4 text-base leading-7 text-slate-600 dark:text-slate-300">Temukan jadwal yang sesuai, lalu isi formulir pendaftaran langsung untuk paket pilihan Anda.</p></div>
-            {publicPackages.length === 0 && seasons.length === 0 ? (
+            {packageRows.length === 0 ? (
               <div className="tenant-empty mt-10"><IconCalendarEvent size={30} stroke={1.6} /><h3>Jadwal baru sedang disiapkan</h3><p>Hubungi tim travel untuk mendapatkan informasi keberangkatan berikutnya.</p>{whatsapp && <a href={whatsapp} target="_blank" rel="noreferrer" className="tenant-secondary-cta">Konsultasi WhatsApp</a>}</div>
             ) : (
               <div className="mt-10 grid gap-5">
-                {publicPackages.map((item) => {
+                {packageRows.map((item, packageIndex) => {
                   const packageImage = safeOptionalImageLink(item.imageUrl);
                   const href = item.registrationSlug ? `/register/${item.registrationSlug}` : item.seasonId ? `/register/${item.seasonId}` : "#kontak";
-                  return <article key={item.id} className="tenant-package-row"><div className="tenant-package-index">{String(publicPackages.indexOf(item) + 1).padStart(2, "0")}</div>{packageImage && <img src={packageImage} alt={item.title} loading="lazy" className="tenant-package-thumb" />}<div className="min-w-0"><p className="tenant-eyebrow">{item.category || "Paket perjalanan"}</p><h3>{item.title}</h3>{item.summary && <p>{item.summary}</p>}</div><div className="tenant-package-meta"><span>{item.durationLabel || "Konsultasi durasi"}</span><strong>{item.priceLabel || "Hubungi kami"}</strong></div><details className="tenant-package-expand"><summary aria-label={`Detail ${item.title}`}><IconArrowRight size={19} stroke={1.8} /></summary><div>{(item.facilities?.length ?? 0) > 0 && <div className="tenant-package-facilities">{item.facilities?.map((facility) => <span key={facility}><IconCheck size={16} stroke={2} />{facility}</span>)}</div>}{(item.seasons?.length ?? 0) > 0 && <div className="tenant-season-options">{item.seasons?.map((season) => <div key={season.seasonId} className="tenant-season-option"><div><strong>{seasons.find((entry) => entry.id === season.seasonId)?.name || "Musim tersedia"}</strong><span>{season.hotelMakkah || "Hotel Makkah belum diisi"} · {season.hotelMadinah || "Hotel Madinah belum diisi"}</span>{season.airline && <span>{season.airline}{season.hotelRating ? ` · ${season.hotelRating}` : ""}</span>}</div><div><small>{typeof season.seatsRemaining === "number" ? `${season.seatsRemaining} kursi tersisa` : "Kuota hubungi travel"}</small><button type="button" onClick={() => setBooking({ packageTitle: item.title, seasonName: seasons.find((entry) => entry.id === season.seasonId)?.name, whatsapp: managerWhatsapp || "" })} disabled={!managerWhatsapp}>Pesan Kursi</button></div></div>)}</div>}<div className="flex flex-wrap gap-3"><Link href={href} className="tenant-package-link">Lihat pendaftaran <IconArrowRight size={17} stroke={1.9} /></Link>{managerWhatsapp && <button type="button" className="tenant-secondary-cta" onClick={() => setBooking({ packageTitle: item.title, whatsapp: managerWhatsapp })}>Konsultasi</button>}</div></div></details></article>;
-                })}
-                {seasons.map((season) => {
-                  const detail = packageContent.get(season.id);
-                  const packageImage = safeOptionalImageLink(detail?.imageUrl);
-                  return (
-                    <article key={season.id} className="tenant-package overflow-hidden p-0">
-                      {packageImage && <div className="aspect-[16/8] overflow-hidden"><img src={packageImage} alt={`Paket ${season.name}`} className="h-full w-full object-cover" /></div>}
-                      <div className="p-6 sm:p-7">
-                        <div className="flex items-start justify-between gap-4"><span className="tenant-season-label">{SEASON_LABEL[season.type] ?? season.type}</span>{detail?.priceLabel ? <strong className="tenant-brand-ink text-sm">{detail.priceLabel}</strong> : <IconCalendarEvent size={24} stroke={1.6} className="tenant-brand-ink" />}</div>
-                        <h3 className="mt-7 text-xl font-extrabold tracking-tight text-slate-950 dark:text-slate-100">{season.name}</h3>
-                        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{formatMonthYear(season.startDate)}{season.endDate ? ` - ${formatMonthYear(season.endDate)}` : ""}</p>
-                        {detail?.summary && <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-300">{detail.summary}</p>}
-                        {(detail?.facilities?.length ?? 0) > 0 && <div className="mt-5 grid gap-2 sm:grid-cols-2">{detail?.facilities?.map((facility) => <span key={facility} className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-300"><IconCheck size={17} stroke={2} className="tenant-brand-ink mt-0.5 shrink-0" />{facility}</span>)}</div>}
-                        {(detail?.itinerary?.length ?? 0) > 0 && <details className="tenant-itinerary mt-5"><summary>Lihat itinerary</summary><div>{detail?.itinerary?.map((item, index) => <div key={`${item.title}-${index}`}><strong>{item.title}</strong>{item.description && <p>{item.description}</p>}</div>)}</div></details>}
-                        <Link href={`/register/${season.slug}`} className="tenant-package-link">Daftar Paket <IconArrowRight size={17} stroke={1.9} /></Link>
-                      </div>
-                    </article>
-                  );
+                  return <article key={item.id} className="tenant-package-row"><div className="tenant-package-index">{String(packageIndex + 1).padStart(2, "0")}</div>{packageImage && <img src={packageImage} alt={item.title} loading="lazy" className="tenant-package-thumb" />}<div className="min-w-0"><p className="tenant-eyebrow">{item.category || "Paket perjalanan"}</p><h3>{item.title}</h3>{item.summary && <p>{item.summary}</p>}</div><div className="tenant-package-meta"><span>{item.durationLabel || "Konsultasi durasi"}</span><strong>{item.priceLabel || "Hubungi kami"}</strong></div><details className="tenant-package-expand"><summary aria-label={`Detail ${item.title}`}><IconArrowRight size={19} stroke={1.8} /></summary><div>{(item.facilities?.length ?? 0) > 0 && <div className="tenant-package-facilities">{item.facilities?.map((facility) => <span key={facility}><IconCheck size={16} stroke={2} />{facility}</span>)}</div>}{(item.seasons?.length ?? 0) > 0 && <div className="tenant-season-options">{item.seasons?.map((season) => <div key={season.seasonId} className="tenant-season-option"><div><strong>{seasons.find((entry) => entry.id === season.seasonId)?.name || "Musim tersedia"}</strong><span>{season.hotelMakkah || "Hotel Makkah belum diisi"} · {season.hotelMadinah || "Hotel Madinah belum diisi"}</span>{season.airline && <span>{season.airline}{season.hotelRating ? ` · ${season.hotelRating}` : ""}</span>}</div><div><small>{typeof season.seatsRemaining === "number" ? `${season.seatsRemaining} kursi tersisa` : "Kuota hubungi travel"}</small><button type="button" onClick={() => setBooking({ packageTitle: item.title, seasonName: seasons.find((entry) => entry.id === season.seasonId)?.name, whatsapp: managerWhatsapp || "" })} disabled={!managerWhatsapp}>Pesan Kursi</button></div></div>)}</div>}<div className="flex flex-wrap gap-3"><Link href={href} className="tenant-package-link">Lihat pendaftaran <IconArrowRight size={17} stroke={1.9} /></Link>{managerWhatsapp && <button type="button" className="tenant-secondary-cta" onClick={() => setBooking({ packageTitle: item.title, whatsapp: managerWhatsapp })}>Konsultasi</button>}</div></div></details></article>;
                 })}
               </div>
             )}
