@@ -14,6 +14,19 @@
 
 ## Continuation after this snapshot
 
+- Berita and Blog now have a complete draft editor: collapsible article forms,
+  automatic but overridable slugs, tenant-scoped WebP cover uploads, required
+  alt text, author, publication date, excerpt/body counters, per-article SEO
+  title and description, and a live Google-result preview. Client and backend
+  validation enforce complete articles, valid 3 to 180 character slugs, unique
+  slugs across both collections, valid cover URLs, alt text, valid timestamps,
+  and a maximum of 30 entries per collection. Published cards and detail pages
+  show author/date metadata. Article media uses a dedicated storage kind while
+  retaining the existing tenant isolation, verification, and 5 MB WebP limit.
+  TypeScript, targeted ESLint, Buf lint, production web build, full Go tests,
+  vet, build, and the new storage coverage pass. Signed-in CMS interaction and
+  a real image upload remain recommended browser QA.
+
 - The tenant storefront now has a transparent hero-overlay header that remains
   sticky, resolves to the tenant's semantic surface after the hero, highlights
   the active anchor with a rounded state, and exposes an accessible mobile menu.
@@ -170,8 +183,9 @@
 
 ## Repo / deploy state
 
-- The production release through `0228b55` is on `origin/main` and passed CI,
-  image builds, migrations, VPS restart, and public smoke tests.
+- The production release through `e7fef46` is on `origin/main` and passed CI,
+  image builds, migrations, VPS restart, and public smoke tests in Actions run
+  `32916437921`.
   **Pushing `main` triggers a production deploy** (`.github/workflows/deploy.yml`
   → builds images, runs goose migrations, installs validated nginx config, and
   redeploys `tawafiqhub.id`). Do not push again without explicit owner approval.

@@ -202,7 +202,7 @@ func (s *Store) ConfirmStorefrontUpload(ctx context.Context, operatorID, objectK
 
 func storefrontSpec(kind string) (storefrontAssetSpec, error) {
 	switch kind {
-	case "logo", "hero", "gallery", "package":
+	case "logo", "hero", "gallery", "package", "article":
 		return storefrontAssetSpec{contentType: StorefrontContentType, extension: ".webp", maxBytes: MaxStorefrontImageBytes}, nil
 	case "background-music":
 		return storefrontAssetSpec{contentType: StorefrontAudioContentType, extension: ".mp3", maxBytes: MaxStorefrontAudioBytes}, nil

@@ -173,6 +173,32 @@ func TestPresignStorefrontMusicUploadUsesTenantScopedMP3(t *testing.T) {
 	}
 }
 
+func TestPresignStorefrontArticleUploadUsesTenantScopedWebP(t *testing.T) {
+	store, err := New(context.Background(), Config{
+		Endpoint: "http://127.0.0.1:9000", Region: "us-east-1", Bucket: "safrat-uploads",
+		AccessKeyID: "local-access", SecretAccessKey: "local-secret",
+		PublicBaseURL: "http://127.0.0.1:9000/safrat-uploads", ForcePathStyle: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	operatorID := "00000000-0000-4000-8000-000000000001"
+	upload, err := store.PresignStorefrontUpload(context.Background(), operatorID, "article", 1024)
+	if err != nil {
+		t.Fatalf("PresignStorefrontUpload: %v", err)
+	}
+	parsed, err := url.Parse(upload.UploadURL)
+	if err != nil {
+		t.Fatalf("parse upload URL: %v", err)
+	}
+	if !strings.HasPrefix(parsed.Path, "/safrat-uploads/storefront-pending/"+operatorID+"/article/") || !strings.HasSuffix(parsed.Path, ".webp") {
+		t.Fatalf("unexpected tenant-scoped key: %s", parsed.Path)
+	}
+	if upload.ContentType != StorefrontContentType {
+		t.Fatalf("content type = %q, want %q", upload.ContentType, StorefrontContentType)
+	}
+}
+
 func TestValidStorefrontPayloadRecognizesWebPAndMP3(t *testing.T) {
 	imageSpec, _ := storefrontSpec("hero")
 	audioSpec, _ := storefrontSpec("background-music")

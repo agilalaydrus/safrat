@@ -313,6 +313,7 @@ func (s *OperatorService) CreateStorefrontUpload(ctx context.Context, authentica
 		hajjv1.StorefrontAssetKind_STOREFRONT_ASSET_KIND_GALLERY:          "gallery",
 		hajjv1.StorefrontAssetKind_STOREFRONT_ASSET_KIND_PACKAGE:          "package",
 		hajjv1.StorefrontAssetKind_STOREFRONT_ASSET_KIND_BACKGROUND_MUSIC: "background-music",
+		hajjv1.StorefrontAssetKind_STOREFRONT_ASSET_KIND_ARTICLE:          "article",
 	}
 	kind, ok := kinds[request.Kind]
 	if !ok {
@@ -510,6 +511,9 @@ func (s *OperatorService) validateStorefront(ctx context.Context, operatorID str
 			}
 		}
 	}
+	if len(content.News) > 30 || len(content.BlogPosts) > 30 {
+		return apperror.ErrValidation
+	}
 	seenArticleSlugs := make(map[string]struct{}, len(content.News)+len(content.BlogPosts))
 	for _, articles := range [][]*hajjv1.StorefrontArticle{content.News, content.BlogPosts} {
 		for _, item := range articles {
@@ -520,6 +524,9 @@ func (s *OperatorService) validateStorefront(ctx context.Context, operatorID str
 				return apperror.ErrValidation
 			}
 			if item.CoverImageUrl != "" && strings.TrimSpace(item.AltText) == "" {
+				return apperror.ErrValidation
+			}
+			if item.PublishedAt != nil && item.PublishedAt.CheckValid() != nil {
 				return apperror.ErrValidation
 			}
 			if _, duplicate := seenArticleSlugs[item.Slug]; duplicate {
