@@ -186,12 +186,71 @@ func TestSubscriptionOverdueInvoiceReleasesItsAmountIntegration(t *testing.T) {
 	if _, err := subscriptions.ExpireOverdueInvoices(ctx); err != nil {
 		t.Fatalf("expire: %v", err)
 	}
-	// The amount is released for reuse, and no longer settles anything.
+	// The amount no longer settles anything...
 	if _, _, err := subscriptions.FindPayableByAmount(ctx, invoice.Amount); !errors.Is(err, apperror.ErrNotFound) {
 		t.Fatalf("expired invoice still payable: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO subscription_invoices (operator_id,plan,channel,base_amount_idr,amount_idr,period_start,period_end,due_at)
-		VALUES ($1,'STARTER','BANK_TRANSFER',589000,$2,NOW(),NOW()+INTERVAL '30 days',NOW()+INTERVAL '7 days')`, operatorID, invoice.Amount); err != nil {
-		t.Fatalf("amount was not released for reuse: %v", err)
+	// ...but it is NOT free again today. Expiry releases the pending hold; the
+	// per-day rule still applies, because a mutation arriving later today would
+	// otherwise be ambiguous between the expired invoice and a new one.
+	_, err = pool.Exec(ctx, `INSERT INTO subscription_invoices (operator_id,plan,channel,base_amount_idr,amount_idr,period_start,period_end,due_at)
+		VALUES ($1,'STARTER','BANK_TRANSFER',589000,$2,NOW(),NOW()+INTERVAL '30 days',NOW()+INTERVAL '7 days')`, operatorID, invoice.Amount)
+	if err == nil {
+		t.Fatal("an expired amount was reissued on the same day")
+	}
+	// On another day it is available again.
+	if _, err := pool.Exec(ctx, `INSERT INTO subscription_invoices (operator_id,plan,channel,base_amount_idr,amount_idr,period_start,period_end,due_at,created_at)
+		VALUES ($1,'STARTER','BANK_TRANSFER',589000,$2,NOW(),NOW()+INTERVAL '30 days',NOW()+INTERVAL '7 days',NOW()-INTERVAL '3 days')`, operatorID, invoice.Amount); err != nil {
+		t.Fatalf("amount was not released on a later day: %v", err)
+	}
+}
+
+// An amount must not be reused within the same day even after its invoice is
+// settled. A bank mutation carries a date, not a precise instant, so a code
+// paid at 09:00 and reissued at 10:00 leaves that day's mutation ambiguous —
+// it could belong to either invoice.
+func TestSubscriptionTransferAmountIsUniquePerDayIntegration(t *testing.T) {
+	pool := subscriptionTestPool(t)
+	ctx := context.Background()
+	subscriptions := NewSubscriptionRepository(pool)
+	first := newTestOperator(t, pool, "STARTER")
+	second := newTestOperator(t, pool, "STARTER")
+
+	invoice, err := subscriptions.IssueBankTransferInvoice(ctx, first, "STARTER")
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+	// Settle it: under the old rule this released the amount immediately.
+	if err := subscriptions.MarkPaid(ctx, invoice.ID); err != nil {
+		t.Fatalf("settle: %v", err)
+	}
+
+	_, err = pool.Exec(ctx, `
+		INSERT INTO subscription_invoices (operator_id, plan, channel, base_amount_idr, amount_idr, period_start, period_end, due_at)
+		VALUES ($1, 'STARTER', 'BANK_TRANSFER', 589000, $2, NOW(), NOW() + INTERVAL '30 days', NOW() + INTERVAL '7 days')`,
+		second, invoice.Amount)
+	if err == nil {
+		t.Fatal("a settled amount was reissued on the same day")
+	}
+	if !isUniqueViolation(err, "subscription_invoices_transfer_daily_idx") {
+		t.Fatalf("rejected for the wrong reason: %v", err)
+	}
+
+	// The next day it is free again — the constraint is per day, not forever.
+	_, err = pool.Exec(ctx, `
+		INSERT INTO subscription_invoices (operator_id, plan, channel, base_amount_idr, amount_idr, period_start, period_end, due_at, created_at)
+		VALUES ($1, 'STARTER', 'BANK_TRANSFER', 589000, $2, NOW(), NOW() + INTERVAL '30 days', NOW() + INTERVAL '7 days', NOW() - INTERVAL '2 days')`,
+		second, invoice.Amount)
+	if err != nil {
+		t.Fatalf("amount was not released on a different day: %v", err)
+	}
+
+	// And the issuer still finds a free suffix rather than failing.
+	next, err := subscriptions.IssueBankTransferInvoice(ctx, second, "STARTER")
+	if err != nil {
+		t.Fatalf("issue after collision: %v", err)
+	}
+	if next.Amount == invoice.Amount {
+		t.Fatalf("issued the same amount twice on one day: %d", next.Amount)
 	}
 }

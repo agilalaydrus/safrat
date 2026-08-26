@@ -24,10 +24,12 @@ const (
 	// transfer needs time to clear, so this is not the same as the access
 	// deadline.
 	InvoiceDueDays = 7
-	// transferSuffixMax bounds the unique amount suffix. 999 concurrent unpaid
-	// transfers at the same price is far beyond plausible; the retry below
-	// turns the remaining collision risk into a clean error rather than a
-	// misattributed payment.
+	// transferSuffixMax bounds the unique amount suffix. Since amounts are
+	// unique per day and not merely among unpaid invoices, this is also the
+	// ceiling on transfers issuable for one plan in one day. 999 is far beyond
+	// current volume, but it is a real ceiling rather than a theoretical one —
+	// exhaustion returns ErrTransferAmountUnavailable so the caller can offer
+	// the gateway instead of reusing a code.
 	transferSuffixMax = 999
 	transferAttempts  = 24
 )
@@ -136,7 +138,11 @@ func (r *SubscriptionRepository) IssueBankTransferInvoice(ctx context.Context, o
 		if err == nil {
 			return invoice, nil
 		}
-		if isUniqueViolation(err, "subscription_invoices_transfer_amount_idx") {
+		// Either index rejecting means this suffix is taken — by a live invoice,
+		// or by one already issued today. Both are retryable; anything else is a
+		// real fault and must not be swallowed by another attempt.
+		if isUniqueViolation(err, "subscription_invoices_transfer_amount_idx") ||
+			isUniqueViolation(err, "subscription_invoices_transfer_daily_idx") {
 			continue
 		}
 		return Invoice{}, err
