@@ -24,3 +24,10 @@ tawafiqhub-landing-page/
 UI*.png
 *.pdf
 Safrat New Updates.md
+.next-e2e
+
+# Playwright: reports, traces, and the auth states (real session cookies)
+apps/web/playwright-report/
+apps/web/test-results/
+apps/web/e2e/.auth/
+apps/web/e2e/tsconfig.tsbuildinfo

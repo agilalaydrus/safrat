@@ -38,6 +38,10 @@ const withSerwist = withSerwistInit({
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // The offline PWA specs need a production build served alongside the dev
+  // server, and both default to `.next` — a shared directory they would
+  // clobber. NEXT_DIST_DIR lets that build live somewhere else.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   generateBuildId: async () => buildRevision,
   transpilePackages: ["@hajj-saas/proto-gen", "@hajj-saas/validations", "@hajj-saas/ui"],
 };

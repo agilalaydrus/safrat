@@ -11,9 +11,14 @@ const eslintConfig = [
   {
     ignores: [
       ".next/**",
+      // The offline PWA specs build into their own distDir (see next.config.ts).
+      ".next-e2e/**",
       "node_modules/**",
       "next-env.d.ts",
       "public/sw.js",
+      "public/sw.js.map",
+      "playwright-report/**",
+      "test-results/**",
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),

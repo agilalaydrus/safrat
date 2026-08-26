@@ -14,6 +14,36 @@
 
 ## Continuation after this snapshot
 
+- **Browser QA now exists.** `apps/web/e2e/` is a Playwright suite that drives
+  the real local stack (Next.js, the Go API, PostgreSQL, MinIO) through a real
+  browser — see `apps/web/e2e/README.md` for how to run it and what it covers.
+  Eight specs pass: the full image-upload chain (presign → WebP conversion →
+  PUT → verification → promotion → registry row → public read → quota), draft
+  vs published isolation, a real MP3 upload with autoplay and mute persistence,
+  the blocked-autoplay fallback, service worker install/precache, and a fresh
+  tab served entirely from cache with the network down. It is deliberately
+  outside `pnpm lint`/`typecheck`/CI because it needs running services and
+  writes to the local database. Fixtures are a dedicated operator and a linked
+  pilgrim, provisioned through the app's own endpoints; `e2e:clean` removes them.
+  Known limits are listed in that README — autoplay blocking is injected rather
+  than enforced by the browser, the cold-start test keeps one tab open, and real
+  devices (iOS Safari audio, an installed PWA reopened offline) remain unverified.
+
+- **The local API had storefront storage disabled entirely.** `apps/api/.env`
+  carried no `S3_*` keys, so `storage.New` returned nil and every upload RPC was
+  a no-op locally; the MinIO integration tests pass because they construct a
+  Store directly and bypass the API. The keys are now set (they were already
+  documented in `.env.example`), which is what made browser upload QA possible
+  at all.
+
+- **Found by that QA:** the storefront quota indicator is stale after an upload.
+  `setStorageUsage` in `OperatorProfilePanel` is called from load, saveDraft and
+  publish, never from the upload handler, so "N file aktif" and the used-bytes
+  bar do not move until the operator saves, publishes, or reloads. Not a data
+  bug — the registry and quota enforcement are correct — but the operator sees
+  the wrong number for the rest of the session. `storefront-cms.spec.ts` asserts
+  the current behaviour and documents it.
+
 - The one-time inventory/backfill for pre-registry storefront objects now
   exists as `apps/api/cmd/storefront-backfill`. It pages the live `storefront/`
   prefix, resolves each key to its operator and asset kind, and adopts the

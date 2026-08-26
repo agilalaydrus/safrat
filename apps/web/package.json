@@ -6,7 +6,13 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "e2e": "playwright test",
+    "e2e:clean": "psql \"$DATABASE_URL\" -c \"DELETE FROM operators WHERE slug = 'e2e-fixture'; DELETE FROM \\\"user\\\" WHERE email IN ('e2e-operator@safrat.local', 'e2e-pilgrim@safrat.local');\"",
+    "e2e:pwa:build": "NEXT_DIST_DIR=.next-e2e NEXT_PUBLIC_APP_URL=http://127.0.0.1:3141 NEXT_PUBLIC_API_URL=http://127.0.0.1:8141 next build",
+    "e2e:pwa:serve": "NEXT_DIST_DIR=.next-e2e BETTER_AUTH_URL=http://127.0.0.1:3141 NEXT_PUBLIC_APP_URL=http://127.0.0.1:3141 NEXT_PUBLIC_API_URL=http://127.0.0.1:8141 next start --port 3141",
+    "e2e:pwa:api": "cd ../api && PORT=8141 CORS_ALLOWED_ORIGIN=http://127.0.0.1:3141 go run ./cmd/server",
+    "e2e:typecheck": "tsc -p e2e/tsconfig.json --noEmit"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^1.10.0",
@@ -28,6 +34,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.10.2",
     "@types/papaparse": "^5.5.2",
