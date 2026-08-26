@@ -10,6 +10,13 @@
 // executed inside a transaction that is rolled back, so they are exact rather
 // than estimated.
 //
+// It needs s3:ListBucket, which the API's least-privilege service user only
+// gained in deploy/minio/storefront-service-policy.json. Beware of testing this
+// against local MinIO with the root credentials from docker-compose.yml
+// (safrat-local): that masks the permission entirely and the job then fails in
+// production with a 403 on ListObjectsV2. Reproduce the real user instead —
+// create a MinIO user, attach that policy file, and run as them.
+//
 //	go run ./cmd/storefront-backfill              # report only
 //	go run ./cmd/storefront-backfill -apply       # write the registry rows
 //

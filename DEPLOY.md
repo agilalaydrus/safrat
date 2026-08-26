@@ -249,6 +249,11 @@ and port 9001 is not exposed. Nginx terminates wildcard TLS at
 so server-side validation and promotion do not hairpin through the public
 network.
 
+The service user's policy grants `s3:ListBucket` only for the `storefront/`
+prefix — needed by the one-time `/storefront-backfill` job, which cannot
+enumerate existing media without it. Note that MinIO's root credentials bypass
+this entirely, so any local test run as root will not exercise it.
+
 The one-shot `minio-init` service is idempotent and runs on every deployment.
 It creates the bucket, rotates/reconciles the least-privilege service user,
 limits anonymous reads to `storefront/`, and expires only
