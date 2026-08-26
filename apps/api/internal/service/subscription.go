@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"connectrpc.com/connect"
 	"github.com/hajj-saas/api/internal/apperror"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
@@ -119,9 +121,10 @@ func (s *SubscriptionService) createGatewayInvoice(ctx context.Context, operator
 	if err != nil {
 		return nil, serviceError("SubscriptionService.CreateInvoice", err)
 	}
-	// The external id is generated before the row exists so the webhook can
-	// find it even if the response never reaches the browser.
-	externalID := fmt.Sprintf("sub-%s-%s", operatorID, plan)
+	// Unique per attempt, not per operator+plan: an operator who lets one
+	// gateway invoice expire and starts another would otherwise reuse the same
+	// reference, and the second could settle the first.
+	externalID := "sub-" + uuid.NewString()
 	created, err := s.xenditClient.CreateInvoice(ctx, payment.CreateInvoiceRequest{
 		ExternalID:         externalID,
 		Amount:             amount,

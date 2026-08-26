@@ -365,3 +365,39 @@ func (r *SubscriptionRepository) GetAccessByOrgID(ctx context.Context, orgID str
 	}
 	return access, err
 }
+
+// MarkPaidByExternalID settles the invoice a gateway payment belongs to. The
+// gateway identifies the payment by its own id, which is stored on the invoice
+// when it is issued.
+func (r *SubscriptionRepository) MarkPaidByExternalID(ctx context.Context, externalID string) error {
+	if strings.TrimSpace(externalID) == "" {
+		return apperror.ErrValidation
+	}
+	var invoiceID string
+	err := r.pool.QueryRow(ctx, `SELECT id::text FROM subscription_invoices WHERE external_id = $1`, externalID).Scan(&invoiceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperror.ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	return r.MarkPaid(ctx, invoiceID)
+}
+
+// CloseByExternalID marks a gateway invoice expired or failed. It never touches
+// a settled invoice: a late "expired" delivery must not undo a payment.
+func (r *SubscriptionRepository) CloseByExternalID(ctx context.Context, externalID, status string) error {
+	if strings.TrimSpace(externalID) == "" || (status != "EXPIRED" && status != "CANCELLED") {
+		return apperror.ErrValidation
+	}
+	command, err := r.pool.Exec(ctx, `
+		UPDATE subscription_invoices SET status = $2::invoice_status, updated_at = NOW()
+		WHERE external_id = $1 AND status = 'PENDING'`, externalID, status)
+	if err != nil {
+		return err
+	}
+	if command.RowsAffected() == 0 {
+		return apperror.ErrNotFound
+	}
+	return nil
+}

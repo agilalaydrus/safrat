@@ -319,7 +319,7 @@ func main() {
 		mux.Handle(ritualPath, ritualServiceHandler)
 		mux.Handle(healthReportPath, healthReportServiceHandler)
 		mux.Handle(monitoringPath, monitoringServiceHandler)
-		mux.HandleFunc("POST /webhooks/xendit", handler.NewXenditWebhookHandler(logger, orderRepository, orderService, config.XenditWebhookToken))
+		mux.HandleFunc("POST /webhooks/xendit", handler.NewXenditWebhookHandler(logger, orderRepository, orderService, subscriptionRepository, config.XenditWebhookToken))
 		uploadDir := os.Getenv("UPLOAD_DIR")
 		if uploadDir == "" {
 			uploadDir = "./uploads/documents"

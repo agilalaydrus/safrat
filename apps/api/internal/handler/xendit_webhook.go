@@ -1,10 +1,13 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 
+	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/payment"
 	"github.com/hajj-saas/api/internal/repository"
 	"github.com/hajj-saas/api/internal/service"
@@ -21,7 +24,7 @@ type xenditWebhookPayload struct {
 // NewXenditWebhookHandler is a plain net/http handler, not a Connect RPC —
 // Xendit calls back over a normal webhook POST, it doesn't speak Connect.
 // Registered directly on the mux in main.go.
-func NewXenditWebhookHandler(logger *slog.Logger, orders *repository.OrderRepository, orderService *service.OrderService, webhookToken string) http.HandlerFunc {
+func NewXenditWebhookHandler(logger *slog.Logger, orders *repository.OrderRepository, orderService *service.OrderService, subscriptions *repository.SubscriptionRepository, webhookToken string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !payment.VerifyWebhookToken(webhookToken, r.Header.Get("X-CALLBACK-TOKEN")) {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -34,6 +37,16 @@ func NewXenditWebhookHandler(logger *slog.Logger, orders *repository.OrderReposi
 		}
 
 		ctx := r.Context()
+
+		// One webhook endpoint serves two things now: pilgrim orders and
+		// operator subscriptions. A subscription invoice is recognised by the
+		// gateway id we stored when issuing it, so the two can never be
+		// confused — an id belongs to one or the other, never both.
+		if handled := settleSubscription(ctx, logger, subscriptions, payload); handled {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
 		var err error
 		switch payload.Status {
 		case "PAID":
@@ -58,4 +71,34 @@ func NewXenditWebhookHandler(logger *slog.Logger, orders *repository.OrderReposi
 		}
 		w.WriteHeader(http.StatusOK)
 	}
+}
+
+// settleSubscription applies a delivery to an operator subscription and reports
+// whether it belonged to one. Settlement itself is idempotent, so a redelivered
+// payment cannot buy a second period.
+func settleSubscription(ctx context.Context, logger *slog.Logger, subscriptions *repository.SubscriptionRepository, payload xenditWebhookPayload) bool {
+	if subscriptions == nil {
+		return false
+	}
+	var err error
+	switch payload.Status {
+	case "PAID":
+		err = subscriptions.MarkPaidByExternalID(ctx, payload.ID)
+	case "EXPIRED":
+		err = subscriptions.CloseByExternalID(ctx, payload.ID, "EXPIRED")
+	case "FAILED":
+		err = subscriptions.CloseByExternalID(ctx, payload.ID, "CANCELLED")
+	default:
+		return false
+	}
+	if errors.Is(err, apperror.ErrNotFound) {
+		// Not a subscription invoice — fall through to the order path.
+		return false
+	}
+	if err != nil {
+		// Logged rather than surfaced: returning non-200 makes Xendit retry
+		// forever, and the invoice can be reconciled from the dashboard.
+		logger.Error("xendit webhook: subscription not settled", "invoice_id", payload.ID, "status", payload.Status, "error", err)
+	}
+	return true
 }
