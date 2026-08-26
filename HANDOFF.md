@@ -24,7 +24,7 @@
 | --- | --- | --- |
 | `STARTER` | Starter PPIU | Platform subdomain. Landing page still fully customisable, and pilgrim / muttawwif / agent portals all included. |
 | `GROWTH` | Growth Enterprises | Everything in Starter plus their own domain. |
-| `PRO` | Custom Enterprises | Custom, up to a separate VPS and bespoke development. Named for the custom development, not the audience — PIHK and konsorsium are who it is sold to. |
+| `PRO` | Custom Enterprises | Custom, up to a separate VPS and bespoke development. Open to any travel agency, not only PIHK or konsorsium — the tier is defined by what it offers, not by who buys it. |
 
 **`plan` was decorative until now** — the column existed since 001 but was read
 nowhere in the Go code, so no feature was gated by it. Custom domains are the
