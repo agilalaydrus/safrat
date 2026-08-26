@@ -53,6 +53,10 @@ message GetMySubscriptionResponse {
   string transfer_bank_name = 6;
   string transfer_account_number = 7;
   string transfer_account_holder = 8;
+  // Whether each channel can actually complete right now. The screen hides a
+  // method it cannot finish rather than letting an operator pick it and fail.
+  bool bank_transfer_available = 9;
+  bool gateway_available = 10;
 }
 
 message ListMyInvoicesRequest {

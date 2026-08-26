@@ -155,13 +155,19 @@ export default function SubscriptionPage() {
 
             <p style={{ ...muted, marginTop: 4 }}>Pilih cara pembayaran:</p>
             <div style={payRow}>
-              <button type="button" onClick={() => void createInvoice(PaymentChannel.BANK_TRANSFER)()} disabled={busy} style={payButton}>
+              {/* A method that cannot complete is hidden rather than shown and
+                  rejected on click: an operator picking "transfer bank" before
+                  an account is configured would get a unique amount with
+                  nowhere to send it. */}
+              {subscription?.bankTransferAvailable && <button type="button" onClick={() => void createInvoice(PaymentChannel.BANK_TRANSFER)()} disabled={busy} style={payButton}>
                 <IconBuildingBank size={18} /> Transfer bank
-              </button>
-              <button type="button" onClick={() => void createInvoice(PaymentChannel.GATEWAY)()} disabled={busy} style={payButtonPrimary}>
+              </button>}
+              {subscription?.gatewayAvailable && <button type="button" onClick={() => void createInvoice(PaymentChannel.GATEWAY)()} disabled={busy} style={payButtonPrimary}>
                 <IconCreditCard size={18} /> QRIS / Kartu
-              </button>
+              </button>}
             </div>
+            {subscription && !subscription.bankTransferAvailable && !subscription.gatewayAvailable &&
+              <p style={hint}><IconInfoCircle size={15} /> Pembayaran mandiri belum tersedia. Hubungi tim TawafiqHub untuk mengaktifkan langganan Anda.</p>}
           </section>}
 
       {invoices.length > 0 && <section style={card}>

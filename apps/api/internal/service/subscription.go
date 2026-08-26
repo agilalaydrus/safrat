@@ -25,6 +25,15 @@ type TransferAccount struct {
 	AccountHolder string
 }
 
+// configured reports whether an operator could actually complete a transfer.
+// All three parts are required — a bank name without an account number is as
+// unusable as nothing at all.
+func (t TransferAccount) configured() bool {
+	return strings.TrimSpace(t.BankName) != "" &&
+		strings.TrimSpace(t.AccountNumber) != "" &&
+		strings.TrimSpace(t.AccountHolder) != ""
+}
+
 type SubscriptionService struct {
 	repository         *repository.SubscriptionRepository
 	operatorRepository *repository.OperatorRepository
@@ -57,6 +66,8 @@ func (s *SubscriptionService) GetMine(ctx context.Context, orgID string) (*hajjv
 		TransferBankName:      s.transferAccount.BankName,
 		TransferAccountNumber: s.transferAccount.AccountNumber,
 		TransferAccountHolder: s.transferAccount.AccountHolder,
+		BankTransferAvailable: s.transferAccount.configured(),
+		GatewayAvailable:      s.xenditClient != nil && s.xenditClient.Configured(),
 	}
 	pending, err := s.repository.PendingInvoice(ctx, operator.ID)
 	if err == nil {
@@ -102,6 +113,12 @@ func (s *SubscriptionService) CreateInvoice(ctx context.Context, orgID string, r
 
 	if request.Channel == hajjv1.PaymentChannel_PAYMENT_CHANNEL_GATEWAY {
 		return s.createGatewayInvoice(ctx, operator.ID, operator.Email, plan)
+	}
+	// A unique amount with nowhere to send it is a dead end: the operator is
+	// told to transfer, sees "—" for the account, and cannot pay. Refuse
+	// clearly instead, exactly as the gateway path does when Xendit is unset.
+	if !s.transferAccount.configured() {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("transfer bank belum tersedia; gunakan pembayaran otomatis"))
 	}
 	invoice, err := s.repository.IssueBankTransferInvoice(ctx, operator.ID, plan)
 	if errors.Is(err, repository.ErrTransferAmountUnavailable) {
