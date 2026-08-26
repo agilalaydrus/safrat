@@ -188,6 +188,8 @@ export type StorefrontProfile = {
   heroImageUrl?: string;
   activeSeasons?: StorefrontSeason[];
   content?: StorefrontContent;
+  /** The operator's verified primary domain, when they have one. */
+  canonicalHost?: string;
 };
 
 // Sign-in lives on the apex, and Better Auth's client is pinned to

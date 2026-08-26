@@ -359,6 +359,13 @@ func (s *OperatorService) GetPublicProfile(ctx context.Context, request *hajjv1.
 	}
 	applyStorefrontDefaults(content, operator)
 	summaries := publicSeasonMessages(seasons)
+	// A failure here must not take the whole public page down: without it the
+	// subdomain simply stays canonical, which is the pre-existing behaviour.
+	canonicalHost, err := s.domainRepository.PrimaryHostname(ctx, operator.ID)
+	if err != nil {
+		canonicalHost = ""
+	}
+
 	return &hajjv1.GetPublicProfileResponse{
 		OperatorId:     operator.ID,
 		Name:           content.DisplayName,
@@ -378,6 +385,7 @@ func (s *OperatorService) GetPublicProfile(ctx context.Context, request *hajjv1.
 		HeroSubtitle:   content.HeroSubtitle,
 		HeroImageUrl:   content.HeroImageUrl,
 		Content:        content,
+		CanonicalHost:  canonicalHost,
 	}, nil
 }
 

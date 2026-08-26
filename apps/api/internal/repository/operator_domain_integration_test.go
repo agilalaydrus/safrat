@@ -139,3 +139,67 @@ func TestOperatorDomainRespectsPlanEntitlementIntegration(t *testing.T) {
 		t.Fatalf("downgraded domain still in the CORS allowlist: %v, %v", hostnames, err)
 	}
 }
+
+// The first domain an operator verifies should become canonical on its own —
+// otherwise they prove ownership and search engines still point at the platform
+// subdomain until someone finds a separate control.
+func TestOperatorDomainFirstVerifiedBecomesPrimaryIntegration(t *testing.T) {
+	databaseURL := os.Getenv("STOREFRONT_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("STOREFRONT_TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("connect database: %v", err)
+	}
+	t.Cleanup(pool.Close)
+
+	operatorID := uuid.NewString()
+	_, err = pool.Exec(ctx, `INSERT INTO operators (id, better_auth_org_id, name, country, email, slug, plan) VALUES ($1, $2, 'Primary Test', 'ID', 'primary@example.com', $3, 'GROWTH')`,
+		operatorID, "primary-test-"+uuid.NewString(), "primary-"+operatorID[:8])
+	if err != nil {
+		t.Fatalf("insert operator: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), `DELETE FROM operators WHERE id = $1`, operatorID) })
+
+	domains := NewOperatorDomainRepository(pool)
+	first, err := domains.Add(ctx, operatorID, "first-domain.example")
+	if err != nil {
+		t.Fatalf("add first: %v", err)
+	}
+	second, err := domains.Add(ctx, operatorID, "second-domain.example")
+	if err != nil {
+		t.Fatalf("add second: %v", err)
+	}
+
+	// Nothing is canonical while nothing is verified.
+	if host, err := domains.PrimaryHostname(ctx, operatorID); err != nil || host != "" {
+		t.Fatalf("primary before verification = %q (%v), want empty", host, err)
+	}
+
+	if err := domains.MarkVerified(ctx, operatorID, first.ID); err != nil {
+		t.Fatalf("verify first: %v", err)
+	}
+	if host, err := domains.PrimaryHostname(ctx, operatorID); err != nil || host != "first-domain.example" {
+		t.Fatalf("primary after first verification = %q (%v)", host, err)
+	}
+
+	// Verifying a second must not silently move the canonical address; that is
+	// a deliberate choice an operator makes, not a side effect.
+	if err := domains.MarkVerified(ctx, operatorID, second.ID); err != nil {
+		t.Fatalf("verify second: %v", err)
+	}
+	if host, err := domains.PrimaryHostname(ctx, operatorID); err != nil || host != "first-domain.example" {
+		t.Fatalf("primary moved on second verification: %q (%v)", host, err)
+	}
+
+	// A downgrade must drop the canonical host, not point search engines at a
+	// domain we have stopped serving.
+	if _, err := pool.Exec(ctx, `UPDATE operators SET plan = 'STARTER' WHERE id = $1`, operatorID); err != nil {
+		t.Fatalf("downgrade: %v", err)
+	}
+	if host, err := domains.PrimaryHostname(ctx, operatorID); err != nil || host != "" {
+		t.Fatalf("primary after downgrade = %q (%v), want empty", host, err)
+	}
+}

@@ -144,6 +144,30 @@ func (r *OperatorDomainRepository) Add(ctx context.Context, operatorID, host str
 	return domain, nil
 }
 
+// PrimaryHostname returns the operator's canonical domain, or an empty string
+// when they are still on a platform subdomain. Only verified domains on an
+// entitled plan qualify, so a downgrade or an unverified claim can never
+// redirect search engines away from a working address.
+func (r *OperatorDomainRepository) PrimaryHostname(ctx context.Context, operatorID string) (string, error) {
+	id, err := pgUUID(operatorID)
+	if err != nil {
+		return "", apperror.ErrValidation
+	}
+	var hostname string
+	err = r.pool.QueryRow(ctx, `
+		SELECT domains.hostname
+		FROM operator_domains AS domains
+		JOIN operators ON operators.id = domains.operator_id
+		WHERE domains.operator_id = $1
+		  AND domains.is_primary
+		  AND domains.verified_at IS NOT NULL
+		  AND operators.plan::text = ANY($2)`, id, CustomDomainPlans).Scan(&hostname)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return hostname, err
+}
+
 // PlanFor returns the operator's plan, so callers can explain an entitlement
 // rather than only refuse it.
 func (r *OperatorDomainRepository) PlanFor(ctx context.Context, operatorID string) (string, error) {
@@ -225,7 +249,16 @@ func (r *OperatorDomainRepository) MarkVerified(ctx context.Context, operatorID,
 	if command.RowsAffected() == 0 {
 		return apperror.ErrNotFound
 	}
-	return nil
+	// The first verified domain becomes canonical. Without this an operator
+	// would have to find a separate control before search engines were pointed
+	// at the domain they just proved they own. The partial unique index makes
+	// this a no-op once a primary exists.
+	_, err = r.pool.Exec(ctx, `
+		UPDATE operator_domains SET is_primary = true
+		WHERE operator_id = $1 AND id = $2 AND verified_at IS NOT NULL
+		  AND NOT EXISTS (SELECT 1 FROM operator_domains AS existing
+		                  WHERE existing.operator_id = $1 AND existing.is_primary)`, id, target)
+	return err
 }
 
 // Remove releases a hostname so it can be claimed again.

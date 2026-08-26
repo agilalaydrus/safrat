@@ -126,6 +126,12 @@ message GetPublicProfileResponse {
   string hero_subtitle = 16;
   string hero_image_url = 17;
   StorefrontContent content = 18;
+  // The operator's own verified primary domain, when they have one. Search
+  // engines must be pointed at a single address: once a client is on
+  // umrohvacana.com, indexing the platform subdomain instead would undo the
+  // point of them having a domain at all. Empty means the subdomain is
+  // canonical.
+  string canonical_host = 19;
 }
 
 message StorefrontTheme {

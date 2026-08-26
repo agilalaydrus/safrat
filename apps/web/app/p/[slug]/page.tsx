@@ -18,6 +18,16 @@ async function getProfile(slug: string): Promise<StorefrontProfile | null> {
   }
 }
 
+/**
+ * The address search engines should treat as authoritative: the operator's own
+ * verified domain when they have one, otherwise their platform subdomain.
+ */
+function canonicalUrl(canonicalHost: string | undefined, slug: string, path: string): string | undefined {
+  if (canonicalHost) return `https://${canonicalHost}${path}`;
+  const base = process.env.NEXT_PUBLIC_APP_URL;
+  return base ? buildTenantLinkFromBase(slug, path, base) : undefined;
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const profile = await getProfile(slug);
@@ -31,7 +41,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title: { absolute: seoTitle },
     description: seoDescription,
     openGraph: { title: seoTitle, description: seoDescription, images: profile.content?.ogImageUrl ? [{ url: profile.content.ogImageUrl }] : undefined },
-    alternates: process.env.NEXT_PUBLIC_APP_URL ? { canonical: buildTenantLinkFromBase(profile.slug, "/", process.env.NEXT_PUBLIC_APP_URL) } : undefined,
+    // Point search engines at the operator's own domain once they have one.
+    // Leaving the canonical on the platform subdomain would mean a client who
+    // bought a domain still gets indexed under ours — the opposite of what
+    // they paid for — and the two addresses would compete as duplicates.
+    alternates: { canonical: canonicalUrl(profile.canonicalHost, profile.slug, "/") },
   };
 }
 
