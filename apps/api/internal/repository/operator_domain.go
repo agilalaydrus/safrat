@@ -77,3 +77,149 @@ func (r *OperatorDomainRepository) ListVerifiedHostnames(ctx context.Context) ([
 	}
 	return hostnames, rows.Err()
 }
+
+// Domain is one hostname an operator has claimed.
+type Domain struct {
+	ID                string
+	Hostname          string
+	VerificationToken string
+	Verified          bool
+	IsPrimary         bool
+}
+
+// Add claims a hostname for an operator. The hostname is normalized first, so
+// a claim can never differ from what the resolver will later look up.
+func (r *OperatorDomainRepository) Add(ctx context.Context, operatorID, host string) (Domain, error) {
+	id, err := pgUUID(operatorID)
+	if err != nil {
+		return Domain{}, apperror.ErrValidation
+	}
+	hostname := NormalizeHostname(host)
+	if !isRoutableHostname(hostname) {
+		return Domain{}, apperror.ErrValidation
+	}
+	var domain Domain
+	err = r.pool.QueryRow(ctx, `
+		INSERT INTO operator_domains (operator_id, hostname)
+		VALUES ($1, $2)
+		RETURNING id::text, hostname, verification_token, verified_at IS NOT NULL, is_primary`,
+		id, hostname).Scan(&domain.ID, &domain.Hostname, &domain.VerificationToken, &domain.Verified, &domain.IsPrimary)
+	if err != nil {
+		if strings.Contains(err.Error(), "operator_domains_hostname_key") {
+			return Domain{}, apperror.ErrConflict
+		}
+		return Domain{}, err
+	}
+	return domain, nil
+}
+
+// ListForOperator returns every hostname the operator has claimed.
+func (r *OperatorDomainRepository) ListForOperator(ctx context.Context, operatorID string) ([]Domain, error) {
+	id, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT id::text, hostname, verification_token, verified_at IS NOT NULL, is_primary
+		FROM operator_domains WHERE operator_id = $1 ORDER BY created_at`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	domains := make([]Domain, 0, 4)
+	for rows.Next() {
+		var domain Domain
+		if err := rows.Scan(&domain.ID, &domain.Hostname, &domain.VerificationToken, &domain.Verified, &domain.IsPrimary); err != nil {
+			return nil, err
+		}
+		domains = append(domains, domain)
+	}
+	return domains, rows.Err()
+}
+
+// Get returns one of the operator's own domains. Scoping by operator here is
+// what stops one operator verifying or deleting another's hostname.
+func (r *OperatorDomainRepository) Get(ctx context.Context, operatorID, domainID string) (Domain, error) {
+	id, err := pgUUID(operatorID)
+	if err != nil {
+		return Domain{}, apperror.ErrValidation
+	}
+	target, err := pgUUID(domainID)
+	if err != nil {
+		return Domain{}, apperror.ErrValidation
+	}
+	var domain Domain
+	err = r.pool.QueryRow(ctx, `
+		SELECT id::text, hostname, verification_token, verified_at IS NOT NULL, is_primary
+		FROM operator_domains WHERE operator_id = $1 AND id = $2`, id, target).
+		Scan(&domain.ID, &domain.Hostname, &domain.VerificationToken, &domain.Verified, &domain.IsPrimary)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Domain{}, apperror.ErrNotFound
+	}
+	return domain, err
+}
+
+// MarkVerified records proven ownership. Idempotent: re-verifying an already
+// verified domain keeps the original timestamp.
+func (r *OperatorDomainRepository) MarkVerified(ctx context.Context, operatorID, domainID string) error {
+	id, err := pgUUID(operatorID)
+	if err != nil {
+		return apperror.ErrValidation
+	}
+	target, err := pgUUID(domainID)
+	if err != nil {
+		return apperror.ErrValidation
+	}
+	command, err := r.pool.Exec(ctx, `
+		UPDATE operator_domains SET verified_at = COALESCE(verified_at, NOW())
+		WHERE operator_id = $1 AND id = $2`, id, target)
+	if err != nil {
+		return err
+	}
+	if command.RowsAffected() == 0 {
+		return apperror.ErrNotFound
+	}
+	return nil
+}
+
+// Remove releases a hostname so it can be claimed again.
+func (r *OperatorDomainRepository) Remove(ctx context.Context, operatorID, domainID string) error {
+	id, err := pgUUID(operatorID)
+	if err != nil {
+		return apperror.ErrValidation
+	}
+	target, err := pgUUID(domainID)
+	if err != nil {
+		return apperror.ErrValidation
+	}
+	command, err := r.pool.Exec(ctx, `DELETE FROM operator_domains WHERE operator_id = $1 AND id = $2`, id, target)
+	if err != nil {
+		return err
+	}
+	if command.RowsAffected() == 0 {
+		return apperror.ErrNotFound
+	}
+	return nil
+}
+
+// isRoutableHostname rejects what could never be a client's own domain, so
+// obvious mistakes fail in the CMS rather than at certificate issuance.
+func isRoutableHostname(hostname string) bool {
+	if len(hostname) < 4 || len(hostname) > 253 || !strings.Contains(hostname, ".") {
+		return false
+	}
+	if strings.HasPrefix(hostname, ".") || strings.HasSuffix(hostname, ".") || strings.Contains(hostname, "..") {
+		return false
+	}
+	for _, label := range strings.Split(hostname, ".") {
+		if label == "" || len(label) > 63 || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
+			return false
+		}
+		for _, char := range label {
+			if !(char == '-' || (char >= '0' && char <= '9') || (char >= 'a' && char <= 'z')) {
+				return false
+			}
+		}
+	}
+	return true
+}

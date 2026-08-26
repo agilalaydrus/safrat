@@ -24,6 +24,7 @@ type OperatorService struct {
 	storefrontRepository        *repository.StorefrontRepository
 	storefrontAssetRepository   *repository.StorefrontAssetRepository
 	domainRepository            *repository.OperatorDomainRepository
+	lookupTXT                   DNSTXTLookup
 	objectStorage               *storage.Store
 	storefrontStorageQuotaBytes int64
 }
@@ -145,6 +146,96 @@ func (s *OperatorService) ListAuditLogs(ctx context.Context, authenticatedOrgID 
 // vacana.tawafiqhub.id into the operator ID the existing /register, /apply,
 // /waitlist path-based routes already expect. Deliberately returns only
 // id + name, nothing an anonymous caller shouldn't see.
+func (s *OperatorService) ListMyDomains(ctx context.Context, orgID string) (*hajjv1.ListMyDomainsResponse, error) {
+	operator, err := s.repository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("OperatorService.ListMyDomains", err)
+	}
+	domains, err := s.domainRepository.ListForOperator(ctx, operator.ID)
+	if err != nil {
+		return nil, serviceError("OperatorService.ListMyDomains", err)
+	}
+	response := &hajjv1.ListMyDomainsResponse{Domains: make([]*hajjv1.OperatorDomain, 0, len(domains))}
+	for _, domain := range domains {
+		response.Domains = append(response.Domains, domainMessage(domain))
+	}
+	return response, nil
+}
+
+// AddMyDomain claims a hostname. It grants nothing on its own: until the
+// operator proves control, the domain is not routed, not allowed through CORS,
+// and not eligible for a certificate.
+func (s *OperatorService) AddMyDomain(ctx context.Context, orgID string, request *hajjv1.AddMyDomainRequest) (*hajjv1.OperatorDomain, error) {
+	if request == nil {
+		return nil, serviceError("OperatorService.AddMyDomain", apperror.ErrValidation)
+	}
+	operator, err := s.repository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("OperatorService.AddMyDomain", err)
+	}
+	domain, err := s.domainRepository.Add(ctx, operator.ID, request.Hostname)
+	if errors.Is(err, apperror.ErrConflict) {
+		return nil, connect.NewError(connect.CodeAlreadyExists, errors.New("domain sudah terdaftar; hubungi administrator bila Anda pemiliknya"))
+	}
+	if err != nil {
+		return nil, serviceError("OperatorService.AddMyDomain", err)
+	}
+	return domainMessage(domain), nil
+}
+
+// VerifyMyDomain checks the DNS TXT record and records ownership on success.
+func (s *OperatorService) VerifyMyDomain(ctx context.Context, orgID string, request *hajjv1.VerifyMyDomainRequest) (*hajjv1.OperatorDomain, error) {
+	if request == nil {
+		return nil, serviceError("OperatorService.VerifyMyDomain", apperror.ErrValidation)
+	}
+	operator, err := s.repository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("OperatorService.VerifyMyDomain", err)
+	}
+	// Scoped to this operator, so one operator can never verify another's claim.
+	domain, err := s.domainRepository.Get(ctx, operator.ID, request.DomainId)
+	if err != nil {
+		return nil, serviceError("OperatorService.VerifyMyDomain", err)
+	}
+	verified, err := verifyDomainToken(ctx, s.lookupTXT, domain.Hostname, domain.VerificationToken)
+	if err != nil {
+		// A lookup failure is not the same as "not verified" — say so, rather
+		// than letting the operator think their record is wrong.
+		return nil, connect.NewError(connect.CodeUnavailable, errors.New("gagal membaca DNS; coba lagi sebentar lagi"))
+	}
+	if !verified {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("data TXT belum ditemukan; propagasi DNS bisa memakan waktu hingga beberapa jam"))
+	}
+	if err := s.domainRepository.MarkVerified(ctx, operator.ID, domain.ID); err != nil {
+		return nil, serviceError("OperatorService.VerifyMyDomain", err)
+	}
+	domain.Verified = true
+	return domainMessage(domain), nil
+}
+
+func (s *OperatorService) RemoveMyDomain(ctx context.Context, orgID string, request *hajjv1.RemoveMyDomainRequest) (*hajjv1.RemoveMyDomainResponse, error) {
+	if request == nil {
+		return nil, serviceError("OperatorService.RemoveMyDomain", apperror.ErrValidation)
+	}
+	operator, err := s.repository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("OperatorService.RemoveMyDomain", err)
+	}
+	if err := s.domainRepository.Remove(ctx, operator.ID, request.DomainId); err != nil {
+		return nil, serviceError("OperatorService.RemoveMyDomain", err)
+	}
+	return &hajjv1.RemoveMyDomainResponse{Removed: true}, nil
+}
+
+func domainMessage(domain repository.Domain) *hajjv1.OperatorDomain {
+	return &hajjv1.OperatorDomain{
+		Id: domain.ID, Hostname: domain.Hostname,
+		VerificationToken:  domain.VerificationToken,
+		VerificationRecord: DomainVerificationPrefix + "." + domain.Hostname,
+		Verified:           domain.Verified, IsPrimary: domain.IsPrimary,
+	}
+}
+
 // ResolveDomain maps a client's own hostname to its operator. Platform
 // subdomains never reach here — their slug is still derived from the hostname,
 // so existing tenants are unaffected by this path entirely.

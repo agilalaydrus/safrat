@@ -21,6 +21,14 @@ service OperatorService {
   // routes. Deliberately returns only id + name, nothing sensitive.
   rpc ResolveOperatorSlug(ResolveOperatorSlugRequest) returns (ResolveOperatorSlugResponse);
 
+  // Authenticated — the operator manages the domains it owns. Adding one only
+  // claims it; nothing is served, allowed through CORS, or issued a
+  // certificate until VerifyMyDomain proves control via DNS.
+  rpc ListMyDomains(ListMyDomainsRequest) returns (ListMyDomainsResponse);
+  rpc AddMyDomain(AddMyDomainRequest) returns (OperatorDomain);
+  rpc VerifyMyDomain(VerifyMyDomainRequest) returns (OperatorDomain);
+  rpc RemoveMyDomain(RemoveMyDomainRequest) returns (RemoveMyDomainResponse);
+
   // Public — resolves a client's own domain (umrohvacana.com) to its operator.
   // Platform subdomains do not use this: their slug is still read straight out
   // of the hostname. Only verified domains resolve, so claiming a hostname
@@ -380,6 +388,32 @@ message CheckOperatorSlugRequest {
   string slug = 1 [(buf.validate.field).string = {min_len: 3, max_len: 63, pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"}];
 }
 message CheckOperatorSlugResponse { bool available = 1; }
+
+message OperatorDomain {
+  string id = 1;
+  string hostname = 2;
+  // The value to publish as a TXT record under the verification subdomain.
+  string verification_token = 3;
+  string verification_record = 4;
+  bool verified = 5;
+  bool is_primary = 6;
+}
+message ListMyDomainsRequest {}
+message ListMyDomainsResponse {
+  repeated OperatorDomain domains = 1;
+}
+message AddMyDomainRequest {
+  string hostname = 1 [(buf.validate.field).string = {min_len: 4, max_len: 253}];
+}
+message VerifyMyDomainRequest {
+  string domain_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+message RemoveMyDomainRequest {
+  string domain_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+message RemoveMyDomainResponse {
+  bool removed = 1;
+}
 
 message ResolveOperatorDomainRequest {
   // The Host header as received; the server normalizes case, port and any

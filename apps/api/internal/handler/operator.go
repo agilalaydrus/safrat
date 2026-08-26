@@ -143,6 +143,47 @@ func (h *OperatorHandler) ConfirmStorefrontUpload(ctx context.Context, req *conn
 	return connect.NewResponse(result), nil
 }
 
+func (h *OperatorHandler) ListMyDomains(ctx context.Context, _ *connect.Request[hajjv1.ListMyDomainsRequest]) (*connect.Response[hajjv1.ListMyDomainsResponse], error) {
+	result, err := h.operatorService.ListMyDomains(ctx, middleware.OperatorIDFromCtx(ctx))
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *OperatorHandler) AddMyDomain(ctx context.Context, req *connect.Request[hajjv1.AddMyDomainRequest]) (*connect.Response[hajjv1.OperatorDomain], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.operatorService.AddMyDomain(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *OperatorHandler) VerifyMyDomain(ctx context.Context, req *connect.Request[hajjv1.VerifyMyDomainRequest]) (*connect.Response[hajjv1.OperatorDomain], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.operatorService.VerifyMyDomain(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *OperatorHandler) RemoveMyDomain(ctx context.Context, req *connect.Request[hajjv1.RemoveMyDomainRequest]) (*connect.Response[hajjv1.RemoveMyDomainResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.operatorService.RemoveMyDomain(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *OperatorHandler) ResolveOperatorDomain(ctx context.Context, req *connect.Request[hajjv1.ResolveOperatorDomainRequest]) (*connect.Response[hajjv1.ResolveOperatorDomainResponse], error) {
 	result, err := h.operatorService.ResolveDomain(ctx, req.Msg)
 	if err != nil {
