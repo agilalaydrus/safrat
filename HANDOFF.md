@@ -64,6 +64,38 @@ visible by reading the code:
 3. Next re-enters middleware on the rewritten path with the server's own Host,
    losing tenant identity — now carried in a request header.
 
+
+**Caddy edge is built but NOT cut over** (`b901901`). `deploy/caddy/` contains
+the Caddyfile, an install script, and a cutover runbook. nginx is still the live
+edge; the swap changes what terminates TLS for every tenant, so it is manual and
+deliberate rather than part of a deploy.
+
+Why Caddy at all: the wildcard comes from lego over Hostinger DNS-01, which can
+only cover domains in our own Hostinger account. A client's domain has DNS at
+their registrar, so its certificate must come from HTTP/TLS-ALPN — per domain,
+on first request. The existing wildcard is deliberately untouched: the lego
+timer keeps renewing it and Caddy loads it from disk, so no DNS plugin is needed
+and the proven path is not risked.
+
+`/internal/tls-authorize` is what makes on-demand safe. Caddy asks before
+issuing for an unseen hostname; a 200 authorises it, so the endpoint is exactly
+as strict as routing. Without it, anyone pointing DNS at the server could make
+it request certificates on their behalf and burn Let's Encrypt rate limits. Same
+403 for unknown and not-entitled, so it cannot be used to probe plans.
+
+Two things to carry into the cutover:
+- **Certificate file permissions.** Caddy runs as the `caddy` user;
+  `/etc/letsencrypt/live/*/privkey.pem` is usually root-only. Check with
+  `sudo -u caddy test -r ...` *before* stopping nginx, or Caddy fails to start
+  at the exact moment there is nothing serving.
+- **X-Real-IP.** The Go rate limiter trusts it because the proxy always sets it
+  itself. Caddy does not by default; the Caddyfile sets it from `{remote_host}`.
+  Any future edge change must preserve that, or per-IP limits become spoofable.
+
+Rollback is a service swap (`stop caddy && start nginx`), not a restore — nginx
+keeps its config throughout. `deploy.yml` still installs the nginx config and
+must only be switched to `install-caddy` after Caddy is live.
+
 **Still open, in order**
 - **Caddy + on-demand TLS.** The wildcard is issued by lego + Hostinger DNS-01,
   which cannot work for domains at a client's registrar; those need HTTP-01.
