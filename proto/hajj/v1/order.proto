@@ -24,8 +24,11 @@ service OrderService {
   // RefundOrder records that money went back to the pilgrim. Manual and
   // operator-driven on purpose: it credits the pilgrim's balance ledger and
   // reverses the agent's commission, but it does not itself move money at the
-  // gateway. Refunds may be partial and accumulate; the order only becomes
-  // REFUNDED once the whole amount paid has been returned.
+  // gateway.
+  //
+  // A refund is always the whole transaction — never part of it. The order
+  // becomes REFUNDED, the pilgrim is credited what they paid, and the agent's
+  // commission is reversed in full.
   rpc RefundOrder(RefundOrderRequest) returns (RefundOrderResponse);
   rpc ListOrderRefunds(ListOrderRefundsRequest) returns (ListOrderRefundsResponse);
 }
@@ -103,9 +106,10 @@ message ListOrdersResponse {
 message OrderRefund {
   string id = 1;
   string order_id = 2;
+  // Always the order's full total; a refund is never partial.
   int64 amount_idr = 3;
   // How much agent commission this refund clawed back — commission is earned
-  // only on sales that stand.
+  // only on sales that stand, so this is the whole commission.
   int64 commission_reversed_idr = 4;
   string reason = 5;
   string created_by_user_id = 6;
@@ -114,7 +118,11 @@ message OrderRefund {
 
 message RefundOrderRequest {
   string order_id = 1 [(buf.validate.field).string.uuid = true];
-  int64 amount_idr = 2 [(buf.validate.field).int64.gt = 0];
+  // No amount. A refund always returns the whole transaction, so a partial one
+  // is not something this request can express — the rule is enforced by the
+  // shape of the message rather than by a check someone could route around.
+  reserved 2;
+  reserved "amount_idr";
   string reason = 3 [(buf.validate.field).string.max_len = 500];
   // Required, not optional: a refund is money leaving, and a retried or
   // double-clicked request must settle the same refund rather than issue a
@@ -134,6 +142,7 @@ message RefundOrderResponse {
 
 message ListOrderRefundsRequest { string order_id = 1 [(buf.validate.field).string.uuid = true]; }
 message ListOrderRefundsResponse {
+  // At most one, since an order can only be refunded once and only in full.
   repeated OrderRefund refunds = 1;
   int64 total_refunded_idr = 2;
 }

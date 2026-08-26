@@ -10,8 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// RefundRepository records refunds and reads what an order has already had
-// returned. Every write method takes the caller's transaction: a refund is
+// RefundRepository records refunds and reads whether an order has already had
+// one. Every write method takes the caller's transaction: a refund is
 // only correct if the record, the pilgrim's credit, the agent's reversal and
 // the order's status all land together.
 type RefundRepository struct {
@@ -26,9 +26,9 @@ func NewRefundRepository(pool *pgxpool.Pool) *RefundRepository {
 // already been refunded against it.
 //
 // FOR UPDATE, not a plain read: two refund requests arriving at once would
-// otherwise both see the full amount as still refundable and each approve a
-// refund that is only valid on its own. The lock makes the second wait and see
-// the first one's row.
+// otherwise both see an unrefunded order and each approve a refund. The lock
+// makes the second wait and see that the first already happened — by then the
+// order is REFUNDED, which the caller rejects.
 func (r *RefundRepository) LockOrderForRefund(ctx context.Context, tx pgx.Tx, operatorID, orderID string) (*domain.RefundableOrder, error) {
 	opID, err := pgUUID(operatorID)
 	if err != nil {
@@ -60,6 +60,30 @@ func (r *RefundRepository) LockOrderForRefund(ctx context.Context, tx pgx.Tx, op
 		order.AgentID = *agentID
 	}
 	return &order, nil
+}
+
+// FindRefundByKeyTx returns the refund already recorded under this idempotency
+// key, or nil if there is none.
+//
+// Looked up before any precondition is applied, because a replay is an advice
+// about a refund that already happened — and the state it must not be judged
+// against is precisely the state that refund created.
+func (r *RefundRepository) FindRefundByKeyTx(ctx context.Context, tx pgx.Tx, orderID, idempotencyKey string) (*domain.OrderRefund, error) {
+	ordID, err := pgUUID(orderID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	refund, err := scanRefund(tx.QueryRow(ctx, `
+		SELECT id::text, operator_id::text, order_id::text, amount_idr,
+		       commission_reversed_idr, reason, COALESCE(created_by_user_id, ''), created_at
+		FROM order_refunds WHERE order_id = $1 AND idempotency_key = $2`, ordID, idempotencyKey))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return refund, nil
 }
 
 // RefundParams describes one refund to record.
@@ -119,9 +143,8 @@ func (r *RefundRepository) CreateRefundTx(ctx context.Context, tx pgx.Tx, params
 	return existing, false, nil
 }
 
-// MarkOrderRefundedTx flips the order to REFUNDED. Only ever called once the
-// running refund total has reached the full amount paid; a partial refund
-// leaves the order PAID, because part of the sale still stands.
+// MarkOrderRefundedTx flips the order to REFUNDED. Every refund reaches this,
+// because every refund returns the whole transaction.
 func (r *RefundRepository) MarkOrderRefundedTx(ctx context.Context, tx pgx.Tx, orderID string) error {
 	ordID, err := pgUUID(orderID)
 	if err != nil {

@@ -131,76 +131,44 @@ func (f *refundFixture) orderStatus(t *testing.T) string {
 	return status
 }
 
-// Partial refunds accumulate, and the commission clawback is derived from the
-// running total rather than each refund alone. Amounts that do not divide
-// evenly are deliberate: rounding each refund down independently would leave
-// the agent credited a few rupiah for a sale that no longer exists.
-func TestRefundOrderPartialsReverseCommissionExactlyIntegration(t *testing.T) {
-	f := newRefundFixture(t)
-	ctx := context.Background()
-
-	for index, amount := range []int64{333_333, 333_333, 333_334} {
-		result, err := f.service.RefundOrder(ctx, f.orgID, "user-refund", &hajjv1.RefundOrderRequest{
-			OrderId: f.orderID, AmountIdr: amount, Reason: "pembatalan jamaah",
-			IdempotencyKey: uuid.NewString(),
-		})
-		if err != nil {
-			t.Fatalf("refund %d: %v", index+1, err)
-		}
-		if !result.Created {
-			t.Fatalf("refund %d reported as a replay", index+1)
-		}
-	}
-
-	pilgrim, commission := f.balances(t)
-	if pilgrim != refundOrderTotal {
-		t.Fatalf("pilgrim balance = %d, want the full %d returned", pilgrim, refundOrderTotal)
-	}
-	// The point of deriving from the total: three floor-rounded partials still
-	// land on exactly zero.
-	if commission != 0 {
-		t.Fatalf("commission balance = %d after a full refund, want 0", commission)
-	}
-	if status := f.orderStatus(t); status != "REFUNDED" {
-		t.Fatalf("order status = %s, want REFUNDED", status)
-	}
-
-	// Nothing is left to return.
-	if _, err := f.service.RefundOrder(ctx, f.orgID, "user-refund", &hajjv1.RefundOrderRequest{
-		OrderId: f.orderID, AmountIdr: 1, IdempotencyKey: uuid.NewString(),
-	}); err == nil {
-		t.Fatal("a fully refunded order accepted another refund")
-	}
-}
-
-// A partial refund leaves the sale standing, so the order stays PAID and the
-// agent keeps the commission on the part that was not returned.
-func TestRefundOrderPartialLeavesOrderPaidIntegration(t *testing.T) {
+// A refund returns the whole transaction: the pilgrim gets back what they
+// paid, the agent's commission is reversed in full, and the order is REFUNDED.
+func TestRefundOrderReturnsTheWholeTransactionIntegration(t *testing.T) {
 	f := newRefundFixture(t)
 	ctx := context.Background()
 
 	result, err := f.service.RefundOrder(ctx, f.orgID, "user-refund", &hajjv1.RefundOrderRequest{
-		OrderId: f.orderID, AmountIdr: 250_000, Reason: "potongan", IdempotencyKey: uuid.NewString(),
+		OrderId: f.orderID, Reason: "pembatalan jamaah", IdempotencyKey: uuid.NewString(),
 	})
 	if err != nil {
 		t.Fatalf("refund: %v", err)
 	}
-	if result.Order.Status != "PAID" {
-		t.Fatalf("order status = %s after a partial refund, want PAID", result.Order.Status)
+	if !result.Created {
+		t.Fatal("the first refund reported as a replay")
 	}
-	if result.PilgrimBalanceIdr != 250_000 {
-		t.Fatalf("reported balance = %d, want 250000", result.PilgrimBalanceIdr)
+	if result.Refund.AmountIdr != refundOrderTotal {
+		t.Fatalf("refunded %d, want the full %d", result.Refund.AmountIdr, refundOrderTotal)
 	}
-	pilgrim, commission := f.balances(t)
-	if pilgrim != 250_000 || commission != 75_000 {
-		t.Fatalf("balances = (%d, %d), want (250000, 75000)", pilgrim, commission)
+	if result.Refund.CommissionReversedIdr != refundCommission {
+		t.Fatalf("reversed %d commission, want the full %d", result.Refund.CommissionReversedIdr, refundCommission)
+	}
+	if result.Order.Status != "REFUNDED" {
+		t.Fatalf("order status = %s, want REFUNDED", result.Order.Status)
 	}
 
-	// More than what is left cannot be returned.
+	pilgrim, commission := f.balances(t)
+	if pilgrim != refundOrderTotal {
+		t.Fatalf("pilgrim balance = %d, want %d", pilgrim, refundOrderTotal)
+	}
+	if commission != 0 {
+		t.Fatalf("commission balance = %d after a refund, want 0", commission)
+	}
+
+	// Nothing is left to return, and the order cannot be refunded twice.
 	if _, err := f.service.RefundOrder(ctx, f.orgID, "user-refund", &hajjv1.RefundOrderRequest{
-		OrderId: f.orderID, AmountIdr: 800_000, IdempotencyKey: uuid.NewString(),
+		OrderId: f.orderID, IdempotencyKey: uuid.NewString(),
 	}); err == nil {
-		t.Fatal("a refund exceeding the remaining amount was accepted")
+		t.Fatal("a refunded order was refunded again")
 	}
 }
 
@@ -219,7 +187,7 @@ func TestRefundOrderIsIdempotentUnderConcurrencyIntegration(t *testing.T) {
 		go func(index int) {
 			defer wg.Done()
 			result, err := f.service.RefundOrder(ctx, f.orgID, "user-refund", &hajjv1.RefundOrderRequest{
-				OrderId: f.orderID, AmountIdr: 400_000, Reason: "retry", IdempotencyKey: key,
+				OrderId: f.orderID, Reason: "retry", IdempotencyKey: key,
 			})
 			if err != nil {
 				t.Errorf("attempt %d: %v", index, err)
@@ -248,11 +216,11 @@ func TestRefundOrderIsIdempotentUnderConcurrencyIntegration(t *testing.T) {
 		t.Fatalf("%d refund rows recorded, want 1", rows)
 	}
 	pilgrim, commission := f.balances(t)
-	if pilgrim != 400_000 {
-		t.Fatalf("pilgrim credited %d across %d replays, want 400000", pilgrim, attempts)
+	if pilgrim != refundOrderTotal {
+		t.Fatalf("pilgrim credited %d across %d replays, want %d", pilgrim, attempts, refundOrderTotal)
 	}
-	if commission != 60_000 {
-		t.Fatalf("commission balance = %d, want 60000", commission)
+	if commission != 0 {
+		t.Fatalf("commission balance = %d, want 0", commission)
 	}
 }
 
@@ -264,7 +232,7 @@ func TestRefundOrderRejectsUnpaidOrderIntegration(t *testing.T) {
 		t.Fatalf("unpay order: %v", err)
 	}
 	if _, err := f.service.RefundOrder(ctx, f.orgID, "user-refund", &hajjv1.RefundOrderRequest{
-		OrderId: f.orderID, AmountIdr: 1_000, IdempotencyKey: uuid.NewString(),
+		OrderId: f.orderID, IdempotencyKey: uuid.NewString(),
 	}); err == nil {
 		t.Fatal("an unpaid order was refunded")
 	}
@@ -288,36 +256,20 @@ func TestPilgrimPaidTotalIsNetOfRefundsIntegration(t *testing.T) {
 	}
 
 	if _, err := f.service.RefundOrder(ctx, f.orgID, "user-refund", &hajjv1.RefundOrderRequest{
-		OrderId: f.orderID, AmountIdr: 400_000, Reason: "sebagian", IdempotencyKey: uuid.NewString(),
+		OrderId: f.orderID, Reason: "pembatalan", IdempotencyKey: uuid.NewString(),
 	}); err != nil {
 		t.Fatalf("refund: %v", err)
 	}
 
-	// The order is still PAID — only part of it came back — so a query that
-	// filtered on status alone would still report the full amount here.
-	paid, err = cancellations.GetPaidTotal(ctx, f.pilgrimD)
-	if err != nil {
-		t.Fatalf("paid total: %v", err)
-	}
-	if paid != 600_000 {
-		t.Fatalf("paid total = %d after refunding 400000 of %d, want 600000", paid, refundOrderTotal)
-	}
-
-	// And a fully refunded order counts for nothing.
-	if _, err := f.service.RefundOrder(ctx, f.orgID, "user-refund", &hajjv1.RefundOrderRequest{
-		OrderId: f.orderID, AmountIdr: 600_000, Reason: "sisanya", IdempotencyKey: uuid.NewString(),
-	}); err != nil {
-		t.Fatalf("second refund: %v", err)
-	}
 	if paid, err = cancellations.GetPaidTotal(ctx, f.pilgrimD); err != nil || paid != 0 {
-		t.Fatalf("paid total = %d (%v) after a full refund, want 0", paid, err)
+		t.Fatalf("paid total = %d (%v) after a refund, want 0", paid, err)
 	}
 }
 
-// The service checks the remaining amount under a row lock, and that check is
-// where a caller gets a useful message. This asserts the backstop underneath
-// it: a path that bypasses the service entirely still cannot over-refund.
-func TestDatabaseRejectsOverRefundWithoutTheServiceIntegration(t *testing.T) {
+// The service cannot express a partial refund, because the request carries no
+// amount. This asserts the rule underneath that: a path which never reaches
+// the service still cannot write one.
+func TestDatabaseRejectsPartialAndRepeatedRefundsIntegration(t *testing.T) {
 	f := newRefundFixture(t)
 	ctx := context.Background()
 	var operatorID string
@@ -326,22 +278,31 @@ func TestDatabaseRejectsOverRefundWithoutTheServiceIntegration(t *testing.T) {
 	}
 
 	insert := `INSERT INTO order_refunds (operator_id, order_id, amount_idr, reason) VALUES ($1, $2, $3, 'langsung')`
+	if _, err := f.pool.Exec(ctx, insert, operatorID, f.orderID, refundOrderTotal/2); err == nil {
+		t.Fatal("a partial refund was written straight to the table")
+	}
 	if _, err := f.pool.Exec(ctx, insert, operatorID, f.orderID, refundOrderTotal+1); err == nil {
-		t.Fatal("a refund larger than the order was written straight to the table")
+		t.Fatal("a refund larger than the order was accepted")
 	}
-	// Refunds that are individually valid must not add up past the total either.
-	if _, err := f.pool.Exec(ctx, insert, operatorID, f.orderID, 700_000); err != nil {
-		t.Fatalf("valid refund rejected: %v", err)
+
+	// The whole amount is accepted, and only once.
+	if _, err := f.pool.Exec(ctx, insert, operatorID, f.orderID, refundOrderTotal); err != nil {
+		t.Fatalf("a full refund was rejected: %v", err)
 	}
-	if _, err := f.pool.Exec(ctx, insert, operatorID, f.orderID, 400_000); err == nil {
-		t.Fatal("refunds summing past the order total were accepted")
+	if _, err := f.pool.Exec(ctx, insert, operatorID, f.orderID, refundOrderTotal); err == nil {
+		t.Fatal("the same order was refunded twice")
 	}
 
 	// An order nobody paid cannot be refunded at all.
-	if _, err := f.pool.Exec(ctx, `UPDATE orders SET status = 'PENDING' WHERE id = $1`, f.orderID); err != nil {
+	other := newRefundFixture(t)
+	if _, err := other.pool.Exec(ctx, `UPDATE orders SET status = 'PENDING' WHERE id = $1`, other.orderID); err != nil {
 		t.Fatalf("unpay: %v", err)
 	}
-	if _, err := f.pool.Exec(ctx, insert, operatorID, f.orderID, 1_000); err == nil {
+	var otherOperator string
+	if err := other.pool.QueryRow(ctx, `SELECT operator_id::text FROM orders WHERE id = $1`, other.orderID).Scan(&otherOperator); err != nil {
+		t.Fatalf("read operator: %v", err)
+	}
+	if _, err := other.pool.Exec(ctx, insert, otherOperator, other.orderID, refundOrderTotal); err == nil {
 		t.Fatal("an unpaid order was refunded directly")
 	}
 }
@@ -390,7 +351,7 @@ func TestReconcileCreditsCommissionTheWritePathMissedIntegration(t *testing.T) {
 	// A reversal is not a discrepancy: the sweep must leave a refunded order's
 	// clawback alone rather than "restoring" the earning.
 	if _, err := f.service.RefundOrder(ctx, f.orgID, "user-refund", &hajjv1.RefundOrderRequest{
-		OrderId: f.orderID, AmountIdr: refundOrderTotal, Reason: "penuh", IdempotencyKey: uuid.NewString(),
+		OrderId: f.orderID, Reason: "penuh", IdempotencyKey: uuid.NewString(),
 	}); err != nil {
 		t.Fatalf("refund: %v", err)
 	}
@@ -399,5 +360,60 @@ func TestReconcileCreditsCommissionTheWritePathMissedIntegration(t *testing.T) {
 	}
 	if _, commission := f.balances(t); commission != 0 {
 		t.Fatalf("commission = %d after reconciling a refunded order, want 0", commission)
+	}
+}
+
+// A retry that arrives after the original refund has fully settled — the
+// operator never saw the first response and pressed the button again.
+//
+// This is the case a status precondition gets wrong: by then the order is
+// REFUNDED, so a naive check rejects the retry with "only paid orders can be
+// refunded", and the caller concludes the refund failed when it succeeded.
+func TestRefundOrderReplayAfterSettlementReturnsTheOriginalIntegration(t *testing.T) {
+	f := newRefundFixture(t)
+	ctx := context.Background()
+	key := uuid.NewString()
+
+	first, err := f.service.RefundOrder(ctx, f.orgID, "user-refund", &hajjv1.RefundOrderRequest{
+		OrderId: f.orderID, Reason: "pembatalan", IdempotencyKey: key,
+	})
+	if err != nil {
+		t.Fatalf("first refund: %v", err)
+	}
+
+	replay, err := f.service.RefundOrder(ctx, f.orgID, "user-refund", &hajjv1.RefundOrderRequest{
+		OrderId: f.orderID, Reason: "pembatalan", IdempotencyKey: key,
+	})
+	if err != nil {
+		t.Fatalf("replay rejected: %v", err)
+	}
+	if replay.Created {
+		t.Fatal("the replay reported creating a second refund")
+	}
+	if replay.Refund.Id != first.Refund.Id {
+		t.Fatalf("replay returned refund %s, want the original %s", replay.Refund.Id, first.Refund.Id)
+	}
+	if replay.Refund.AmountIdr != first.Refund.AmountIdr || replay.PilgrimBalanceIdr != first.PilgrimBalanceIdr {
+		t.Fatal("the replay reported different amounts from the original")
+	}
+
+	// And it stayed one refund, crediting the pilgrim once.
+	var rows int
+	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM order_refunds WHERE order_id = $1`, f.orderID).Scan(&rows); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if rows != 1 {
+		t.Fatalf("%d refund rows, want 1", rows)
+	}
+	if pilgrim, _ := f.balances(t); pilgrim != refundOrderTotal {
+		t.Fatalf("pilgrim balance = %d, want %d", pilgrim, refundOrderTotal)
+	}
+
+	// A different key on a settled order is a new request, not a replay, and
+	// must still be refused.
+	if _, err := f.service.RefundOrder(ctx, f.orgID, "user-refund", &hajjv1.RefundOrderRequest{
+		OrderId: f.orderID, IdempotencyKey: uuid.NewString(),
+	}); err == nil {
+		t.Fatal("a settled order accepted a second refund under a new key")
 	}
 }

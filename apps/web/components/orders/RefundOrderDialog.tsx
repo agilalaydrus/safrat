@@ -11,7 +11,6 @@ type Props = { order: Order | null; onClose: () => void; onRefunded: (message: s
 export default function RefundOrderDialog({ order, onClose, onRefunded }: Props) {
   const [refunds, setRefunds] = useState<OrderRefund[]>([]);
   const [refundedTotal, setRefundedTotal] = useState(0n);
-  const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -19,8 +18,6 @@ export default function RefundOrderDialog({ order, onClose, onRefunded }: Props)
   // double-click or a retry after a dropped response then carries the same
   // key, and the server settles the same refund instead of issuing a second.
   const [idempotencyKey, setIdempotencyKey] = useState("");
-
-  const remaining = order ? order.totalPriceIdr - refundedTotal : 0n;
 
   const loadHistory = useCallback(async (orderId: string) => {
     try {
@@ -34,7 +31,6 @@ export default function RefundOrderDialog({ order, onClose, onRefunded }: Props)
 
   useEffect(() => {
     if (!order) return;
-    setAmount("");
     setReason("");
     setError("");
     setRefunds([]);
@@ -46,17 +42,12 @@ export default function RefundOrderDialog({ order, onClose, onRefunded }: Props)
   if (!order) return null;
 
   const submit = async () => {
-    const parsed = BigInt(amount.replace(/\D/g, "") || "0");
-    if (parsed <= 0n) { setError("Masukkan nominal refund."); return; }
-    if (parsed > remaining) { setError(`Nominal melebihi sisa yang dapat dikembalikan (${rupiah(remaining)}).`); return; }
     setSubmitting(true);
     setError("");
     try {
-      const response = await orderClient.refundOrder({
-        orderId: order.id, amountIdr: parsed, reason: reason.trim(), idempotencyKey,
-      });
+      const response = await orderClient.refundOrder({ orderId: order.id, reason: reason.trim(), idempotencyKey });
       onRefunded(response.created
-        ? `Refund ${rupiah(parsed)} tercatat. Saldo jamaah kini ${rupiah(response.pilgrimBalanceIdr)}.`
+        ? `Refund ${rupiah(order.totalPriceIdr)} tercatat. Saldo jamaah kini ${rupiah(response.pilgrimBalanceIdr)}.`
         : "Refund ini sudah tercatat sebelumnya — tidak ada refund kedua yang dibuat.");
       onClose();
     } catch (err) {
@@ -76,27 +67,13 @@ export default function RefundOrderDialog({ order, onClose, onRefunded }: Props)
         <dl style={summary}>
           <div><dt style={dt}>Jamaah</dt><dd style={dd}>{order.pilgrimName}</dd></div>
           <div><dt style={dt}>Produk</dt><dd style={dd}>{order.productName}</dd></div>
-          <div><dt style={dt}>Total Dibayar</dt><dd style={dd}>{rupiah(order.totalPriceIdr)}</dd></div>
-          <div><dt style={dt}>Sudah Direfund</dt><dd style={dd}>{rupiah(refundedTotal)}</dd></div>
-          <div><dt style={dt}>Sisa</dt><dd style={{ ...dd, fontWeight: 700 }}>{rupiah(remaining)}</dd></div>
+          <div><dt style={dt}>Nominal Dikembalikan</dt><dd style={{ ...dd, fontWeight: 700 }}>{rupiah(order.totalPriceIdr)}</dd></div>
         </dl>
 
-        {order.agentCommissionIdr > 0n && (
-          <p style={note}>
-            Komisi agen ditarik kembali secara proporsional — komisi hanya berlaku atas transaksi yang tetap sah.
-          </p>
-        )}
-
-        <label style={label}>
-          Nominal Refund
-          <input
-            inputMode="numeric" value={amount} placeholder={String(remaining)}
-            onChange={(e) => setAmount(e.target.value)} style={input}
-          />
-        </label>
-        <button type="button" style={linkButton} onClick={() => setAmount(String(remaining))}>
-          Refund penuh ({rupiah(remaining)})
-        </button>
+        <p style={note}>
+          Refund selalu mengembalikan <strong>seluruh nilai transaksi</strong> — tidak ada refund sebagian.
+          {order.agentCommissionIdr > 0n && " Komisi agen ditarik kembali penuh, karena komisi hanya berlaku atas transaksi yang sah."}
+        </p>
 
         <label style={label}>
           Alasan
@@ -124,7 +101,7 @@ export default function RefundOrderDialog({ order, onClose, onRefunded }: Props)
 
         <footer style={foot}>
           <button onClick={onClose} style={ghost} disabled={submitting}>Batal</button>
-          <button onClick={submit} style={danger} disabled={submitting || remaining <= 0n}>
+          <button onClick={submit} style={danger} disabled={submitting || refundedTotal > 0n}>
             <IconArrowBackUp size={18} />{submitting ? "Memproses..." : "Catat Refund"}
           </button>
         </footer>
@@ -143,7 +120,6 @@ const dd: React.CSSProperties = { margin: "4px 0 0", color: "var(--color-warm-70
 const note: React.CSSProperties = { margin: 0, fontSize: 13, color: "var(--color-warm-500)" };
 const label: React.CSSProperties = { display: "grid", gap: 6, fontSize: 13, color: "var(--color-warm-700)" };
 const input: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 12px" };
-const linkButton: React.CSSProperties = { justifySelf: "start", border: 0, background: "transparent", padding: 0, color: "var(--color-emerald-900)", fontSize: 12, textDecoration: "underline", cursor: "pointer" };
 const history: React.CSSProperties = { listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6, fontSize: 13 };
 const historyItem: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 12, paddingBottom: 6, borderBottom: "1px solid var(--color-cream-300)" };
 const foot: React.CSSProperties = { display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 8 };

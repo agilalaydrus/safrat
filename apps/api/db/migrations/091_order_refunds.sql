@@ -22,9 +22,8 @@ DROP INDEX pilgrim_balance_entries_order_kind_idx;
 CREATE UNIQUE INDEX pilgrim_balance_entries_order_purchase_idx
   ON pilgrim_balance_entries (order_id) WHERE order_id IS NOT NULL AND kind = 'PURCHASE';
 
--- One row per refund event. Partial refunds are allowed and accumulate; the
--- service holds an advisory lock on the order while it checks that the running
--- total never exceeds what was actually paid.
+-- One row per refund event. Migration 093 narrows this further: a refund
+-- always returns the whole transaction, and an order can only have one.
 CREATE TABLE order_refunds (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   operator_id UUID NOT NULL REFERENCES operators(id) ON DELETE CASCADE,

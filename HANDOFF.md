@@ -125,14 +125,10 @@ Requirement 1, in full. `orders.status` now allows `REFUNDED`, and
   under `SELECT ... FOR UPDATE` on the order. A half-applied refund would
   credit a pilgrim while leaving the agent paid for a sale that no longer
   exists.
-- **Partial refunds accumulate.** The order stays `PAID` until the whole amount
-  paid has been returned, then flips to `REFUNDED`. A refund exceeding what is
-  left is rejected, and a non-`PAID` order cannot be refunded at all.
-- **Commission clawback is derived from the running refunded total**, not from
-  each refund alone. Rounding each partial down independently would leave the
-  agent credited a few rupiah forever; deriving the target from the total means
-  a full refund reverses the commission exactly. Verified with three partials of
-  333_333/333_333/333_334 against a 100_000 commission → balance exactly 0.
+- **A refund is always the whole transaction** (owner's rule, migration 093).
+  The order goes straight to `REFUNDED`, the pilgrim is credited what they
+  paid, and the commission is reversed in full. A non-`PAID` order cannot be
+  refunded at all.
 - **`idempotency_key` is required on the RPC.** A replay returns the refund that
   already exists with `created = false`; six concurrent calls with one key
   produced one refund row and credited the pilgrim once.
@@ -209,6 +205,36 @@ would eventually forget.
 no pilgrim-facing display, no way to spend it against another order, no
 withdrawal path. And `RefundOrder` records a refund without moving money at the
 gateway, so an operator can record one and forget to transfer.
+
+#### Done — PR 4: refunds are never partial (migration 093)
+
+Owner's rule, stated directly: *"Refund transaksi tidak pernah boleh sebagian
+dari nilai transaksi."* PR 2 had allowed partial refunds; that is now not a
+thing the system can represent.
+
+- **The RPC carries no amount.** `RefundOrderRequest.amount_idr` is removed and
+  the field number reserved. A partial refund is not rejected by a check — it
+  cannot be expressed. The service takes the amount from the order.
+- **The database agrees, for callers that never reach the service.** The
+  trigger from 092 now requires `amount_idr` to equal the order's total exactly,
+  and a unique index allows one refund per order. Verified by writing straight
+  to the table: half the total rejected, more than the total rejected, the exact
+  total accepted once and refused the second time.
+- **The ledger indexes tightened back up.** 091 had loosened them precisely so a
+  partial refund could reverse commission repeatedly. That reason is gone, so
+  `(order_id, kind)` uniqueness returns for `EARNED`/`REVERSED` and
+  `PURCHASE`/`REFUND`. `ADJUSTMENT` stays unconstrained — a manual correction
+  is not a transaction event and may legitimately repeat.
+- **Commission reversal is simply the whole commission.** All the pro-rata
+  rounding logic is gone.
+
+**A contract violation this surfaced.** Because a refund now leaves the order
+`REFUNDED`, the status precondition started rejecting *replays*: an operator
+who never saw the first response and pressed the button again got "only paid
+orders can be refunded", and would conclude the refund failed when it had
+succeeded. The idempotency lookup now runs **before** any precondition — a
+replay must not be judged against the state its own original request created.
+Caught by the concurrency test, not by review.
 
 #### Open — ordered
 

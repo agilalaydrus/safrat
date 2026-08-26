@@ -316,7 +316,12 @@ func orderMessage(o *domain.Order) *hajjv1.Order {
 }
 
 // RefundOrder records that money was returned to a pilgrim, credits their
-// balance ledger, and reverses the agent's commission on the refunded portion.
+// balance ledger, and reverses the agent's commission.
+//
+// A refund is always the whole transaction. The request carries no amount, so
+// a partial refund is not something a caller can ask for, and the database
+// refuses one anyway (migration 093) — the rule holds for paths that never
+// reach this function.
 //
 // It records a refund; it does not itself move money at the gateway. Operators
 // refund by transfer or at the counter, and what has to be true afterwards is
@@ -328,7 +333,7 @@ func orderMessage(o *domain.Order) *hajjv1.Order {
 // status either all hold or none do. A half-applied refund would credit a
 // pilgrim while leaving the agent paid for a sale that no longer exists.
 func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, req *hajjv1.RefundOrderRequest) (*hajjv1.RefundOrderResponse, error) {
-	if req == nil || strings.TrimSpace(req.OrderId) == "" || req.AmountIdr <= 0 || strings.TrimSpace(req.IdempotencyKey) == "" {
+	if req == nil || strings.TrimSpace(req.OrderId) == "" || strings.TrimSpace(req.IdempotencyKey) == "" {
 		return nil, serviceError("OrderService.RefundOrder", apperror.ErrValidation)
 	}
 	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
@@ -346,36 +351,38 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 	if err != nil {
 		return nil, serviceError("OrderService.RefundOrder", err)
 	}
+	// The idempotency check comes first, before any precondition. A refund
+	// leaves the order REFUNDED, so a retry after a lost response would
+	// otherwise be rejected by the state its own original request created —
+	// and the caller, having never seen the first answer, would conclude the
+	// refund failed. The same key is always an advice about the same refund.
+	if existing, err := s.refundRepository.FindRefundByKeyTx(ctx, tx, order.ID, req.IdempotencyKey); err != nil {
+		return nil, serviceError("OrderService.RefundOrder", err)
+	} else if existing != nil {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, serviceError("OrderService.RefundOrder", err)
+		}
+		return s.refundResponse(ctx, op.ID, order.ID, existing, false)
+	}
+
 	// Only money that actually arrived can go back. PENDING, EXPIRED, FAILED
-	// and CANCELLED orders were never paid; REFUNDED ones are already fully
-	// returned.
+	// and CANCELLED orders were never paid; a REFUNDED one has already been
+	// returned, and cannot be returned again.
 	if order.Status != "PAID" {
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
 			errors.New("hanya pesanan berstatus LUNAS yang dapat direfund"))
 	}
-	remaining := order.TotalPriceIDR - order.RefundedIDR
-	if req.AmountIdr > remaining {
-		return nil, connect.NewError(connect.CodeFailedPrecondition,
-			fmt.Errorf("nominal refund melebihi sisa yang dapat dikembalikan (sisa Rp%d)", remaining))
-	}
 
-	// Commission is reversed in proportion to the money returned, and is
-	// computed from the running total rather than this refund alone. Rounding
-	// down on each partial refund would otherwise leave a few rupiah credited
-	// forever after a series of them; deriving the target from the total means
-	// a full refund reverses the commission exactly.
-	totalRefunded := order.RefundedIDR + req.AmountIdr
+	// The whole transaction, and the whole commission with it. Commission is
+	// earned only on a sale that stands, and no part of this sale does.
+	refundAmount := order.TotalPriceIDR
 	commissionReversal := int64(0)
-	if order.AgentID != "" && order.AgentCommissionIDR > 0 && order.TotalPriceIDR > 0 {
-		targetReversed := order.AgentCommissionIDR * totalRefunded / order.TotalPriceIDR
-		commissionReversal = targetReversed - order.CommissionReversed
-		if commissionReversal < 0 {
-			commissionReversal = 0
-		}
+	if order.AgentID != "" && order.AgentCommissionIDR > 0 {
+		commissionReversal = order.AgentCommissionIDR
 	}
 
 	refund, created, err := s.refundRepository.CreateRefundTx(ctx, tx, repository.RefundParams{
-		OperatorID: op.ID, OrderID: order.ID, AmountIDR: req.AmountIdr,
+		OperatorID: op.ID, OrderID: order.ID, AmountIDR: refundAmount,
 		CommissionReversedIDR: commissionReversal, Reason: strings.TrimSpace(req.Reason),
 		CreatedByUserID: userID, IdempotencyKey: req.IdempotencyKey,
 	})
@@ -393,7 +400,7 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 	}
 
 	if err := s.ledgerRepository.AppendBalanceTx(ctx, tx, repository.BalanceEntry{
-		OperatorID: op.ID, PilgrimID: order.PilgrimID, AmountIDR: req.AmountIdr, Kind: "REFUND",
+		OperatorID: op.ID, PilgrimID: order.PilgrimID, AmountIDR: refundAmount, Kind: "REFUND",
 		OrderID: order.ID, Note: refundNote(refund.Reason), CreatedByUserID: userID,
 		IdempotencyKey: "refund-" + refund.ID,
 	}); err != nil {
@@ -410,10 +417,8 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 		}
 	}
 
-	if totalRefunded >= order.TotalPriceIDR {
-		if err := s.refundRepository.MarkOrderRefundedTx(ctx, tx, order.ID); err != nil {
-			return nil, serviceError("OrderService.RefundOrder", err)
-		}
+	if err := s.refundRepository.MarkOrderRefundedTx(ctx, tx, order.ID); err != nil {
+		return nil, serviceError("OrderService.RefundOrder", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -423,8 +428,8 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 	// Audited after the commit: the refund is the fact, and failing to write
 	// the log must not roll back money that has already been returned.
 	_ = s.auditRepository.Write(ctx, op.ID, userID, "order_refunded", "order", order.ID,
-		fmt.Sprintf("Refund Rp%d dari total Rp%d, komisi ditarik Rp%d%s",
-			req.AmountIdr, order.TotalPriceIDR, commissionReversal, noteSuffix(refund.Reason)))
+		fmt.Sprintf("Refund penuh Rp%d, komisi ditarik Rp%d%s",
+			refundAmount, commissionReversal, noteSuffix(refund.Reason)))
 
 	return s.refundResponse(ctx, op.ID, order.ID, refund, true)
 }
