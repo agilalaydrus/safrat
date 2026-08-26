@@ -19,10 +19,15 @@ RUN cd /app/apps/api && sqlc generate
 
 RUN cd apps/api && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /server ./cmd/server
 RUN cd apps/api && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /worker ./cmd/worker
+# One-time maintenance job, run manually against a running deployment
+# (`docker compose run --rm api /storefront-backfill`). Shipped in the same
+# image so it always matches the schema the deployed API expects.
+RUN cd apps/api && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /storefront-backfill ./cmd/storefront-backfill
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /server /server
 COPY --from=build /worker /worker
+COPY --from=build /storefront-backfill /storefront-backfill
 EXPOSE 8080
 USER nonroot:nonroot
 # CMD, not ENTRYPOINT — docker-compose.prod.yml's worker service overrides
