@@ -1,12 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { PRICING_TIERS, WA_SALES_LINK } from "./content";
 
 export default function Pricing() {
-  const [billingCycle, setBillingCycle] = useState<"bulanan" | "tahunan">("tahunan");
 
   return (
     <section id="harga" className="border-t border-slate-200 bg-slate-50 py-20 dark:border-slate-800 dark:bg-slate-900">
@@ -22,33 +20,11 @@ export default function Pricing() {
             Tanpa biaya tersembunyi. Dapatkan pendampingan migrasi data Excel jamaah secara cuma-cuma.
           </p>
 
-          <div className="mt-6 inline-flex items-center rounded-xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-700 dark:bg-slate-950">
-            <button
-              type="button"
-              onClick={() => setBillingCycle("bulanan")}
-              className={`rounded-lg px-4 py-2 text-xs font-bold transition-all ${
-                billingCycle === "bulanan"
-                  ? "bg-slate-900 text-white shadow-sm dark:bg-slate-700"
-                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-              }`}
-            >
-              Bulanan
-            </button>
-            <button
-              type="button"
-              onClick={() => setBillingCycle("tahunan")}
-              className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold transition-all ${
-                billingCycle === "tahunan"
-                  ? "bg-emerald-600 text-white shadow-sm"
-                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-              }`}
-            >
-              <span>Tahunan (Musim)</span>
-              <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                Hemat 20%
-              </span>
-            </button>
-          </div>
+          {/* The billing toggle was removed, not hidden: billingCycle never fed
+              into a price, so switching it changed nothing on screen while the
+              badge promised a 20% saving. With every price still "Hubungi
+              Sales", it was a discount claim with nothing behind it. Restore it
+              together with real per-cycle figures. */}
         </div>
 
         <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 md:grid-cols-3">
