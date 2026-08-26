@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
+	"connectrpc.com/connect"
 	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
@@ -12,6 +14,7 @@ import (
 	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/payment"
 	"github.com/hajj-saas/api/internal/repository"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -23,14 +26,16 @@ type OrderService struct {
 	auditRepository    *repository.AuditRepository
 	xenditClient       *payment.Client
 	ledgerRepository   *repository.LedgerRepository
+	refundRepository   *repository.RefundRepository
+	db                 *pgxpool.Pool
 	// appBaseURL is where Xendit redirects the pilgrim's browser back to
 	// after payment — CORS_ALLOWED_ORIGIN doubles as this app's canonical
 	// web origin, so no separate env var.
 	appBaseURL string
 }
 
-func NewOrderService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, orders *repository.OrderRepository, audit *repository.AuditRepository, ledger *repository.LedgerRepository, xendit *payment.Client, appBaseURL string) *OrderService {
-	return &OrderService{operatorRepository: operators, pilgrimRepository: pilgrims, productRepository: products, orderRepository: orders, auditRepository: audit, ledgerRepository: ledger, xenditClient: xendit, appBaseURL: appBaseURL}
+func NewOrderService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, orders *repository.OrderRepository, audit *repository.AuditRepository, ledger *repository.LedgerRepository, refunds *repository.RefundRepository, db *pgxpool.Pool, xendit *payment.Client, appBaseURL string) *OrderService {
+	return &OrderService{operatorRepository: operators, pilgrimRepository: pilgrims, productRepository: products, orderRepository: orders, auditRepository: audit, ledgerRepository: ledger, refundRepository: refunds, db: db, xenditClient: xendit, appBaseURL: appBaseURL}
 }
 
 // computeSplit derives the platform/operator/agent commission split for a
@@ -308,4 +313,169 @@ func orderMessage(o *domain.Order) *hajjv1.Order {
 		result.PaidAt = timestamppb.New(*o.PaidAt)
 	}
 	return result
+}
+
+// RefundOrder records that money was returned to a pilgrim, credits their
+// balance ledger, and reverses the agent's commission on the refunded portion.
+//
+// It records a refund; it does not itself move money at the gateway. Operators
+// refund by transfer or at the counter, and what has to be true afterwards is
+// that the books agree with reality. Automating the gateway call on top of an
+// honest record is a smaller job than the other way around.
+//
+// Everything happens in one transaction under a row lock on the order: the
+// refund record, the pilgrim's credit, the commission reversal and the order's
+// status either all hold or none do. A half-applied refund would credit a
+// pilgrim while leaving the agent paid for a sale that no longer exists.
+func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, req *hajjv1.RefundOrderRequest) (*hajjv1.RefundOrderResponse, error) {
+	if req == nil || strings.TrimSpace(req.OrderId) == "" || req.AmountIdr <= 0 || strings.TrimSpace(req.IdempotencyKey) == "" {
+		return nil, serviceError("OrderService.RefundOrder", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("OrderService.RefundOrder", err)
+	}
+
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, serviceError("OrderService.RefundOrder", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	order, err := s.refundRepository.LockOrderForRefund(ctx, tx, op.ID, req.OrderId)
+	if err != nil {
+		return nil, serviceError("OrderService.RefundOrder", err)
+	}
+	// Only money that actually arrived can go back. PENDING, EXPIRED, FAILED
+	// and CANCELLED orders were never paid; REFUNDED ones are already fully
+	// returned.
+	if order.Status != "PAID" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("hanya pesanan berstatus LUNAS yang dapat direfund"))
+	}
+	remaining := order.TotalPriceIDR - order.RefundedIDR
+	if req.AmountIdr > remaining {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Errorf("nominal refund melebihi sisa yang dapat dikembalikan (sisa Rp%d)", remaining))
+	}
+
+	// Commission is reversed in proportion to the money returned, and is
+	// computed from the running total rather than this refund alone. Rounding
+	// down on each partial refund would otherwise leave a few rupiah credited
+	// forever after a series of them; deriving the target from the total means
+	// a full refund reverses the commission exactly.
+	totalRefunded := order.RefundedIDR + req.AmountIdr
+	commissionReversal := int64(0)
+	if order.AgentID != "" && order.AgentCommissionIDR > 0 && order.TotalPriceIDR > 0 {
+		targetReversed := order.AgentCommissionIDR * totalRefunded / order.TotalPriceIDR
+		commissionReversal = targetReversed - order.CommissionReversed
+		if commissionReversal < 0 {
+			commissionReversal = 0
+		}
+	}
+
+	refund, created, err := s.refundRepository.CreateRefundTx(ctx, tx, repository.RefundParams{
+		OperatorID: op.ID, OrderID: order.ID, AmountIDR: req.AmountIdr,
+		CommissionReversedIDR: commissionReversal, Reason: strings.TrimSpace(req.Reason),
+		CreatedByUserID: userID, IdempotencyKey: req.IdempotencyKey,
+	})
+	if err != nil {
+		return nil, serviceError("OrderService.RefundOrder", err)
+	}
+	// A replay: the refund it asked for already exists, and its effects were
+	// applied by the request that created it. Report that outcome instead of
+	// applying anything a second time.
+	if !created {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, serviceError("OrderService.RefundOrder", err)
+		}
+		return s.refundResponse(ctx, op.ID, order.ID, refund, false)
+	}
+
+	if err := s.ledgerRepository.AppendBalanceTx(ctx, tx, repository.BalanceEntry{
+		OperatorID: op.ID, PilgrimID: order.PilgrimID, AmountIDR: req.AmountIdr, Kind: "REFUND",
+		OrderID: order.ID, Note: refundNote(refund.Reason), CreatedByUserID: userID,
+		IdempotencyKey: "refund-" + refund.ID,
+	}); err != nil {
+		return nil, serviceError("OrderService.RefundOrder", err)
+	}
+
+	if commissionReversal > 0 {
+		if err := s.ledgerRepository.AppendCommissionTx(ctx, tx, repository.CommissionEntry{
+			OperatorID: op.ID, AgentID: order.AgentID, AmountIDR: -commissionReversal, Kind: "REVERSED",
+			OrderID: order.ID, Note: refundNote(refund.Reason), CreatedByUserID: userID,
+			IdempotencyKey: "reversal-" + refund.ID,
+		}); err != nil {
+			return nil, serviceError("OrderService.RefundOrder", err)
+		}
+	}
+
+	if totalRefunded >= order.TotalPriceIDR {
+		if err := s.refundRepository.MarkOrderRefundedTx(ctx, tx, order.ID); err != nil {
+			return nil, serviceError("OrderService.RefundOrder", err)
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, serviceError("OrderService.RefundOrder", err)
+	}
+
+	// Audited after the commit: the refund is the fact, and failing to write
+	// the log must not roll back money that has already been returned.
+	_ = s.auditRepository.Write(ctx, op.ID, userID, "order_refunded", "order", order.ID,
+		fmt.Sprintf("Refund Rp%d dari total Rp%d, komisi ditarik Rp%d%s",
+			req.AmountIdr, order.TotalPriceIDR, commissionReversal, noteSuffix(refund.Reason)))
+
+	return s.refundResponse(ctx, op.ID, order.ID, refund, true)
+}
+
+func (s *OrderService) refundResponse(ctx context.Context, operatorID, orderID string, refund *domain.OrderRefund, created bool) (*hajjv1.RefundOrderResponse, error) {
+	order, err := s.orderRepository.Get(ctx, operatorID, orderID)
+	if err != nil {
+		return nil, serviceError("OrderService.RefundOrder", err)
+	}
+	balance, err := s.ledgerRepository.PilgrimBalance(ctx, order.PilgrimID)
+	if err != nil {
+		return nil, serviceError("OrderService.RefundOrder", err)
+	}
+	return &hajjv1.RefundOrderResponse{
+		Order: orderMessage(order), Refund: refundMessage(refund),
+		PilgrimBalanceIdr: balance, Created: created,
+	}, nil
+}
+
+// ListOrderRefunds returns an order's refund history for the dashboard.
+func (s *OrderService) ListOrderRefunds(ctx context.Context, orgID string, req *hajjv1.ListOrderRefundsRequest) (*hajjv1.ListOrderRefundsResponse, error) {
+	if req == nil || strings.TrimSpace(req.OrderId) == "" {
+		return nil, serviceError("OrderService.ListOrderRefunds", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("OrderService.ListOrderRefunds", err)
+	}
+	refunds, err := s.refundRepository.ListByOrder(ctx, op.ID, req.OrderId)
+	if err != nil {
+		return nil, serviceError("OrderService.ListOrderRefunds", err)
+	}
+	result := &hajjv1.ListOrderRefundsResponse{Refunds: make([]*hajjv1.OrderRefund, 0, len(refunds))}
+	for _, refund := range refunds {
+		result.TotalRefundedIdr += refund.AmountIDR
+		result.Refunds = append(result.Refunds, refundMessage(refund))
+	}
+	return result, nil
+}
+
+func refundNote(reason string) string {
+	if reason == "" {
+		return "Refund pesanan"
+	}
+	return "Refund pesanan: " + reason
+}
+
+func refundMessage(r *domain.OrderRefund) *hajjv1.OrderRefund {
+	return &hajjv1.OrderRefund{
+		Id: r.ID, OrderId: r.OrderID, AmountIdr: r.AmountIDR,
+		CommissionReversedIdr: r.CommissionReversedIDR, Reason: r.Reason,
+		CreatedByUserId: r.CreatedByUserID, CreatedAt: timestamppb.New(r.CreatedAt),
+	}
 }

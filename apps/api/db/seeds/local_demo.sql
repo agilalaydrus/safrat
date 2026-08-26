@@ -15,6 +15,12 @@
 --   ZuY9WBDuoJip5Klre3YuI6mS60Oc6RRy  Jamaah Demo          not an org member — pilgrim-linked account
 BEGIN;
 
+-- Money ledgers are append-only: a trigger rejects DELETE unless this flag is
+-- set for the transaction (see migration 090). Tearing down a whole operator
+-- is exactly the case it exists for — without it the cascade below fails the
+-- moment the demo operator has any commission or balance history.
+SELECT set_config('app.allow_ledger_purge', 'on', true);
+
 -- seat_assignments.operator_id lacks ON DELETE CASCADE (unlike every other
 -- operator_id FK in the schema) — delete it explicitly first or the cascade
 -- delete below fails once any seat_assignments rows exist.

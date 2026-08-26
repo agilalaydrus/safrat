@@ -21,6 +21,13 @@ service OrderService {
   rpc CreateManualOrder(CreateManualOrderRequest) returns (CreateOrderResponse);
   rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
   rpc GetOrder(GetOrderRequest) returns (Order);
+  // RefundOrder records that money went back to the pilgrim. Manual and
+  // operator-driven on purpose: it credits the pilgrim's balance ledger and
+  // reverses the agent's commission, but it does not itself move money at the
+  // gateway. Refunds may be partial and accumulate; the order only becomes
+  // REFUNDED once the whole amount paid has been returned.
+  rpc RefundOrder(RefundOrderRequest) returns (RefundOrderResponse);
+  rpc ListOrderRefunds(ListOrderRefundsRequest) returns (ListOrderRefundsResponse);
 }
 
 message Order {
@@ -39,7 +46,7 @@ message Order {
   int64 platform_amount_idr = 13;
   int64 operator_amount_idr = 14;
   int64 agent_commission_idr = 15;
-  // PENDING | PAID | EXPIRED | FAILED | CANCELLED
+  // PENDING | PAID | EXPIRED | FAILED | CANCELLED | REFUNDED
   string status = 16;
   string checkout_url = 17;
   google.protobuf.Timestamp paid_at = 18;
@@ -91,6 +98,44 @@ message ListOrdersRequest {
 message ListOrdersResponse {
   repeated Order orders = 1;
   int64 total_count = 2;
+}
+
+message OrderRefund {
+  string id = 1;
+  string order_id = 2;
+  int64 amount_idr = 3;
+  // How much agent commission this refund clawed back — commission is earned
+  // only on sales that stand.
+  int64 commission_reversed_idr = 4;
+  string reason = 5;
+  string created_by_user_id = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+message RefundOrderRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  int64 amount_idr = 2 [(buf.validate.field).int64.gt = 0];
+  string reason = 3 [(buf.validate.field).string.max_len = 500];
+  // Required, not optional: a refund is money leaving, and a retried or
+  // double-clicked request must settle the same refund rather than issue a
+  // second one. The same key always refers to the same refund.
+  string idempotency_key = 4 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+}
+
+message RefundOrderResponse {
+  Order order = 1;
+  OrderRefund refund = 2;
+  // The pilgrim's balance after this refund, so the caller does not have to
+  // ask separately for the number it just changed.
+  int64 pilgrim_balance_idr = 3;
+  // False when this request was a replay and the refund already existed.
+  bool created = 4;
+}
+
+message ListOrderRefundsRequest { string order_id = 1 [(buf.validate.field).string.uuid = true]; }
+message ListOrderRefundsResponse {
+  repeated OrderRefund refunds = 1;
+  int64 total_refunded_idr = 2;
 }
 
 message GetOrderRequest { string order_id = 1 [(buf.validate.field).string.min_len = 1]; }

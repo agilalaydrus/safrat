@@ -7,6 +7,7 @@ import (
 
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -25,6 +26,14 @@ func NewLedgerRepository(pool *pgxpool.Pool) *LedgerRepository {
 	return &LedgerRepository{pool: pool}
 }
 
+// ledgerExecutor is satisfied by both *pgxpool.Pool and pgx.Tx. A refund has
+// to record the reversal, the pilgrim's credit and the order's new status
+// together or not at all, so those appends must be able to join a caller's
+// transaction; a standalone append uses the pool and is its own transaction.
+type ledgerExecutor interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+}
+
 // CommissionEntry is one movement in an agent's commission balance.
 type CommissionEntry struct {
 	OperatorID      string
@@ -39,8 +48,26 @@ type CommissionEntry struct {
 
 // AppendCommission records a commission movement. Re-appending with the same
 // idempotency key is an advice about the same entry, not a second one, so a
-// retried webhook or a replayed job cannot credit an agent twice.
+// retried webhook or a replayed job cannot credit an agent twice. The same
+// holds for the one-EARNED-per-order rule; reversals may repeat, because a
+// refund may be partial.
+//
+// Duplicates are declined by ON CONFLICT DO NOTHING rather than raised and
+// caught. Catching a unique violation works against the pool but not inside a
+// caller's transaction, where a failed statement poisons every statement that
+// follows — and this append has to be able to join the refund transaction.
+// The table's only unique constraints are those two idempotency guards, so an
+// untargeted DO NOTHING can only mean "already recorded".
 func (r *LedgerRepository) AppendCommission(ctx context.Context, entry CommissionEntry) error {
+	return appendCommission(ctx, r.pool, entry)
+}
+
+// AppendCommissionTx is AppendCommission inside a caller's transaction.
+func (r *LedgerRepository) AppendCommissionTx(ctx context.Context, tx pgx.Tx, entry CommissionEntry) error {
+	return appendCommission(ctx, tx, entry)
+}
+
+func appendCommission(ctx context.Context, exec ledgerExecutor, entry CommissionEntry) error {
 	operatorID, err := pgUUID(entry.OperatorID)
 	if err != nil {
 		return apperror.ErrValidation
@@ -60,18 +87,12 @@ func (r *LedgerRepository) AppendCommission(ctx context.Context, entry Commissio
 		}
 		orderID = parsed
 	}
-	_, err = r.pool.Exec(ctx, `
+	_, err = exec.Exec(ctx, `
 		INSERT INTO agent_commission_entries
 			(operator_id, agent_id, amount_idr, kind, order_id, note, created_by_user_id, idempotency_key)
-		VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''), $8)`,
+		VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''), $8)
+		ON CONFLICT DO NOTHING`,
 		operatorID, agentID, entry.AmountIDR, entry.Kind, orderID, entry.Note, entry.CreatedByUserID, entry.IdempotencyKey)
-	// Both guards mean "this movement is already recorded": the idempotency key,
-	// and the one-EARNED-one-REVERSED-per-order rule. Either way the caller's
-	// intent is already satisfied, so this is success, not a failure to report.
-	if IsUniqueViolation(err, "agent_commission_entries_idempotency_idx") ||
-		IsUniqueViolation(err, "agent_commission_entries_order_kind_idx") {
-		return nil
-	}
 	return err
 }
 
@@ -101,8 +122,18 @@ type BalanceEntry struct {
 }
 
 // AppendBalance records a movement in a pilgrim's deposit. Same idempotency
-// contract as commissions: a repeat is an advice about the same entry.
+// contract, and the same conflict handling, as AppendCommission: a repeat is
+// an advice about the same entry.
 func (r *LedgerRepository) AppendBalance(ctx context.Context, entry BalanceEntry) error {
+	return appendBalance(ctx, r.pool, entry)
+}
+
+// AppendBalanceTx is AppendBalance inside a caller's transaction.
+func (r *LedgerRepository) AppendBalanceTx(ctx context.Context, tx pgx.Tx, entry BalanceEntry) error {
+	return appendBalance(ctx, tx, entry)
+}
+
+func appendBalance(ctx context.Context, exec ledgerExecutor, entry BalanceEntry) error {
 	operatorID, err := pgUUID(entry.OperatorID)
 	if err != nil {
 		return apperror.ErrValidation
@@ -122,15 +153,12 @@ func (r *LedgerRepository) AppendBalance(ctx context.Context, entry BalanceEntry
 		}
 		orderID = parsed
 	}
-	_, err = r.pool.Exec(ctx, `
+	_, err = exec.Exec(ctx, `
 		INSERT INTO pilgrim_balance_entries
 			(operator_id, pilgrim_id, amount_idr, kind, order_id, note, created_by_user_id, idempotency_key)
-		VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''), $8)`,
+		VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, ''), $8)
+		ON CONFLICT DO NOTHING`,
 		operatorID, pilgrimID, entry.AmountIDR, entry.Kind, orderID, entry.Note, entry.CreatedByUserID, entry.IdempotencyKey)
-	if IsUniqueViolation(err, "pilgrim_balance_entries_idempotency_idx") ||
-		IsUniqueViolation(err, "pilgrim_balance_entries_order_kind_idx") {
-		return nil
-	}
 	return err
 }
 

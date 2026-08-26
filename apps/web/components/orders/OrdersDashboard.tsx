@@ -1,18 +1,20 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { IconCopy, IconPlus, IconShoppingCart } from "@tabler/icons-react";
+import { IconArrowBackUp, IconCopy, IconPlus, IconShoppingCart } from "@tabler/icons-react";
 import { Order } from "@hajj-saas/proto-gen/hajj/v1/order_pb";
 import { orderClient, seasonClient } from "@/lib/rpc";
 import CreateOrderDialog from "./CreateOrderDialog";
+import RefundOrderDialog from "./RefundOrderDialog";
 
 const rupiah = (n: bigint) => `Rp${Number(n).toLocaleString("id-ID")}`;
-const STATUS_LABEL: Record<string, string> = { PENDING: "Menunggu Bayar", PAID: "Lunas", EXPIRED: "Kedaluwarsa", FAILED: "Gagal", CANCELLED: "Dibatalkan" };
+const STATUS_LABEL: Record<string, string> = { PENDING: "Menunggu Bayar", PAID: "Lunas", EXPIRED: "Kedaluwarsa", FAILED: "Gagal", CANCELLED: "Dibatalkan", REFUNDED: "Direfund" };
 const STATUS_STYLE: Record<string, React.CSSProperties> = {
   PENDING: { background: "var(--color-gold-50)", color: "var(--color-gold-800)" },
   PAID: { background: "var(--color-emerald-50)", color: "var(--color-emerald-900)" },
   EXPIRED: { background: "var(--color-cream-200)", color: "var(--color-warm-500)" },
   FAILED: { background: "#ffe4e6", color: "var(--color-danger-600)" },
   CANCELLED: { background: "var(--color-cream-200)", color: "var(--color-warm-500)" },
+  REFUNDED: { background: "#ffe4e6", color: "var(--color-danger-600)" },
 };
 
 const pageSize = 20;
@@ -26,6 +28,7 @@ export default function OrdersDashboard() {
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState("");
+  const [refunding, setRefunding] = useState<Order | null>(null);
 
   const load = useCallback(async (id = seasonId) => {
     if (!id) return;
@@ -85,7 +88,10 @@ export default function OrdersDashboard() {
                   <td style={td}>{rupiah(o.totalPriceIdr)}</td>
                   <td style={td}><span style={{ ...badge, ...STATUS_STYLE[o.status] }}>{STATUS_LABEL[o.status] ?? o.status}</span></td>
                   <td style={td}>{o.createdAt?.toDate().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}</td>
-                  <td style={td}>{o.status === "PENDING" && o.checkoutUrl && <button style={ghost} onClick={() => navigator.clipboard.writeText(o.checkoutUrl)}><IconCopy size={14} />Salin Link</button>}</td>
+                  <td style={td}>
+                    {o.status === "PENDING" && o.checkoutUrl && <button style={ghost} onClick={() => navigator.clipboard.writeText(o.checkoutUrl)}><IconCopy size={14} />Salin Link</button>}
+                    {o.status === "PAID" && <button style={ghost} onClick={() => setRefunding(o)}><IconArrowBackUp size={14} />Refund</button>}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -106,6 +112,7 @@ export default function OrdersDashboard() {
           <button style={gold} onClick={() => setOpen(true)} disabled={!seasonId}>Buat Pesanan</button>
         </section>
       )}
+      <RefundOrderDialog order={refunding} onClose={() => setRefunding(null)} onRefunded={(message) => { setNotice(message); void load(); }} />
       <CreateOrderDialog open={open} seasonId={seasonId} onClose={() => setOpen(false)} onCreated={() => { setNotice("Pesanan berhasil dibuat."); void load(); }} />
     </main>
   );

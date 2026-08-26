@@ -75,11 +75,11 @@ These are decisions, not suggestions. Build to them.
 4. **The paid amount must always be validated**, by the best available method —
    not assumed correct because the provider said PAID.
 
-5. **Fraud and suspect handling is required**, including a held/suspended
+4. **Fraud and suspect handling is required**, including a held/suspended
    ("gantung") state so a questionable transaction is neither settled nor
    rejected while it is reviewed, and is excluded from totals meanwhile.
 
-6. **Receipts are per transaction and per account that transacted.** The person
+5. **Receipts are per transaction and per account that transacted.** The person
    who paid must be able to preview and print their own receipt — not only the
    operator.
 
@@ -115,24 +115,53 @@ Requirement 1's precondition. Two append-only ledgers now exist:
 Still open in this area: nothing writes `pilgrim_balance_entries` yet — it is
 the target of the refund PR below, which is what puts money into it.
 
+#### Done — PR 2: refunds (migration 091)
+
+Requirement 1, in full. `orders.status` now allows `REFUNDED`, and
+`order_refunds` records every refund event.
+
+- **`OrderService.RefundOrder`** records a refund, credits the pilgrim's
+  balance ledger, and reverses the agent's commission — all in one transaction
+  under `SELECT ... FOR UPDATE` on the order. A half-applied refund would
+  credit a pilgrim while leaving the agent paid for a sale that no longer
+  exists.
+- **Partial refunds accumulate.** The order stays `PAID` until the whole amount
+  paid has been returned, then flips to `REFUNDED`. A refund exceeding what is
+  left is rejected, and a non-`PAID` order cannot be refunded at all.
+- **Commission clawback is derived from the running refunded total**, not from
+  each refund alone. Rounding each partial down independently would leave the
+  agent credited a few rupiah forever; deriving the target from the total means
+  a full refund reverses the commission exactly. Verified with three partials of
+  333_333/333_333/333_334 against a 100_000 commission → balance exactly 0.
+- **`idempotency_key` is required on the RPC.** A replay returns the refund that
+  already exists with `created = false`; six concurrent calls with one key
+  produced one refund row and credited the pilgrim once.
+- **Conflicts are declined, never raised.** `ON CONFLICT DO NOTHING` replaced
+  catch-the-unique-violation in both the refund insert and the ledger appends: a
+  failed statement poisons the whole transaction, so the recovery read that
+  fetches the existing row would itself fail. This was found by the concurrency
+  test, not by review.
+- **UI**: `components/orders/RefundOrderDialog.tsx`, opened from the Refund
+  action on paid orders. The idempotency key is minted once per refund the
+  operator is composing, so a double-click carries the same key.
+
+It records a refund; it does not call the gateway to move money. Operators
+refund by transfer or at the counter today, and an honest record is the part
+that has to exist first.
+
+**Note, unrelated and pre-existing:** `TestMovementAndVehicleTransitions` and
+`TestDeleteMovement` fail on `cannot transition from scheduled to arrived`.
+Confirmed failing before this work as well — not caused by it, still unfixed.
+
 #### Open — ordered
 
-1. **`REFUNDED` status and refund records.** `orders.status` allows only
-   PENDING/PAID/EXPIRED/FAILED/CANCELLED. A refunded order stays `PAID`
-   forever, so revenue is overstated **and agent commission is computed from
-   PAID orders** — the agent stays credited for money that went back to the
-   pilgrim. Cancellation policies compute what *should* be refunded
-   (`CancellationRepository.MatchPolicy`) but nothing records that it happened,
-   who approved it, or when the money moved. Start with a recorded manual
-   refund; automatic Xendit refunds are the wrong place to begin.
-
-2. **Duplicate orders.** `CreateOrder` has no idempotency key and `orders` has
+1. **Duplicate orders.** `CreateOrder` has no idempotency key and `orders` has
    no unique index preventing it. A double-click creates two orders and two
    Xendit invoices, and the pilgrim can pay both — charged twice for one
    intent. Same class as the three fixed above; fix it the same way, in the
    database.
 
-3. **Fulfilment does not exist for anything but travel packages.** Product
+2. **Fulfilment does not exist for anything but travel packages.** Product
    categories are `TRAVEL_PACKAGE`, `EQUIPMENT`, `ROAMING_DATA`, `PPOB_CREDIT`,
    but `applyPaidSideEffects` only acts on `TRAVEL_PACKAGE` (auto-kloter).
    - `EQUIPMENT` (physical): `orders` has no delivery status, address, tracking

@@ -35,7 +35,22 @@ func TestRequestPayoutCannotExceedBalanceUnderConcurrencyIntegration(t *testing.
 		operatorID, orgID, operatorID[:8]+"@example.com", "payout-"+operatorID[:8]); err != nil {
 		t.Fatalf("insert operator: %v", err)
 	}
-	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), `DELETE FROM operators WHERE id = $1`, operatorID) })
+	// Ledger rows refuse deletion unless the teardown flag is set for the
+	// transaction, so cleaning up an operator with commission history needs it.
+	t.Cleanup(func() {
+		cleanup, err := pool.Begin(context.Background())
+		if err != nil {
+			return
+		}
+		defer func() { _ = cleanup.Rollback(context.Background()) }()
+		if _, err := cleanup.Exec(context.Background(), `SELECT set_config('app.allow_ledger_purge', 'on', true)`); err != nil {
+			return
+		}
+		if _, err := cleanup.Exec(context.Background(), `DELETE FROM operators WHERE id = $1`, operatorID); err != nil {
+			return
+		}
+		_ = cleanup.Commit(context.Background())
+	})
 
 	// agents.linked_user_id references Better Auth's own table.
 	userID := "user-" + uuid.NewString()
@@ -64,9 +79,19 @@ func TestRequestPayoutCannotExceedBalanceUnderConcurrencyIntegration(t *testing.
 	if _, err := pool.Exec(ctx, `INSERT INTO products (id, operator_id, season_id, name, price_idr) VALUES ($1,$2,$3,'Produk Uji',$4)`, productID, operatorID, seasonID, earned); err != nil {
 		t.Fatalf("insert product: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO orders (operator_id, season_id, pilgrim_id, product_id, agent_id, unit_price_idr, total_price_idr, agent_commission_idr, status)
-		VALUES ($1,$2,$3,$4,$5,$6,$6,$6,'PAID')`, operatorID, seasonID, pilgrimID, productID, agentID, earned); err != nil {
+	var orderID string
+	if err := pool.QueryRow(ctx, `INSERT INTO orders (operator_id, season_id, pilgrim_id, product_id, agent_id, unit_price_idr, total_price_idr, agent_commission_idr, status)
+		VALUES ($1,$2,$3,$4,$5,$6,$6,$6,'PAID') RETURNING id::text`, operatorID, seasonID, pilgrimID, productID, agentID, earned).Scan(&orderID); err != nil {
 		t.Fatalf("insert paid order: %v", err)
+	}
+	// The balance comes from the commission ledger, not from summing PAID
+	// orders, so paying an order has to record the entry the payment path
+	// records (see OrderService.applyPaidSideEffects).
+	if err := repository.NewLedgerRepository(pool).AppendCommission(ctx, repository.CommissionEntry{
+		OperatorID: operatorID, AgentID: agentID, AmountIDR: earned, Kind: "EARNED",
+		OrderID: orderID, IdempotencyKey: "order-earned-" + orderID,
+	}); err != nil {
+		t.Fatalf("append commission: %v", err)
 	}
 
 	queries := db.New(pool)

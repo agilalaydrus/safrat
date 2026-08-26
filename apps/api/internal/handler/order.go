@@ -59,3 +59,25 @@ func (h *OrderHandler) GetOrder(ctx context.Context, req *connect.Request[hajjv1
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *OrderHandler) RefundOrder(ctx context.Context, req *connect.Request[hajjv1.RefundOrderRequest]) (*connect.Response[hajjv1.RefundOrderResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.orderService.RefundOrder(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *OrderHandler) ListOrderRefunds(ctx context.Context, req *connect.Request[hajjv1.ListOrderRefundsRequest]) (*connect.Response[hajjv1.ListOrderRefundsResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.orderService.ListOrderRefunds(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

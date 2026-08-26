@@ -121,6 +121,7 @@ func main() {
 		operatorDomainRepository := repository.NewOperatorDomainRepository(pool)
 		subscriptionRepository := repository.NewSubscriptionRepository(pool)
 		ledgerRepository := repository.NewLedgerRepository(pool)
+		refundRepository := repository.NewRefundRepository(pool)
 
 		// Gate for Caddy's on-demand TLS. Caddy asks before obtaining a
 		// certificate for a hostname it has never seen; answering 200 here is
@@ -195,7 +196,7 @@ func main() {
 		monitoringService := service.NewMonitoringService(operatorRepository, monitoringRepository, groupRepository, eventBus)
 		identityService := service.NewIdentityService(identityRepository)
 		xenditClient := payment.NewClient(config.XenditSecretKey)
-		orderService := service.NewOrderService(operatorRepository, pilgrimRepository, productRepository, orderRepository, auditRepository, ledgerRepository, xenditClient, config.AllowedOrigin)
+		orderService := service.NewOrderService(operatorRepository, pilgrimRepository, productRepository, orderRepository, auditRepository, ledgerRepository, refundRepository, pool, xenditClient, config.AllowedOrigin)
 		broadcastService := service.NewBroadcastService(operatorRepository, broadcastRepository, auditRepository)
 		registrationService := service.NewRegistrationService(operatorRepository, registrationRepository, auditRepository, agentRepository)
 		waitlistService := service.NewWaitlistService(operatorRepository, waitlistRepository, auditRepository)
