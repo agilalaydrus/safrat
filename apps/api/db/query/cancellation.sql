@@ -23,12 +23,18 @@ ORDER BY sort_order ASC
 LIMIT 1;
 
 -- name: GetPilgrimPaidTotal :one
--- The actual source of truth for "how much has this pilgrim paid" — the
--- orders table, not a cached running-balance column that nothing else
--- keeps in sync.
-SELECT COALESCE(SUM(total_price_idr), 0)::bigint AS total_paid_idr
-FROM orders
-WHERE pilgrim_id = $1 AND status = 'PAID';
+-- The actual source of truth for "how much has this pilgrim paid" — computed
+-- from orders and refunds, not a cached running-balance column that nothing
+-- else keeps in sync.
+--
+-- Net of refunds, and that is load-bearing: this figure is multiplied by the
+-- cancellation policy's refund percentage. Counting a refunded amount as still
+-- paid would make the operator return the same money twice. order_payments
+-- already reports zero for orders that were never paid, so there is no status
+-- filter here to get wrong.
+SELECT COALESCE(SUM(net_paid_idr), 0)::bigint AS total_paid_idr
+FROM order_payments
+WHERE pilgrim_id = $1;
 
 -- name: CreateCancellation :one
 -- Immutable. Called inside a transaction alongside MarkPilgrimCancelled.

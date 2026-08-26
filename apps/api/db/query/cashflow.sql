@@ -18,12 +18,12 @@ RETURNING *;
 DELETE FROM vendor_payments WHERE id = $1 AND operator_id = $2;
 
 -- name: GetSeasonPaidTotal :one
--- Total collected from pilgrims — the actual payment ledger (orders),
--- not a cached running-balance column.
-SELECT COALESCE(SUM(o.total_price_idr), 0)::bigint AS total_collected_idr
-FROM orders o
+-- Total collected from pilgrims — the actual payment ledger (orders net of
+-- refunds), not a cached running-balance column.
+SELECT COALESCE(SUM(o.net_paid_idr), 0)::bigint AS total_collected_idr
+FROM order_payments o
 JOIN pilgrims p ON p.id = o.pilgrim_id
-WHERE o.operator_id = $1 AND o.season_id = $2 AND o.status = 'PAID' AND p.status = 'ACTIVE';
+WHERE o.operator_id = $1 AND o.season_id = $2 AND p.status = 'ACTIVE';
 
 -- name: GetVendorCommitmentSummary :one
 SELECT

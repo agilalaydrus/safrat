@@ -21,10 +21,13 @@ WHERE p.operator_id = $1
 -- name: GetSeasonOrderStats :one
 -- Season-scoped revenue (unlike ListAgentPayouts/GetAgentPayoutSummary,
 -- which are deliberately lifetime — see their doc comments in order.sql).
+-- Revenue is net of refunds: money that went back to the pilgrim was never
+-- revenue. order_payments reports zero for unpaid orders, so the count still
+-- covers every order while the revenue covers only what is actually held.
 SELECT
   COUNT(*)::int AS order_count,
-  COALESCE(SUM(total_price_idr) FILTER (WHERE status = 'PAID'), 0)::bigint AS total_revenue_idr
-FROM orders
+  COALESCE(SUM(net_paid_idr), 0)::bigint AS total_revenue_idr
+FROM order_payments
 WHERE operator_id = $1 AND season_id = $2;
 
 -- name: ListKloterFillForSeason :many

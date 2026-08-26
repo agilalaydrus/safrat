@@ -75,6 +75,7 @@ func main() {
 	cashFlowHandler := worker.NewCashFlowHandler(logger, queries)
 	outboxHandler := worker.NewOutboxHandler(logger, outboxRepository, firebasePusher, journeyService, eventBus)
 	subscriptionHandler := worker.NewSubscriptionHandler(logger, subscriptionRepository)
+	commissionHandler := worker.NewCommissionHandler(logger, repository.NewLedgerRepository(pool))
 	objectStorage, storageErr := storage.New(context.Background(), storage.ConfigFromEnv())
 	if storageErr != nil {
 		logger.Error("init storefront object storage", "error", storageErr)
@@ -122,6 +123,14 @@ func main() {
 		logger.Error("register subscription sweep schedule", "error", err)
 		os.Exit(1)
 	}
+	// Every 10 minutes rather than hourly: the gap this closes is an agent not
+	// being paid, and it is invisible until someone notices the number is
+	// wrong. The sweep is a single indexed statement that does nothing at all
+	// when there is nothing missing.
+	if _, err := scheduler.Register("@every 10m", worker.NewCommissionReconcileTask()); err != nil {
+		logger.Error("register commission reconciliation schedule", "error", err)
+		os.Exit(1)
+	}
 	if storefrontAssetHandler != nil {
 		if _, err := scheduler.Register("@every 1h", worker.NewStorefrontAssetGCTask()); err != nil {
 			logger.Error("register storefront asset cleanup schedule", "error", err)
@@ -142,6 +151,7 @@ func main() {
 	mux.HandleFunc(worker.TaskMarkOverdueVendorPayments, cashFlowHandler.HandleMarkOverdue)
 	mux.HandleFunc(worker.TaskCascadeDispatch, outboxHandler.HandleDispatch)
 	mux.HandleFunc(worker.TaskSubscriptionSweep, subscriptionHandler.HandleSweep)
+	mux.HandleFunc(worker.TaskCommissionReconcile, commissionHandler.HandleReconcile)
 	if storefrontAssetHandler != nil {
 		mux.HandleFunc(worker.TaskStorefrontAssetGC, storefrontAssetHandler.HandleGC)
 	}

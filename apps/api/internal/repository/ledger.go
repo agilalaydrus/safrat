@@ -176,3 +176,38 @@ func (r *LedgerRepository) PilgrimBalance(ctx context.Context, pilgrimID string)
 	}
 	return total, err
 }
+
+// ReconcileEarnedCommission credits every paid order whose commission is
+// missing from the ledger, and reports how many it had to add.
+//
+// Written as one set-based statement rather than a read-then-write loop: the
+// insert's own SELECT decides what is missing, so there is no window between
+// deciding and acting for a concurrent payment to fall into. The idempotency
+// key is the same one the payment path uses, so an order credited normally is
+// skipped here, and running this twice changes nothing.
+//
+// It only ever adds what is missing. It never removes or adjusts an existing
+// entry: a reversal recorded by a refund is not a discrepancy to be tidied
+// away, and a sweep that could delete history would be far more dangerous than
+// the gap it is closing.
+func (r *LedgerRepository) ReconcileEarnedCommission(ctx context.Context) (int64, error) {
+	tag, err := r.pool.Exec(ctx, `
+		INSERT INTO agent_commission_entries
+			(operator_id, agent_id, amount_idr, kind, order_id, note, idempotency_key)
+		SELECT o.operator_id, o.agent_id, o.agent_commission_idr, 'EARNED', o.id,
+		       'Rekonsiliasi: komisi pesanan lunas yang belum tercatat',
+		       'order-earned-' || o.id::text
+		FROM orders o
+		WHERE o.status IN ('PAID', 'REFUNDED')
+		  AND o.agent_id IS NOT NULL
+		  AND o.agent_commission_idr > 0
+		  AND NOT EXISTS (
+		    SELECT 1 FROM agent_commission_entries e
+		    WHERE e.order_id = o.id AND e.kind = 'EARNED'
+		  )
+		ON CONFLICT DO NOTHING`)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}

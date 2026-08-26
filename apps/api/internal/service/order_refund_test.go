@@ -269,3 +269,135 @@ func TestRefundOrderRejectsUnpaidOrderIntegration(t *testing.T) {
 		t.Fatal("an unpaid order was refunded")
 	}
 }
+
+// The bug this guards against was not a report being slightly off. A pilgrim's
+// "total paid" is multiplied by the cancellation policy's refund percentage,
+// so counting an already-refunded amount as still paid made the operator
+// return the same money a second time.
+func TestPilgrimPaidTotalIsNetOfRefundsIntegration(t *testing.T) {
+	f := newRefundFixture(t)
+	ctx := context.Background()
+	cancellations := repository.NewCancellationRepository(f.pool, db.New(f.pool))
+
+	paid, err := cancellations.GetPaidTotal(ctx, f.pilgrimD)
+	if err != nil {
+		t.Fatalf("paid total: %v", err)
+	}
+	if paid != refundOrderTotal {
+		t.Fatalf("paid total = %d before any refund, want %d", paid, refundOrderTotal)
+	}
+
+	if _, err := f.service.RefundOrder(ctx, f.orgID, "user-refund", &hajjv1.RefundOrderRequest{
+		OrderId: f.orderID, AmountIdr: 400_000, Reason: "sebagian", IdempotencyKey: uuid.NewString(),
+	}); err != nil {
+		t.Fatalf("refund: %v", err)
+	}
+
+	// The order is still PAID — only part of it came back — so a query that
+	// filtered on status alone would still report the full amount here.
+	paid, err = cancellations.GetPaidTotal(ctx, f.pilgrimD)
+	if err != nil {
+		t.Fatalf("paid total: %v", err)
+	}
+	if paid != 600_000 {
+		t.Fatalf("paid total = %d after refunding 400000 of %d, want 600000", paid, refundOrderTotal)
+	}
+
+	// And a fully refunded order counts for nothing.
+	if _, err := f.service.RefundOrder(ctx, f.orgID, "user-refund", &hajjv1.RefundOrderRequest{
+		OrderId: f.orderID, AmountIdr: 600_000, Reason: "sisanya", IdempotencyKey: uuid.NewString(),
+	}); err != nil {
+		t.Fatalf("second refund: %v", err)
+	}
+	if paid, err = cancellations.GetPaidTotal(ctx, f.pilgrimD); err != nil || paid != 0 {
+		t.Fatalf("paid total = %d (%v) after a full refund, want 0", paid, err)
+	}
+}
+
+// The service checks the remaining amount under a row lock, and that check is
+// where a caller gets a useful message. This asserts the backstop underneath
+// it: a path that bypasses the service entirely still cannot over-refund.
+func TestDatabaseRejectsOverRefundWithoutTheServiceIntegration(t *testing.T) {
+	f := newRefundFixture(t)
+	ctx := context.Background()
+	var operatorID string
+	if err := f.pool.QueryRow(ctx, `SELECT operator_id::text FROM orders WHERE id = $1`, f.orderID).Scan(&operatorID); err != nil {
+		t.Fatalf("read operator: %v", err)
+	}
+
+	insert := `INSERT INTO order_refunds (operator_id, order_id, amount_idr, reason) VALUES ($1, $2, $3, 'langsung')`
+	if _, err := f.pool.Exec(ctx, insert, operatorID, f.orderID, refundOrderTotal+1); err == nil {
+		t.Fatal("a refund larger than the order was written straight to the table")
+	}
+	// Refunds that are individually valid must not add up past the total either.
+	if _, err := f.pool.Exec(ctx, insert, operatorID, f.orderID, 700_000); err != nil {
+		t.Fatalf("valid refund rejected: %v", err)
+	}
+	if _, err := f.pool.Exec(ctx, insert, operatorID, f.orderID, 400_000); err == nil {
+		t.Fatal("refunds summing past the order total were accepted")
+	}
+
+	// An order nobody paid cannot be refunded at all.
+	if _, err := f.pool.Exec(ctx, `UPDATE orders SET status = 'PENDING' WHERE id = $1`, f.orderID); err != nil {
+		t.Fatalf("unpay: %v", err)
+	}
+	if _, err := f.pool.Exec(ctx, insert, operatorID, f.orderID, 1_000); err == nil {
+		t.Fatal("an unpaid order was refunded directly")
+	}
+}
+
+// A paid order whose commission never reached the ledger — the shape left
+// behind by an order paid between the migration and the API restart.
+func TestReconcileCreditsCommissionTheWritePathMissedIntegration(t *testing.T) {
+	f := newRefundFixture(t)
+	ctx := context.Background()
+
+	// Remove the EARNED entry to recreate the gap. Ledger rows refuse deletion
+	// without the teardown flag, which is the point of them.
+	tx, err := f.pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `SELECT set_config('app.allow_ledger_purge', 'on', true)`); err != nil {
+		t.Fatalf("purge flag: %v", err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM agent_commission_entries WHERE order_id = $1`, f.orderID); err != nil {
+		t.Fatalf("delete entry: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	if _, commission := f.balances(t); commission != 0 {
+		t.Fatalf("commission = %d, the gap was not created", commission)
+	}
+
+	if _, err := f.ledger.ReconcileEarnedCommission(ctx); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if _, commission := f.balances(t); commission != refundCommission {
+		t.Fatalf("commission = %d after reconciliation, want %d", commission, refundCommission)
+	}
+
+	// Running again must not credit a second time — the sweep uses the same
+	// idempotency key the payment path does.
+	if _, err := f.ledger.ReconcileEarnedCommission(ctx); err != nil {
+		t.Fatalf("second reconcile: %v", err)
+	}
+	if _, commission := f.balances(t); commission != refundCommission {
+		t.Fatalf("commission = %d after a second sweep, want %d", commission, refundCommission)
+	}
+
+	// A reversal is not a discrepancy: the sweep must leave a refunded order's
+	// clawback alone rather than "restoring" the earning.
+	if _, err := f.service.RefundOrder(ctx, f.orgID, "user-refund", &hajjv1.RefundOrderRequest{
+		OrderId: f.orderID, AmountIdr: refundOrderTotal, Reason: "penuh", IdempotencyKey: uuid.NewString(),
+	}); err != nil {
+		t.Fatalf("refund: %v", err)
+	}
+	if _, err := f.ledger.ReconcileEarnedCommission(ctx); err != nil {
+		t.Fatalf("reconcile after refund: %v", err)
+	}
+	if _, commission := f.balances(t); commission != 0 {
+		t.Fatalf("commission = %d after reconciling a refunded order, want 0", commission)
+	}
+}

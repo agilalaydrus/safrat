@@ -165,6 +165,51 @@ that has to exist first.
   reported as the wrong reason. Every other renamed call site was checked; only
   that one was affected.
 
+#### Done — PR 3: net payments and the refund invariant (migration 092)
+
+Found while assessing the risk of shipping PR 2, and fixed before deploying it.
+
+**The defect.** "How much has this pilgrim paid" was read as
+`SUM(orders.total_price_idr) WHERE status = 'PAID'`. That was true until money
+could go back. A partially refunded order stays `PAID` at its full price, so the
+figure overstated by exactly the amount refunded — and
+`CancellationService.computePreview` multiplies it by the policy's refund
+percentage. **The operator would have refunded the same money a second time.**
+`GetSeasonOrderStats` and `GetSeasonPaidTotal` overstated revenue the same way.
+
+**The fix is one definition, not three patches.** `order_payments` is now the
+single answer to that question, and it is shaped so that misusing it is hard:
+`net_paid_idr` is already zero for orders that were never paid, so a caller
+needs no status filter and cannot forget one. A fully refunded order reaches
+zero by arithmetic rather than by its status, so the two can never disagree.
+All three queries read it. Any future query asking "how much was paid" should
+too — patching the three call sites would only have left the fourth to repeat
+the mistake.
+
+**The invariant is now the database's, not the service's.** A trigger on
+`order_refunds` rejects a refund that would push the running total past what
+was paid, and rejects refunding an order that was never paid — taking
+`FOR UPDATE` on the order itself, so it holds even for a caller that takes no
+lock. The service still checks first, because that is where a useful message
+comes from; the trigger is what makes the rule true of the data. Verified by
+writing straight to the table, bypassing the service entirely.
+
+**Commission reconciliation is automatic** (`worker/commission.go`, every 10
+minutes). Deploy runs migrations *before* restarting the API, so an order paid
+in that window is marked PAID by a binary that predates the ledger and no later
+event ever revisits it — the agent is never credited, silently and permanently.
+The sweep is one set-based statement keyed by the same idempotency key the
+payment path uses: it adds only what is missing, never removes or adjusts, and
+leaves a refund's reversal alone rather than "restoring" the earning. Running it
+twice changes nothing. This replaces the manual post-deploy SQL that a human
+would eventually forget.
+
+**Still open from the same review:** a pilgrim's refunded balance is credited to
+`pilgrim_balance_entries`, but nothing reads it except the refund response —
+no pilgrim-facing display, no way to spend it against another order, no
+withdrawal path. And `RefundOrder` records a refund without moving money at the
+gateway, so an operator can record one and forget to transfer.
+
 #### Open — ordered
 
 1. **Duplicate orders.** `CreateOrder` has no idempotency key and `orders` has
