@@ -236,6 +236,23 @@ succeeded. The idempotency lookup now runs **before** any precondition — a
 replay must not be judged against the state its own original request created.
 Caught by the concurrency test, not by review.
 
+#### Verified — the refund path over real HTTP
+
+`internal/handler/order_refund_http_test.go` drives a real `httptest` server
+with a real Connect client, so the layers a service-level test cannot reach are
+now covered: the Connect handler, protovalidate, the auth interceptor's session
+lookup, the subscription gate, and the wire contract. It mints its own Better
+Auth user/org/member/session in the test database and removes them afterwards —
+no real session token is ever read.
+
+Confirmed: unauthenticated calls get `unauthenticated`; a missing idempotency
+key and a malformed order id are rejected by **protovalidate**, before any
+business logic; the refund succeeds over the wire with the order `REFUNDED` and
+the pilgrim credited; a replay returns the original refund with
+`created = false`; `ListOrderRefunds` reports exactly one; and **a lapsed
+subscription locks the refund endpoint** with `failed_precondition` — the gate
+lives in the interceptor, so nothing below HTTP could have shown that.
+
 #### Open — ordered
 
 1. **Duplicate orders.** `CreateOrder` has no idempotency key and `orders` has
