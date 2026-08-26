@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const profile = await getProfile(slug);
   const article = profile?.content?.blogPosts?.find((item) => item.slug === articleSlug);
   if (!profile || !article) return { title: "Artikel tidak ditemukan" };
-  return { title: article.seoTitle || `${article.title} | ${profile.content?.displayName || profile.name}`, description: article.seoDescription || article.excerpt, openGraph: article.coverImageUrl ? { images: [{ url: article.coverImageUrl }] } : undefined };
+  return { title: { absolute: article.seoTitle || `${article.title} | ${profile.content?.displayName || profile.name}` }, description: article.seoDescription || article.excerpt, openGraph: article.coverImageUrl ? { images: [{ url: article.coverImageUrl }] } : undefined };
 }
 
 export default async function BlogArticlePage({ params }: { params: Promise<{ slug: string; articleSlug: string }> }) {

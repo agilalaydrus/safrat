@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Royal Emerald Gradient -->
+    <linearGradient id="archEmerald" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#065F46" />
+      <stop offset="60%" stop-color="#047857" />
+      <stop offset="100%" stop-color="#0F766E" />
+    </linearGradient>
+
+    <!-- Refined Champagne Gold Gradient -->
+    <linearGradient id="archGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE68A" />
+      <stop offset="40%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#D97706" />
+    </linearGradient>
+
+    <linearGradient id="bgLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#F8FAFC" />
+    </linearGradient>
+
+    <filter id="softArchShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#064E3B" flood-opacity="0.14" />
+    </filter>
+  </defs>
+
+  <!-- Container Box -->
+  <rect width="512" height="512" rx="112" fill="url(#bgLight)" stroke="#E2E8F0" stroke-width="2" filter="url(#softArchShadow)" />
+
+  <!-- Clean Islamic Archway (Gerbang Haramain / Bab As-Salam Architecture) -->
+  <g transform="translate(256, 260)">
+    
+    <!-- Outer Majestic Islamic Pointed Arch -->
+    <path d="M -130 140 
+             L -130 0 
+             C -130 -80, -60 -150, 0 -175 
+             C 60 -150, 130 -80, 130 0 
+             L 130 140 
+             L 94 140 
+             L 94 0 
+             C 94 -60, 48 -115, 0 -135 
+             C -48 -115, -94 -60, -94 0 
+             L -94 140 Z" 
+          fill="url(#archEmerald)" />
+
+    <!-- Inner Golden Gateway Arch (Open Portal to Haramain) -->
+    <path d="M -70 140 
+             L -70 10 
+             C -70 -40, -35 -85, 0 -100 
+             C 35 -85, 70 -40, 70 10 
+             L 70 140 
+             L 44 140 
+             L 44 10 
+             C 44 -25, 22 -58, 0 -70 
+             C -22 -58, -44 -25, -44 10 
+             L -44 140 Z" 
+          fill="url(#archGold)" />
+
+    <!-- Golden Pinnacle Finial (Taj / Puncak Kubah Bersahaja) -->
+    <path d="M 0 -182 L 8 -168 L 0 -154 L -8 -168 Z" fill="url(#archGold)" />
+
+    <!-- Horizon Stepping Base Lines (Kerapian & Keteraturan) -->
+    <rect x="-140" y="146" width="280" height="12" rx="6" fill="url(#archEmerald)" />
+    <rect x="-110" y="166" width="220" height="6" rx="3" fill="url(#archGold)" opacity="0.85" />
+  </g>
+</svg>

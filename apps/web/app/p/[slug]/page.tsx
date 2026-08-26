@@ -26,7 +26,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const seoTitle = profile.content?.seoTitle || `${name} | Travel Umrah & Haji`;
   const seoDescription = profile.content?.seoDescription || profile.content?.heroSubtitle || profile.heroSubtitle || profile.content?.description || profile.description || `Paket Umrah dan Haji dari ${name}.`;
   return {
-    title: seoTitle,
+    // absolute: the root layout appends "| TawafiqHub" to every title, which
+    // would put the platform's brand in a client's search results.
+    title: { absolute: seoTitle },
     description: seoDescription,
     openGraph: { title: seoTitle, description: seoDescription, images: profile.content?.ogImageUrl ? [{ url: profile.content.ogImageUrl }] : undefined },
     alternates: process.env.NEXT_PUBLIC_APP_URL ? { canonical: buildTenantLinkFromBase(profile.slug, "/", process.env.NEXT_PUBLIC_APP_URL) } : undefined,
