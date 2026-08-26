@@ -14,6 +14,38 @@
 
 ## Continuation after this snapshot
 
+- **The storefront backfill is done, and there was nothing to adopt.** Run in
+  production on 2026-08-26 after the deploy of `8e0cfbf`: `objects scanned: 0`,
+  everything else 0. Confirmed independently with MinIO root credentials (which
+  bypass the bucket policy) — `safrat-uploads` holds 0 objects, 0 bytes. No
+  operator had uploaded storefront media yet, because the storefront's default
+  logo/hero/gallery images are bundled Next assets served from `/images/...`,
+  not objects in the bucket. `-apply` was therefore never needed and is not
+  pending: every future upload is registered by the normal path. The command
+  stays in the image as re-runnable maintenance, not as outstanding work.
+
+- **The backfill's first production run failed with a 403 on ListObjectsV2.**
+  The least-privilege MinIO service user had no `s3:ListBucket`. Fixed in
+  `8e0cfbf` by granting it, conditioned to the `storefront/` prefix. The cause
+  of the miss is worth remembering: local runs used the *root* credentials from
+  `docker-compose.yml` (`safrat-local`), which bypass the policy, so the real
+  permission path was never exercised. Verified the second time by creating a
+  MinIO user, attaching the actual policy file, and confirming the old policy
+  reproduces the exact 403 while the new one lists correctly.
+
+- **Tenant sign-in was broken by CORS and is partly fixed** (`6cae083`). The
+  tenant storefront linked to `/sign-in` relatively, so on
+  `vacana.tawafiqhub.id` the page rendered on the tenant origin while Better
+  Auth's client stayed pinned to `NEXT_PUBLIC_APP_URL` — every `/api/auth` call
+  cross-origin and blocked. All four auth links are now absolute to the apex.
+  **Still broken:** typing a tenant `/sign-in` URL directly. That needs a
+  cross-host redirect from middleware, which could not be verified locally
+  (Next normalizes the request host to localhost in dev and collapses even a
+  genuinely cross-origin `Location` down to a bare path, looping the tenant host
+  back to itself). Shipping it unverified risked looping every tenant
+  storefront, so it was deliberately left out. **Browser confirmation of the
+  shipped fix on a real tenant subdomain is still outstanding.**
+
 - **Browser QA now exists.** `apps/web/e2e/` is a Playwright suite that drives
   the real local stack (Next.js, the Go API, PostgreSQL, MinIO) through a real
   browser — see `apps/web/e2e/README.md` for how to run it and what it covers.
