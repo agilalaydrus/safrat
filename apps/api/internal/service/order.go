@@ -118,6 +118,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *hajjv1.CreateOrderR
 	if !created {
 		return &hajjv1.CreateOrderResponse{Order: orderMessage(order), CheckoutUrl: order.XenditInvoiceURL}, nil
 	}
+	s.recordCommission(ctx, order)
 
 	invoice, err := s.xenditClient.CreateInvoice(ctx, payment.CreateInvoiceRequest{
 		ExternalID:         order.ID,
@@ -193,6 +194,7 @@ func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req 
 	if !created {
 		return &hajjv1.CreateOrderResponse{Order: orderMessage(order), CheckoutUrl: order.XenditInvoiceURL}, nil
 	}
+	s.recordCommission(ctx, order)
 
 	userID := middleware.UserIDFromCtx(ctx)
 	checkoutURL := ""
@@ -231,23 +233,6 @@ func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req 
 // (see product.default_kloter_id) once an order actually reaches PAID —
 // best-effort: a failure here never undoes the payment, it's just logged.
 func (s *OrderService) applyPaidSideEffects(ctx context.Context, product *domain.Product, order *domain.Order) {
-	// Commission is earned the moment an order is paid, and is recorded as a
-	// ledger entry rather than inferred from the order's status. A refund then
-	// posts an explicit reversal instead of quietly changing what history says.
-	//
-	// Keyed by the order, so a redelivered webhook or a re-run job records the
-	// same earning once. Failures are reported rather than returned: the
-	// payment itself is already settled, and refusing here would only make the
-	// provider retry a settlement that succeeded.
-	if s.ledgerRepository != nil && order.AgentID != "" && order.AgentCommissionIDR > 0 {
-		if err := s.ledgerRepository.AppendCommission(ctx, repository.CommissionEntry{
-			OperatorID: order.OperatorID, AgentID: order.AgentID,
-			AmountIDR: order.AgentCommissionIDR, Kind: "EARNED", OrderID: order.ID,
-			Note: "Komisi dari pesanan lunas", IdempotencyKey: "order-earned-" + order.ID,
-		}); err != nil {
-			sentry.CaptureException(fmt.Errorf("OrderService.applyPaidSideEffects: append commission: %w", err))
-		}
-	}
 	if product == nil || product.Category != "TRAVEL_PACKAGE" || product.DefaultKloterID == "" {
 		return
 	}
@@ -587,6 +572,7 @@ func (s *OrderService) CreateOrderForPilgrim(ctx context.Context, orgID, userID 
 	if !created {
 		return &hajjv1.CreateOrderResponse{Order: orderMessage(order), CheckoutUrl: order.XenditInvoiceURL}, nil
 	}
+	s.recordCommission(ctx, order)
 
 	invoice, err := s.xenditClient.CreateInvoice(ctx, payment.CreateInvoiceRequest{
 		ExternalID:         order.ID,
@@ -608,4 +594,60 @@ func (s *OrderService) CreateOrderForPilgrim(ctx context.Context, orgID, userID 
 		fmt.Sprintf("%s x%d — Rp%d untuk %s oleh agen %s",
 			product.Name, req.Quantity, split.TotalPrice, pilgrim.FullName, agent.Name))
 	return &hajjv1.CreateOrderResponse{Order: orderMessage(order), CheckoutUrl: invoice.InvoiceURL}, nil
+}
+
+// recordCommission recognises an order's commission the moment the order
+// exists, not when it is paid.
+//
+// A pending transaction already counts towards everything related to it
+// (owner's rule): the referrer sees what they have made as soon as their
+// jamaah transacts, rather than only after settlement. What pending commission
+// cannot do is be withdrawn — agent_commission_state separates recognised from
+// settled, and a payout may only draw on settled. Failure or a refund takes it
+// back with an explicit reversing entry.
+//
+// Keyed by the order, so a retried creation or a reconciliation sweep records
+// the same recognition once. Failures are reported rather than returned: the
+// order itself is already real, and refusing here would leave a transaction
+// the jamaah can pay but nobody is credited for — the sweep repairs that.
+func (s *OrderService) recordCommission(ctx context.Context, order *domain.Order) {
+	if s.ledgerRepository == nil || order == nil || order.AgentID == "" || order.AgentCommissionIDR <= 0 {
+		return
+	}
+	if err := s.ledgerRepository.AppendCommission(ctx, repository.CommissionEntry{
+		OperatorID: order.OperatorID, AgentID: order.AgentID,
+		AmountIDR: order.AgentCommissionIDR, Kind: "EARNED", OrderID: order.ID,
+		Note: "Komisi referral dari transaksi", IdempotencyKey: "order-earned-" + order.ID,
+	}); err != nil {
+		sentry.CaptureException(fmt.Errorf("OrderService.recordCommission: %w", err))
+	}
+}
+
+// reverseCommission takes back commission on a transaction that will never
+// complete. Refunds reverse through RefundOrder instead, which has more to
+// undo than this does.
+func (s *OrderService) reverseCommission(ctx context.Context, order *domain.Order, reason string) {
+	if s.ledgerRepository == nil || order == nil || order.AgentID == "" || order.AgentCommissionIDR <= 0 {
+		return
+	}
+	if err := s.ledgerRepository.AppendCommission(ctx, repository.CommissionEntry{
+		OperatorID: order.OperatorID, AgentID: order.AgentID,
+		AmountIDR: -order.AgentCommissionIDR, Kind: "REVERSED", OrderID: order.ID,
+		Note: reason, IdempotencyKey: "order-reversed-" + order.ID,
+	}); err != nil {
+		sentry.CaptureException(fmt.Errorf("OrderService.reverseCommission: %w", err))
+	}
+}
+
+// MarkStatusByInvoiceID moves an order out of PENDING to a status it will
+// never leave, and reverses the commission that was recognised when it was
+// created. Routed through the service rather than the repository so the
+// reversal cannot be skipped by a caller that only knows about the status.
+func (s *OrderService) MarkStatusByInvoiceID(ctx context.Context, invoiceID, status string) error {
+	order, err := s.orderRepository.MarkStatusByInvoiceID(ctx, invoiceID, status)
+	if err != nil {
+		return err
+	}
+	s.reverseCommission(ctx, order, "Komisi ditarik: transaksi "+strings.ToLower(status))
+	return nil
 }

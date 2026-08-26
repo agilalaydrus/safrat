@@ -102,6 +102,16 @@ func newReferralFixture(t *testing.T) *referralFixture {
 		seasonID: seasonID, productID: productID, referrer: referrer, seller: seller, pilgrimID: pilgrimID}
 }
 
+// The jamaah's own checkout code, so tests can drive the self-service lane.
+func (f *referralFixture) accessCode(t *testing.T) string {
+	t.Helper()
+	var code string
+	if err := f.pool.QueryRow(context.Background(), `SELECT app_access_code FROM pilgrims WHERE id = $1`, f.pilgrimID).Scan(&code); err != nil {
+		t.Fatalf("read access code: %v", err)
+	}
+	return code
+}
+
 func (f *referralFixture) orderRow(t *testing.T, orderID string) (agentID string, placedBy *string, commission int64) {
 	t.Helper()
 	var agent *string
@@ -236,5 +246,117 @@ func TestManualOrderIsIdempotentUnderConcurrencyIntegration(t *testing.T) {
 	}
 	if balance != 600_000 {
 		t.Fatalf("commission balance = %d after %d replays, want 600000", balance, attempts)
+	}
+}
+
+// A pending transaction already counts: the referrer's commission is
+// recognised when the transaction is placed, not when it settles. What it
+// cannot do is be withdrawn — that would advance money for a transaction that
+// may still fail.
+func TestPendingCommissionIsRecognisedButNotPayableIntegration(t *testing.T) {
+	f := newReferralFixture(t)
+	ctx := context.Background()
+	ledger := repository.NewLedgerRepository(f.pool)
+	agents := repository.NewAgentRepository(db.New(f.pool))
+
+	response, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
+		AppAccessCode: f.accessCode(t), ProductId: f.productID, Quantity: 1,
+		IdempotencyKey: uuid.NewString(),
+	})
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+	if response.Order.Status != "PENDING" {
+		t.Fatalf("order status = %s, want PENDING", response.Order.Status)
+	}
+
+	// Recognised straight away.
+	if balance, err := ledger.CommissionBalance(ctx, f.referrer); err != nil || balance != 600_000 {
+		t.Fatalf("recognised commission = %d (%v), want 600000 while pending", balance, err)
+	}
+	summary, err := agents.GetPayoutSummary(ctx, f.operatorID, f.referrer)
+	if err != nil {
+		t.Fatalf("summary: %v", err)
+	}
+	if summary.TotalCommissionIDR != 600_000 {
+		t.Fatalf("total = %d, want 600000 — a pending transaction counts", summary.TotalCommissionIDR)
+	}
+	if summary.PendingCommissionIDR != 600_000 {
+		t.Fatalf("pending = %d, want 600000", summary.PendingCommissionIDR)
+	}
+	// ...but not a rupiah of it is withdrawable yet.
+	if summary.SettledCommissionIDR != 0 || summary.OutstandingIDR != 0 {
+		t.Fatalf("settled=%d outstanding=%d, want 0 and 0 — pending commission is not payable",
+			summary.SettledCommissionIDR, summary.OutstandingIDR)
+	}
+
+	// Settling the transaction moves it from pending to payable, without a
+	// second entry: the ledger did not change, only the transaction behind it.
+	if err := f.orders.MarkPaidByInvoiceID(ctx, response.Order.Id); err != nil {
+		// The stub returns a generated invoice id, so settle by the stored one.
+		var invoiceID string
+		if err := f.pool.QueryRow(ctx, `SELECT xendit_invoice_id FROM orders WHERE id = $1`, response.Order.Id).Scan(&invoiceID); err != nil {
+			t.Fatalf("read invoice id: %v", err)
+		}
+		if err := f.orders.MarkPaidByInvoiceID(ctx, invoiceID); err != nil {
+			t.Fatalf("settle: %v", err)
+		}
+	}
+	summary, err = agents.GetPayoutSummary(ctx, f.operatorID, f.referrer)
+	if err != nil {
+		t.Fatalf("summary: %v", err)
+	}
+	if summary.SettledCommissionIDR != 600_000 || summary.OutstandingIDR != 600_000 {
+		t.Fatalf("settled=%d outstanding=%d after payment, want 600000 each",
+			summary.SettledCommissionIDR, summary.OutstandingIDR)
+	}
+	if summary.PendingCommissionIDR != 0 {
+		t.Fatalf("pending = %d after payment, want 0", summary.PendingCommissionIDR)
+	}
+	var entries int
+	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM agent_commission_entries WHERE order_id = $1`, response.Order.Id).Scan(&entries); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if entries != 1 {
+		t.Fatalf("%d ledger entries, want 1 — settling is a change of transaction state, not a new earning", entries)
+	}
+}
+
+// A transaction that will never complete gives the commission back.
+func TestFailedTransactionReversesRecognisedCommissionIntegration(t *testing.T) {
+	f := newReferralFixture(t)
+	ctx := context.Background()
+	ledger := repository.NewLedgerRepository(f.pool)
+
+	response, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
+		AppAccessCode: f.accessCode(t), ProductId: f.productID, Quantity: 1,
+		IdempotencyKey: uuid.NewString(),
+	})
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+	if balance, err := ledger.CommissionBalance(ctx, f.referrer); err != nil || balance != 600_000 {
+		t.Fatalf("recognised = %d (%v), want 600000", balance, err)
+	}
+
+	var invoiceID string
+	if err := f.pool.QueryRow(ctx, `SELECT xendit_invoice_id FROM orders WHERE id = $1`, response.Order.Id).Scan(&invoiceID); err != nil {
+		t.Fatalf("read invoice id: %v", err)
+	}
+	if err := f.orders.MarkStatusByInvoiceID(ctx, invoiceID, "EXPIRED"); err != nil {
+		t.Fatalf("expire: %v", err)
+	}
+
+	if balance, err := ledger.CommissionBalance(ctx, f.referrer); err != nil || balance != 0 {
+		t.Fatalf("commission = %d (%v) after expiry, want 0", balance, err)
+	}
+	// The earning is still on the record, cancelled by a reversal rather than
+	// erased.
+	var entries int
+	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM agent_commission_entries WHERE order_id = $1`, response.Order.Id).Scan(&entries); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if entries != 2 {
+		t.Fatalf("%d ledger entries, want 2 — the earning and its reversal", entries)
 	}
 }

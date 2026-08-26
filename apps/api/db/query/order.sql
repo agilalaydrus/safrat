@@ -72,11 +72,13 @@ SELECT COUNT(*) FROM orders WHERE operator_id = $1 AND season_id = $2;
 -- computed by the caller as total_commission_idr - total_disbursed_idr.
 -- Same ledger-backed commission as GetAgentPayoutSummary.
 SELECT a.id AS agent_id, a.name AS agent_name,
-       COALESCE(led.total, 0)::bigint AS total_commission_idr,
+       COALESCE(st.recognised_idr, 0)::bigint AS total_commission_idr,
+       COALESCE(st.settled_idr, 0)::bigint AS settled_commission_idr,
+       COALESCE(st.pending_idr, 0)::bigint AS pending_commission_idr,
        COALESCE(ord.paid_count, 0)::int AS paid_order_count,
        COALESCE(disb.total, 0)::bigint AS total_disbursed_idr
 FROM agents a
-LEFT JOIN (SELECT agent_id, SUM(amount_idr) AS total FROM agent_commission_entries GROUP BY agent_id) led ON led.agent_id = a.id
+LEFT JOIN agent_commission_state st ON st.agent_id = a.id
 LEFT JOIN (SELECT agent_id, COUNT(*) AS paid_count FROM orders WHERE status = 'PAID' GROUP BY agent_id) ord ON ord.agent_id = a.id
 LEFT JOIN (SELECT agent_id, SUM(amount_idr) AS total FROM agent_payouts GROUP BY agent_id) disb ON disb.agent_id = a.id
 WHERE a.operator_id = $1
@@ -89,12 +91,20 @@ ORDER BY total_commission_idr DESC;
 -- carries an explicit reversing entry instead, so the balance and the reason
 -- for it are both auditable. Order count still comes from orders, because that
 -- is what it counts.
+--
+-- total_commission_idr is everything recognised, pending included, because a
+-- pending transaction already counts. settled_commission_idr is the part
+-- behind a completed transaction, and is the only figure a payout may draw on
+-- — paying out pending commission would advance money for a transaction that
+-- may still fail.
 SELECT a.id AS agent_id, a.name AS agent_name,
-       COALESCE(led.total, 0)::bigint AS total_commission_idr,
+       COALESCE(st.recognised_idr, 0)::bigint AS total_commission_idr,
+       COALESCE(st.settled_idr, 0)::bigint AS settled_commission_idr,
+       COALESCE(st.pending_idr, 0)::bigint AS pending_commission_idr,
        COALESCE(ord.paid_count, 0)::int AS paid_order_count,
        COALESCE(disb.total, 0)::bigint AS total_disbursed_idr
 FROM agents a
-LEFT JOIN (SELECT agent_id, SUM(amount_idr) AS total FROM agent_commission_entries GROUP BY agent_id) led ON led.agent_id = a.id
+LEFT JOIN agent_commission_state st ON st.agent_id = a.id
 LEFT JOIN (SELECT agent_id, COUNT(*) AS paid_count FROM orders WHERE status = 'PAID' GROUP BY agent_id) ord ON ord.agent_id = a.id
 LEFT JOIN (SELECT agent_id, SUM(amount_idr) AS total FROM agent_payouts GROUP BY agent_id) disb ON disb.agent_id = a.id
 WHERE a.id = $2 AND a.operator_id = $1;

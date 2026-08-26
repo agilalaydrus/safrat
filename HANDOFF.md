@@ -353,6 +353,63 @@ Related and still open: `PPOB_CREDIT` has **no provider integration whatsoever**
 — a jamaah pays and no credit is ever sent. That fulfilment is the platform's
 job, not the operator's, and it should stay disabled until it exists.
 
+#### Done — PR 7: pending transactions count (migration 095)
+
+Owner's rules, stated together:
+
+> *"Transaksi itu bukan tentang siapa penjual siapa pembeli, semuanya
+> berposisi sebagai pembeli disini. Tetapi jika jamaah tersebut punya master
+> refferal diatasnya, akan otomatis memberikan komisi ke refferal nya tersebut
+> kalau transaksi sukses saja."*
+>
+> *"transaksi pending atau terproses itu berarti sementara sudah di anggap
+> terhitung semua yang terkait, kecuali gagal atau refund."*
+
+**Commission is now recognised when the transaction is placed, not when it
+settles.** Previously it was appended in `applyPaidSideEffects`, so a referrer
+saw nothing until payment cleared. It is appended at order creation on all
+three lanes, and taken back only by failure or refund.
+
+**Recognised and settled are two different questions**, and conflating them
+would let an agent withdraw money for a transaction nobody has paid for.
+`agent_commission_state` (migration 095) answers both from the same ledger:
+
+- `recognised_idr` — everything earned, pending included. What the agent has
+  made, and what `total_earned_idr` reports.
+- `settled_idr` — only what sits behind a completed transaction. The only
+  figure a payout may draw on; `OutstandingIDR` is now `settled - disbursed`,
+  not `recognised - disbursed`.
+- `pending_idr` — the difference, surfaced in the wallet and on the muttawwif
+  page so the two figures do not simply disagree with no explanation.
+
+Neither is stored. Both are the ledger read two ways, so they cannot drift from
+each other or from the transactions underneath.
+
+**Failure reverses.** `EXPIRED`/`FAILED` now route through
+`OrderService.MarkStatusByInvoiceID` rather than the repository, so the
+reversal cannot be skipped by a caller that only knows about the status.
+
+Verified: a pending checkout recognises 600,000 with settled and outstanding
+both 0; paying it moves the whole amount to payable **without a second ledger
+entry** — settling is a change of transaction state, not a new earning; and an
+expired transaction returns to 0 while keeping both the earning and its
+reversal on the record.
+
+The reconciliation sweep now covers `PENDING` orders too, since that is when
+commission is recognised.
+
+**Framing correction:** the seller/buyer model was wrong. Everyone transacts as
+a buyer; commission flows to the master referral above the buyer. Nothing in
+the data assumed otherwise — `placed_by_agent_id` records who entered the
+transaction, never who earns from it — but the language is corrected throughout.
+
+**Still open from this:** an agent or muttawwif buying *for themselves* is not
+possible. `orders.pilgrim_id` is `NOT NULL`, so the buyer must be a jamaah, and
+the agent-to-agent referral chain (`agents.referred_by_agent_id`, which exists
+and is unused for money) therefore never pays anyone. Supporting a non-jamaah
+buyer is a schema change touching every order query — **needs the owner's
+go-ahead before starting.**
+
 #### Open — ordered
 
 1. **Duplicate orders.** `CreateOrder` has no idempotency key and `orders` has

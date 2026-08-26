@@ -189,12 +189,14 @@ func (r *AgentRepository) ListPayouts(ctx context.Context, operatorID string) ([
 	result := make([]*domain.AgentPayout, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, &domain.AgentPayout{
-			AgentID:            uuid.UUID(row.AgentID.Bytes).String(),
-			AgentName:          row.AgentName,
-			TotalCommissionIDR: row.TotalCommissionIdr,
-			PaidOrderCount:     row.PaidOrderCount,
-			TotalDisbursedIDR:  row.TotalDisbursedIdr,
-			OutstandingIDR:     row.TotalCommissionIdr - row.TotalDisbursedIdr,
+			AgentID:              uuid.UUID(row.AgentID.Bytes).String(),
+			AgentName:            row.AgentName,
+			TotalCommissionIDR:   row.TotalCommissionIdr,
+			SettledCommissionIDR: row.SettledCommissionIdr,
+			PendingCommissionIDR: row.PendingCommissionIdr,
+			PaidOrderCount:       row.PaidOrderCount,
+			TotalDisbursedIDR:    row.TotalDisbursedIdr,
+			OutstandingIDR:       row.SettledCommissionIdr - row.TotalDisbursedIdr,
 		})
 	}
 	return result, nil
@@ -218,12 +220,14 @@ func (r *AgentRepository) payoutSummary(ctx context.Context, q *db.Queries, oper
 		return nil, err
 	}
 	return &domain.AgentPayout{
-		AgentID:            uuid.UUID(row.AgentID.Bytes).String(),
-		AgentName:          row.AgentName,
-		TotalCommissionIDR: row.TotalCommissionIdr,
-		PaidOrderCount:     row.PaidOrderCount,
-		TotalDisbursedIDR:  row.TotalDisbursedIdr,
-		OutstandingIDR:     row.TotalCommissionIdr - row.TotalDisbursedIdr,
+		AgentID:              uuid.UUID(row.AgentID.Bytes).String(),
+		AgentName:            row.AgentName,
+		TotalCommissionIDR:   row.TotalCommissionIdr,
+		SettledCommissionIDR: row.SettledCommissionIdr,
+		PendingCommissionIDR: row.PendingCommissionIdr,
+		PaidOrderCount:       row.PaidOrderCount,
+		TotalDisbursedIDR:    row.TotalDisbursedIdr,
+		OutstandingIDR:       row.SettledCommissionIdr - row.TotalDisbursedIdr,
 	}, nil
 }
 

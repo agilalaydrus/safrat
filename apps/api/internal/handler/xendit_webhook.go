@@ -56,9 +56,12 @@ func NewXenditWebhookHandler(logger *slog.Logger, orders *repository.OrderReposi
 			// CASH/BANK_TRANSFER path.
 			err = orderService.MarkPaidByInvoiceID(ctx, payload.ID)
 		case "EXPIRED":
-			_, err = orders.MarkStatusByInvoiceID(ctx, payload.ID, "EXPIRED")
+			// Through the service, like PAID: commission was recognised when
+			// the order was created, so a transaction that will never complete
+			// has to give it back.
+			err = orderService.MarkStatusByInvoiceID(ctx, payload.ID, "EXPIRED")
 		case "FAILED":
-			_, err = orders.MarkStatusByInvoiceID(ctx, payload.ID, "FAILED")
+			err = orderService.MarkStatusByInvoiceID(ctx, payload.ID, "FAILED")
 		default:
 			// Unrecognized/no-op status (e.g. "PENDING" echoed back) — 200 so
 			// Xendit doesn't retry a delivery there's nothing to do with.

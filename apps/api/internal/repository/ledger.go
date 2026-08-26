@@ -198,7 +198,10 @@ func (r *LedgerRepository) ReconcileEarnedCommission(ctx context.Context) (int64
 		       'Rekonsiliasi: komisi pesanan lunas yang belum tercatat',
 		       'order-earned-' || o.id::text
 		FROM orders o
-		WHERE o.status IN ('PAID', 'REFUNDED')
+		-- PENDING included: commission is recognised when the order is created,
+		-- so a pending order missing its entry is a gap to close, not one to
+		-- wait on. EXPIRED/FAILED/CANCELLED are excluded — those never earned.
+		WHERE o.status IN ('PENDING', 'PAID', 'REFUNDED')
 		  AND o.agent_id IS NOT NULL
 		  AND o.agent_commission_idr > 0
 		  AND NOT EXISTS (

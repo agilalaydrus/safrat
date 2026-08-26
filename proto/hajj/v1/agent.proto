@@ -272,13 +272,18 @@ message WalletTransaction {
 message AgentWallet {
   string agent_id = 1;
   string agent_name = 2;
-  // Lifetime commission earned, net of reversals — read from the commission
-  // ledger, so a refund is reflected here and visible in transactions.
+  // Lifetime commission recognised, net of reversals — read from the ledger,
+  // so a refund is reflected here and visible in transactions. Includes
+  // commission on transactions that are still pending: a pending transaction
+  // already counts.
   int64 total_earned_idr = 3;
   // Lifetime amount actually disbursed.
   int64 total_withdrawn_idr = 4;
-  // total_earned_idr - total_withdrawn_idr — everything owed, including
-  // amounts already tied up in a pending request.
+  // Settled commission less what has been disbursed — everything owed and
+  // actually payable, including amounts already tied up in a pending request.
+  // Deliberately not total_earned_idr - total_withdrawn_idr: paying out
+  // commission on a pending transaction would advance money for something that
+  // may still fail.
   int64 balance_idr = 5;
   // Sum of this agent's own PENDING requests.
   int64 pending_requested_idr = 6;
@@ -286,6 +291,11 @@ message AgentWallet {
   // ask for.
   int64 available_idr = 7;
   repeated WalletTransaction transactions = 8;
+  // Commission recognised on transactions that have not completed yet. It is
+  // part of total_earned_idr but not of balance_idr, and this field is what
+  // explains the difference — without it the two figures simply disagree and
+  // the agent has no way to know why.
+  int64 pending_commission_idr = 9;
 }
 
 message GetMyWalletRequest {}

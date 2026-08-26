@@ -207,6 +207,7 @@ func (s *AgentService) GetMyWallet(ctx context.Context, orgID, userID string) (*
 		TotalEarnedIdr: summary.TotalCommissionIDR, TotalWithdrawnIdr: summary.TotalDisbursedIDR,
 		BalanceIdr: summary.OutstandingIDR, PendingRequestedIdr: pendingRequested,
 		AvailableIdr: summary.OutstandingIDR - pendingRequested, Transactions: transactions,
+		PendingCommissionIdr: summary.PendingCommissionIDR,
 	}, nil
 }
 

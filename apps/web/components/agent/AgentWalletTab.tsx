@@ -30,6 +30,11 @@ export default function AgentWalletTab() {
         {[
           { label: "Total Komisi", value: fmt(wallet.totalEarnedIdr), color: "var(--color-warm-800)" },
           { label: "Tersedia", value: fmt(wallet.availableIdr), color: "var(--color-emerald-700)" },
+          // Included only when there is some: it is what explains why the
+          // total and the available figure differ.
+          ...(wallet.pendingCommissionIdr > 0n
+            ? [{ label: "Menunggu Transaksi Selesai", value: fmt(wallet.pendingCommissionIdr), color: "#b45309" }]
+            : []),
           { label: "Menunggu Pencairan", value: fmt(wallet.pendingRequestedIdr), color: "var(--color-gold-700)" },
         ].map((c) => (
           <div key={c.label} style={{ background: "#fff", border: "1px solid var(--color-cream-400)", borderRadius: 12, padding: "20px 18px" }}>

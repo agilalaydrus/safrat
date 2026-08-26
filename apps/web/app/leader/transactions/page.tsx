@@ -27,11 +27,17 @@ export default function LeaderTransactionsPage() {
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [balance, setBalance] = useState(0n);
   const [earned, setEarned] = useState(0n);
+  const [pending, setPending] = useState(0n);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     agentClient.getMyWallet({})
-      .then((wallet) => { setTransactions(wallet.transactions); setBalance(wallet.balanceIdr); setEarned(wallet.totalEarnedIdr); })
+      .then((wallet) => {
+        setTransactions(wallet.transactions);
+        setBalance(wallet.balanceIdr);
+        setEarned(wallet.totalEarnedIdr);
+        setPending(wallet.pendingCommissionIdr);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -41,7 +47,18 @@ export default function LeaderTransactionsPage() {
       <h1 style={title}>Transaksi Komisi</h1>
       <div style={summary}>
         <div style={card}><small style={label}>Total Komisi</small><strong style={value}>{money(earned)}</strong></div>
-        <div style={card}><small style={label}>Saldo</small><strong style={value}>{money(balance)}</strong></div>
+        <div style={card}><small style={label}>Saldo Bisa Dicairkan</small><strong style={value}>{money(balance)}</strong></div>
+        {/* Shown only when it exists, and it is what explains why the two
+            figures above differ. */}
+        {pending > 0n && (
+          <div style={{ ...card, borderTopColor: "#b45309" }}>
+            <small style={label}>Menunggu Transaksi Selesai</small>
+            <strong style={value}>{money(pending)}</strong>
+            <small style={{ color: "var(--color-warm-500)", fontSize: 12 }}>
+              Sudah terhitung, bisa dicairkan setelah transaksinya lunas.
+            </small>
+          </div>
+        )}
       </div>
 
       {loading ? (

@@ -57,12 +57,25 @@ type AgentDocument struct {
 }
 
 type AgentPayout struct {
-	AgentID            string
-	AgentName          string
+	AgentID   string
+	AgentName string
+	// TotalCommissionIDR is everything recognised, including commission on
+	// transactions that are still pending — a pending transaction already
+	// counts.
 	TotalCommissionIDR int64
-	PaidOrderCount     int32
-	TotalDisbursedIDR  int64
-	OutstandingIDR     int64
+	// SettledCommissionIDR is the part behind a transaction that actually
+	// completed. Only this may be paid out.
+	SettledCommissionIDR int64
+	// PendingCommissionIDR is recognised but not yet payable, shown so the
+	// difference between the two figures is explained rather than mysterious.
+	PendingCommissionIDR int64
+	PaidOrderCount       int32
+	TotalDisbursedIDR    int64
+	// OutstandingIDR is what the agent may actually withdraw: settled
+	// commission less what has already been disbursed. Deliberately not based
+	// on the recognised total — paying out pending commission would advance
+	// money for a transaction that may still fail or be refunded.
+	OutstandingIDR int64
 }
 
 type AgentPayoutEntry struct {
