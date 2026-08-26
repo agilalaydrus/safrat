@@ -55,7 +55,7 @@ func (s *ChatService) SendMyMessage(ctx context.Context, req *hajjv1.SendMyMessa
 	if pilgrim.GroupID == "" {
 		return nil, serviceError("ChatService.SendMyMessage", apperror.ErrFailedPrecondition)
 	}
-	message, err := s.chatRepository.CreateFromPilgrim(ctx, pilgrim.OperatorID, pilgrim.GroupID, pilgrim.ID, pilgrim.FullName, req.Body)
+	message, err := s.chatRepository.CreateFromPilgrim(ctx, pilgrim.OperatorID, pilgrim.GroupID, pilgrim.ID, pilgrim.FullName, req.Body, req.IdempotencyKey)
 	if err != nil {
 		return nil, serviceError("ChatService.SendMyMessage", err)
 	}
@@ -93,7 +93,7 @@ func (s *ChatService) SendGroupMessage(ctx context.Context, orgID string, req *h
 	}
 	senderID := middleware.UserIDFromCtx(ctx)
 	senderName := middleware.UserNameFromCtx(ctx)
-	message, err := s.chatRepository.CreateFromUser(ctx, op.ID, req.GroupId, senderID, senderName, req.Body)
+	message, err := s.chatRepository.CreateFromUser(ctx, op.ID, req.GroupId, senderID, senderName, req.Body, req.IdempotencyKey)
 	if err != nil {
 		return nil, serviceError("ChatService.SendGroupMessage", err)
 	}

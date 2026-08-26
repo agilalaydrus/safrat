@@ -32,9 +32,12 @@ export default function PilgrimChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
+  // The key is generated once per message and travels with it through the
+  // offline queue, so a replay after a lost response resolves to the message
+  // already posted instead of sending it again.
   useOfflineQueueFlush(CHAT_QUEUE_KIND, async (payload) => {
-    const { body } = payload as { body: string };
-    await chatClient.sendMyMessage({ appAccessCode: code, body });
+    const { body, idempotencyKey } = payload as { body: string; idempotencyKey?: string };
+    await chatClient.sendMyMessage({ appAccessCode: code, body, idempotencyKey });
     refresh();
   });
 
@@ -46,11 +49,14 @@ export default function PilgrimChatPage() {
     if (!body || !code) return;
     setDraft("");
     setSending(true);
+    // Generated before the first attempt so the queued replay carries the same
+    // key the failed send used.
+    const idempotencyKey = crypto.randomUUID();
     try {
-      await chatClient.sendMyMessage({ appAccessCode: code, body });
+      await chatClient.sendMyMessage({ appAccessCode: code, body, idempotencyKey });
       refresh();
     } catch {
-      enqueueAction(CHAT_QUEUE_KIND, { body });
+      enqueueAction(CHAT_QUEUE_KIND, { body, idempotencyKey });
       setMessages((current) => [...current, new ChatMessage({ id: `local-${Date.now()}`, senderName: "You", fromPilgrim: true, body })]);
     } finally {
       setSending(false);

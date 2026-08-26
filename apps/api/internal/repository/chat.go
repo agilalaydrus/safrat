@@ -14,7 +14,7 @@ func NewChatRepository(queries *db.Queries) *ChatRepository {
 	return &ChatRepository{queries: queries}
 }
 
-func (r *ChatRepository) CreateFromPilgrim(ctx context.Context, operatorID, groupID, pilgrimID, senderName, body string) (*domain.ChatMessage, error) {
+func (r *ChatRepository) CreateFromPilgrim(ctx context.Context, operatorID, groupID, pilgrimID, senderName, body, idempotencyKey string) (*domain.ChatMessage, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -27,14 +27,14 @@ func (r *ChatRepository) CreateFromPilgrim(ctx context.Context, operatorID, grou
 	if err != nil {
 		return nil, err
 	}
-	message, err := r.queries.CreateChatMessageFromPilgrim(ctx, db.CreateChatMessageFromPilgrimParams{OperatorID: opUUID, GroupID: groupUUID, SenderPilgrimID: pilgrimUUID, Body: body})
+	message, err := r.queries.CreateChatMessageFromPilgrim(ctx, db.CreateChatMessageFromPilgrimParams{OperatorID: opUUID, GroupID: groupUUID, SenderPilgrimID: pilgrimUUID, Body: body, IdempotencyKey: idempotencyKey})
 	if err != nil {
 		return nil, err
 	}
 	return &domain.ChatMessage{ID: uuid.UUID(message.ID.Bytes).String(), OperatorID: operatorID, GroupID: groupID, SenderName: senderName, FromPilgrim: true, Body: message.Body, CreatedAt: message.CreatedAt.Time}, nil
 }
 
-func (r *ChatRepository) CreateFromUser(ctx context.Context, operatorID, groupID, userID, senderName, body string) (*domain.ChatMessage, error) {
+func (r *ChatRepository) CreateFromUser(ctx context.Context, operatorID, groupID, userID, senderName, body, idempotencyKey string) (*domain.ChatMessage, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -43,7 +43,7 @@ func (r *ChatRepository) CreateFromUser(ctx context.Context, operatorID, groupID
 	if err != nil {
 		return nil, err
 	}
-	message, err := r.queries.CreateChatMessageFromUser(ctx, db.CreateChatMessageFromUserParams{OperatorID: opUUID, GroupID: groupUUID, SenderUserID: pgText(userID), Body: body})
+	message, err := r.queries.CreateChatMessageFromUser(ctx, db.CreateChatMessageFromUserParams{OperatorID: opUUID, GroupID: groupUUID, SenderUserID: pgText(userID), Body: body, IdempotencyKey: idempotencyKey})
 	if err != nil {
 		return nil, err
 	}

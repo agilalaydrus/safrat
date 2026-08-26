@@ -33,8 +33,8 @@ export default function LeaderChatPage() {
   }, [groupId]);
 
   useOfflineQueueFlush(QUEUE_KIND, async (payload) => {
-    const { body } = payload as { body: string };
-    await chatClient.sendGroupMessage({ groupId, body });
+    const { body, idempotencyKey } = payload as { body: string; idempotencyKey?: string };
+    await chatClient.sendGroupMessage({ groupId, body, idempotencyKey });
     refresh();
   });
 
@@ -46,11 +46,14 @@ export default function LeaderChatPage() {
     if (!body || !groupId) return;
     setDraft("");
     setSending(true);
+    // Generated before the first attempt so the queued replay carries the same
+    // key, and a send whose response was lost is not posted twice.
+    const idempotencyKey = crypto.randomUUID();
     try {
-      await chatClient.sendGroupMessage({ groupId, body });
+      await chatClient.sendGroupMessage({ groupId, body, idempotencyKey });
       refresh();
     } catch {
-      enqueueAction(QUEUE_KIND, { body });
+      enqueueAction(QUEUE_KIND, { body, idempotencyKey });
       setMessages((current) => [...current, new ChatMessage({ id: `local-${Date.now()}`, senderName: "You", fromPilgrim: false, body })]);
     } finally {
       setSending(false);

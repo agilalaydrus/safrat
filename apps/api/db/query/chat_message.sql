@@ -1,11 +1,20 @@
 -- name: CreateChatMessageFromPilgrim :one
-INSERT INTO chat_messages (operator_id, group_id, sender_pilgrim_id, body)
-VALUES ($1, $2, $3, $4)
+-- See CreateChatMessageFromUser — same replay protection, scoped to the pilgrim.
+INSERT INTO chat_messages (operator_id, group_id, sender_pilgrim_id, body, idempotency_key)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (sender_pilgrim_id, idempotency_key) WHERE idempotency_key <> '' AND sender_pilgrim_id IS NOT NULL
+DO UPDATE SET body = chat_messages.body
 RETURNING *;
 
 -- name: CreateChatMessageFromUser :one
-INSERT INTO chat_messages (operator_id, group_id, sender_user_id, body)
-VALUES ($1, $2, $3, $4)
+-- The conflict target is the partial idempotency index, so a replayed send
+-- resolves to the row it already created instead of posting a second copy.
+-- DO UPDATE rather than DO NOTHING: the caller needs the row back to echo it
+-- into the thread, and DO NOTHING returns none.
+INSERT INTO chat_messages (operator_id, group_id, sender_user_id, body, idempotency_key)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (sender_user_id, idempotency_key) WHERE idempotency_key <> '' AND sender_user_id IS NOT NULL
+DO UPDATE SET body = chat_messages.body
 RETURNING *;
 
 -- name: ListChatMessagesByGroup :many
