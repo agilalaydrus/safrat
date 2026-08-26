@@ -14,6 +14,16 @@
 
 ## Continuation after this snapshot
 
+- Storefront customization now also covers the previously hard-coded details:
+  operators can upload a dedicated WebP About image with required alt text and
+  caption, edit exactly four unique assurance pillars, define one to seven
+  unique operating-hour groups, and choose an initial music volume from 5 to
+  100 percent. Existing tenant snapshots receive compatible defaults in the
+  service layer, so old published pages continue rendering without migrations.
+  The public renderer uses the custom values while retaining safe bundled-image
+  fallbacks. API and CMS validation agree on counts, required values, duplicate
+  prevention, URL safety, and volume limits.
+
 - Berita and Blog now have a complete draft editor: collapsible article forms,
   automatic but overridable slugs, tenant-scoped WebP cover uploads, required
   alt text, author, publication date, excerpt/body counters, per-article SEO

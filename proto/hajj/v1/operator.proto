@@ -177,6 +177,12 @@ message StorefrontContent {
   string background_music_url = 38 [(buf.validate.field).string.max_len = 2048];
   string background_music_title = 39 [(buf.validate.field).string.max_len = 120];
   bool background_music_enabled = 40;
+  string about_image_url = 41 [(buf.validate.field).string.max_len = 2048];
+  string about_image_alt = 42 [(buf.validate.field).string.max_len = 160];
+  string about_image_caption = 43 [(buf.validate.field).string.max_len = 160];
+  repeated StorefrontAssurancePillar assurance_pillars = 44;
+  repeated StorefrontOperatingHour operating_hours = 45;
+  int32 background_music_volume = 46 [(buf.validate.field).int32 = {gte: 0, lte: 100}];
 }
 
 message StorefrontSocialLink {
@@ -184,6 +190,16 @@ message StorefrontSocialLink {
   string label = 2 [(buf.validate.field).string.max_len = 80];
   string handle = 3 [(buf.validate.field).string.max_len = 120];
   string url = 4 [(buf.validate.field).string.max_len = 2048];
+}
+
+message StorefrontAssurancePillar {
+  string title = 1 [(buf.validate.field).string.max_len = 80];
+  string description = 2 [(buf.validate.field).string.max_len = 160];
+}
+
+message StorefrontOperatingHour {
+  string day_label = 1 [(buf.validate.field).string.max_len = 80];
+  string hours_label = 2 [(buf.validate.field).string.max_len = 80];
 }
 
 message StorefrontPackage {
@@ -290,6 +306,7 @@ enum StorefrontAssetKind {
   STOREFRONT_ASSET_KIND_PACKAGE = 4;
   STOREFRONT_ASSET_KIND_BACKGROUND_MUSIC = 5;
   STOREFRONT_ASSET_KIND_ARTICLE = 6;
+  STOREFRONT_ASSET_KIND_ABOUT = 7;
 }
 
 message CreateStorefrontUploadRequest {

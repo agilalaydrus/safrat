@@ -13,6 +13,7 @@ const DIMENSIONS: Record<StorefrontAssetKind, number> = {
   [StorefrontAssetKind.PACKAGE]: 2000,
   [StorefrontAssetKind.BACKGROUND_MUSIC]: 0,
   [StorefrontAssetKind.ARTICLE]: 2000,
+  [StorefrontAssetKind.ABOUT]: 2000,
 };
 
 export async function uploadStorefrontImage(file: File, kind: StorefrontAssetKind): Promise<{ url: string; originalBytes: number; optimizedBytes: number }> {

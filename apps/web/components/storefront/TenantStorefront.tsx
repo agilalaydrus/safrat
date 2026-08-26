@@ -115,6 +115,9 @@ export type StorefrontSocialLink = {
   url: string;
 };
 
+export type StorefrontAssurancePillar = { title: string; description: string };
+export type StorefrontOperatingHour = { dayLabel: string; hoursLabel: string };
+
 export type StorefrontContent = {
   displayName?: string;
   logoUrl?: string;
@@ -156,6 +159,12 @@ export type StorefrontContent = {
   backgroundMusicUrl?: string;
   backgroundMusicTitle?: string;
   backgroundMusicEnabled?: boolean;
+  backgroundMusicVolume?: number;
+  aboutImageUrl?: string;
+  aboutImageAlt?: string;
+  aboutImageCaption?: string;
+  assurancePillars?: StorefrontAssurancePillar[];
+  operatingHours?: StorefrontOperatingHour[];
 };
 
 export type StorefrontProfile = {
@@ -197,6 +206,7 @@ export const DEFAULT_STOREFRONT_THEME: Required<StorefrontTheme> = {
   heroBodyColor: "#d8e0db",
 };
 const DEFAULT_HERO_IMAGE = "/images/tenant-editorial/makkah_madinah_panoramic_1787650211904.webp";
+const DEFAULT_ABOUT_IMAGE = "/images/tenant-editorial/about_pilgrim_editorial_1787645090421.webp";
 const DEFAULT_GALLERY = [
   { imageUrl: "/images/tenant-editorial/hero_kaaba_candid_1787645070767.webp", altText: "Jamaah di pelataran Masjidil Haram", caption: "Pendampingan jamaah dimulai dari momen pertama di Tanah Suci." },
   { imageUrl: "/images/tenant-editorial/about_pilgrim_editorial_1787645090421.webp", altText: "Pembimbing ibadah bersama jamaah", caption: "Arahan yang jelas agar ibadah terasa lebih tenang." },
@@ -209,6 +219,14 @@ const DEFAULT_GALLERY = [
   { imageUrl: "/images/tenant-editorial/muthowif_team_natural_1787650228839.webp", altText: "Tim muthawwif mendampingi jamaah", caption: "Tim lapangan siap mendampingi kebutuhan jamaah selama di Tanah Suci." },
 ];
 const DEFAULT_TRUST_BADGES = ["Izin dan dokumen transparan", "Hotel dekat masjid", "Pendampingan manasik", "Layanan WhatsApp responsif"];
+const DEFAULT_ASSURANCE_PILLARS: StorefrontAssurancePillar[] = [
+  { title: "Izin yang jelas", description: "Legalitas dapat dikonfirmasi" },
+  { title: "Hotel terpilih", description: "Dekat masjid sesuai program" },
+  { title: "Jadwal terencana", description: "Musim dan keberangkatan transparan" },
+  { title: "Pendampingan utuh", description: "Dari manasik sampai pulang" },
+];
+const DEFAULT_OPERATING_HOURS: StorefrontOperatingHour[] = [{ dayLabel: "Senin sampai Sabtu", hoursLabel: "09.00 sampai 17.00 WIB" }];
+const ASSURANCE_ICONS = [IconCertificate, IconBuildingStore, IconCalendarEvent, IconShieldCheck];
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 const SEASON_LABEL: Record<string, string> = {
@@ -301,6 +319,10 @@ export default function TenantStorefront({ profile, preview = false }: { profile
   const trustBadges = configuredTrustBadges.length ? configuredTrustBadges : DEFAULT_TRUST_BADGES;
   const socialLinks = (content.socialLinks ?? []).filter((item) => safeWebLink(item.url));
   const musicURL = content.backgroundMusicEnabled ? safeWebLink(content.backgroundMusicUrl) : null;
+  const musicVolume = Math.min(100, Math.max(5, content.backgroundMusicVolume || 35));
+  const assurancePillars = content.assurancePillars?.length === 4 ? content.assurancePillars : DEFAULT_ASSURANCE_PILLARS.map((item, index) => index === 0 && profile.licenseNumber ? { ...item, description: `PPIU/PIHK ${profile.licenseNumber}` } : item);
+  const operatingHours = content.operatingHours?.length ? content.operatingHours : DEFAULT_OPERATING_HOURS;
+  const aboutImage = safeOptionalImageLink(content.aboutImageUrl) || DEFAULT_ABOUT_IMAGE;
   const navItems = [
     { id: "beranda", label: "Beranda" },
     { id: "profil", label: "Profil" },
@@ -340,6 +362,7 @@ export default function TenantStorefront({ profile, preview = false }: { profile
     const audio = audioRef.current;
     if (!audio || !musicURL) return;
     const storedMuted = window.localStorage.getItem("tawafiq-storefront-music-muted") === "true";
+    audio.volume = musicVolume / 100;
     audio.muted = storedMuted;
     setMusicMuted(storedMuted);
     let interactionFallback = false;
@@ -366,7 +389,7 @@ export default function TenantStorefront({ profile, preview = false }: { profile
       document.removeEventListener("keydown", resumeAfterInteraction);
       audio.pause();
     };
-  }, [musicURL]);
+  }, [musicURL, musicVolume]);
 
   const toggleMusic = async () => {
     const audio = audioRef.current;
@@ -432,14 +455,7 @@ export default function TenantStorefront({ profile, preview = false }: { profile
 
         {(trustBadges.length > 0 || profile.licenseNumber) && <section className="tenant-trust-strip" aria-label="Keunggulan dan legalitas"><div className="mx-auto flex max-w-7xl flex-wrap gap-x-8 gap-y-3 px-4 py-5 sm:px-6 lg:px-8">{profile.licenseNumber && <span><IconCertificate size={18} stroke={1.7} /> Izin PPIU/PIHK {profile.licenseNumber}</span>}{trustBadges.map((badge) => <span key={badge}><IconShieldCheck size={18} stroke={1.7} /> {badge}</span>)}</div></section>}
 
-        <section className="tenant-proof" aria-label="Empat pilar jaminan perjalanan">
-          <div className="mx-auto grid max-w-7xl gap-5 px-4 py-7 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">
-            <div className="tenant-proof-item"><IconCertificate size={24} stroke={1.7} /><span><strong>Izin yang jelas</strong><small>{profile.licenseNumber ? `PPIU/PIHK ${profile.licenseNumber}` : "Legalitas dapat dikonfirmasi"}</small></span></div>
-            <div className="tenant-proof-item"><IconBuildingStore size={24} stroke={1.7} /><span><strong>Hotel terpilih</strong><small>Dekat masjid sesuai program</small></span></div>
-            <div className="tenant-proof-item"><IconCalendarEvent size={24} stroke={1.7} /><span><strong>Jadwal terencana</strong><small>Musim dan keberangkatan transparan</small></span></div>
-            <div className="tenant-proof-item"><IconShieldCheck size={24} stroke={1.7} /><span><strong>Pendampingan utuh</strong><small>Dari manasik sampai pulang</small></span></div>
-          </div>
-        </section>
+        <section className="tenant-proof" aria-label="Empat pilar jaminan perjalanan"><div className="mx-auto grid max-w-7xl gap-5 px-4 py-7 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-8">{assurancePillars.map((pillar, index) => { const PillarIcon = ASSURANCE_ICONS[index] || IconShieldCheck; return <div className="tenant-proof-item" key={`${pillar.title}-${index}`}><PillarIcon size={24} stroke={1.7} /><span><strong>{pillar.title}</strong><small>{pillar.description}</small></span></div>; })}</div></section>
 
         <section id="profil" className="tenant-profile scroll-mt-24">
           <div className="mx-auto grid max-w-7xl gap-10 px-4 py-20 sm:px-6 md:grid-cols-[0.82fr_1.18fr] lg:px-8 lg:py-24">
@@ -471,7 +487,7 @@ export default function TenantStorefront({ profile, preview = false }: { profile
 
         {socialLinks.length > 0 && <section id="sosial" className="tenant-social-section scroll-mt-24"><div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24"><div className="tenant-social-intro"><h2>{content.socialTitle || `Terhubung lebih dekat bersama ${name}`}</h2><p>{content.socialDescription || "Ikuti kabar perjalanan, panduan ibadah, dan dokumentasi jamaah melalui kanal resmi travel kami."}</p></div><div className="tenant-social-grid">{socialLinks.map((item, index) => <a key={`${item.platform}-${item.url}`} href={safeWebLink(item.url) || "#"} target="_blank" rel="noreferrer" className={index < 2 ? "tenant-social-link is-featured" : "tenant-social-link"}><span className="tenant-social-icon"><SocialPlatformIcon platform={item.platform} /></span><span><small>{socialPlatformName(item.platform)}</small><strong>{item.label}</strong>{item.handle && <em>{item.handle}</em>}</span><IconArrowRight className="tenant-social-arrow" size={20} stroke={1.8} /></a>)}</div></div></section>}
 
-        <section id="tentang" className="tenant-about scroll-mt-24"><div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-20 sm:px-6 md:grid-cols-[0.88fr_1.12fr] lg:px-8 lg:py-24"><div className="tenant-about-image"><img src="/images/tenant-editorial/about_pilgrim_editorial_1787645090421.webp" alt={`Pendampingan jamaah ${name}`} loading="lazy" /><span>Perjalanan yang dirawat, bukan sekadar dijual.</span></div><div><p className="tenant-eyebrow">Tentang kami</p><h2 className="mt-4 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl dark:text-slate-100">{content.aboutTitle || `Mengenal ${name}`}</h2><p className="mt-6 max-w-2xl whitespace-pre-line text-base leading-8 text-slate-600 dark:text-slate-300">{content.aboutBody || description || `${name} membantu jamaah mempersiapkan perjalanan Umrah dan Haji dengan informasi yang jelas serta pendampingan yang mudah dihubungi.`}</p><div className="tenant-about-facts mt-8"><div><IconBuildingStore size={22} stroke={1.7} /><span><small>Brand travel</small><strong>{name}</strong></span></div>{city && <div><IconMapPin size={22} stroke={1.7} /><span><small>Lokasi kantor</small><strong>{city}</strong></span></div>}{profile.licenseNumber && <div><IconCertificate size={22} stroke={1.7} /><span><small>Nomor izin</small><strong>{profile.licenseNumber}</strong></span></div>}{website && <a href={website} target="_blank" rel="noreferrer"><IconExternalLink size={22} stroke={1.7} /><span><small>Website resmi</small><strong>Kunjungi website</strong></span></a>}</div></div></div></section>
+        <section id="tentang" className="tenant-about scroll-mt-24"><div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-20 sm:px-6 md:grid-cols-[0.88fr_1.12fr] lg:px-8 lg:py-24"><div className="tenant-about-image"><img src={aboutImage} alt={content.aboutImageAlt || `Pendampingan jamaah ${name}`} loading="lazy" /><span>{content.aboutImageCaption || "Perjalanan yang dirawat, bukan sekadar dijual."}</span></div><div><p className="tenant-eyebrow">Tentang kami</p><h2 className="mt-4 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl dark:text-slate-100">{content.aboutTitle || `Mengenal ${name}`}</h2><p className="mt-6 max-w-2xl whitespace-pre-line text-base leading-8 text-slate-600 dark:text-slate-300">{content.aboutBody || description || `${name} membantu jamaah mempersiapkan perjalanan Umrah dan Haji dengan informasi yang jelas serta pendampingan yang mudah dihubungi.`}</p><div className="tenant-about-facts mt-8"><div><IconBuildingStore size={22} stroke={1.7} /><span><small>Brand travel</small><strong>{name}</strong></span></div>{city && <div><IconMapPin size={22} stroke={1.7} /><span><small>Lokasi kantor</small><strong>{city}</strong></span></div>}{profile.licenseNumber && <div><IconCertificate size={22} stroke={1.7} /><span><small>Nomor izin</small><strong>{profile.licenseNumber}</strong></span></div>}{website && <a href={website} target="_blank" rel="noreferrer"><IconExternalLink size={22} stroke={1.7} /><span><small>Website resmi</small><strong>Kunjungi website</strong></span></a>}</div></div></div></section>
 
         {testimonials.length > 0 && <section className="tenant-testimonials"><div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24"><h2 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl dark:text-slate-100">Cerita dari jamaah</h2><div className="mt-10 grid gap-5 md:grid-cols-2">{testimonials.map((item, index) => <blockquote key={`${item.name}-${index}`} className={index === 0 && testimonials.length > 2 ? "tenant-testimonial-featured" : "tenant-testimonial"}><IconQuote size={26} stroke={1.5} /><p>{item.quote}</p><footer><strong>{item.name}</strong>{item.role && <span>{item.role}</span>}</footer></blockquote>)}</div></div></section>}
 
@@ -479,7 +495,7 @@ export default function TenantStorefront({ profile, preview = false }: { profile
 
         <section id="agen" className="tenant-section scroll-mt-24"><div className="tenant-contact mx-auto max-w-7xl"><div><p className="tenant-eyebrow">Kemitraan perjalanan</p><h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">{content.agentTitle || "Tumbuh bersama sebagai agen atau tour leader"}</h2><p className="mt-4 max-w-xl text-base leading-7 opacity-80">{content.agentDescription || "Bantu lebih banyak keluarga berangkat dengan program kemitraan yang jelas, materi pendampingan, dan tim yang siap menjawab."}</p></div><AgentWhatsAppForm managerWhatsapp={managerWhatsapp} /></div></section>
 
-        <section id="kontak" className="scroll-mt-24 px-4 pb-20 sm:px-6 lg:px-8 lg:pb-24"><div className="tenant-contact mx-auto max-w-7xl"><div><p className="tenant-eyebrow">Hubungi kami</p><h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">Mari menyiapkan perjalanan Anda</h2><p className="mt-4 max-w-xl text-base leading-7 opacity-80">Tim {name} siap membantu memilih jadwal, tipe kamar, dan kebutuhan pendampingan keluarga.</p><div className="tenant-contact-details"><span>{[address, city].filter(Boolean).join(", ") || "Alamat kantor tersedia melalui tim travel"}</span><span>Senin sampai Sabtu, 09.00 sampai 17.00 WIB</span>{content.contactEmail && <a href={`mailto:${content.contactEmail}`}>{content.contactEmail}</a>}</div></div><div className="flex flex-col gap-3 sm:flex-row">{whatsapp ? <a href={whatsapp} target="_blank" rel="noreferrer" className="tenant-contact-cta"><IconBrandWhatsapp size={19} stroke={1.9} /> Konsultasi WhatsApp</a> : <span className="tenant-contact-ghost">Nomor WhatsApp segera tersedia</span>}{website && <a href={website} target="_blank" rel="noreferrer" className="tenant-contact-ghost"><IconExternalLink size={19} stroke={1.9} /> Website</a>}</div></div></section>
+        <section id="kontak" className="scroll-mt-24 px-4 pb-20 sm:px-6 lg:px-8 lg:pb-24"><div className="tenant-contact mx-auto max-w-7xl"><div><p className="tenant-eyebrow">Hubungi kami</p><h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">Mari menyiapkan perjalanan Anda</h2><p className="mt-4 max-w-xl text-base leading-7 opacity-80">Tim {name} siap membantu memilih jadwal, tipe kamar, dan kebutuhan pendampingan keluarga.</p><div className="tenant-contact-details"><span>{[address, city].filter(Boolean).join(", ") || "Alamat kantor tersedia melalui tim travel"}</span>{operatingHours.map((item) => <span key={item.dayLabel}>{item.dayLabel}, {item.hoursLabel}</span>)}{content.contactEmail && <a href={`mailto:${content.contactEmail}`}>{content.contactEmail}</a>}</div></div><div className="flex flex-col gap-3 sm:flex-row">{whatsapp ? <a href={whatsapp} target="_blank" rel="noreferrer" className="tenant-contact-cta"><IconBrandWhatsapp size={19} stroke={1.9} /> Konsultasi WhatsApp</a> : <span className="tenant-contact-ghost">Nomor WhatsApp segera tersedia</span>}{website && <a href={website} target="_blank" rel="noreferrer" className="tenant-contact-ghost"><IconExternalLink size={19} stroke={1.9} /> Website</a>}</div></div></section>
 
         <footer className="tenant-footer"><div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.2fr_0.8fr_1fr] lg:px-8"><div><div className="flex items-center gap-3">{logoImage ? <img src={logoImage} alt={`Logo ${name}`} className="h-12 w-12 rounded-xl object-contain" /> : <span className="tenant-logo-fallback">{initials}</span>}<strong>{name}</strong></div><p>{content.tagline || description || "Pendampingan perjalanan ibadah yang hangat dan terpercaya."}</p></div><div><strong>Navigasi</strong><nav className="mt-4 grid gap-2 text-sm"><a href="#beranda">Beranda</a><a href="#paket">Paket</a>{socialLinks.length > 0 && <a href="#sosial">Sosial Media</a>}<a href="#tentang">Tentang Kami</a><a href="#kontak">Hubungi Kami</a></nav></div><div><strong>Kontak &amp; legalitas</strong><p>{address || city || "Alamat kantor tersedia melalui tim travel."}</p>{content.contactEmail && <a href={`mailto:${content.contactEmail}`}>{content.contactEmail}</a>}{profile.licenseNumber && <p className="mt-2">Izin PPIU/PIHK: {profile.licenseNumber}</p>}{content.mapUrl && <a className="tenant-footer-map" href={content.mapUrl} target="_blank" rel="noreferrer">Buka lokasi di Google Maps <IconExternalLink size={15} /></a>}</div></div><div className="mx-auto flex max-w-7xl flex-col gap-3 border-t border-white/10 px-4 py-5 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"><span>© {new Date().getFullYear()} {name}. All Rights Reserved.</span><a href="https://tawafiqhub.id" className="tenant-powered" target="_blank" rel="noreferrer">Powered by <strong>TawafiqHub</strong></a></div></footer>
         <div className="tenant-floating-tools" aria-label="Akses cepat">{navSolid && <a href="#paket" className="tenant-floating-package" onClick={() => selectSection("paket")}><IconPackages size={20} stroke={1.8} /><span><small>Lihat pilihan</small><strong>Cek Paket</strong></span></a>}{musicURL && <button type="button" className={`tenant-music-control${musicBlocked ? " is-blocked" : ""}`} onClick={() => void toggleMusic()} aria-label={!musicPlaying ? "Putar musik latar" : musicMuted ? "Nyalakan suara musik" : "Bisukan musik"} title={content.backgroundMusicTitle || "Musik latar"}>{!musicPlaying ? <IconPlayerPlay size={20} stroke={1.9} /> : musicMuted ? <IconVolumeOff size={20} stroke={1.9} /> : <IconVolume size={20} stroke={1.9} />}<span>{!musicPlaying ? "Putar musik" : musicMuted ? "Suara mati" : content.backgroundMusicTitle || "Musik latar"}</span></button>}</div>

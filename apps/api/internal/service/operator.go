@@ -314,6 +314,7 @@ func (s *OperatorService) CreateStorefrontUpload(ctx context.Context, authentica
 		hajjv1.StorefrontAssetKind_STOREFRONT_ASSET_KIND_PACKAGE:          "package",
 		hajjv1.StorefrontAssetKind_STOREFRONT_ASSET_KIND_BACKGROUND_MUSIC: "background-music",
 		hajjv1.StorefrontAssetKind_STOREFRONT_ASSET_KIND_ARTICLE:          "article",
+		hajjv1.StorefrontAssetKind_STOREFRONT_ASSET_KIND_ABOUT:            "about",
 	}
 	kind, ok := kinds[request.Kind]
 	if !ok {
@@ -392,14 +393,39 @@ func (s *OperatorService) storefrontEditor(ctx context.Context, operator *domain
 }
 
 func (s *OperatorService) validateStorefront(ctx context.Context, operatorID string, content *hajjv1.StorefrontContent) error {
-	if content.DisplayName == "" || !validHTTPURLOrEmpty(content.LogoUrl) || !validHTTPURLOrEmpty(content.Website) || !validHTTPURLOrEmpty(content.HeroImageUrl) {
+	if content.DisplayName == "" || !validHTTPURLOrEmpty(content.LogoUrl) || !validHTTPURLOrEmpty(content.Website) || !validHTTPURLOrEmpty(content.HeroImageUrl) || !validHTTPURLOrEmpty(content.AboutImageUrl) {
 		return apperror.ErrValidation
 	}
-	if len(content.Packages) > 20 || len(content.PublicPackages) > 30 || len(content.Gallery) > 12 || len(content.Testimonials) > 6 || len(content.Faqs) > 10 || len(content.News) > 30 || len(content.BlogPosts) > 50 || len(content.TrustBadges) > 8 || len(content.SocialLinks) > 8 {
+	if len(content.Packages) > 20 || len(content.PublicPackages) > 30 || len(content.Gallery) > 12 || len(content.Testimonials) > 6 || len(content.Faqs) > 10 || len(content.News) > 30 || len(content.BlogPosts) > 30 || len(content.TrustBadges) > 8 || len(content.SocialLinks) > 8 || len(content.AssurancePillars) != 4 || len(content.OperatingHours) == 0 || len(content.OperatingHours) > 7 {
+		return apperror.ErrValidation
+	}
+	if content.AboutImageUrl != "" && strings.TrimSpace(content.AboutImageAlt) == "" {
 		return apperror.ErrValidation
 	}
 	if !validHTTPURLOrEmpty(content.BackgroundMusicUrl) || (content.BackgroundMusicEnabled && strings.TrimSpace(content.BackgroundMusicUrl) == "") {
 		return apperror.ErrValidation
+	}
+	seenPillarTitles := make(map[string]struct{}, len(content.AssurancePillars))
+	for _, item := range content.AssurancePillars {
+		if item == nil || strings.TrimSpace(item.Title) == "" || strings.TrimSpace(item.Description) == "" {
+			return apperror.ErrValidation
+		}
+		title := strings.ToLower(strings.TrimSpace(item.Title))
+		if _, duplicate := seenPillarTitles[title]; duplicate {
+			return apperror.ErrValidation
+		}
+		seenPillarTitles[title] = struct{}{}
+	}
+	seenOperatingDays := make(map[string]struct{}, len(content.OperatingHours))
+	for _, item := range content.OperatingHours {
+		if item == nil || strings.TrimSpace(item.DayLabel) == "" || strings.TrimSpace(item.HoursLabel) == "" {
+			return apperror.ErrValidation
+		}
+		day := strings.ToLower(strings.TrimSpace(item.DayLabel))
+		if _, duplicate := seenOperatingDays[day]; duplicate {
+			return apperror.ErrValidation
+		}
+		seenOperatingDays[day] = struct{}{}
 	}
 	allowedSocialPlatforms := map[string]struct{}{
 		"instagram": {}, "tiktok": {}, "youtube": {}, "facebook": {},
@@ -578,6 +604,24 @@ func applyStorefrontDefaults(content *hajjv1.StorefrontContent, operator *domain
 	}
 	if content.BrandColor == "" {
 		content.BrandColor = "#059669"
+	}
+	if len(content.AssurancePillars) == 0 {
+		licenseDescription := "Legalitas dapat dikonfirmasi"
+		if strings.TrimSpace(operator.LicenseNumber) != "" {
+			licenseDescription = "PPIU/PIHK " + strings.TrimSpace(operator.LicenseNumber)
+		}
+		content.AssurancePillars = []*hajjv1.StorefrontAssurancePillar{
+			{Title: "Izin yang jelas", Description: licenseDescription},
+			{Title: "Hotel terpilih", Description: "Dekat masjid sesuai program"},
+			{Title: "Jadwal terencana", Description: "Musim dan keberangkatan transparan"},
+			{Title: "Pendampingan utuh", Description: "Dari manasik sampai pulang"},
+		}
+	}
+	if len(content.OperatingHours) == 0 {
+		content.OperatingHours = []*hajjv1.StorefrontOperatingHour{{DayLabel: "Senin sampai Sabtu", HoursLabel: "09.00 sampai 17.00 WIB"}}
+	}
+	if content.BackgroundMusicVolume == 0 {
+		content.BackgroundMusicVolume = 35
 	}
 }
 

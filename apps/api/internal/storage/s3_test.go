@@ -201,7 +201,11 @@ func TestPresignStorefrontArticleUploadUsesTenantScopedWebP(t *testing.T) {
 
 func TestValidStorefrontPayloadRecognizesWebPAndMP3(t *testing.T) {
 	imageSpec, _ := storefrontSpec("hero")
+	aboutSpec, aboutErr := storefrontSpec("about")
 	audioSpec, _ := storefrontSpec("background-music")
+	if aboutErr != nil || aboutSpec.contentType != StorefrontContentType || aboutSpec.extension != ".webp" {
+		t.Fatalf("about spec is not a verified WebP: %#v, %v", aboutSpec, aboutErr)
+	}
 	if !validStorefrontPayload(imageSpec, []byte("RIFFxxxxWEBP")) {
 		t.Fatal("valid WebP signature rejected")
 	}
