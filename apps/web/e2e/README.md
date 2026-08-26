@@ -46,6 +46,14 @@ pnpm --filter @hajj-saas/web e2e --project=offline-pwa
 `pnpm --filter @hajj-saas/web e2e` runs all of them, which assumes every service
 above is up.
 
+> **A plain `pnpm build` breaks the offline project.** `swDest` is
+> `public/sw.js` (see `next.config.ts`), which is shared by every build — so a
+> normal build overwrites the service worker with a new revision pointing at
+> `.next` assets that the `:3141` server does not serve. The worker then fails
+> to install and the offline specs fail with `ERR_INTERNET_DISCONNECTED`, which
+> looks exactly like a real regression. Re-run `e2e:pwa:build` after any
+> `pnpm build`.
+
 ## Fixtures
 
 The `setup` project provisions two accounts through the app's own endpoints —
