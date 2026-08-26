@@ -14,6 +14,83 @@
 
 ## Continuation after this snapshot
 
+### Money paths — audit findings and backlog (2026-08-26)
+
+Everything below was verified against the running code and database, not
+inferred. Ordered by what costs the most while it stays broken.
+
+#### Already fixed this session
+
+| Commit | What was wrong |
+| --- | --- |
+| `fe436f0` | `RequestPayout` read balance then inserted with no lock — concurrent calls let an agent request **more than they are owed**. Now serialised per agent with an advisory lock; test drives 8 concurrent requests. |
+| `1e22e9c` | Check-then-act let one operator hold two live subscription invoices, so two unique amounts were in play at once. Partial unique index; the losing request gets the winning invoice. |
+| `b7e98ca` | Offline chat replay posted duplicate messages. Client-generated key per message, per-sender unique index, `DO UPDATE` so the row comes back. |
+| `8b719e8` | Transfer amounts were only unique among *unpaid* invoices, so a settled code could be reissued the same day and a mutation would be ambiguous. Now unique per day (Asia/Jakarta) too. |
+| `c5535f1` | `ExpireOverdueInvoices`/`MarkLapsed` existed but nothing called them — abandoned invoices held their unique code forever and the 999-suffix pool drained. Hourly sweep. |
+
+#### Order flow — what is already correct
+
+Do not "fix" these; they were checked:
+- **Price comes from the server** (`product.PriceIDR`), never the request. The
+  top payment vulnerability is absent.
+- Margin split computed server-side; product fetched scoped to the caller's
+  operator; identity taken from `app_access_code`, not a client-supplied id.
+- Settlement is idempotent: `WHERE status = 'PENDING'`, so a redelivered
+  webhook cannot pay twice, and `applyPaidSideEffects` cannot re-run.
+- Webhook token verified; `xendit_invoice_id` has a unique index.
+
+#### Open — ordered
+
+1. **`REFUNDED` status and refund records.** `orders.status` allows only
+   PENDING/PAID/EXPIRED/FAILED/CANCELLED. A refunded order stays `PAID`
+   forever, so revenue is overstated **and agent commission is computed from
+   PAID orders** — the agent stays credited for money that went back to the
+   pilgrim. Cancellation policies compute what *should* be refunded
+   (`CancellationRepository.MatchPolicy`) but nothing records that it happened,
+   who approved it, or when the money moved. Start with a recorded manual
+   refund; automatic Xendit refunds are the wrong place to begin.
+
+2. **Duplicate orders.** `CreateOrder` has no idempotency key and `orders` has
+   no unique index preventing it. A double-click creates two orders and two
+   Xendit invoices, and the pilgrim can pay both — charged twice for one
+   intent. Same class as the three fixed above; fix it the same way, in the
+   database.
+
+3. **Fulfilment does not exist for anything but travel packages.** Product
+   categories are `TRAVEL_PACKAGE`, `EQUIPMENT`, `ROAMING_DATA`, `PPOB_CREDIT`,
+   but `applyPaidSideEffects` only acts on `TRAVEL_PACKAGE` (auto-kloter).
+   - `EQUIPMENT` (physical): `orders` has no delivery status, address, tracking
+     or handover proof. Safe only while handover is manual and in person.
+   - `ROAMING_DATA` (digital): no voucher/eSIM issued or stored.
+   - `PPOB_CREDIT` (digital): **no provider integration at all** — the pilgrim
+     pays and no credit is ever sent. Consider disabling this category until it
+     can be fulfilled.
+   When PPOB is built, idempotency is critical: Xendit redelivers webhooks, and
+   without a key on the fulfilment side one payment becomes two top-ups.
+
+4. **Webhook does not verify the paid amount.** It reads only `id` and
+   `status`. Xendit invoices are fixed-amount so practical risk is low, but
+   comparing the amount is one line and is standard practice.
+
+5. **No fraud/suspect handling.** No flag, no manual hold, no attempt limits.
+   Card fraud detection sits with Xendit's hosted checkout, but there is no way
+   for the operator to hold a suspicious order out of the totals.
+
+6. **Receipts are per pilgrim, not per transaction.**
+   `/dashboard/pilgrims/[id]/invoice` works well — order list, paid total,
+   print/PDF, `@media print`. Missing: a per-transaction receipt with a
+   referenceable invoice number, and any way for the *pilgrim* to see or print
+   their own proof of payment. Today only the operator can.
+
+#### Standing rule for all of the above
+
+Enforce uniqueness and balance checks **in the database**, never by
+SELECT-then-INSERT: two concurrent requests both pass an application check.
+Every externally visible operation needs an identifier stable across retries
+but unique per attempt. See the fixes above for the patterns already in use —
+partial unique indexes, advisory locks, `ON CONFLICT DO UPDATE`.
+
 ### Pre-release checklist — repository and image visibility
 
 Deferred by the owner (2026-08-26) until closer to release. Recorded because the
