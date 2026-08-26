@@ -201,6 +201,10 @@ func (r *AgentRepository) ListPayouts(ctx context.Context, operatorID string) ([
 }
 
 func (r *AgentRepository) GetPayoutSummary(ctx context.Context, operatorID, agentID string) (*domain.AgentPayout, error) {
+	return r.payoutSummary(ctx, r.queries, operatorID, agentID)
+}
+
+func (r *AgentRepository) payoutSummary(ctx context.Context, q *db.Queries, operatorID, agentID string) (*domain.AgentPayout, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -209,7 +213,7 @@ func (r *AgentRepository) GetPayoutSummary(ctx context.Context, operatorID, agen
 	if err != nil {
 		return nil, err
 	}
-	row, err := r.queries.GetAgentPayoutSummary(ctx, db.GetAgentPayoutSummaryParams{OperatorID: opUUID, ID: agentUUID})
+	row, err := q.GetAgentPayoutSummary(ctx, db.GetAgentPayoutSummaryParams{OperatorID: opUUID, ID: agentUUID})
 	if err != nil {
 		return nil, err
 	}
@@ -329,7 +333,30 @@ func (r *AgentRepository) SumPendingRequests(ctx context.Context, agentID string
 	return r.queries.SumPendingPayoutRequests(ctx, agentUUID)
 }
 
+// The Tx variants let the caller hold a lock across the balance read and the
+// insert. Requesting a payout is a check-then-act over money, so those steps
+// have to see a consistent view — see AgentService.RequestPayout.
+func (r *AgentRepository) GetPayoutSummaryTx(ctx context.Context, tx pgx.Tx, operatorID, agentID string) (*domain.AgentPayout, error) {
+	return r.payoutSummary(ctx, r.queries.WithTx(tx), operatorID, agentID)
+}
+
+func (r *AgentRepository) SumPendingRequestsTx(ctx context.Context, tx pgx.Tx, agentID string) (int64, error) {
+	agentUUID, err := pgUUID(agentID)
+	if err != nil {
+		return 0, err
+	}
+	return r.queries.WithTx(tx).SumPendingPayoutRequests(ctx, agentUUID)
+}
+
+func (r *AgentRepository) CreatePayoutRequestTx(ctx context.Context, tx pgx.Tx, operatorID, agentID string, amountIDR int64, note string) (*domain.PayoutRequest, error) {
+	return r.createPayoutRequest(ctx, r.queries.WithTx(tx), operatorID, agentID, amountIDR, note)
+}
+
 func (r *AgentRepository) CreatePayoutRequest(ctx context.Context, operatorID, agentID string, amountIDR int64, note string) (*domain.PayoutRequest, error) {
+	return r.createPayoutRequest(ctx, r.queries, operatorID, agentID, amountIDR, note)
+}
+
+func (r *AgentRepository) createPayoutRequest(ctx context.Context, q *db.Queries, operatorID, agentID string, amountIDR int64, note string) (*domain.PayoutRequest, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -338,7 +365,7 @@ func (r *AgentRepository) CreatePayoutRequest(ctx context.Context, operatorID, a
 	if err != nil {
 		return nil, err
 	}
-	row, err := r.queries.CreatePayoutRequest(ctx, db.CreatePayoutRequestParams{OperatorID: opUUID, AgentID: agentUUID, AmountIdr: amountIDR, Note: note})
+	row, err := q.CreatePayoutRequest(ctx, db.CreatePayoutRequestParams{OperatorID: opUUID, AgentID: agentUUID, AmountIdr: amountIDR, Note: note})
 	if err != nil {
 		return nil, err
 	}

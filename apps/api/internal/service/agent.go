@@ -210,11 +210,26 @@ func (s *AgentService) RequestPayout(ctx context.Context, orgID, userID string, 
 	if err != nil {
 		return nil, serviceError("AgentService.RequestPayout", err)
 	}
-	summary, err := s.agentRepository.GetPayoutSummary(ctx, op.ID, agent.ID)
+	// Serialised per agent. Reading the balance and inserting the request are
+	// two statements, so two concurrent calls — a double-clicked button, or a
+	// retried request — would both see the same available figure and both pass
+	// the check, letting an agent request more money than they are owed. The
+	// lock is held for the transaction, so the second caller reads a balance
+	// that already accounts for the first.
+	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return nil, serviceError("AgentService.RequestPayout", err)
 	}
-	pendingRequested, err := s.agentRepository.SumPendingRequests(ctx, agent.ID)
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))`, agent.ID); err != nil {
+		return nil, serviceError("AgentService.RequestPayout", err)
+	}
+
+	summary, err := s.agentRepository.GetPayoutSummaryTx(ctx, tx, op.ID, agent.ID)
+	if err != nil {
+		return nil, serviceError("AgentService.RequestPayout", err)
+	}
+	pendingRequested, err := s.agentRepository.SumPendingRequestsTx(ctx, tx, agent.ID)
 	if err != nil {
 		return nil, serviceError("AgentService.RequestPayout", err)
 	}
@@ -222,8 +237,11 @@ func (s *AgentService) RequestPayout(ctx context.Context, orgID, userID string, 
 	if req.AmountIdr > available {
 		return nil, serviceError("AgentService.RequestPayout", preconditionError("amount exceeds available balance"))
 	}
-	request, err := s.agentRepository.CreatePayoutRequest(ctx, op.ID, agent.ID, req.AmountIdr, req.Note)
+	request, err := s.agentRepository.CreatePayoutRequestTx(ctx, tx, op.ID, agent.ID, req.AmountIdr, req.Note)
 	if err != nil {
+		return nil, serviceError("AgentService.RequestPayout", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return nil, serviceError("AgentService.RequestPayout", err)
 	}
 	_ = s.auditRepository.Write(ctx, op.ID, userID, "agent_payout_requested", "agent", agent.ID, fmt.Sprintf("Rp%d", req.AmountIdr))
