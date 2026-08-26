@@ -1136,3 +1136,212 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-seri
 @media (max-width: 640px) {
   .tenant-contact { border-radius: 20px; padding: 26px; }
 }
+
+/* ---------- Package carousel + picker panel ---------- */
+
+.tenant-package-carousel-wrap { position: relative; }
+.tenant-package-carousel {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(268px, 1fr);
+  gap: 20px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: 4px 2px 18px;
+  scrollbar-width: thin;
+}
+@media (min-width: 768px) { .tenant-package-carousel { grid-auto-columns: minmax(300px, calc((100% - 40px) / 3)); } }
+.tenant-package-carousel > * { scroll-snap-align: start; }
+.tenant-package-card {
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  border: 1px solid var(--tenant-border);
+  border-radius: 20px;
+  background: var(--tenant-surface);
+  box-shadow: 0 14px 40px color-mix(in srgb, var(--tenant-heading) 10%, transparent);
+  transition: transform 200ms cubic-bezier(.2, .8, .3, 1), box-shadow 200ms ease;
+}
+.tenant-package-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 56px color-mix(in srgb, var(--tenant-heading) 18%, transparent);
+}
+/* Operators upload portrait promo flyers, so the poster keeps that ratio and
+   shows the whole artwork rather than cropping the price out of it. */
+.tenant-package-poster {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  border: 0;
+  aspect-ratio: 4 / 5;
+  background: color-mix(in srgb, var(--tenant-brand) 10%, var(--tenant-surface));
+  padding: 0;
+  cursor: pointer;
+}
+.tenant-package-poster img { width: 100%; height: 100%; object-fit: cover; transition: transform 300ms ease; }
+.tenant-package-card:hover .tenant-package-poster img { transform: scale(1.04); }
+.tenant-package-poster-fallback { display: grid; width: 100%; height: 100%; place-items: center; color: var(--tenant-muted); }
+.tenant-package-tag {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tenant-heading) 78%, transparent);
+  padding: 5px 12px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  backdrop-filter: blur(8px);
+}
+.tenant-package-body { display: grid; gap: 7px; padding: 16px 18px 18px; text-align: center; }
+.tenant-package-body h3 { margin: 0; color: var(--tenant-heading); font-size: 18px; font-weight: 850; letter-spacing: -.01em; }
+.tenant-package-sub { margin: 0; color: var(--tenant-muted); font-size: 13px; }
+.tenant-package-when {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 2px 0 0;
+  color: var(--tenant-body);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+.tenant-package-when svg { color: var(--tenant-brand-strong); }
+.tenant-package-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  border-top: 1px solid var(--tenant-border);
+  padding-top: 14px;
+}
+.tenant-price-pill {
+  border-radius: 999px;
+  background: var(--tenant-brand);
+  padding: 9px 18px;
+  color: var(--tenant-brand-text);
+  font-size: 14px;
+  font-weight: 850;
+}
+.tenant-package-airline { color: var(--tenant-muted); font-size: 12.5px; font-weight: 700; text-align: right; }
+
+.tenant-carousel-nav {
+  position: absolute;
+  top: 34%;
+  z-index: 5;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid var(--tenant-border);
+  border-radius: 999px;
+  background: var(--tenant-surface);
+  color: var(--tenant-heading);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--tenant-heading) 18%, transparent);
+  cursor: pointer;
+  transition: transform 160ms ease, background-color 160ms ease;
+}
+.tenant-carousel-nav:hover { transform: scale(1.06); background: var(--tenant-brand); color: var(--tenant-brand-text); }
+.tenant-carousel-nav.is-prev { left: -14px; }
+.tenant-carousel-nav.is-next { right: -14px; }
+@media (max-width: 640px) { .tenant-carousel-nav { display: none; } }
+
+/* The picker panel the floating shortcut and each poster open. */
+.tenant-package-panel {
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  width: min(100%, 560px);
+  max-height: min(88vh, 780px);
+  border-radius: 22px;
+  background: var(--tenant-surface);
+  box-shadow: 0 36px 90px rgba(0, 0, 0, .42);
+}
+.tenant-package-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--tenant-dark-bg);
+  padding: 22px 24px;
+  color: #f5f1e8;
+}
+.tenant-package-panel-eyebrow { margin: 0; color: color-mix(in srgb, var(--tenant-brand) 70%, #f5f1e8); font-size: 12px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.tenant-package-panel-head h2 { margin: 6px 0 0; color: inherit; font-size: 23px; font-weight: 850; letter-spacing: -.02em; }
+.tenant-package-panel-close {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .12);
+  color: inherit;
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+.tenant-package-panel-close:hover { background: rgba(255, 255, 255, .22); }
+.tenant-package-panel-list { display: grid; overflow-y: auto; gap: 2px; padding: 6px; }
+.tenant-package-panel-empty { margin: 0; padding: 28px 18px; color: var(--tenant-muted); font-size: 14px; text-align: center; }
+.tenant-package-line { border-radius: 14px; transition: background-color 160ms ease; }
+.tenant-package-line:hover { background: color-mix(in srgb, var(--tenant-brand) 7%, transparent); }
+.tenant-package-line.is-expanded { background: color-mix(in srgb, var(--tenant-brand) 9%, transparent); }
+.tenant-package-line-head {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 14px;
+  border: 0;
+  background: transparent;
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.tenant-package-line-head img,
+.tenant-package-line-fallback {
+  width: 62px;
+  height: 62px;
+  flex: none;
+  border-radius: 12px;
+  object-fit: cover;
+}
+.tenant-package-line-fallback { display: grid; place-items: center; background: color-mix(in srgb, var(--tenant-brand) 12%, transparent); color: var(--tenant-brand-strong); }
+.tenant-package-line-main { display: grid; min-width: 0; gap: 3px; }
+.tenant-package-line-main strong { color: var(--tenant-heading); font-size: 16px; font-weight: 850; }
+.tenant-package-line-when { display: inline-flex; align-items: center; gap: 6px; color: var(--tenant-body); font-size: 12.5px; }
+.tenant-package-line-when svg { color: var(--tenant-brand-strong); }
+.tenant-package-line-price { color: var(--tenant-muted); font-size: 13px; }
+.tenant-package-line-price b { color: var(--tenant-brand-strong); font-weight: 850; }
+.tenant-package-line-chevron { flex: none; color: var(--tenant-muted); transition: transform 180ms ease; }
+.tenant-package-line.is-expanded .tenant-package-line-chevron { transform: rotate(90deg); }
+.tenant-package-line-detail { display: grid; gap: 12px; padding: 0 14px 16px; }
+.tenant-package-line-detail > p { margin: 0; color: var(--tenant-body); font-size: 13.5px; line-height: 1.7; }
+.tenant-package-line-cta {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 12px;
+  background: var(--tenant-brand);
+  color: var(--tenant-brand-text);
+  font-size: 14px;
+  font-weight: 800;
+}
+.tenant-package-line-cta:hover { filter: brightness(1.05); }
+.tenant-package-panel-cta {
+  display: flex;
+  min-height: 62px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--tenant-brand);
+  color: var(--tenant-brand-text);
+  font-size: 16px;
+  font-weight: 850;
+}
+.tenant-package-panel-cta:hover { filter: brightness(1.06); }

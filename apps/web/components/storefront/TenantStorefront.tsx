@@ -16,6 +16,8 @@ import {
   IconBrandYoutube,
   IconBuildingStore,
   IconCalendarEvent,
+  IconChevronLeft,
+  IconChevronRight,
   IconCertificate,
   IconCheck,
   IconExternalLink,
@@ -281,6 +283,9 @@ export default function TenantStorefront({ profile, preview = false }: { profile
   const [lightbox, setLightbox] = useState<{ imageUrl: string; altText: string; caption?: string } | null>(null);
   const [booking, setBooking] = useState<{ packageTitle: string; seasonName?: string; whatsapp: string } | null>(null);
   const [accessOpen, setAccessOpen] = useState(false);
+  const [packagePanelOpen, setPackagePanelOpen] = useState(false);
+  const [expandedPackageId, setExpandedPackageId] = useState<string | null>(null);
+  const [carouselOverflows, setCarouselOverflows] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [activeSection, setActiveSection] = useState("beranda");
   const [navSolid, setNavSolid] = useState(false);
@@ -288,6 +293,7 @@ export default function TenantStorefront({ profile, preview = false }: { profile
   const [musicPlaying, setMusicPlaying] = useState(false);
   const [musicBlocked, setMusicBlocked] = useState(false);
   const heroRef = useRef<HTMLElement>(null);
+  const carouselRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   const brandColorCandidate = content.brandColor || profile.brandColor;
@@ -398,6 +404,32 @@ export default function TenantStorefront({ profile, preview = false }: { profile
     };
   }, [musicURL, musicVolume]);
 
+  // Arrows are only meaningful when there is something to scroll to; an
+  // operator with two packages should not see controls that do nothing.
+  useEffect(() => {
+    const track = carouselRef.current;
+    if (!track) return;
+    const measure = () => setCarouselOverflows(track.scrollWidth > track.clientWidth + 4);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(track);
+    return () => observer.disconnect();
+  }, [packageRows.length]);
+
+  const scrollCarousel = (direction: 1 | -1) => {
+    const track = carouselRef.current;
+    if (!track) return;
+    // One card plus its gap, so a click always lands on a card boundary.
+    const card = track.querySelector(".tenant-package-card");
+    const step = card ? card.getBoundingClientRect().width + 20 : track.clientWidth * 0.8;
+    track.scrollBy({ left: step * direction, behavior: "smooth" });
+  };
+
+  const openPackagePanel = (packageId?: string) => {
+    setExpandedPackageId(packageId ?? null);
+    setPackagePanelOpen(true);
+  };
+
   const toggleMusic = async () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -477,12 +509,35 @@ export default function TenantStorefront({ profile, preview = false }: { profile
             {packageRows.length === 0 ? (
               <div className="tenant-empty mt-10"><IconCalendarEvent size={30} stroke={1.6} /><h3>Jadwal baru sedang disiapkan</h3><p>Hubungi tim travel untuk mendapatkan informasi keberangkatan berikutnya.</p>{whatsapp && <a href={whatsapp} target="_blank" rel="noreferrer" className="tenant-secondary-cta">Konsultasi WhatsApp</a>}</div>
             ) : (
-              <div className="mt-10 grid gap-5">
-                {packageRows.map((item, packageIndex) => {
-                  const packageImage = safeOptionalImageLink(item.imageUrl);
-                  const href = item.registrationSlug ? `/register/${item.registrationSlug}` : item.seasonId ? `/register/${item.seasonId}` : "#kontak";
-                  return <article key={item.id} className="tenant-package-row"><div className="tenant-package-index">{String(packageIndex + 1).padStart(2, "0")}</div>{packageImage && <img src={packageImage} alt={item.title} loading="lazy" className="tenant-package-thumb" />}<div className="min-w-0"><p className="tenant-eyebrow">{item.category || "Paket perjalanan"}</p><h3>{item.title}</h3>{item.summary && <p>{item.summary}</p>}</div><div className="tenant-package-meta"><span>{item.durationLabel || "Konsultasi durasi"}</span><strong>{item.priceLabel || "Hubungi kami"}</strong></div><details className="tenant-package-expand"><summary aria-label={`Detail ${item.title}`}><IconArrowRight size={19} stroke={1.8} /></summary><div>{(item.facilities?.length ?? 0) > 0 && <div className="tenant-package-facilities">{item.facilities?.map((facility) => <span key={facility}><IconCheck size={16} stroke={2} />{facility}</span>)}</div>}{(item.seasons?.length ?? 0) > 0 && <div className="tenant-season-options">{item.seasons?.map((season) => <div key={season.seasonId} className="tenant-season-option"><div><strong>{seasons.find((entry) => entry.id === season.seasonId)?.name || "Musim tersedia"}</strong><span>{season.hotelMakkah || "Hotel Makkah akan dikonfirmasi"} · {season.hotelMadinah || "Hotel Madinah akan dikonfirmasi"}</span>{season.airline && <span>{season.airline}{season.hotelRating ? ` · ${season.hotelRating}` : ""}</span>}<div className="tenant-room-prices"><span><b>Quad</b>{season.quadPrice || "Hubungi kami"}</span><span><b>Triple</b>{season.triplePrice || "Hubungi kami"}</span><span><b>Double</b>{season.doublePrice || "Hubungi kami"}</span></div></div><div><small>{typeof season.seatsRemaining === "number" ? `${season.seatsRemaining} kursi tersisa` : "Kuota hubungi travel"}</small><button type="button" onClick={() => setBooking({ packageTitle: item.title, seasonName: seasons.find((entry) => entry.id === season.seasonId)?.name, whatsapp: managerWhatsapp || "" })} disabled={!managerWhatsapp}>Pesan Kursi</button></div></div>)}</div>}<div className="flex flex-wrap gap-3"><Link href={href} className="tenant-package-link">Lihat pendaftaran <IconArrowRight size={17} stroke={1.9} /></Link>{managerWhatsapp && <button type="button" className="tenant-secondary-cta" onClick={() => setBooking({ packageTitle: item.title, whatsapp: managerWhatsapp })}>Konsultasi</button>}</div></div></details></article>;
-                })}
+              <div className="tenant-package-carousel-wrap mt-10">
+                <button type="button" hidden={!carouselOverflows} className="tenant-carousel-nav is-prev" aria-label="Paket sebelumnya" onClick={() => scrollCarousel(-1)}><IconChevronLeft size={22} stroke={2} /></button>
+                <div className="tenant-package-carousel" ref={carouselRef}>
+                  {packageRows.map((item) => {
+                    const packageImage = safeOptionalImageLink(item.imageUrl);
+                    const option = item.seasons?.[0];
+                    const seasonName = seasons.find((entry) => entry.id === (option?.seasonId ?? item.seasonId))?.name;
+                    return (
+                      <article key={item.id} className="tenant-package-card">
+                        <button type="button" className="tenant-package-poster" onClick={() => openPackagePanel(item.id)} aria-label={`Lihat detail ${item.title}`}>
+                          {packageImage
+                            ? <img src={packageImage} alt={item.title} loading="lazy" />
+                            : <span className="tenant-package-poster-fallback"><IconCalendarEvent size={34} stroke={1.5} /></span>}
+                          {item.category && <span className="tenant-package-tag">{item.category}</span>}
+                        </button>
+                        <div className="tenant-package-body">
+                          <h3>{item.title}</h3>
+                          {item.summary && <p className="tenant-package-sub">{item.summary}</p>}
+                          <p className="tenant-package-when"><IconCalendarEvent size={16} stroke={1.9} />{[seasonName, item.durationLabel].filter(Boolean).join(" · ") || "Jadwal menyusul"}</p>
+                          <div className="tenant-package-foot">
+                            <span className="tenant-price-pill">{item.priceLabel || "Hubungi kami"}</span>
+                            <span className="tenant-package-airline">{option?.airline || ""}</span>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+                <button type="button" hidden={!carouselOverflows} className="tenant-carousel-nav is-next" aria-label="Paket berikutnya" onClick={() => scrollCarousel(1)}><IconChevronRight size={22} stroke={2} /></button>
               </div>
             )}
           </div>
@@ -505,7 +560,78 @@ export default function TenantStorefront({ profile, preview = false }: { profile
         <section id="kontak" className="scroll-mt-24 px-4 pb-20 sm:px-6 lg:px-8 lg:pb-24"><div className="tenant-contact mx-auto max-w-7xl"><div><p className="tenant-eyebrow">Hubungi kami</p><h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">Mari menyiapkan perjalanan Anda</h2><p className="mt-4 max-w-xl text-base leading-7 opacity-80">Tim {name} siap membantu memilih jadwal, tipe kamar, dan kebutuhan pendampingan keluarga.</p><div className="tenant-contact-details"><span>{[address, city].filter(Boolean).join(", ") || "Alamat kantor tersedia melalui tim travel"}</span>{operatingHours.map((item) => <span key={item.dayLabel}>{item.dayLabel}, {item.hoursLabel}</span>)}{content.contactEmail && <a href={`mailto:${content.contactEmail}`}>{content.contactEmail}</a>}</div></div><div className="flex flex-col gap-3 sm:flex-row">{whatsapp ? <a href={whatsapp} target="_blank" rel="noreferrer" className="tenant-contact-cta"><IconBrandWhatsapp size={19} stroke={1.9} /> Konsultasi WhatsApp</a> : <span className="tenant-contact-ghost">Nomor WhatsApp segera tersedia</span>}{website && <a href={website} target="_blank" rel="noreferrer" className="tenant-contact-ghost"><IconExternalLink size={19} stroke={1.9} /> Website</a>}</div></div></section>
 
         <footer className="tenant-footer"><div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.2fr_0.8fr_1fr] lg:px-8"><div><div className="flex items-center gap-3">{logoImage ? <img src={logoImage} alt={`Logo ${name}`} className="h-12 w-12 rounded-xl object-contain" /> : <span className="tenant-logo-fallback">{initials}</span>}<strong>{name}</strong></div><p>{content.tagline || description || "Pendampingan perjalanan ibadah yang hangat dan terpercaya."}</p></div><div><strong>Navigasi</strong><nav className="mt-4 grid gap-2 text-sm"><a href="#beranda">Beranda</a><a href="#paket">Paket</a>{socialLinks.length > 0 && <a href="#sosial">Sosial Media</a>}<a href="#tentang">Tentang Kami</a><a href="#kontak">Hubungi Kami</a></nav></div><div><strong>Kontak &amp; legalitas</strong><p>{address || city || "Alamat kantor tersedia melalui tim travel."}</p>{content.contactEmail && <a href={`mailto:${content.contactEmail}`}>{content.contactEmail}</a>}{profile.licenseNumber && <p className="mt-2">Izin PPIU/PIHK: {profile.licenseNumber}</p>}{content.mapUrl && <a className="tenant-footer-map" href={content.mapUrl} target="_blank" rel="noreferrer">Buka lokasi di Google Maps <IconExternalLink size={15} /></a>}</div></div><div className="mx-auto flex max-w-7xl flex-col gap-3 border-t border-white/10 px-4 py-5 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"><span>© {new Date().getFullYear()} {name}. All Rights Reserved.</span><a href="https://tawafiqhub.id" className="tenant-powered" target="_blank" rel="noreferrer">Powered by <strong>TawafiqHub</strong></a></div></footer>
-        <div className="tenant-floating-tools" aria-label="Akses cepat">{<a href="#paket" className="tenant-floating-package" onClick={() => selectSection("paket")}><IconPackages size={20} stroke={1.8} /><span><small>Lihat pilihan</small><strong>Cek Paket Tersedia</strong></span></a>}{musicURL && <button type="button" className={`tenant-music-control${musicBlocked ? " is-blocked" : ""}`} onClick={() => void toggleMusic()} aria-label={!musicPlaying ? "Putar musik latar" : musicMuted ? "Nyalakan suara musik" : "Bisukan musik"} title={content.backgroundMusicTitle || "Musik latar"}>{!musicPlaying ? <IconPlayerPlay size={20} stroke={1.9} /> : musicMuted ? <IconVolumeOff size={20} stroke={1.9} /> : <IconVolume size={20} stroke={1.9} />}<span>{!musicPlaying ? "Putar musik" : musicMuted ? "Suara mati" : content.backgroundMusicTitle || "Musik latar"}</span></button>}</div>
+        {packagePanelOpen && (
+          <div className="tenant-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="tenant-package-panel-title" onClick={() => setPackagePanelOpen(false)}>
+            <section className="tenant-package-panel" onClick={(event) => event.stopPropagation()}>
+              <header className="tenant-package-panel-head">
+                <div>
+                  <p className="tenant-package-panel-eyebrow">{name}</p>
+                  <h2 id="tenant-package-panel-title">Pilihan Paket Perjalanan</h2>
+                </div>
+                <button type="button" className="tenant-package-panel-close" aria-label="Tutup" onClick={() => setPackagePanelOpen(false)}>
+                  <IconX size={22} stroke={2} />
+                </button>
+              </header>
+              <div className="tenant-package-panel-list">
+                {packageRows.length === 0 && <p className="tenant-package-panel-empty">Jadwal keberangkatan baru sedang disiapkan. Hubungi tim travel untuk informasi terbaru.</p>}
+                {packageRows.map((item) => {
+                  const thumb = safeOptionalImageLink(item.imageUrl);
+                  const option = item.seasons?.[0];
+                  const seasonName = seasons.find((entry) => entry.id === (option?.seasonId ?? item.seasonId))?.name;
+                  const expanded = expandedPackageId === item.id;
+                  const href = item.registrationSlug ? `/register/${item.registrationSlug}` : item.seasonId ? `/register/${item.seasonId}` : "#kontak";
+                  return (
+                    <article key={item.id} className={`tenant-package-line${expanded ? " is-expanded" : ""}`}>
+                      <button type="button" className="tenant-package-line-head" aria-expanded={expanded} onClick={() => setExpandedPackageId(expanded ? null : item.id)}>
+                        {thumb
+                          ? <img src={thumb} alt={item.title} loading="lazy" />
+                          : <span className="tenant-package-line-fallback"><IconCalendarEvent size={20} stroke={1.6} /></span>}
+                        <span className="tenant-package-line-main">
+                          <strong>{item.title}</strong>
+                          <span className="tenant-package-line-when"><IconCalendarEvent size={15} stroke={1.9} />{[seasonName, item.durationLabel].filter(Boolean).join(" · ") || "Jadwal menyusul"}</span>
+                          <span className="tenant-package-line-price">Mulai <b>{item.priceLabel || "Hubungi kami"}</b></span>
+                        </span>
+                        <IconChevronRight size={20} stroke={2} className="tenant-package-line-chevron" />
+                      </button>
+                      {expanded && (
+                        <div className="tenant-package-line-detail">
+                          {item.summary && <p>{item.summary}</p>}
+                          {(item.facilities?.length ?? 0) > 0 && (
+                            <div className="tenant-package-facilities">
+                              {item.facilities?.map((facility) => <span key={facility}><IconCheck size={16} stroke={2} />{facility}</span>)}
+                            </div>
+                          )}
+                          {(item.seasons?.length ?? 0) > 0 && (
+                            <div className="tenant-season-options">
+                              {item.seasons?.map((season) => (
+                                <div key={season.seasonId} className="tenant-season-option">
+                                  <div>
+                                    <strong>{seasons.find((entry) => entry.id === season.seasonId)?.name || "Musim tersedia"}</strong>
+                                    <span>{season.hotelMakkah || "Hotel Makkah akan dikonfirmasi"} · {season.hotelMadinah || "Hotel Madinah akan dikonfirmasi"}</span>
+                                    {season.airline && <span>{season.airline}{season.hotelRating ? ` · ${season.hotelRating}` : ""}</span>}
+                                    <div className="tenant-room-prices">
+                                      <span><b>Quad</b>{season.quadPrice || "Hubungi kami"}</span>
+                                      <span><b>Triple</b>{season.triplePrice || "Hubungi kami"}</span>
+                                      <span><b>Double</b>{season.doublePrice || "Hubungi kami"}</span>
+                                    </div>
+                                  </div>
+                                  <div><small>{typeof season.seatsRemaining === "number" ? `${season.seatsRemaining} kursi tersisa` : "Kuota hubungi travel"}</small></div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <Link href={href} className="tenant-package-line-cta" onClick={() => setPackagePanelOpen(false)}>Daftar paket ini <IconArrowRight size={17} stroke={2} /></Link>
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+              <a href="#paket" className="tenant-package-panel-cta" onClick={() => { setPackagePanelOpen(false); selectSection("paket"); }}>Lihat semua paket <IconArrowRight size={19} stroke={2} /></a>
+            </section>
+          </div>
+        )}
+        <div className="tenant-floating-tools" aria-label="Akses cepat">{<button type="button" className="tenant-floating-package" onClick={() => openPackagePanel()}><IconPackages size={20} stroke={1.8} /><span><small>Lihat pilihan</small><strong>Cek Paket Tersedia</strong></span></button>}{musicURL && <button type="button" className={`tenant-music-control${musicBlocked ? " is-blocked" : ""}`} onClick={() => void toggleMusic()} aria-label={!musicPlaying ? "Putar musik latar" : musicMuted ? "Nyalakan suara musik" : "Bisukan musik"} title={content.backgroundMusicTitle || "Musik latar"}>{!musicPlaying ? <IconPlayerPlay size={20} stroke={1.9} /> : musicMuted ? <IconVolumeOff size={20} stroke={1.9} /> : <IconVolume size={20} stroke={1.9} />}<span>{!musicPlaying ? "Putar musik" : musicMuted ? "Suara mati" : content.backgroundMusicTitle || "Musik latar"}</span></button>}</div>
         {musicURL && <audio ref={audioRef} src={musicURL} loop preload="metadata" onPlay={() => setMusicPlaying(true)} onPause={() => setMusicPlaying(false)} onError={() => { setMusicPlaying(false); setMusicBlocked(true); }} />}
         {lightbox && <div className="tenant-lightbox" role="dialog" aria-modal="true" aria-label={lightbox.altText} onClick={() => setLightbox(null)}><button type="button" onClick={() => setLightbox(null)} aria-label="Tutup foto">×</button><figure onClick={(event) => event.stopPropagation()}><img src={safeImageLink(lightbox.imageUrl)} alt={lightbox.altText} />{lightbox.caption && <figcaption>{lightbox.caption}</figcaption>}</figure></div>}
         {booking && <BookingModal booking={booking} onClose={() => setBooking(null)} />}
