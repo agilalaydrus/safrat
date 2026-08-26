@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// Operator subscriptions. Every method here stays reachable while a
+// subscription has lapsed — locking the dashboard without leaving a way to pay
+// would strand the operator with no route back.
+service SubscriptionService {
+  rpc GetMySubscription(GetMySubscriptionRequest) returns (GetMySubscriptionResponse);
+  rpc ListMyInvoices(ListMyInvoicesRequest) returns (ListMyInvoicesResponse);
+  // Issues an invoice for the chosen plan. BANK_TRANSFER returns an amount
+  // carrying a unique suffix; GATEWAY returns a Xendit checkout URL covering
+  // QRIS, cards, virtual accounts and e-wallets.
+  rpc CreateInvoice(CreateInvoiceRequest) returns (SubscriptionInvoice);
+}
+
+enum PaymentChannel {
+  PAYMENT_CHANNEL_UNSPECIFIED = 0;
+  PAYMENT_CHANNEL_BANK_TRANSFER = 1;
+  PAYMENT_CHANNEL_GATEWAY = 2;
+}
+
+message SubscriptionInvoice {
+  string id = 1;
+  string plan = 2;
+  string status = 3;
+  PaymentChannel channel = 4;
+  int64 base_amount_idr = 5;
+  // What must actually be sent. For a bank transfer the last digits are a
+  // unique code — paying a rounded figure cannot be matched.
+  int64 amount_idr = 6;
+  google.protobuf.Timestamp period_start = 7;
+  google.protobuf.Timestamp period_end = 8;
+  google.protobuf.Timestamp due_at = 9;
+  string checkout_url = 10;
+}
+
+message GetMySubscriptionRequest {}
+message GetMySubscriptionResponse {
+  string plan = 1;
+  string status = 2;
+  google.protobuf.Timestamp access_until = 3;
+  // Whether the dashboard is usable right now. Derived from access_until, not
+  // from status.
+  bool active = 4;
+  SubscriptionInvoice pending_invoice = 5;
+  // Bank details the operator transfers to, shown alongside the unique amount.
+  string transfer_bank_name = 6;
+  string transfer_account_number = 7;
+  string transfer_account_holder = 8;
+}
+
+message ListMyInvoicesRequest {
+  int32 limit = 1 [(buf.validate.field).int32 = {gte: 0, lte: 100}];
+}
+message ListMyInvoicesResponse {
+  repeated SubscriptionInvoice invoices = 1;
+}
+
+message CreateInvoiceRequest {
+  string plan = 1 [(buf.validate.field).string = {min_len: 1, max_len: 20}];
+  PaymentChannel channel = 2;
+}

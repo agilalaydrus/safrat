@@ -119,6 +119,7 @@ func main() {
 		storefrontRepository := repository.NewStorefrontRepository(pool)
 		storefrontAssetRepository := repository.NewStorefrontAssetRepository(pool)
 		operatorDomainRepository := repository.NewOperatorDomainRepository(pool)
+		subscriptionRepository := repository.NewSubscriptionRepository(pool)
 
 		// Gate for Caddy's on-demand TLS. Caddy asks before obtaining a
 		// certificate for a hostname it has never seen; answering 200 here is
@@ -206,7 +207,13 @@ func main() {
 		checklistService := service.NewChecklistService(operatorRepository, pilgrimRepository, checklistRepository)
 		lostReportService := service.NewLostReportService(operatorRepository, pilgrimRepository, lostReportRepository, groupLeaderRepository, firebasePusher)
 		tripService := service.NewTripService(operatorRepository, tripRepository, pilgrimRepository, sosRepository, groupLeaderRepository, transportRepository, kloterService)
+		subscriptionService := service.NewSubscriptionService(subscriptionRepository, operatorRepository, xenditClient, service.TransferAccount{
+			BankName:      strings.TrimSpace(os.Getenv("SUBSCRIPTION_BANK_NAME")),
+			AccountNumber: strings.TrimSpace(os.Getenv("SUBSCRIPTION_BANK_ACCOUNT")),
+			AccountHolder: strings.TrimSpace(os.Getenv("SUBSCRIPTION_BANK_HOLDER")),
+		}, config.AllowedOrigin)
 		operatorHandler := handler.NewOperatorHandler(operatorService)
+		subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService)
 		pilgrimHandler := handler.NewPilgrimHandler(pilgrimService)
 		seasonHandler := handler.NewSeasonHandler(seasonService)
 		accommodationHandler := handler.NewAccommodationHandler(accommodationService)
@@ -244,9 +251,10 @@ func main() {
 		}
 		handlerOptions := []connect.HandlerOption{connect.WithInterceptors(
 			rateLimitInterceptor,
-			middleware.NewAuthInterceptor(pool, identityRepository),
+			middleware.NewAuthInterceptor(pool, identityRepository, subscriptionRepository),
 		)}
 		operatorPath, operatorServiceHandler := hajjv1connect.NewOperatorServiceHandler(operatorHandler, handlerOptions...)
+		subscriptionPath, subscriptionServiceHandler := hajjv1connect.NewSubscriptionServiceHandler(subscriptionHandler, handlerOptions...)
 		pilgrimPath, pilgrimServiceHandler := hajjv1connect.NewPilgrimServiceHandler(pilgrimHandler, handlerOptions...)
 		seasonPath, seasonServiceHandler := hajjv1connect.NewSeasonServiceHandler(seasonHandler, handlerOptions...)
 		accommodationPath, accommodationServiceHandler := hajjv1connect.NewAccommodationServiceHandler(accommodationHandler, handlerOptions...)
@@ -279,6 +287,7 @@ func main() {
 		healthReportPath, healthReportServiceHandler := hajjv1connect.NewHealthReportServiceHandler(healthReportHandler, handlerOptions...)
 		monitoringPath, monitoringServiceHandler := hajjv1connect.NewMonitoringServiceHandler(monitoringHandler, handlerOptions...)
 		mux.Handle(operatorPath, operatorServiceHandler)
+		mux.Handle(subscriptionPath, subscriptionServiceHandler)
 		mux.Handle(pilgrimPath, pilgrimServiceHandler)
 		mux.Handle(seasonPath, seasonServiceHandler)
 		mux.Handle(accommodationPath, accommodationServiceHandler)

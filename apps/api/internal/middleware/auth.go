@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
+	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/repository"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -192,6 +193,15 @@ var restrictedMemberProcedures = map[string]bool{
 	"/hajj.v1.GroupService/ListOperatorMembers": true,
 }
 
+// billingProcedures stay reachable while a subscription has lapsed. Locking the
+// dashboard is meant to prompt payment, not to trap the operator: without these
+// they could not see what they owe, or pay it.
+var billingProcedures = map[string]bool{
+	"/hajj.v1.SubscriptionService/GetMySubscription": true,
+	"/hajj.v1.SubscriptionService/ListMyInvoices":    true,
+	"/hajj.v1.SubscriptionService/CreateInvoice":     true,
+}
+
 // NewAuthInterceptor validates Better Auth's opaque database session token.
 // Better Auth does not issue JWTs for its default session strategy.
 //
@@ -202,13 +212,14 @@ var restrictedMemberProcedures = map[string]bool{
 // its handler with zero authentication and an empty operator ID on ctx.
 // Both WrapUnary and WrapStreamingHandler below call the same authenticate
 // helper so the two paths can never drift.
-func NewAuthInterceptor(pool *pgxpool.Pool, identityRepository *repository.IdentityRepository) connect.Interceptor {
-	return &authInterceptor{pool: pool, identity: identityRepository}
+func NewAuthInterceptor(pool *pgxpool.Pool, identityRepository *repository.IdentityRepository, subscriptions *repository.SubscriptionRepository) connect.Interceptor {
+	return &authInterceptor{pool: pool, identity: identityRepository, subscriptions: subscriptions}
 }
 
 type authInterceptor struct {
-	pool     *pgxpool.Pool
-	identity *repository.IdentityRepository
+	pool          *pgxpool.Pool
+	identity      *repository.IdentityRepository
+	subscriptions *repository.SubscriptionRepository
 }
 
 func (a *authInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
@@ -280,6 +291,32 @@ func (a *authInterceptor) authenticate(ctx context.Context, procedure string, he
 		restricted := len(access.LeaderGroups) > 0 || (access.LinkedAgent != nil && access.LinkedAgent.IsActive)
 		if restricted && !restrictedMemberProcedures[procedure] {
 			return nil, connect.NewError(connect.CodePermissionDenied, errors.New("this account's role does not permit this action"))
+		}
+	}
+
+	// Subscription gate. Placed here deliberately: only an operator staff
+	// session reaches this far, because the pilgrim, leader and agent surfaces
+	// return earlier via publicProcedures or sessionOnlyProcedures. A lapsed
+	// subscription therefore locks the dashboard while leaving the storefront
+	// and every portal a jamaah depends on untouched.
+	//
+	// Fails closed — a procedure added later is gated unless it is deliberately
+	// listed as reachable while locked. Billing must stay open, or an operator
+	// is trapped with no way to pay their way back in.
+	if a.subscriptions != nil && !billingProcedures[procedure] {
+		access, accessErr := a.subscriptions.GetAccessByOrgID(ctx, organizationID)
+		switch {
+		case errors.Is(accessErr, apperror.ErrNotFound):
+			// No subscription row yet: an operator created before billing
+			// existed, or one still mid-signup. Allowing it is the safe
+			// direction; the alternative locks a paying customer out over a
+			// missing row.
+		case accessErr != nil:
+			slog.Error("resolve subscription", "procedure", procedure, "error", accessErr)
+			return nil, connect.NewError(connect.CodeInternal, errors.New("resolve subscription"))
+		case !access.Allowed:
+			return nil, connect.NewError(connect.CodeFailedPrecondition,
+				errors.New("langganan tidak aktif; selesaikan pembayaran untuk membuka kembali dashboard"))
 		}
 	}
 	ctx = context.WithValue(ctx, ctxKeyUserID, userID)

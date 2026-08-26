@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/hajj-saas/api/internal/apperror"
@@ -289,4 +290,78 @@ func isUniqueViolation(err error, constraint string) bool {
 		return false
 	}
 	return pgErr.Code == "23505" && pgErr.ConstraintName == constraint
+}
+
+// PendingInvoice returns the operator's outstanding invoice, if any. One at a
+// time: a second would put two unique amounts in play for the same operator,
+// and a transfer against the older one would look unmatched.
+func (r *SubscriptionRepository) PendingInvoice(ctx context.Context, operatorID string) (Invoice, error) {
+	id, err := pgUUID(operatorID)
+	if err != nil {
+		return Invoice{}, apperror.ErrValidation
+	}
+	var invoice Invoice
+	err = r.pool.QueryRow(ctx, `
+		SELECT id::text, plan::text, status::text, channel::text, base_amount_idr, amount_idr,
+		       period_start, period_end, due_at, COALESCE(checkout_url, '')
+		FROM subscription_invoices
+		WHERE operator_id = $1 AND status = 'PENDING' AND due_at > NOW()
+		ORDER BY created_at DESC LIMIT 1`, id).
+		Scan(&invoice.ID, &invoice.Plan, &invoice.Status, &invoice.Channel, &invoice.BaseAmount,
+			&invoice.Amount, &invoice.PeriodStart, &invoice.PeriodEnd, &invoice.DueAt, &invoice.CheckoutURL)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Invoice{}, apperror.ErrNotFound
+	}
+	return invoice, err
+}
+
+// ListInvoices returns the operator's billing history, newest first.
+func (r *SubscriptionRepository) ListInvoices(ctx context.Context, operatorID string, limit int32) ([]Invoice, error) {
+	id, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 24
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT id::text, plan::text, status::text, channel::text, base_amount_idr, amount_idr,
+		       period_start, period_end, due_at, COALESCE(checkout_url, '')
+		FROM subscription_invoices WHERE operator_id = $1
+		ORDER BY created_at DESC LIMIT $2`, id, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	invoices := make([]Invoice, 0, limit)
+	for rows.Next() {
+		var invoice Invoice
+		if err := rows.Scan(&invoice.ID, &invoice.Plan, &invoice.Status, &invoice.Channel, &invoice.BaseAmount,
+			&invoice.Amount, &invoice.PeriodStart, &invoice.PeriodEnd, &invoice.DueAt, &invoice.CheckoutURL); err != nil {
+			return nil, err
+		}
+		invoices = append(invoices, invoice)
+	}
+	return invoices, rows.Err()
+}
+
+// GetAccessByOrgID resolves access from a Better Auth organization id, which is
+// what the auth interceptor holds. Subscriptions are keyed by operators.id, so
+// the join belongs here rather than forcing every caller to look the operator
+// up first.
+func (r *SubscriptionRepository) GetAccessByOrgID(ctx context.Context, orgID string) (Access, error) {
+	if strings.TrimSpace(orgID) == "" {
+		return Access{}, apperror.ErrValidation
+	}
+	var access Access
+	err := r.pool.QueryRow(ctx, `
+		SELECT s.plan::text, s.status::text, s.access_until, s.access_until > NOW()
+		FROM subscriptions s
+		JOIN operators o ON o.id = s.operator_id
+		WHERE o.better_auth_org_id = $1`, orgID).
+		Scan(&access.Plan, &access.Status, &access.AccessUntil, &access.Allowed)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Access{}, apperror.ErrNotFound
+	}
+	return access, err
 }
