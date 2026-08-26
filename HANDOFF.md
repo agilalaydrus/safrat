@@ -83,6 +83,38 @@ These are decisions, not suggestions. Build to them.
    who paid must be able to preview and print their own receipt — not only the
    operator.
 
+#### Done — PR 1: money ledgers (migration 090)
+
+Requirement 1's precondition. Two append-only ledgers now exist:
+`agent_commission_entries` and `pilgrim_balance_entries`.
+
+- **Append-only is enforced by the database**, not by convention: a trigger
+  rejects every UPDATE, and every DELETE unless `app.allow_ledger_purge` is set
+  for the transaction. That flag exists only so an operator/tenant teardown (and
+  test fixtures) can still cascade; ordinary code paths cannot reach it.
+- **A reversal is a new negative row** (`kind = 'REVERSED'`), so a balance can
+  return to zero while both the earning and the clawback stay visible.
+- **`agents.id` is referenced with ON DELETE RESTRICT.** An agent who has earned
+  commission can no longer be deleted; `AgentService.Delete` maps that FK
+  violation to a clear Indonesian message telling the operator to deactivate
+  instead. Deleting such an agent would have destroyed the payout history.
+- **Idempotent by index, not by check-then-act**: unique on
+  `(agent_id, idempotency_key)` and on `(order_id, kind)`. `AppendCommission`/
+  `AppendBalance` treat those two violations as success, so a redelivered
+  webhook credits once. Verified with six concurrent appends of one key →
+  balance credited exactly once.
+- **Reads switched over**: `GetAgentPayoutSummary` and `ListAgentPayouts` now
+  read commission from the ledger instead of summing PAID orders, so a future
+  reversal will actually reduce what an agent can withdraw.
+- **Writes wired in**: `applyPaidSideEffects` appends an `EARNED` entry keyed by
+  the order. Failure is reported to Sentry rather than returned — the payment is
+  already settled, and erroring would make the provider retry a success.
+- Existing balances were preserved by a backfill from PAID orders, so no agent's
+  payable figure changed at the cutover.
+
+Still open in this area: nothing writes `pilgrim_balance_entries` yet — it is
+the target of the refund PR below, which is what puts money into it.
+
 #### Open — ordered
 
 1. **`REFUNDED` status and refund records.** `orders.status` allows only

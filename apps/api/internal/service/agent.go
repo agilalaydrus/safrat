@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
@@ -496,6 +498,14 @@ func (s *AgentService) Delete(ctx context.Context, orgID string, req *hajjv1.Del
 		return nil, serviceError("AgentService.Delete", err)
 	}
 	if err := s.agentRepository.Delete(ctx, op.ID, req.AgentId); err != nil {
+		// An agent who has earned commission cannot be removed — deleting them
+		// would erase the record of money they were owed. Deactivating is the
+		// supported path, and the operator needs to be told that rather than
+		// shown a foreign key error.
+		if repository.IsForeignKeyViolation(err, "agent_commission_entries_agent_id_fkey") {
+			return nil, connect.NewError(connect.CodeFailedPrecondition,
+				errors.New("agen sudah memiliki riwayat komisi dan tidak dapat dihapus; nonaktifkan agen ini agar riwayatnya tetap tersimpan"))
+		}
 		return nil, serviceError("AgentService.Delete", err)
 	}
 	return &hajjv1.DeleteAgentResponse{}, nil

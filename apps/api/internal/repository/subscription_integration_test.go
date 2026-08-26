@@ -232,7 +232,7 @@ func TestSubscriptionTransferAmountIsUniquePerDayIntegration(t *testing.T) {
 	if err == nil {
 		t.Fatal("a settled amount was reissued on the same day")
 	}
-	if !isUniqueViolation(err, "subscription_invoices_transfer_daily_idx") {
+	if IsUniqueViolation(err, "subscription_invoices_transfer_daily_idx") {
 		t.Fatalf("rejected for the wrong reason: %v", err)
 	}
 

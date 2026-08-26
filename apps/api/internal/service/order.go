@@ -22,14 +22,15 @@ type OrderService struct {
 	orderRepository    *repository.OrderRepository
 	auditRepository    *repository.AuditRepository
 	xenditClient       *payment.Client
+	ledgerRepository   *repository.LedgerRepository
 	// appBaseURL is where Xendit redirects the pilgrim's browser back to
 	// after payment — CORS_ALLOWED_ORIGIN doubles as this app's canonical
 	// web origin, so no separate env var.
 	appBaseURL string
 }
 
-func NewOrderService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, orders *repository.OrderRepository, audit *repository.AuditRepository, xendit *payment.Client, appBaseURL string) *OrderService {
-	return &OrderService{operatorRepository: operators, pilgrimRepository: pilgrims, productRepository: products, orderRepository: orders, auditRepository: audit, xenditClient: xendit, appBaseURL: appBaseURL}
+func NewOrderService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, orders *repository.OrderRepository, audit *repository.AuditRepository, ledger *repository.LedgerRepository, xendit *payment.Client, appBaseURL string) *OrderService {
+	return &OrderService{operatorRepository: operators, pilgrimRepository: pilgrims, productRepository: products, orderRepository: orders, auditRepository: audit, ledgerRepository: ledger, xenditClient: xendit, appBaseURL: appBaseURL}
 }
 
 // computeSplit derives the platform/operator/agent commission split for a
@@ -188,6 +189,23 @@ func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req 
 // (see product.default_kloter_id) once an order actually reaches PAID —
 // best-effort: a failure here never undoes the payment, it's just logged.
 func (s *OrderService) applyPaidSideEffects(ctx context.Context, product *domain.Product, order *domain.Order) {
+	// Commission is earned the moment an order is paid, and is recorded as a
+	// ledger entry rather than inferred from the order's status. A refund then
+	// posts an explicit reversal instead of quietly changing what history says.
+	//
+	// Keyed by the order, so a redelivered webhook or a re-run job records the
+	// same earning once. Failures are reported rather than returned: the
+	// payment itself is already settled, and refusing here would only make the
+	// provider retry a settlement that succeeded.
+	if s.ledgerRepository != nil && order.AgentID != "" && order.AgentCommissionIDR > 0 {
+		if err := s.ledgerRepository.AppendCommission(ctx, repository.CommissionEntry{
+			OperatorID: order.OperatorID, AgentID: order.AgentID,
+			AmountIDR: order.AgentCommissionIDR, Kind: "EARNED", OrderID: order.ID,
+			Note: "Komisi dari pesanan lunas", IdempotencyKey: "order-earned-" + order.ID,
+		}); err != nil {
+			sentry.CaptureException(fmt.Errorf("OrderService.applyPaidSideEffects: append commission: %w", err))
+		}
+	}
 	if product == nil || product.Category != "TRAVEL_PACKAGE" || product.DefaultKloterID == "" {
 		return
 	}

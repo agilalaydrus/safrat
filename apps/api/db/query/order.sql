@@ -56,27 +56,34 @@ SELECT COUNT(*) FROM orders WHERE operator_id = $1 AND season_id = $2;
 -- AgentService), so neither is what's owed to them. total_disbursed_idr
 -- comes from the agent_payouts ledger (see migration 039); outstanding is
 -- computed by the caller as total_commission_idr - total_disbursed_idr.
+-- Same ledger-backed commission as GetAgentPayoutSummary.
 SELECT a.id AS agent_id, a.name AS agent_name,
-       COALESCE(SUM(o.agent_commission_idr) FILTER (WHERE o.status = 'PAID'), 0)::bigint AS total_commission_idr,
-       COUNT(o.id) FILTER (WHERE o.status = 'PAID')::int AS paid_order_count,
+       COALESCE(led.total, 0)::bigint AS total_commission_idr,
+       COALESCE(ord.paid_count, 0)::int AS paid_order_count,
        COALESCE(disb.total, 0)::bigint AS total_disbursed_idr
 FROM agents a
-LEFT JOIN orders o ON o.agent_id = a.id
+LEFT JOIN (SELECT agent_id, SUM(amount_idr) AS total FROM agent_commission_entries GROUP BY agent_id) led ON led.agent_id = a.id
+LEFT JOIN (SELECT agent_id, COUNT(*) AS paid_count FROM orders WHERE status = 'PAID' GROUP BY agent_id) ord ON ord.agent_id = a.id
 LEFT JOIN (SELECT agent_id, SUM(amount_idr) AS total FROM agent_payouts GROUP BY agent_id) disb ON disb.agent_id = a.id
 WHERE a.operator_id = $1
-GROUP BY a.id, a.name, disb.total
 ORDER BY total_commission_idr DESC;
 
 -- name: GetAgentPayoutSummary :one
+-- Commission comes from the ledger, not from summing orders. Summing orders
+-- meant a refund silently changed history: flip an order out of PAID and the
+-- agent's earnings moved with no record that a reversal happened. The ledger
+-- carries an explicit reversing entry instead, so the balance and the reason
+-- for it are both auditable. Order count still comes from orders, because that
+-- is what it counts.
 SELECT a.id AS agent_id, a.name AS agent_name,
-       COALESCE(SUM(o.agent_commission_idr) FILTER (WHERE o.status = 'PAID'), 0)::bigint AS total_commission_idr,
-       COUNT(o.id) FILTER (WHERE o.status = 'PAID')::int AS paid_order_count,
+       COALESCE(led.total, 0)::bigint AS total_commission_idr,
+       COALESCE(ord.paid_count, 0)::int AS paid_order_count,
        COALESCE(disb.total, 0)::bigint AS total_disbursed_idr
 FROM agents a
-LEFT JOIN orders o ON o.agent_id = a.id
+LEFT JOIN (SELECT agent_id, SUM(amount_idr) AS total FROM agent_commission_entries GROUP BY agent_id) led ON led.agent_id = a.id
+LEFT JOIN (SELECT agent_id, COUNT(*) AS paid_count FROM orders WHERE status = 'PAID' GROUP BY agent_id) ord ON ord.agent_id = a.id
 LEFT JOIN (SELECT agent_id, SUM(amount_idr) AS total FROM agent_payouts GROUP BY agent_id) disb ON disb.agent_id = a.id
-WHERE a.id = $2 AND a.operator_id = $1
-GROUP BY a.id, a.name, disb.total;
+WHERE a.id = $2 AND a.operator_id = $1;
 
 -- name: RecordAgentPayout :one
 INSERT INTO agent_payouts (operator_id, agent_id, amount_idr, note, paid_by_user_id, method, request_id)

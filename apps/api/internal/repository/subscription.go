@@ -144,14 +144,14 @@ func (r *SubscriptionRepository) IssueBankTransferInvoice(ctx context.Context, o
 		// Another request for this operator won the race and already holds the
 		// only pending invoice. Hand back theirs rather than failing or
 		// retrying: the caller asked for an invoice and there is one.
-		if isUniqueViolation(err, "subscription_invoices_one_pending_idx") {
+		if IsUniqueViolation(err, "subscription_invoices_one_pending_idx") {
 			return r.PendingInvoice(ctx, operatorID)
 		}
 		// A suffix already taken — by a live invoice, or by one issued today.
 		// Both are retryable; anything else is a real fault and must not be
 		// swallowed by another attempt.
-		if isUniqueViolation(err, "subscription_invoices_transfer_amount_idx") ||
-			isUniqueViolation(err, "subscription_invoices_transfer_daily_idx") {
+		if IsUniqueViolation(err, "subscription_invoices_transfer_amount_idx") ||
+			IsUniqueViolation(err, "subscription_invoices_transfer_daily_idx") {
 			continue
 		}
 		return Invoice{}, err
@@ -173,7 +173,7 @@ func (r *SubscriptionRepository) IssueGatewayInvoice(ctx context.Context, operat
 	// No unique suffix: the gateway identifies the payment by its own id, so
 	// charging a round figure is clearer for the payer.
 	invoice, err := r.insertInvoice(ctx, id, plan, "GATEWAY", base, base, externalID, checkoutURL)
-	if isUniqueViolation(err, "subscription_invoices_one_pending_idx") {
+	if IsUniqueViolation(err, "subscription_invoices_one_pending_idx") {
 		return r.PendingInvoice(ctx, operatorID)
 	}
 	return invoice, err
@@ -303,7 +303,7 @@ func randomSuffix() (int64, error) {
 // isUniqueViolation reports whether err is a unique-constraint failure on the
 // named index. Matching the specific index matters: any other unique violation
 // is a real bug and must not be silently retried.
-func isUniqueViolation(err error, constraint string) bool {
+func IsUniqueViolation(err error, constraint string) bool {
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) {
 		return false
@@ -419,4 +419,15 @@ func (r *SubscriptionRepository) CloseByExternalID(ctx context.Context, external
 		return apperror.ErrNotFound
 	}
 	return nil
+}
+
+// isForeignKeyViolation reports whether err is a foreign key failure on the
+// named constraint, so callers can turn it into an explanation rather than an
+// internal error.
+func IsForeignKeyViolation(err error, constraint string) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	return pgErr.Code == "23503" && pgErr.ConstraintName == constraint
 }
