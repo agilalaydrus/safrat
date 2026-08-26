@@ -40,6 +40,49 @@ Do not "fix" these; they were checked:
   webhook cannot pay twice, and `applyPaidSideEffects` cannot re-run.
 - Webhook token verified; `xendit_invoice_id` has a unique index.
 
+#### Owner requirements for the money paths (2026-08-26, verbatim intent)
+
+These are decisions, not suggestions. Build to them.
+
+1. **A refund returns the customer's balance/deposit, and reverses the agent
+   commission** — commission is earned only on *successful* transactions, so a
+   refunded order must claw it back.
+   *Implied and currently missing:* there is **no customer balance or deposit
+   concept anywhere** — no wallet, balance or ledger table exists. And
+   commission is not a ledger: it is a column on `orders`
+   (`agent_commission_idr`) summed over PAID orders, so there is nothing to
+   reverse. Both need to become append-only ledgers before a refund can be
+   expressed honestly. A reversal must be a new negative entry, never an edit
+   of the original — an edited history cannot be audited.
+
+2. **The same idempotency key always means an *advice* about the same
+   transaction**, never a new one. A repeat must return the original outcome,
+   not merely avoid a duplicate insert. That is stronger than a unique index:
+   the key and its response have to be **stored**, so a replay after the
+   original response was lost replays that response — same id, same status,
+   same amount. Applies to every money-moving endpoint, not only the ones fixed
+   so far.
+
+3. **Structure follows the product type:**
+   - *Physical* — proper e-commerce structure: stock, address, shipment,
+     tracking, delivery state, proof of handover.
+   - *Digital* — follow the wallet/e-money pattern (DANA, GoPay): issue,
+     deliver, and settle with an explicit fulfilment state, provider reference,
+     and reversal path.
+   - *Umroh packages* — follow established industry best practice rather than
+     inventing a flow.
+
+4. **The paid amount must always be validated**, by the best available method —
+   not assumed correct because the provider said PAID.
+
+5. **Fraud and suspect handling is required**, including a held/suspended
+   ("gantung") state so a questionable transaction is neither settled nor
+   rejected while it is reviewed, and is excluded from totals meanwhile.
+
+6. **Receipts are per transaction and per account that transacted.** The person
+   who paid must be able to preview and print their own receipt — not only the
+   operator.
+
 #### Open — ordered
 
 1. **`REFUNDED` status and refund records.** `orders.status` allows only
