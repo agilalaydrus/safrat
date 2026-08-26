@@ -97,12 +97,70 @@ JOIN "user" u ON u.id = p.paid_by_user_id
 WHERE p.agent_id = $1 AND p.operator_id = $2
 ORDER BY p.created_at DESC;
 
--- name: ListOrderCreditsForAgent :many
-SELECT o.id, o.agent_commission_idr, o.paid_at, pr.name AS product_name
+-- name: ListCommissionEntriesForAgent :many
+-- Read from the commission ledger, not from PAID orders.
+--
+-- Summing orders had a failure that only appeared once refunds existed: a
+-- refunded order leaves PAID, so its earning vanished from this list entirely
+-- while the agent's balance dropped by the same amount. Money disappeared with
+-- no line explaining it. The ledger keeps both the earning and the reversal,
+-- so the list explains the balance instead of contradicting it.
+SELECT e.id, e.amount_idr, e.kind, e.note, e.created_at,
+       COALESCE(pr.name, '') AS product_name
+FROM agent_commission_entries e
+LEFT JOIN orders o ON o.id = e.order_id
+LEFT JOIN products pr ON pr.id = o.product_id
+WHERE e.agent_id = $1
+ORDER BY e.created_at DESC;
+
+-- name: ListReferredCustomerRecapForAgent :many
+-- Per-jamaah money recap for one agent's referrals.
+--
+-- Paid and refunded come from order_payments, so a refunded order contributes
+-- nothing to what is held. Commission comes from the ledger for the same
+-- reason it does everywhere else: it is the only place a reversal is recorded.
+SELECT
+  p.id AS pilgrim_id,
+  p.full_name AS pilgrim_name,
+  COUNT(op.order_id)::int AS order_count,
+  COUNT(*) FILTER (WHERE op.status = 'REFUNDED')::int AS refunded_order_count,
+  COALESCE(SUM(op.net_paid_idr), 0)::bigint AS total_paid_idr,
+  COALESCE(SUM(op.refunded_idr), 0)::bigint AS refunded_idr,
+  COALESCE((
+    SELECT SUM(e.amount_idr) FROM agent_commission_entries e
+    JOIN orders eo ON eo.id = e.order_id
+    WHERE e.agent_id = $2 AND eo.pilgrim_id = p.id
+  ), 0)::bigint AS commission_idr,
+  MAX(op.created_at)::timestamptz AS last_transaction_at
+FROM pilgrims p
+JOIN order_payments op ON op.pilgrim_id = p.id AND op.agent_id = $2
+WHERE p.operator_id = $1
+GROUP BY p.id, p.full_name
+ORDER BY MAX(op.created_at) DESC;
+
+-- name: ListTransactionsForPilgrim :many
+-- The jamaah's own history. Every order they ever made, including the ones
+-- that were refunded — a refund is something they need to see, not something
+-- that quietly removes the transaction from view.
+SELECT
+  o.id, o.quantity, o.total_price_idr, o.status, o.created_at, o.paid_at,
+  o.xendit_invoice_url,
+  pr.name AS product_name,
+  COALESCE(r.amount_idr, 0)::bigint AS refunded_idr,
+  r.created_at AS refunded_at,
+  COALESCE(r.reason, '') AS refund_reason
 FROM orders o
 JOIN products pr ON pr.id = o.product_id
-WHERE o.agent_id = $1 AND o.status = 'PAID'
-ORDER BY o.paid_at DESC;
+LEFT JOIN order_refunds r ON r.order_id = o.id
+WHERE o.pilgrim_id = $1
+ORDER BY o.created_at DESC;
+
+-- name: GetPilgrimTransactionTotals :one
+SELECT
+  COALESCE(SUM(net_paid_idr), 0)::bigint AS total_paid_idr,
+  COALESCE(SUM(refunded_idr), 0)::bigint AS total_refunded_idr
+FROM order_payments
+WHERE pilgrim_id = $1;
 
 -- name: SumPendingPayoutRequests :one
 SELECT COALESCE(SUM(amount_idr), 0)::bigint AS total

@@ -110,3 +110,14 @@ func (h *PilgrimAppHandler) RegisterMyPushToken(ctx context.Context, req *connec
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PilgrimAppHandler) ListMyTransactions(ctx context.Context, req *connect.Request[hajjv1.ListMyTransactionsRequest]) (*connect.Response[hajjv1.ListMyTransactionsResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.pilgrimAppService.ListMyTransactions(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { IconBuildingHospital, IconBusStop, IconDots, IconHeartbeat, IconLogout, IconMapPin, IconMessageCircle, IconMoonStars, IconSos, IconUserCircle, IconUsersGroup, IconWallet, IconX } from "@tabler/icons-react";
+import { IconBuildingHospital, IconBusStop, IconDots, IconHeartbeat, IconLogout, IconMapPin, IconMessageCircle, IconMoonStars, IconSos, IconUserCircle, IconUsersGroup, IconWallet, IconReceipt, IconX } from "@tabler/icons-react";
 import { RequireAccess } from "@/components/auth/RequireAccess";
 import { LeaderGroupProvider, useLeaderGroup } from "@/lib/leader-context";
 import { authClient } from "@/lib/auth-client";
@@ -28,6 +28,7 @@ const MORE_ITEMS = [
   ["Ibadah", "/leader/rituals", IconMoonStars],
   ["Kesehatan", "/leader/health", IconHeartbeat],
   ["Dompet", "/leader/wallet", IconWallet],
+  ["Transaksi", "/leader/transactions", IconReceipt],
   ["Profil", "/leader/profile", IconUserCircle],
 ] as const;
 

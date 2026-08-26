@@ -23,6 +23,13 @@ service PilgrimAppService {
   rpc GetMyInfo(GetMyInfoRequest) returns (PilgrimAppInfo);
   rpc ListMySchedule(ListMyScheduleRequest) returns (ListMyScheduleResponse);
   rpc ListMyProducts(ListMyProductsRequest) returns (ListMyProductsResponse);
+  // ListMyTransactions is the jamaah's own transaction history — what they
+  // bought, what they paid, what came back, and the balance the operator now
+  // holds for them. Public (app_access_code) like the rest of this service.
+  //
+  // A refund used to be invisible from this side: the order simply left the
+  // paid list. Somebody whose money was returned could not see that it was.
+  rpc ListMyTransactions(ListMyTransactionsRequest) returns (ListMyTransactionsResponse);
   // UpdateMyLocation is called every 5 minutes by the pilgrim PWA (and once
   // more, best-effort, right before an SOS alert is sent) so a coordinator
   // or leader always has a recent GPS fix to work from during an emergency.
@@ -186,4 +193,38 @@ message CertificateData {
   // fields are zero-valued while locked, so the client should check this
   // before rendering anything.
   bool unlocked = 15;
+}
+
+// One line in a jamaah's own transaction history.
+message PilgrimTransaction {
+  string order_id = 1;
+  string product_name = 2;
+  int32 quantity = 3;
+  int64 amount_idr = 4;
+  // PENDING | PAID | EXPIRED | FAILED | CANCELLED | REFUNDED
+  string status = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp paid_at = 7;
+  // Set only when this transaction was refunded. A refund always returns the
+  // whole amount, so refunded_idr equals amount_idr whenever it is set.
+  int64 refunded_idr = 8;
+  google.protobuf.Timestamp refunded_at = 9;
+  string refund_reason = 10;
+  // Present while the transaction is still payable, so the jamaah can finish
+  // paying from their own history rather than hunting for the original link.
+  string checkout_url = 11;
+}
+
+message ListMyTransactionsRequest {
+  string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message ListMyTransactionsResponse {
+  repeated PilgrimTransaction transactions = 1;
+  // Net of refunds — what the operator has actually received and kept.
+  int64 total_paid_idr = 2;
+  int64 total_refunded_idr = 3;
+  // What the operator currently holds on this jamaah's behalf, from the
+  // balance ledger. Money returned by a refund lands here.
+  int64 balance_idr = 4;
 }

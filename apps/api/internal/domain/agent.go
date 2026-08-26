@@ -74,11 +74,28 @@ type AgentPayoutEntry struct {
 	CreatedAt  time.Time
 }
 
-type OrderCredit struct {
-	OrderID     string
+// CommissionEntry is one movement in an agent's commission ledger. Kind is
+// EARNED, REVERSED or ADJUSTMENT; a reversal carries a negative amount.
+type CommissionEntry struct {
+	ID          string
 	AmountIDR   int64
+	Kind        string
+	Note        string
 	ProductName string
-	PaidAt      time.Time
+	CreatedAt   time.Time
+}
+
+// ReferredCustomerRecap is what one referred jamaah transacted, net of
+// refunds, together with the commission it produced.
+type ReferredCustomerRecap struct {
+	PilgrimID          string
+	PilgrimName        string
+	OrderCount         int32
+	RefundedOrderCount int32
+	TotalPaidIDR       int64
+	RefundedIDR        int64
+	CommissionIDR      int64
+	LastTransactionAt  time.Time
 }
 
 type PayoutRequest struct {

@@ -185,7 +185,7 @@ func main() {
 		agentService := service.NewAgentService(operatorRepository, agentRepository, auditRepository, pool)
 		journeyService := service.NewJourneyService(operatorRepository, journeyRepository, auditRepository)
 		groupService := service.NewGroupService(operatorRepository, groupRepository, auditRepository, agentRepository, outboxRepository, pool, eventBus)
-		pilgrimAppService := service.NewPilgrimAppService(pilgrimRepository, productRepository, auditRepository, identityRepository, broadcastRepository, journeyRepository, ritualRepository, notificationRepository)
+		pilgrimAppService := service.NewPilgrimAppService(pilgrimRepository, productRepository, auditRepository, identityRepository, broadcastRepository, journeyRepository, ritualRepository, notificationRepository, orderRepository, ledgerRepository)
 		sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, auditRepository, firebasePusher, eventBus)
 		chatService := service.NewChatService(operatorRepository, pilgrimRepository, chatRepository, groupRepository, groupLeaderRepository)
 		groupLeaderService := service.NewGroupLeaderService(operatorRepository, groupLeaderRepository, sosRepository, pilgrimRepository, groupRepository, outboxRepository, pool, eventBus)

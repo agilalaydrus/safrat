@@ -253,6 +253,40 @@ the pilgrim credited; a replay returns the original refund with
 subscription locks the refund endpoint** with `failed_precondition` — the gate
 lives in the interceptor, so nothing below HTTP could have shown that.
 
+#### Done — PR 5: transaction history for jamaah, muttawwif and agent
+
+Owner's request: a transaction history page for jamaah and muttawwif, and a
+transaction recap in the agent portal covering customers under their referral.
+
+**A gap our own refund work created.** `ListOrderCreditsForAgent` read PAID
+orders, so a refunded order left the agent's transaction list entirely while
+their balance dropped by the same amount — money vanishing with no line
+explaining it. The wallet now reads `agent_commission_entries`, so the earning
+and its reversal both appear and the list accounts for the balance.
+`WalletTransactionType` gained `REVERSAL` and `ADJUSTMENT` so a clawback cannot
+be mistaken for a credit.
+
+- **Jamaah** — `/pilgrim/transactions`. Their orders, what was paid, what came
+  back, and the balance the operator holds for them. A refunded transaction
+  stays in the list, struck through and labelled, rather than disappearing:
+  somebody whose money was returned needs to see that it was. A pending one
+  still carries its payment link.
+- **Muttawwif** — `/leader/transactions`. The commission ledger, each entry
+  showing its direction and reason.
+- **Agent** — "Rekap Transaksi" tab. One row per referred jamaah: orders, what
+  is still held after refunds, and the commission it produced. All net —
+  `order_payments` for money, the ledger for commission.
+
+**Security decision on the jamaah endpoint.** `ListMyTransactions` is in
+`sessionOnlyProcedures`, **not** `publicProcedures` where the rest of
+PilgrimAppService lives. `app_access_code` also opens the schedule and product
+list and travels through links and caches; payment history is a step up. It
+requires a valid Better Auth session **and** that the presented code belongs to
+that session's own pilgrim (constant-time compare), and takes the pilgrim id
+from the session rather than the request. Verified over real HTTP: the code
+alone is refused, another account's session presenting this code is refused, the
+jamaah's own session with a wrong code is refused, and only both together work.
+
 #### Open — ordered
 
 1. **Duplicate orders.** `CreateOrder` has no idempotency key and `orders` has

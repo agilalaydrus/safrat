@@ -154,3 +154,11 @@ func (h *AgentHandler) DeleteAgent(ctx context.Context, req *connect.Request[haj
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *AgentHandler) ListMyReferredTransactions(ctx context.Context, req *connect.Request[hajjv1.ListMyReferredTransactionsRequest]) (*connect.Response[hajjv1.ListMyReferredTransactionsResponse], error) {
+	result, err := h.agentService.ListMyReferredTransactions(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx))
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

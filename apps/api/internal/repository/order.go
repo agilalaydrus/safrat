@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -179,4 +180,43 @@ func toOrderFromListRow(o db.ListOrdersRow) *domain.Order {
 	base.ProductName = o.ProductName
 	base.AgentName = o.AgentName.String
 	return base
+}
+
+// ListTransactionsForPilgrim returns a jamaah's own order history, refunds
+// included. A refunded order stays in the list: somebody whose money was
+// returned needs to see that it was, not find the transaction missing.
+func (r *OrderRepository) ListTransactionsForPilgrim(ctx context.Context, pilgrimID string) ([]*domain.PilgrimTransaction, error) {
+	pilgrimUUID, err := pgUUID(pilgrimID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	rows, err := r.queries.ListTransactionsForPilgrim(ctx, pilgrimUUID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*domain.PilgrimTransaction, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &domain.PilgrimTransaction{
+			OrderID: uuid.UUID(row.ID.Bytes).String(), ProductName: row.ProductName,
+			Quantity: row.Quantity, AmountIDR: row.TotalPriceIdr, Status: row.Status,
+			CreatedAt: row.CreatedAt.Time, PaidAt: timestamptzPtr(row.PaidAt),
+			RefundedIDR: row.RefundedIdr, RefundedAt: timestamptzPtr(row.RefundedAt),
+			RefundReason: row.RefundReason, CheckoutURL: row.XenditInvoiceUrl.String,
+		})
+	}
+	return result, nil
+}
+
+// PilgrimTransactionTotals is what the operator has received and kept from this
+// jamaah, and what came back.
+func (r *OrderRepository) PilgrimTransactionTotals(ctx context.Context, pilgrimID string) (paid, refunded int64, err error) {
+	pilgrimUUID, err := pgUUID(pilgrimID)
+	if err != nil {
+		return 0, 0, apperror.ErrValidation
+	}
+	totals, err := r.queries.GetPilgrimTransactionTotals(ctx, pilgrimUUID)
+	if err != nil {
+		return 0, 0, err
+	}
+	return totals.TotalPaidIdr, totals.TotalRefundedIdr, nil
 }

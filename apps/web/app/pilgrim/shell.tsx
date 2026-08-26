@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { IconHome, IconSos, IconMessageCircle, IconCalendarEvent, IconShoppingBag, IconLogout, IconSpeakerphone, IconMoonStars, IconDots, IconX } from "@tabler/icons-react";
+import { IconHome, IconSos, IconMessageCircle, IconCalendarEvent, IconShoppingBag, IconReceipt, IconLogout, IconSpeakerphone, IconMoonStars, IconDots, IconX } from "@tabler/icons-react";
 import { useRegisterShellServiceWorker } from "@/lib/register-sw";
 import { useLocationPing } from "@/lib/geolocation";
 import { useRegisterPilgrimPush } from "@/lib/pilgrim-push";
@@ -27,6 +27,7 @@ const PRIMARY_TABS = [
 const MORE_ITEMS = [
   ["Ibadah", "/pilgrim/rituals", IconMoonStars],
   ["Produk", "/pilgrim/products", IconShoppingBag],
+  ["Transaksi", "/pilgrim/transactions", IconReceipt],
   ["Info", "/pilgrim/announcements", IconSpeakerphone],
 ] as const;
 

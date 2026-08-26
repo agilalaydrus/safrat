@@ -167,7 +167,7 @@ func (s *AgentService) GetMyWallet(ctx context.Context, orgID, userID string) (*
 	if err != nil {
 		return nil, serviceError("AgentService.GetMyWallet", err)
 	}
-	credits, err := s.agentRepository.ListOrderCredits(ctx, agent.ID)
+	entries, err := s.agentRepository.ListCommissionEntries(ctx, agent.ID)
 	if err != nil {
 		return nil, serviceError("AgentService.GetMyWallet", err)
 	}
@@ -179,9 +179,19 @@ func (s *AgentService) GetMyWallet(ctx context.Context, orgID, userID string) (*
 	if err != nil {
 		return nil, serviceError("AgentService.GetMyWallet", err)
 	}
-	transactions := make([]*hajjv1.WalletTransaction, 0, len(credits)+len(debits)+len(pendingRequests))
-	for _, c := range credits {
-		transactions = append(transactions, &hajjv1.WalletTransaction{Id: c.OrderID, Type: hajjv1.WalletTransactionType_WALLET_TRANSACTION_TYPE_CREDIT, AmountIdr: c.AmountIDR, Description: c.ProductName, CreatedAt: timestamppb.New(c.PaidAt)})
+	transactions := make([]*hajjv1.WalletTransaction, 0, len(entries)+len(debits)+len(pendingRequests))
+	for _, e := range entries {
+		// A reversal is stored as a negative amount, but it reads as a
+		// withdrawal of commission rather than a negative earning — the type
+		// carries the direction, so the amount is shown as a magnitude.
+		amount := e.AmountIDR
+		if amount < 0 {
+			amount = -amount
+		}
+		transactions = append(transactions, &hajjv1.WalletTransaction{
+			Id: e.ID, Type: commissionEntryType(e.Kind), AmountIdr: amount,
+			Description: commissionEntryDescription(e), CreatedAt: timestamppb.New(e.CreatedAt),
+		})
 	}
 	for _, d := range debits {
 		transactions = append(transactions, &hajjv1.WalletTransaction{Id: d.ID, Type: hajjv1.WalletTransactionType_WALLET_TRANSACTION_TYPE_DEBIT, AmountIdr: d.AmountIDR, Description: payoutMethodLabel(d.Method), CreatedAt: timestamppb.New(d.CreatedAt)})
@@ -692,6 +702,67 @@ func (s *AgentService) ListMyDocuments(ctx context.Context, orgID, userID string
 	result := &hajjv1.ListAgentDocumentsResponse{Documents: make([]*hajjv1.AgentDocument, 0, len(documents))}
 	for _, doc := range documents {
 		result.Documents = append(result.Documents, agentDocumentMessage(doc))
+	}
+	return result, nil
+}
+
+func commissionEntryType(kind string) hajjv1.WalletTransactionType {
+	switch kind {
+	case "EARNED":
+		return hajjv1.WalletTransactionType_WALLET_TRANSACTION_TYPE_CREDIT
+	case "REVERSED":
+		return hajjv1.WalletTransactionType_WALLET_TRANSACTION_TYPE_REVERSAL
+	default:
+		return hajjv1.WalletTransactionType_WALLET_TRANSACTION_TYPE_ADJUSTMENT
+	}
+}
+
+// The product name alone would leave a reversal looking identical to the
+// earning it cancels, so a reversal says what it is and why.
+func commissionEntryDescription(entry *domain.CommissionEntry) string {
+	switch {
+	case entry.Kind == "REVERSED" && entry.ProductName != "":
+		return "Komisi ditarik — " + entry.ProductName
+	case entry.Kind == "REVERSED":
+		return "Komisi ditarik kembali"
+	case entry.ProductName != "":
+		return entry.ProductName
+	case entry.Note != "":
+		return entry.Note
+	default:
+		return "Komisi"
+	}
+}
+
+// ListMyReferredTransactions is the money view of an agent's referral list:
+// what each jamaah they referred actually transacted, and what survived after
+// refunds. Self-scoped from the caller's own identity — an agent id in the
+// request would be a way to read someone else's book.
+func (s *AgentService) ListMyReferredTransactions(ctx context.Context, orgID, userID string) (*hajjv1.ListMyReferredTransactionsResponse, error) {
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("AgentService.ListMyReferredTransactions", err)
+	}
+	agent, err := s.agentRepository.GetByLinkedUser(ctx, op.ID, userID)
+	if err != nil {
+		return nil, serviceError("AgentService.ListMyReferredTransactions", err)
+	}
+	recaps, err := s.agentRepository.ListReferredCustomerRecap(ctx, op.ID, agent.ID)
+	if err != nil {
+		return nil, serviceError("AgentService.ListMyReferredTransactions", err)
+	}
+	result := &hajjv1.ListMyReferredTransactionsResponse{Customers: make([]*hajjv1.ReferredCustomerRecap, 0, len(recaps))}
+	for _, recap := range recaps {
+		result.TotalPaidIdr += recap.TotalPaidIDR
+		result.TotalRefundedIdr += recap.RefundedIDR
+		result.TotalCommissionIdr += recap.CommissionIDR
+		result.Customers = append(result.Customers, &hajjv1.ReferredCustomerRecap{
+			PilgrimId: recap.PilgrimID, PilgrimName: recap.PilgrimName,
+			OrderCount: recap.OrderCount, RefundedOrderCount: recap.RefundedOrderCount,
+			TotalPaidIdr: recap.TotalPaidIDR, RefundedIdr: recap.RefundedIDR,
+			CommissionIdr:     recap.CommissionIDR,
+			LastTransactionAt: timestamppb.New(recap.LastTransactionAt),
+		})
 	}
 	return result, nil
 }

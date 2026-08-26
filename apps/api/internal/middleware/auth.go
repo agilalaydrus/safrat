@@ -115,6 +115,14 @@ var sessionOnlyProcedures = map[string]bool{
 	"/hajj.v1.PilgrimAppService/LinkGoogleAccount": true,
 	"/hajj.v1.IdentityService/GetMyAccess":         true,
 	"/hajj.v1.IdentityService/InvalidateMyAccess":  true,
+	// ListMyTransactions is deliberately here rather than in
+	// publicProcedures, unlike the rest of PilgrimAppService. Payment history
+	// is a step up from a schedule: app_access_code alone should not open it,
+	// because that code also travels through links and caches. The service
+	// additionally requires the presented code to be the one belonging to this
+	// session's own pilgrim, and takes the pilgrim id from the session rather
+	// than the request.
+	"/hajj.v1.PilgrimAppService/ListMyTransactions": true,
 }
 
 // restrictedMemberProcedures lists RPCs a "restricted member" — an org

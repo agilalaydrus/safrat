@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"strings"
 
@@ -22,10 +23,12 @@ type PilgrimAppService struct {
 	journeyRepository      *repository.JourneyRepository
 	ritualRepository       *repository.RitualRepository
 	notificationRepository *repository.NotificationRepository
+	orderRepository        *repository.OrderRepository
+	ledgerRepository       *repository.LedgerRepository
 }
 
-func NewPilgrimAppService(pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, audit *repository.AuditRepository, identity *repository.IdentityRepository, broadcasts *repository.BroadcastRepository, journeys *repository.JourneyRepository, rituals *repository.RitualRepository, notifications *repository.NotificationRepository) *PilgrimAppService {
-	return &PilgrimAppService{pilgrimRepository: pilgrims, productRepository: products, auditRepository: audit, identityRepository: identity, broadcastRepository: broadcasts, journeyRepository: journeys, ritualRepository: rituals, notificationRepository: notifications}
+func NewPilgrimAppService(pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, audit *repository.AuditRepository, identity *repository.IdentityRepository, broadcasts *repository.BroadcastRepository, journeys *repository.JourneyRepository, rituals *repository.RitualRepository, notifications *repository.NotificationRepository, orders *repository.OrderRepository, ledger *repository.LedgerRepository) *PilgrimAppService {
+	return &PilgrimAppService{pilgrimRepository: pilgrims, productRepository: products, auditRepository: audit, identityRepository: identity, broadcastRepository: broadcasts, journeyRepository: journeys, ritualRepository: rituals, notificationRepository: notifications, orderRepository: orders, ledgerRepository: ledger}
 }
 
 // certificateUnlockStatuses mirrors JourneyStatuses' tail — a certificate
@@ -276,6 +279,77 @@ func (s *PilgrimAppService) ListMyProducts(ctx context.Context, req *hajjv1.List
 			continue
 		}
 		result.Products = append(result.Products, productMessage(p))
+	}
+	return result, nil
+}
+
+// ListMyTransactions is the jamaah's own transaction history: what they
+// bought, what they paid, what came back, and the balance the operator now
+// holds for them.
+//
+// Unlike the rest of this service, it needs a real Better Auth session and is
+// NOT in publicProcedures. app_access_code is a bearer secret that also opens
+// the schedule and the product list; a leaked one should not additionally
+// expose somebody's payment history. So this requires both: a valid session,
+// and that the code presented is the one belonging to that session's own
+// pilgrim. Either alone is useless.
+//
+// The pilgrim id is then taken from the session's linked record, never from
+// the request, so nothing here can be pointed at another jamaah.
+func (s *PilgrimAppService) ListMyTransactions(ctx context.Context, req *hajjv1.ListMyTransactionsRequest) (*hajjv1.ListMyTransactionsResponse, error) {
+	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" {
+		return nil, serviceError("PilgrimAppService.ListMyTransactions", apperror.ErrValidation)
+	}
+	userID := middleware.UserIDFromCtx(ctx)
+	if userID == "" {
+		return nil, serviceError("PilgrimAppService.ListMyTransactions", apperror.ErrUnauthorized)
+	}
+	access, err := s.identityRepository.GetMyAccess(ctx, userID)
+	if err != nil {
+		return nil, serviceError("PilgrimAppService.ListMyTransactions", err)
+	}
+	if access.LinkedPilgrim == nil {
+		return nil, serviceError("PilgrimAppService.ListMyTransactions", apperror.ErrForbidden)
+	}
+	// Constant time, so a wrong code cannot be narrowed down by how long the
+	// comparison takes.
+	if subtle.ConstantTimeCompare([]byte(access.LinkedPilgrim.AppAccessCode), []byte(req.AppAccessCode)) != 1 {
+		return nil, serviceError("PilgrimAppService.ListMyTransactions", apperror.ErrForbidden)
+	}
+	info := access.LinkedPilgrim
+	transactions, err := s.orderRepository.ListTransactionsForPilgrim(ctx, info.ID)
+	if err != nil {
+		return nil, serviceError("PilgrimAppService.ListMyTransactions", err)
+	}
+	paid, refunded, err := s.orderRepository.PilgrimTransactionTotals(ctx, info.ID)
+	if err != nil {
+		return nil, serviceError("PilgrimAppService.ListMyTransactions", err)
+	}
+	balance, err := s.ledgerRepository.PilgrimBalance(ctx, info.ID)
+	if err != nil {
+		return nil, serviceError("PilgrimAppService.ListMyTransactions", err)
+	}
+	result := &hajjv1.ListMyTransactionsResponse{
+		Transactions: make([]*hajjv1.PilgrimTransaction, 0, len(transactions)),
+		TotalPaidIdr: paid, TotalRefundedIdr: refunded, BalanceIdr: balance,
+	}
+	for _, t := range transactions {
+		message := &hajjv1.PilgrimTransaction{
+			OrderId: t.OrderID, ProductName: t.ProductName, Quantity: t.Quantity,
+			AmountIdr: t.AmountIDR, Status: t.Status, RefundedIdr: t.RefundedIDR,
+			RefundReason: t.RefundReason, CreatedAt: timestamppb.New(t.CreatedAt),
+		}
+		if t.PaidAt != nil {
+			message.PaidAt = timestamppb.New(*t.PaidAt)
+		}
+		if t.RefundedAt != nil {
+			message.RefundedAt = timestamppb.New(*t.RefundedAt)
+		}
+		// Only offer the payment link while it can still be used.
+		if t.Status == "PENDING" {
+			message.CheckoutUrl = t.CheckoutURL
+		}
+		result.Transactions = append(result.Transactions, message)
 	}
 	return result, nil
 }

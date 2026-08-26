@@ -304,22 +304,55 @@ func (r *AgentRepository) ListMyPilgrims(ctx context.Context, operatorID, agentI
 	return result, nil
 }
 
-func (r *AgentRepository) ListOrderCredits(ctx context.Context, agentID string) ([]*domain.OrderCredit, error) {
+// ListCommissionEntries returns the agent's commission ledger, newest first.
+// Earnings and reversals both appear, so the list accounts for the balance.
+func (r *AgentRepository) ListCommissionEntries(ctx context.Context, agentID string) ([]*domain.CommissionEntry, error) {
 	agentUUID, err := pgUUID(agentID)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListOrderCreditsForAgent(ctx, agentUUID)
+	rows, err := r.queries.ListCommissionEntriesForAgent(ctx, agentUUID)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]*domain.OrderCredit, 0, len(rows))
+	result := make([]*domain.CommissionEntry, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, &domain.OrderCredit{
-			OrderID:     uuid.UUID(row.ID.Bytes).String(),
-			AmountIDR:   row.AgentCommissionIdr,
+		result = append(result, &domain.CommissionEntry{
+			ID:          uuid.UUID(row.ID.Bytes).String(),
+			AmountIDR:   row.AmountIdr,
+			Kind:        row.Kind,
+			Note:        row.Note,
 			ProductName: row.ProductName,
-			PaidAt:      row.PaidAt.Time,
+			CreatedAt:   row.CreatedAt.Time,
+		})
+	}
+	return result, nil
+}
+
+// ListReferredCustomerRecap returns one row per jamaah this agent referred who
+// has transacted, with amounts net of refunds.
+func (r *AgentRepository) ListReferredCustomerRecap(ctx context.Context, operatorID, agentID string) ([]*domain.ReferredCustomerRecap, error) {
+	operatorUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	agentUUID, err := pgUUID(agentID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListReferredCustomerRecapForAgent(ctx, db.ListReferredCustomerRecapForAgentParams{
+		OperatorID: operatorUUID, AgentID: agentUUID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*domain.ReferredCustomerRecap, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &domain.ReferredCustomerRecap{
+			PilgrimID: uuid.UUID(row.PilgrimID.Bytes).String(), PilgrimName: row.PilgrimName,
+			OrderCount: row.OrderCount, RefundedOrderCount: row.RefundedOrderCount,
+			TotalPaidIDR: row.TotalPaidIdr, RefundedIDR: row.RefundedIdr,
+			CommissionIDR: row.CommissionIdr, LastTransactionAt: row.LastTransactionAt.Time,
 		})
 	}
 	return result, nil
