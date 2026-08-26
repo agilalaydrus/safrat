@@ -287,6 +287,72 @@ from the session rather than the request. Verified over real HTTP: the code
 alone is refused, another account's session presenting this code is refused, the
 jamaah's own session with a wrong code is refused, and only both together work.
 
+#### Done — PR 6: referral attribution and order idempotency (migration 094)
+
+**The referral system was not running at all on the main purchase path.** Both
+`CreateOrder` and `CreateManualOrder` hard-coded `agentCommission = 0` and an
+empty `agent_id`. `pilgrims.agent_id` existed and drove the referral *lists*,
+but never any money: an agent's referral earned nothing the moment the jamaah
+bought anything. `products.agent_margin_pct` was configured, validated, and
+never read.
+
+Commission now follows the referral on every lane — jamaah self-checkout, staff
+manual order, and the new agent lane — via `computeSplit(product, quantity,
+agentID)`.
+
+**Selling is open; earning is not.** Owner's rule: anyone may transact for any
+jamaah, not only their own referrals. `CreateOrderForPilgrim` lets an agent or
+Muttawwif sell to any jamaah of their operator, and the commission still goes
+to that jamaah's referrer. The seller is recorded separately as
+`orders.placed_by_agent_id`. Keeping "who sold it" and "who earns from it"
+apart in the data is what lets selling be free without letting anyone take a
+commission that belongs to whoever brought the jamaah in. Verified: agent B
+sells to agent A's jamaah → A is credited 600,000, B is credited 0, and
+`placed_by_agent_id` is B.
+
+A jamaah with no referrer produces no commission. Making the seller the
+referrer would let an agent claim an unreferred jamaah by selling to them,
+quietly and permanently. **If the owner wants the seller to earn in that case,
+this is the decision to revisit.**
+
+**Order creation is now idempotent** (backlog item 1). `orders.idempotency_key`
+with a partial unique index per operator; the key is required by the schema on
+all three lanes. A replay returns the existing order *and its existing checkout
+link* rather than creating a second Xendit invoice the jamaah could also pay.
+Verified with six concurrent manual orders under one key → one order, one
+commission entry.
+
+`payment.Client.Configured()` is now nil-safe: an unconfigured deployment
+leaves the client nil, and a checkout request panicked rather than reporting
+that payments are unavailable.
+
+**A test that passed vacuously.** The first version of the agent-selling test
+read the order row inside `if err == nil`, and since Xendit is unconfigured in
+tests the order was never created — so every assertion was skipped and the test
+was green while proving nothing. `payment.NewClientWithEndpoint` now lets tests
+drive the real invoice path against a stub.
+
+#### Constraint — TawafiqHub is the merchant for digital products
+
+Owner, 2026-08-26: *"clients travel umroh semuanya bukan penjual untuk product
+digital, yang punya jalur API ke supplier, dll hanya pihak tawafiqhub."*
+
+Travel operators are a sales channel for digital products, not the merchant.
+Only the platform holds supplier integrations. `platform_margin_pct` is the
+platform's cut on that supply; the operator and agent margins are channel
+margin.
+
+**This contradicts the current schema.** `products` are per-operator
+(`products.operator_id`, `products.season_id`), so today every operator creates
+their own `ROAMING_DATA`/`PPOB_CREDIT` rows with prices they invent, and the
+platform has no catalogue at all. Nothing built so far depends on operators
+being the merchant, so nothing here is wrong — but the digital catalogue needs
+to become platform-owned before digital products can actually be sold.
+
+Related and still open: `PPOB_CREDIT` has **no provider integration whatsoever**
+— a jamaah pays and no credit is ever sent. That fulfilment is the platform's
+job, not the operator's, and it should stay disabled until it exists.
+
 #### Open — ordered
 
 1. **Duplicate orders.** `CreateOrder` has no idempotency key and `orders` has

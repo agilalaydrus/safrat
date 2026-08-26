@@ -45,7 +45,7 @@ func TestRefundOrderOverHTTPIntegration(t *testing.T) {
 	orderService := service.NewOrderService(
 		repository.NewOperatorRepository(queries), repository.NewPilgrimRepository(queries),
 		repository.NewProductRepository(queries, pool), repository.NewOrderRepository(queries),
-		repository.NewAuditRepository(queries), ledger, repository.NewRefundRepository(pool),
+		repository.NewAuditRepository(queries), ledger, repository.NewRefundRepository(pool), repository.NewAgentRepository(queries),
 		pool, nil, "http://localhost:3000")
 
 	path, serviceHandler := hajjv1connect.NewOrderServiceHandler(

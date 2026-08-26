@@ -31,6 +31,17 @@ service OrderService {
   // commission is reversed in full.
   rpc RefundOrder(RefundOrderRequest) returns (RefundOrderResponse);
   rpc ListOrderRefunds(ListOrderRefundsRequest) returns (ListOrderRefundsResponse);
+  // CreateOrderForPilgrim lets an agent or Muttawwif transact on behalf of any
+  // jamaah of their operator — the same sale staff can already make, without
+  // having to ask staff to make it.
+  //
+  // Selling is open; earning is not. The commission always follows the
+  // jamaah's referral, never the seller, so placing an order for somebody
+  // else's referral credits that referrer and not the person who sold it.
+  // Whoever placed it is recorded separately as placed_by_agent_id. That
+  // separation is what keeps the referral system intact while leaving anyone
+  // free to transact.
+  rpc CreateOrderForPilgrim(CreateOrderForPilgrimRequest) returns (CreateOrderResponse);
 }
 
 message Order {
@@ -54,12 +65,19 @@ message Order {
   string checkout_url = 17;
   google.protobuf.Timestamp paid_at = 18;
   google.protobuf.Timestamp created_at = 19;
+  // Who placed the order, when it was not the jamaah themselves. Distinct from
+  // agent_id, which is the referrer who earns the commission.
+  string placed_by_agent_id = 20;
 }
 
 message CreateOrderRequest {
   string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
   string product_id = 2 [(buf.validate.field).string.min_len = 1];
   int32 quantity = 3 [(buf.validate.field).int32 = {gte: 1, lte: 20}];
+  // Required: without it a double-tapped checkout button made two orders and
+  // two invoices, and the jamaah could pay both. The same key always settles
+  // the same order and returns its existing payment link.
+  string idempotency_key = 4 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
 }
 
 message CreateOrderResponse {
@@ -91,6 +109,14 @@ message CreateManualOrderRequest {
   int32 quantity = 3 [(buf.validate.field).int32 = {gte: 1, lte: 20}];
   ManualOrderPaymentMethod payment_method = 4 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3]}];
   string note = 5 [(buf.validate.field).string.max_len = 500];
+  string idempotency_key = 6 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+}
+
+message CreateOrderForPilgrimRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+  string product_id = 2 [(buf.validate.field).string.uuid = true];
+  int32 quantity = 3 [(buf.validate.field).int32 = {gte: 1, lte: 20}];
+  string idempotency_key = 4 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
 }
 
 message ListOrdersRequest {

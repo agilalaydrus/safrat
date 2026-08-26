@@ -24,6 +24,7 @@ func (r *PilgrimRepository) GetAppInfo(ctx context.Context, appAccessCode string
 		RoomNumber:          row.RoomNumber.String,
 		RequiresWheelchair:  row.RequiresWheelchair,
 		SeasonID:            uuidString(row.SeasonID),
+		AgentID:             nullableUUIDString(row.AgentID),
 		OperatorID:          uuidString(row.OperatorID),
 		KloterID:            nullableUUIDString(row.KloterID),
 		KloterCode:          row.KloterCode.String,

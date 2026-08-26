@@ -1,9 +1,23 @@
 -- name: CreateOrder :one
+-- ON CONFLICT DO NOTHING rather than letting the unique violation raise: the
+-- caller recovers the existing order by reading it back, and inside a
+-- transaction a failed statement would poison that read.
 INSERT INTO orders (
   operator_id, season_id, pilgrim_id, product_id, agent_id, quantity,
-  unit_price_idr, total_price_idr, platform_amount_idr, operator_amount_idr, agent_commission_idr
-) VALUES ($1, $2, $3, $4, NULLIF($5::text, '')::uuid, $6, $7, $8, $9, $10, $11)
+  unit_price_idr, total_price_idr, platform_amount_idr, operator_amount_idr,
+  agent_commission_idr, idempotency_key, placed_by_agent_id
+) VALUES ($1, $2, $3, $4, NULLIF($5::text, '')::uuid, $6, $7, $8, $9, $10, $11,
+          $12, NULLIF($13::text, '')::uuid)
+ON CONFLICT (operator_id, idempotency_key) WHERE idempotency_key <> '' DO NOTHING
 RETURNING *;
+
+-- name: GetOrderByIdempotencyKey :one
+SELECT o.*, p.full_name AS pilgrim_name, pr.name AS product_name, a.name AS agent_name
+FROM orders o
+JOIN pilgrims p ON p.id = o.pilgrim_id
+JOIN products pr ON pr.id = o.product_id
+LEFT JOIN agents a ON a.id = o.agent_id
+WHERE o.operator_id = $1 AND o.idempotency_key = $2;
 
 -- name: SetOrderXenditInvoice :exec
 UPDATE orders

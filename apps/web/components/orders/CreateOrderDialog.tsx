@@ -28,11 +28,16 @@ export default function CreateOrderDialog({ open, seasonId, onClose, onCreated }
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<{ checkoutUrl: string; paidDirectly: boolean } | undefined>();
+  // Minted once per order being composed, not per submit. A double-click, or a
+  // retry after a dropped response, then settles the same order rather than
+  // creating a second one the jamaah could also be charged for.
+  const [idempotencyKey, setIdempotencyKey] = useState("");
 
   useEffect(() => {
     if (!open || !seasonId) return;
     setPilgrimSearch(""); setPilgrimId(""); setProductId(""); setQuantity(1);
     setMethod(ManualOrderPaymentMethod.XENDIT_LINK); setNote(""); setErrors({}); setResult(undefined);
+    setIdempotencyKey(crypto.randomUUID());
     pilgrimClient.listPilgrims({ seasonId, limit: 500, offset: 0 }).then((r) => setPilgrims(r.pilgrims)).catch(() => setPilgrims([]));
     productClient.listProducts({ seasonId }).then((r) => setProducts(r.products.filter((p) => p.isActive))).catch(() => setProducts([]));
   }, [open, seasonId]);
@@ -64,7 +69,7 @@ export default function CreateOrderDialog({ open, seasonId, onClose, onCreated }
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setSaving(true);
     try {
-      const response = await orderClient.createManualOrder({ pilgrimId, productId, quantity, paymentMethod: method, note: note.trim() });
+      const response = await orderClient.createManualOrder({ pilgrimId, productId, quantity, paymentMethod: method, note: note.trim(), idempotencyKey });
       if (method === ManualOrderPaymentMethod.XENDIT_LINK) {
         setResult({ checkoutUrl: response.checkoutUrl, paidDirectly: false });
       } else {

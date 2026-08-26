@@ -19,6 +19,11 @@ export default function PilgrimProductsPage() {
   const [buying, setBuying] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState<string>("");
+  // One key per product the jamaah is trying to buy, minted when the page
+  // loads and kept until a purchase actually goes through. A double-tap, or a
+  // retry after a dropped response, then reuses it and settles the same order
+  // instead of creating a second one they could also be charged for.
+  const [orderKeys, setOrderKeys] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!code) return;
@@ -35,8 +40,10 @@ export default function PilgrimProductsPage() {
     if (!code) return;
     setBuying(product.id);
     setError("");
+    const idempotencyKey = orderKeys[product.id] ?? crypto.randomUUID();
+    if (!orderKeys[product.id]) setOrderKeys((keys) => ({ ...keys, [product.id]: idempotencyKey }));
     try {
-      const result = await orderClient.createOrder({ appAccessCode: code, productId: product.id, quantity: 1 });
+      const result = await orderClient.createOrder({ appAccessCode: code, productId: product.id, quantity: 1, idempotencyKey });
       if (result.checkoutUrl) {
         window.location.href = result.checkoutUrl;
         return;

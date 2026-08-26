@@ -196,7 +196,7 @@ func main() {
 		monitoringService := service.NewMonitoringService(operatorRepository, monitoringRepository, groupRepository, eventBus)
 		identityService := service.NewIdentityService(identityRepository)
 		xenditClient := payment.NewClient(config.XenditSecretKey)
-		orderService := service.NewOrderService(operatorRepository, pilgrimRepository, productRepository, orderRepository, auditRepository, ledgerRepository, refundRepository, pool, xenditClient, config.AllowedOrigin)
+		orderService := service.NewOrderService(operatorRepository, pilgrimRepository, productRepository, orderRepository, auditRepository, ledgerRepository, refundRepository, agentRepository, pool, xenditClient, config.AllowedOrigin)
 		broadcastService := service.NewBroadcastService(operatorRepository, broadcastRepository, auditRepository)
 		registrationService := service.NewRegistrationService(operatorRepository, registrationRepository, auditRepository, agentRepository)
 		waitlistService := service.NewWaitlistService(operatorRepository, waitlistRepository, auditRepository)

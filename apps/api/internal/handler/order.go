@@ -81,3 +81,14 @@ func (h *OrderHandler) ListOrderRefunds(ctx context.Context, req *connect.Reques
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *OrderHandler) CreateOrderForPilgrim(ctx context.Context, req *connect.Request[hajjv1.CreateOrderForPilgrimRequest]) (*connect.Response[hajjv1.CreateOrderResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.orderService.CreateOrderForPilgrim(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

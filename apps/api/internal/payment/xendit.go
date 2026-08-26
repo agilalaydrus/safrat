@@ -27,15 +27,29 @@ var ErrNotConfigured = errors.New("Xendit belum dikonfigurasi (XENDIT_SECRET_KEY
 const invoicesURL = "https://api.xendit.co/v2/invoices"
 
 type Client struct {
-	secretKey  string
-	httpClient *http.Client
+	secretKey   string
+	invoicesURL string
+	httpClient  *http.Client
 }
 
 func NewClient(secretKey string) *Client {
-	return &Client{secretKey: secretKey, httpClient: &http.Client{}}
+	return &Client{secretKey: secretKey, invoicesURL: invoicesURL, httpClient: &http.Client{}}
 }
 
-func (c *Client) Configured() bool { return c.secretKey != "" }
+// NewClientWithEndpoint points the client at a different invoices endpoint.
+//
+// It exists so tests can drive the real request and response handling against
+// a stub rather than either calling Xendit or skipping the path entirely.
+// Production always uses NewClient; nothing outside a test should call this.
+func NewClientWithEndpoint(secretKey, endpoint string) *Client {
+	return &Client{secretKey: secretKey, invoicesURL: endpoint, httpClient: &http.Client{}}
+}
+
+// Configured reports whether payments can actually be taken. Nil-safe: an
+// unconfigured deployment leaves the client nil, and "no client" is precisely
+// "not configured" — a panic there would turn a missing environment variable
+// into a crash on a checkout request.
+func (c *Client) Configured() bool { return c != nil && c.secretKey != "" }
 
 type CreateInvoiceRequest struct {
 	ExternalID         string // our order id — Xendit echoes this back on the webhook
@@ -68,7 +82,7 @@ func (c *Client) CreateInvoice(ctx context.Context, req CreateInvoiceRequest) (*
 	if err != nil {
 		return nil, fmt.Errorf("marshal xendit invoice request: %w", err)
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, invoicesURL, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.invoicesURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("build xendit request: %w", err)
 	}

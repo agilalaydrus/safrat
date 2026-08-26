@@ -2,11 +2,13 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -22,32 +24,69 @@ func NewOrderRepository(queries *db.Queries) *OrderRepository {
 // never rewrites a past order's numbers. agentID may be empty ("" means
 // NULL, matching the pilgrims/movements NULLIF(...,”) convention used
 // throughout this codebase).
-func (r *OrderRepository) Create(ctx context.Context, operatorID, seasonID, pilgrimID, productID, agentID string, quantity int32, unitPriceIDR, totalPriceIDR, platformAmountIDR, operatorAmountIDR, agentCommissionIDR int64) (*domain.Order, error) {
-	opUUID, err := pgUUID(operatorID)
+// CreateOrderParams describes one order to create. A struct rather than a
+// dozen positional arguments: two adjacent int64 amounts are trivially easy to
+// swap at a call site and impossible to notice afterwards.
+type CreateOrderParams struct {
+	OperatorID string
+	SeasonID   string
+	PilgrimID  string
+	ProductID  string
+	// AgentID is the referrer who earns the commission, taken from the
+	// pilgrim's referral, never from whoever placed the order.
+	AgentID            string
+	PlacedByAgentID    string
+	Quantity           int32
+	UnitPriceIDR       int64
+	TotalPriceIDR      int64
+	PlatformAmountIDR  int64
+	OperatorAmountIDR  int64
+	AgentCommissionIDR int64
+	IdempotencyKey     string
+}
+
+// Create records an order, or returns the one already recorded under the same
+// idempotency key. The second return value reports which happened, so a caller
+// does not create a second payment invoice for an order that already has one.
+func (r *OrderRepository) Create(ctx context.Context, params CreateOrderParams) (*domain.Order, bool, error) {
+	opUUID, err := pgUUID(params.OperatorID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	seasonUUID, err := pgUUID(seasonID)
+	seasonUUID, err := pgUUID(params.SeasonID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	pilgrimUUID, err := pgUUID(pilgrimID)
+	pilgrimUUID, err := pgUUID(params.PilgrimID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	productUUID, err := pgUUID(productID)
+	productUUID, err := pgUUID(params.ProductID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	order, err := r.queries.CreateOrder(ctx, db.CreateOrderParams{
 		OperatorID: opUUID, SeasonID: seasonUUID, PilgrimID: pilgrimUUID, ProductID: productUUID,
-		Column5: agentID, Quantity: quantity, UnitPriceIdr: unitPriceIDR, TotalPriceIdr: totalPriceIDR,
-		PlatformAmountIdr: platformAmountIDR, OperatorAmountIdr: operatorAmountIDR, AgentCommissionIdr: agentCommissionIDR,
+		Column5: params.AgentID, Quantity: params.Quantity, UnitPriceIdr: params.UnitPriceIDR,
+		TotalPriceIdr: params.TotalPriceIDR, PlatformAmountIdr: params.PlatformAmountIDR,
+		OperatorAmountIdr: params.OperatorAmountIDR, AgentCommissionIdr: params.AgentCommissionIDR,
+		IdempotencyKey: params.IdempotencyKey, Column13: params.PlacedByAgentID,
+	})
+	if err == nil {
+		return toOrder(order), true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, err
+	}
+	// No row came back: this key already made an order. That order is what the
+	// caller is asking for.
+	existing, err := r.queries.GetOrderByIdempotencyKey(ctx, db.GetOrderByIdempotencyKeyParams{
+		OperatorID: opUUID, IdempotencyKey: params.IdempotencyKey,
 	})
 	if err != nil {
-		return nil, databaseError(err)
+		return nil, false, err
 	}
-	return toOrder(order), nil
+	return toOrderFromRow(db.GetOrderRow(existing)), false, nil
 }
 
 // MarkPaidManually is the admin cash/bank-transfer counterpart to

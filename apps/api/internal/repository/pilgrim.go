@@ -600,6 +600,7 @@ func toPilgrim(value db.Pilgrim) *domain.Pilgrim {
 		MedicalNotes:                 value.MedicalNotes.String,
 		RequiresWheelchair:           value.RequiresWheelchair,
 		MahramID:                     nullableUUIDString(value.MahramID),
+		AgentID:                      nullableUUIDString(value.AgentID),
 		IsSubstituted:                value.IsSubstituted,
 		SubstitutedByID:              nullableUUIDString(value.SubstitutedByID),
 		AppAccessCode:                value.AppAccessCode,

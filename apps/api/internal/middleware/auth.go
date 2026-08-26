@@ -167,9 +167,22 @@ var restrictedMemberProcedures = map[string]bool{
 	// NOT ListPayoutRequests/RecordAgentPayout/RejectPayoutRequest/
 	// ListAgents/etc — those are the operator's payout inbox and agent
 	// roster, not a Tour Leader's own data.
-	"/hajj.v1.AgentService/GetMyWallet":        true,
-	"/hajj.v1.AgentService/RequestAgentPayout": true,
-	"/hajj.v1.AgentService/ListMyPilgrims":     true,
+	"/hajj.v1.AgentService/GetMyWallet":                true,
+	"/hajj.v1.AgentService/RequestAgentPayout":         true,
+	"/hajj.v1.AgentService/ListMyPilgrims":             true,
+	"/hajj.v1.AgentService/ListMyReferredTransactions": true,
+	// OrderService/CreateOrderForPilgrim — an agent or Muttawwif selling to any
+	// jamaah of their operator. Selling is deliberately open, but the
+	// commission still follows the jamaah's referral rather than the seller,
+	// so this cannot be used to earn from somebody else's referral. The
+	// operator boundary still holds: the caller's agent record is resolved
+	// from their own identity, and every id in the request is re-checked
+	// against that operator.
+	//
+	// Deliberately NOT CreateManualOrder, whose CASH/BANK_TRANSFER paths mark
+	// an order PAID on the caller's word alone, nor RefundOrder, which moves
+	// money back out.
+	"/hajj.v1.OrderService/CreateOrderForPilgrim": true,
 	// KYC self-service — same "resolve own agent from identity" scoping as
 	// GetMyWallet. Works for a Muttawwif too (EnsureAgentForLeader).
 	"/hajj.v1.AgentService/SubmitMyAgentKyc":     true,

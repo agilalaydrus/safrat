@@ -26,6 +26,7 @@ type OrderService struct {
 	auditRepository    *repository.AuditRepository
 	xenditClient       *payment.Client
 	ledgerRepository   *repository.LedgerRepository
+	agentRepository    *repository.AgentRepository
 	refundRepository   *repository.RefundRepository
 	db                 *pgxpool.Pool
 	// appBaseURL is where Xendit redirects the pilgrim's browser back to
@@ -34,22 +35,36 @@ type OrderService struct {
 	appBaseURL string
 }
 
-func NewOrderService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, orders *repository.OrderRepository, audit *repository.AuditRepository, ledger *repository.LedgerRepository, refunds *repository.RefundRepository, db *pgxpool.Pool, xendit *payment.Client, appBaseURL string) *OrderService {
-	return &OrderService{operatorRepository: operators, pilgrimRepository: pilgrims, productRepository: products, orderRepository: orders, auditRepository: audit, ledgerRepository: ledger, refundRepository: refunds, db: db, xenditClient: xendit, appBaseURL: appBaseURL}
+func NewOrderService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, orders *repository.OrderRepository, audit *repository.AuditRepository, ledger *repository.LedgerRepository, refunds *repository.RefundRepository, agents *repository.AgentRepository, db *pgxpool.Pool, xendit *payment.Client, appBaseURL string) *OrderService {
+	return &OrderService{operatorRepository: operators, pilgrimRepository: pilgrims, productRepository: products, orderRepository: orders, auditRepository: audit, ledgerRepository: ledger, refundRepository: refunds, agentRepository: agents, db: db, xenditClient: xendit, appBaseURL: appBaseURL}
 }
 
-// computeSplit derives the platform/operator/agent commission split for a
-// quantity of a product — shared by CreateOrder (pilgrim self-checkout) and
-// CreateManualOrder (admin-side), so the two lanes can never diverge on how
-// money gets split.
-func computeSplit(product *domain.Product, quantity int32) (totalPrice, platformAmount, operatorAmount int64) {
-	totalPrice = product.PriceIDR * int64(quantity)
+// orderSplit is how one transaction's money divides.
+type orderSplit struct {
+	TotalPrice      int64
+	PlatformAmount  int64
+	OperatorAmount  int64
+	AgentCommission int64
+}
+
+// computeSplit derives the platform/operator/agent split for a quantity of a
+// product — shared by every lane that creates an order, so they can never
+// diverge on how money gets divided.
+//
+// agentID is the *referrer*, and commission is zero without one (CODEX_SPEC
+// §7). It is deliberately not "whoever placed the order": an agent selling to
+// a jamaah somebody else referred must not collect that referrer's commission.
+func computeSplit(product *domain.Product, quantity int32, agentID string) orderSplit {
+	split := orderSplit{TotalPrice: product.PriceIDR * int64(quantity)}
 	// Rounds down — a fraction of a rupiah has nowhere to go, and
 	// under-crediting by a fraction is the safe direction for a split
 	// that must sum to <= total, never over.
-	platformAmount = int64(float64(totalPrice) * product.PlatformMarginPct)
-	operatorAmount = int64(float64(totalPrice) * product.OperatorMarginPct)
-	return totalPrice, platformAmount, operatorAmount
+	split.PlatformAmount = int64(float64(split.TotalPrice) * product.PlatformMarginPct)
+	split.OperatorAmount = int64(float64(split.TotalPrice) * product.OperatorMarginPct)
+	if strings.TrimSpace(agentID) != "" {
+		split.AgentCommission = int64(float64(split.TotalPrice) * product.AgentMarginPct)
+	}
+	return split
 }
 
 // CreateOrder runs through the public (app_access_code) lane, same as the
@@ -59,7 +74,8 @@ func computeSplit(product *domain.Product, quantity int32) (totalPrice, platform
 // order row before ever calling Xendit, so the split is correct even if
 // the invoice creation call fails.
 func (s *OrderService) CreateOrder(ctx context.Context, req *hajjv1.CreateOrderRequest) (*hajjv1.CreateOrderResponse, error) {
-	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" || strings.TrimSpace(req.ProductId) == "" || req.Quantity < 1 {
+	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" || strings.TrimSpace(req.ProductId) == "" ||
+		req.Quantity < 1 || strings.TrimSpace(req.IdempotencyKey) == "" {
 		return nil, serviceError("OrderService.CreateOrder", apperror.ErrValidation)
 	}
 	info, err := s.pilgrimRepository.GetAppInfo(ctx, req.AppAccessCode)
@@ -80,20 +96,32 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *hajjv1.CreateOrderR
 		return nil, serviceError("OrderService.CreateOrder", fmt.Errorf("%w: %w", apperror.ErrFailedPrecondition, payment.ErrNotConfigured))
 	}
 
-	totalPrice, platformAmount, operatorAmount := computeSplit(product, req.Quantity)
-	// No agent attribution for a pilgrim's own self-checkout in this
-	// pass — agentCommission = 0 whenever there's no agent, per §7.
-	agentCommission := int64(0)
-	agentID := ""
+	// The referral is what earns the commission, and it holds however the
+	// jamaah reaches checkout — buying from their own phone included. This
+	// used to be hard-coded to zero, so an agent's referral produced nothing
+	// the moment the jamaah bought for themselves.
+	split := computeSplit(product, req.Quantity, info.AgentID)
 
-	order, err := s.orderRepository.Create(ctx, info.OperatorID, info.SeasonID, info.ID, req.ProductId, agentID, req.Quantity, product.PriceIDR, totalPrice, platformAmount, operatorAmount, agentCommission)
+	order, created, err := s.orderRepository.Create(ctx, repository.CreateOrderParams{
+		OperatorID: info.OperatorID, SeasonID: info.SeasonID, PilgrimID: info.ID,
+		ProductID: req.ProductId, AgentID: info.AgentID, Quantity: req.Quantity,
+		UnitPriceIDR: product.PriceIDR, TotalPriceIDR: split.TotalPrice,
+		PlatformAmountIDR: split.PlatformAmount, OperatorAmountIDR: split.OperatorAmount,
+		AgentCommissionIDR: split.AgentCommission, IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+	})
 	if err != nil {
 		return nil, serviceError("OrderService.CreateOrder", err)
+	}
+	// A replay of the same key: the order already exists and already has its
+	// invoice. Creating a second invoice here is exactly the double charge the
+	// key exists to prevent.
+	if !created {
+		return &hajjv1.CreateOrderResponse{Order: orderMessage(order), CheckoutUrl: order.XenditInvoiceURL}, nil
 	}
 
 	invoice, err := s.xenditClient.CreateInvoice(ctx, payment.CreateInvoiceRequest{
 		ExternalID:         order.ID,
-		Amount:             totalPrice,
+		Amount:             split.TotalPrice,
 		Description:        fmt.Sprintf("%s — %s", product.Name, info.FullName),
 		SuccessRedirectURL: s.appBaseURL + "/pilgrim/" + req.AppAccessCode + "/products?order=success",
 		FailureRedirectURL: s.appBaseURL + "/pilgrim/" + req.AppAccessCode + "/products?order=failed",
@@ -120,7 +148,8 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *hajjv1.CreateOrderR
 // the operator's word — there's no independent confirmation backing that,
 // so it's unconditionally audit-logged with who did it and their note.
 func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req *hajjv1.CreateManualOrderRequest) (*hajjv1.CreateOrderResponse, error) {
-	if req == nil || !isUUID(req.PilgrimId) || !isUUID(req.ProductId) || req.Quantity < 1 || req.Quantity > 20 {
+	if req == nil || !isUUID(req.PilgrimId) || !isUUID(req.ProductId) || req.Quantity < 1 || req.Quantity > 20 ||
+		strings.TrimSpace(req.IdempotencyKey) == "" {
 		return nil, serviceError("OrderService.CreateManualOrder", apperror.ErrValidation)
 	}
 	method := manualOrderMethodToDB(req.PaymentMethod)
@@ -146,23 +175,31 @@ func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req 
 		return nil, serviceError("OrderService.CreateManualOrder", fmt.Errorf("%w: %w", apperror.ErrFailedPrecondition, payment.ErrNotConfigured))
 	}
 
-	totalPrice, platformAmount, operatorAmount := computeSplit(product, req.Quantity)
-	// No agent attribution here either — see CreateOrder. A future "sold by
-	// this agent" concept can thread an agent_id through this same request
-	// without touching the split logic.
-	order, err := s.orderRepository.Create(ctx, op.ID, pilgrim.SeasonID, pilgrim.ID, req.ProductId, "", req.Quantity, product.PriceIDR, totalPrice, platformAmount, operatorAmount, 0)
+	// Staff selling on a jamaah's behalf does not change who referred them, so
+	// the commission still follows the referral.
+	split := computeSplit(product, req.Quantity, pilgrim.AgentID)
+	order, created, err := s.orderRepository.Create(ctx, repository.CreateOrderParams{
+		OperatorID: op.ID, SeasonID: pilgrim.SeasonID, PilgrimID: pilgrim.ID,
+		ProductID: req.ProductId, AgentID: pilgrim.AgentID, Quantity: req.Quantity,
+		UnitPriceIDR: product.PriceIDR, TotalPriceIDR: split.TotalPrice,
+		PlatformAmountIDR: split.PlatformAmount, OperatorAmountIDR: split.OperatorAmount,
+		AgentCommissionIDR: split.AgentCommission, IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+	})
 	if err != nil {
 		return nil, serviceError("OrderService.CreateManualOrder", err)
 	}
 	order.ProductName = product.Name
 	order.PilgrimName = pilgrim.FullName
+	if !created {
+		return &hajjv1.CreateOrderResponse{Order: orderMessage(order), CheckoutUrl: order.XenditInvoiceURL}, nil
+	}
 
 	userID := middleware.UserIDFromCtx(ctx)
 	checkoutURL := ""
 	if method == "XENDIT_LINK" {
 		invoice, err := s.xenditClient.CreateInvoice(ctx, payment.CreateInvoiceRequest{
 			ExternalID:         order.ID,
-			Amount:             totalPrice,
+			Amount:             split.TotalPrice,
 			Description:        fmt.Sprintf("%s — %s", product.Name, pilgrim.FullName),
 			SuccessRedirectURL: s.appBaseURL + "/dashboard/orders?order=success",
 			FailureRedirectURL: s.appBaseURL + "/dashboard/orders?order=failed",
@@ -186,7 +223,7 @@ func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req 
 		s.applyPaidSideEffects(ctx, product, paid)
 	}
 	_ = s.auditRepository.Write(ctx, op.ID, userID, "manual_order_created", "order", order.ID,
-		fmt.Sprintf("%s x%d — Rp%d via %s%s", product.Name, req.Quantity, totalPrice, method, noteSuffix(req.Note)))
+		fmt.Sprintf("%s x%d — Rp%d via %s%s", product.Name, req.Quantity, split.TotalPrice, method, noteSuffix(req.Note)))
 	return &hajjv1.CreateOrderResponse{Order: orderMessage(order), CheckoutUrl: checkoutURL}, nil
 }
 
@@ -483,4 +520,92 @@ func refundMessage(r *domain.OrderRefund) *hajjv1.OrderRefund {
 		CommissionReversedIdr: r.CommissionReversedIDR, Reason: r.Reason,
 		CreatedByUserId: r.CreatedByUserID, CreatedAt: timestamppb.New(r.CreatedAt),
 	}
+}
+
+// CreateOrderForPilgrim lets an agent or Muttawwif sell to any jamaah of their
+// operator, without going through operator staff.
+//
+// Selling is open; earning is not, and the two are kept apart deliberately:
+//
+//   - Who may place it. Any agent of this operator, for any of its jamaah.
+//     The caller is still resolved from their own Better Auth identity, so
+//     they can only ever act as themselves, and only inside their operator.
+//   - Who earns from it. The commission follows the jamaah's referral, exactly
+//     as it does when the jamaah buys for themselves or staff sells to them.
+//     Selling to somebody else's referral credits that referrer, not the
+//     seller, who is recorded separately as placed_by_agent_id.
+//
+// That separation is the whole point: transacting is free, but it cannot be
+// used to take a commission that belongs to whoever brought the jamaah in.
+//
+// A jamaah with no referrer produces no commission at all. Making the seller
+// the referrer would let an agent claim an unreferred jamaah simply by selling
+// to them, quietly and permanently.
+func (s *OrderService) CreateOrderForPilgrim(ctx context.Context, orgID, userID string, req *hajjv1.CreateOrderForPilgrimRequest) (*hajjv1.CreateOrderResponse, error) {
+	if req == nil || !isUUID(req.PilgrimId) || !isUUID(req.ProductId) || req.Quantity < 1 ||
+		strings.TrimSpace(req.IdempotencyKey) == "" {
+		return nil, serviceError("OrderService.CreateOrderForPilgrim", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("OrderService.CreateOrderForPilgrim", err)
+	}
+	agent, err := s.agentRepository.GetByLinkedUser(ctx, op.ID, userID)
+	if err != nil {
+		return nil, serviceError("OrderService.CreateOrderForPilgrim", err)
+	}
+	pilgrim, err := s.pilgrimRepository.Get(ctx, op.ID, req.PilgrimId)
+	if err != nil {
+		return nil, serviceError("OrderService.CreateOrderForPilgrim", err)
+	}
+	product, err := s.productRepository.GetByID(ctx, op.ID, req.ProductId)
+	if err != nil {
+		return nil, serviceError("OrderService.CreateOrderForPilgrim", apperror.ErrNotFound)
+	}
+	if !product.IsActive {
+		return nil, serviceError("OrderService.CreateOrderForPilgrim", apperror.ErrFailedPrecondition)
+	}
+	// Checked before the order exists, for the same reason as CreateOrder: an
+	// order nobody can pay for should never have been created.
+	if !s.xenditClient.Configured() {
+		return nil, serviceError("OrderService.CreateOrderForPilgrim", fmt.Errorf("%w: %w", apperror.ErrFailedPrecondition, payment.ErrNotConfigured))
+	}
+
+	split := computeSplit(product, req.Quantity, pilgrim.AgentID)
+	order, created, err := s.orderRepository.Create(ctx, repository.CreateOrderParams{
+		OperatorID: op.ID, SeasonID: pilgrim.SeasonID, PilgrimID: pilgrim.ID,
+		ProductID: req.ProductId, AgentID: pilgrim.AgentID, PlacedByAgentID: agent.ID,
+		Quantity: req.Quantity, UnitPriceIDR: product.PriceIDR, TotalPriceIDR: split.TotalPrice,
+		PlatformAmountIDR: split.PlatformAmount, OperatorAmountIDR: split.OperatorAmount,
+		AgentCommissionIDR: split.AgentCommission, IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+	})
+	if err != nil {
+		return nil, serviceError("OrderService.CreateOrderForPilgrim", err)
+	}
+	order.ProductName = product.Name
+	order.PilgrimName = pilgrim.FullName
+	if !created {
+		return &hajjv1.CreateOrderResponse{Order: orderMessage(order), CheckoutUrl: order.XenditInvoiceURL}, nil
+	}
+
+	invoice, err := s.xenditClient.CreateInvoice(ctx, payment.CreateInvoiceRequest{
+		ExternalID:         order.ID,
+		Amount:             split.TotalPrice,
+		Description:        fmt.Sprintf("%s — %s", product.Name, pilgrim.FullName),
+		SuccessRedirectURL: s.appBaseURL + "/agent?order=success",
+		FailureRedirectURL: s.appBaseURL + "/agent?order=failed",
+	})
+	if err != nil {
+		return nil, serviceError("OrderService.CreateOrderForPilgrim", fmt.Errorf("create xendit invoice: %w", err))
+	}
+	if err := s.orderRepository.SetXenditInvoice(ctx, order.ID, invoice.ID, invoice.InvoiceURL); err != nil {
+		return nil, serviceError("OrderService.CreateOrderForPilgrim", err)
+	}
+	order.XenditInvoiceID = invoice.ID
+	order.XenditInvoiceURL = invoice.InvoiceURL
+
+	_ = s.auditRepository.Write(ctx, op.ID, userID, "agent_order_created", "order", order.ID,
+		fmt.Sprintf("%s x%d — Rp%d untuk %s oleh agen %s",
+			product.Name, req.Quantity, split.TotalPrice, pilgrim.FullName, agent.Name))
+	return &hajjv1.CreateOrderResponse{Order: orderMessage(order), CheckoutUrl: invoice.InvoiceURL}, nil
 }

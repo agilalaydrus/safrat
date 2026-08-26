@@ -3,14 +3,17 @@ package domain
 import "time"
 
 type PilgrimAppInfo struct {
-	ID                  string
-	FullName            string
-	PassportNumber      string
-	GroupName           string
-	HotelName           string
-	RoomNumber          string
-	RequiresWheelchair  bool
-	SeasonID            string
+	ID                 string
+	FullName           string
+	PassportNumber     string
+	GroupName          string
+	HotelName          string
+	RoomNumber         string
+	RequiresWheelchair bool
+	SeasonID           string
+	// AgentID is the referring agent, carried here so a jamaah's own checkout
+	// credits the referral the same way every other lane does.
+	AgentID             string
 	OperatorID          string
 	KloterID            string
 	KloterCode          string
