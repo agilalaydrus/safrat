@@ -14,6 +14,69 @@
 
 ## Continuation after this snapshot
 
+### Session log — 2026-08-26
+
+Everything below shipped to production in four deploys, all green. Ordered by
+what a reader most likely needs to know first.
+
+**Live in production**
+
+| Commit | What |
+| --- | --- |
+| `6224056` | Storefront media quota + asset registry (migration 084) |
+| `adf392b` | `cmd/storefront-backfill` for pre-registry objects |
+| `9168a23` | Ship the backfill binary in the API image |
+| `8e0cfbf` | Grant the MinIO service user `s3:ListBucket` |
+| `6cae083` | Tenant storefront auth links point at the apex |
+| `732f755` | All app routes on a tenant host redirect to the apex |
+| `dad1080` | Nav hover, floating CTA, and contact panel polish |
+| `40b241b` | Playwright browser E2E suite (`apps/web/e2e/`) |
+| `1086d7e`, `93af574` | Doc corrections |
+
+**Closed**
+
+- Browser QA now exists and passes (10 specs). See `apps/web/e2e/README.md`.
+- The MinIO production rollout was already done in the `e7fef46` release; the
+  earlier "still pending" note here was stale.
+- The backfill ran in production and found **nothing to adopt** — the bucket is
+  empty. `-apply` is not outstanding work.
+- Tenant sign-in via the storefront's own links works; confirmed by the owner in
+  a real browser, including a successful Google sign-in.
+
+**Known gaps, deliberately open**
+
+- **Real-device QA.** iOS Safari audio autoplay, and an installed PWA reopened
+  offline, are still unverified. No amount of headless testing settles these.
+- **The dashboard lives on the apex, by design.** `tawafiqhub.id/dashboard`, not
+  `vacana.tawafiqhub.id/dashboard`. Better Auth is pinned to one origin and its
+  cookie is host-only for the apex. Moving the dashboard onto tenant subdomains
+  means cross-subdomain cookies, multi-origin CORS, and Better Auth changes —
+  an architecture decision, not a fix. Only worth doing if full white-label is
+  a business goal.
+- **`readableText` is a binary luminance flip** (`TenantStorefront.tsx`). For an
+  emerald brand it returns dark navy, which is only ~4.5:1 on the brand fill and
+  drops below AA wherever the design applies opacity. Any future panel styling
+  must not darken below `--tenant-brand`. Raising the threshold would improve
+  contrast for everyone but flips existing tenants' text colour, so it needs a
+  deliberate decision.
+- **Native mobile apps.** `apps/mobile-leader` and `apps/mobile-pilgrim` are
+  still empty scaffolds; modules 5/6 ship as PWAs.
+
+**Two mistakes worth not repeating**
+
+Both were the same error: verifying against a *more privileged or more
+convenient* path than production uses.
+
+1. The local API had **no `S3_*` keys**, so `storage.New` returned nil and every
+   upload RPC was silently a no-op. The MinIO integration tests passed because
+   they construct a `Store` directly, bypassing the API and the browser.
+2. The backfill was "verified end-to-end locally" using MinIO's **root**
+   credentials, which bypass the bucket policy — so the missing `s3:ListBucket`
+   only surfaced as a 403 in production.
+
+The fix in both cases was to reproduce the real conditions: real env, real
+least-privilege user, real browser. Prefer that over a convenient approximation.
+
 - **The storefront backfill is done, and there was nothing to adopt.** Run in
   production on 2026-08-26 after the deploy of `8e0cfbf`: `objects scanned: 0`,
   everything else 0. Confirmed independently with MinIO root credentials (which
