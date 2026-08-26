@@ -14,6 +14,36 @@
 
 ## Continuation after this snapshot
 
+### Pre-release checklist — repository and image visibility
+
+Deferred by the owner (2026-08-26) until closer to release. Recorded because the
+first item is already live, not hypothetical.
+
+**The container images are public right now.** Verified by pulling
+`ghcr.io/agilalaydrus/safrat-api` with no credentials at all. They contain the
+compiled Go binary and the Next.js bundle — the product itself. Anyone who knows
+the name can download and run TawafiqHub on their own server. Making the *repo*
+private does not change this: GHCR package visibility is separate.
+
+**Making the packages private breaks deploys as written.** `deploy.yml` runs
+`docker compose pull` on the VPS with no `docker login`, so it only works while
+the packages are public. The failure would land *after* goose has migrated —
+database ahead, containers behind, which is the worst state to recover from.
+
+Before flipping either switch:
+1. Add an ephemeral login to the deploy step — `docker login` → `pull` →
+   `docker logout` — with a fine-grained, repo-scoped token from GitHub
+   Secrets. Ephemeral on purpose: `docker login` writes credentials to
+   `~/.docker/config.json` base64-encoded, not encrypted, so a permanent login
+   leaves a reusable credential on disk for anyone with SSH.
+2. Expect token expiry to break deploys silently months later; prefer failing in
+   CI with a clear message over failing on the VPS mid-deploy.
+3. Note that private repos consume Actions minutes (2,000/month on the free
+   tier). Deploys run ~11 minutes each.
+
+Also: the subscription bank account belongs in `.env.prod` on the VPS, never in
+the repo — private or not. Private means "fewer people can see it", not "safe".
+
 ### Billing — operator subscriptions (2026-08-26)
 
 Until this, `plan` was a label with nothing behind it: prices were published but
