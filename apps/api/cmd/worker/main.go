@@ -56,6 +56,7 @@ func main() {
 	auditRepository := repository.NewAuditRepository(queries)
 	outboxRepository := repository.NewOutboxRepository(queries)
 	storefrontAssetRepository := repository.NewStorefrontAssetRepository(pool)
+	subscriptionRepository := repository.NewSubscriptionRepository(pool)
 	journeyRepository := repository.NewJourneyRepository(queries)
 	agentService := service.NewAgentService(operatorRepository, agentRepository, auditRepository, pool)
 	journeyService := service.NewJourneyService(operatorRepository, journeyRepository, auditRepository)
@@ -73,6 +74,7 @@ func main() {
 	waitlistHandler := worker.NewWaitlistHandler(logger, waitlistRepository)
 	cashFlowHandler := worker.NewCashFlowHandler(logger, queries)
 	outboxHandler := worker.NewOutboxHandler(logger, outboxRepository, firebasePusher, journeyService, eventBus)
+	subscriptionHandler := worker.NewSubscriptionHandler(logger, subscriptionRepository)
 	objectStorage, storageErr := storage.New(context.Background(), storage.ConfigFromEnv())
 	if storageErr != nil {
 		logger.Error("init storefront object storage", "error", storageErr)
@@ -114,6 +116,12 @@ func main() {
 		logger.Error("register cascade dispatch schedule", "error", err)
 		os.Exit(1)
 	}
+	// Hourly is frequent enough: an invoice is due after days, and a lapsed
+	// subscription is already locked out by access_until regardless of status.
+	if _, err := scheduler.Register("@every 1h", worker.NewSubscriptionSweepTask()); err != nil {
+		logger.Error("register subscription sweep schedule", "error", err)
+		os.Exit(1)
+	}
 	if storefrontAssetHandler != nil {
 		if _, err := scheduler.Register("@every 1h", worker.NewStorefrontAssetGCTask()); err != nil {
 			logger.Error("register storefront asset cleanup schedule", "error", err)
@@ -133,6 +141,7 @@ func main() {
 	mux.HandleFunc(worker.TaskWaitlistExpire, waitlistHandler.HandleExpire)
 	mux.HandleFunc(worker.TaskMarkOverdueVendorPayments, cashFlowHandler.HandleMarkOverdue)
 	mux.HandleFunc(worker.TaskCascadeDispatch, outboxHandler.HandleDispatch)
+	mux.HandleFunc(worker.TaskSubscriptionSweep, subscriptionHandler.HandleSweep)
 	if storefrontAssetHandler != nil {
 		mux.HandleFunc(worker.TaskStorefrontAssetGC, storefrontAssetHandler.HandleGC)
 	}
