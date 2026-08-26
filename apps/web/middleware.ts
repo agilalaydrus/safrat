@@ -156,6 +156,27 @@ export async function middleware(request: NextRequest) {
     return NextResponse.rewrite(rewritten);
   }
 
+  // Anything still on a tenant hostname here is an application route, not
+  // tenant content — every tenant route returned above. Serving these on the
+  // tenant origin breaks them all: Better Auth is pinned to NEXT_PUBLIC_APP_URL
+  // (the apex), its session cookie is host-only for the apex and so is never
+  // sent to a subdomain, and the /sign-in fallback below is relative — so a
+  // visitor lands on a tenant-origin sign-in page whose every /api/auth call is
+  // blocked by CORS. /pilgrim, /leader, /agent and /dashboard are all affected.
+  //
+  // The target is built from the Host header, not request.url: Next normalizes
+  // request.url (and nextUrl) to the address it is bound to, so the real
+  // hostname survives only in the header. The Location is also written by hand,
+  // because NextResponse.redirect() relativizes a Location that matches Next's
+  // own origin, which would send the tenant host back to itself in a loop.
+  if (slug) {
+    const host = request.headers.get("host") ?? "";
+    const port = host.includes(":") ? `:${host.split(":")[1]}` : "";
+    const protocol = request.headers.get("x-forwarded-proto") ?? request.nextUrl.protocol.replace(":", "");
+    const apex = `${protocol}://${platformBaseHostname(host)}${port}${pathname}${request.nextUrl.search}`;
+    return new NextResponse(null, { status: 307, headers: { location: apex } });
+  }
+
   const isPublic =
     pathname === "/" || PUBLIC_PATHS.some((path) => pathname.startsWith(path));
 
