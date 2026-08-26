@@ -124,8 +124,8 @@ export const PRICING_TIERS: PricingTier[] = [
     highlighted: true,
   },
   {
-    name: "PIHK & Konsorsium",
-    blurb: "Untuk haji khusus dan konsorsium yang butuh server serta fitur sendiri.",
+    name: "Custom Enterprises",
+    blurb: "Untuk PIHK dan konsorsium yang butuh server sendiri serta fitur yang dibangun khusus.",
     price: "Rp2.489.000",
     unit: "bulan",
     features: [
