@@ -53,9 +53,13 @@ func TestStorefrontAssetQuotaAndReferenceAwareCleanupIntegration(t *testing.T) {
 	if _, err := assets.RefreshOrphans(ctx); err != nil {
 		t.Fatalf("mark orphan: %v", err)
 	}
-	orphans, err := assets.ListOrphans(ctx, time.Now().Add(time.Minute), 100)
-	if err != nil || len(orphans) != 1 {
-		t.Fatalf("orphans = %+v, error %v", orphans, err)
+	// Scoped to this test's own asset. ListOrphans is global, so asserting a
+	// total count silently depends on the database being otherwise empty —
+	// which stopped being true once the browser suite started creating real
+	// uploads against the same database.
+	orphans, err := assets.ListOrphans(ctx, time.Now().Add(time.Minute), 500)
+	if err != nil || !containsObjectKey(orphans, objectKey) {
+		t.Fatalf("unreferenced asset was not marked orphaned: %+v, error %v", orphans, err)
 	}
 	draft := []byte(`{"displayName":"Asset Test","heroImageUrl":"` + publicURL + `"}`)
 	if _, err := storefronts.SaveDraft(ctx, operatorID, draft, 0); err != nil {
@@ -64,8 +68,8 @@ func TestStorefrontAssetQuotaAndReferenceAwareCleanupIntegration(t *testing.T) {
 	if _, err := assets.RefreshOrphans(ctx); err != nil {
 		t.Fatalf("refresh referenced asset: %v", err)
 	}
-	orphans, err = assets.ListOrphans(ctx, time.Now().Add(time.Minute), 100)
-	if err != nil || len(orphans) != 0 {
+	orphans, err = assets.ListOrphans(ctx, time.Now().Add(time.Minute), 500)
+	if err != nil || containsObjectKey(orphans, objectKey) {
 		t.Fatalf("referenced asset remained orphaned: %+v, error %v", orphans, err)
 	}
 }

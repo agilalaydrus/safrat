@@ -53,6 +53,9 @@ func main() {
 	})
 
 	var pool *pgxpool.Pool
+	// Built inside the block below, but consulted by the CORS handler that is
+	// constructed after it — same pattern as pool.
+	var tenantOrigins *middleware.TenantOriginAllowlist
 	{
 		var err error
 		pool, err = pgxpool.New(ctx, config.DatabaseURL)
@@ -116,6 +119,9 @@ func main() {
 		storefrontRepository := repository.NewStorefrontRepository(pool)
 		storefrontAssetRepository := repository.NewStorefrontAssetRepository(pool)
 		operatorDomainRepository := repository.NewOperatorDomainRepository(pool)
+		// Plain http is only acceptable when the configured origin is itself
+		// http, i.e. local development.
+		tenantOrigins = middleware.NewTenantOriginAllowlist(operatorDomainRepository, logger, time.Minute, strings.HasPrefix(config.AllowedOrigin, "http://"))
 
 		objectStorage, storageErr := storage.New(ctx, config.StorefrontStorage)
 		if storageErr != nil {
@@ -302,7 +308,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + config.Port,
-		Handler:           cors(config.AllowedOrigin, logging(logger, mux)),
+		Handler:           cors(config.AllowedOrigin, tenantOrigins, logging(logger, mux)),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -378,11 +384,15 @@ func (m originMatcher) allows(origin string) bool {
 	return found && repository.IsValidOperatorSlug(sub) && rest == m.baseHost
 }
 
-func cors(allowedOrigin string, next http.Handler) http.Handler {
+// tenantOrigins is nil until client-owned domains exist, in which case CORS
+// behaves exactly as it did before.
+func cors(allowedOrigin string, tenantOrigins *middleware.TenantOriginAllowlist, next http.Handler) http.Handler {
 	matcher := newOriginMatcher(allowedOrigin)
 	return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		origin := request.Header.Get("Origin")
-		allowed := matcher.allows(origin)
+		// The static matcher covers the platform apex and its subdomains; the
+		// allowlist adds domains clients own and have verified.
+		allowed := matcher.allows(origin) || tenantOrigins.Allows(request.Context(), origin)
 		if allowed {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
