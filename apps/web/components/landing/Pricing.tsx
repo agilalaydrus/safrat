@@ -58,7 +58,7 @@ export default function Pricing() {
                   ))}
                 </ul>
               </div>
-              {tier.price === "Custom" ? (
+              {tier.contactSales ? (
                 <a
                   href={WA_SALES_LINK}
                   target="_blank"

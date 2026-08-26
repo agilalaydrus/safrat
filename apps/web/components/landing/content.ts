@@ -85,14 +85,20 @@ export type PricingTier = {
   features: string[];
   cta: string;
   highlighted?: boolean;
+  /**
+   * Send this tier to sales instead of self sign-up. Previously inferred from
+   * price === "Custom", which meant giving the tier a real price silently
+   * rerouted its button to the sign-up form.
+   */
+  contactSales?: boolean;
 };
 
 export const PRICING_TIERS: PricingTier[] = [
   {
     name: "Starter PPIU",
     blurb: "Untuk travel yang ingin sistem lengkap tanpa memikirkan domain sendiri.",
-    price: "Hubungi Sales",
-    unit: "harga menyusul",
+    price: "Rp589.000",
+    unit: "bulan",
     features: [
       "Landing page travel di subdomain Anda, penuh bisa dikustom",
       "Portal Jamaah: jadwal, manasik, chat, dan tombol SOS",
@@ -105,8 +111,8 @@ export const PRICING_TIERS: PricingTier[] = [
   {
     name: "Growth Enterprise",
     blurb: "Semua yang ada di Starter, tampil di nama domain travel Anda sendiri.",
-    price: "Hubungi Sales",
-    unit: "harga menyusul",
+    price: "Rp789.000",
+    unit: "bulan",
     features: [
       "Semua fitur Starter PPIU",
       "Domain travel Anda sendiri, bukan subdomain kami",
@@ -120,8 +126,8 @@ export const PRICING_TIERS: PricingTier[] = [
   {
     name: "PIHK & Konsorsium",
     blurb: "Untuk haji khusus dan konsorsium yang butuh server serta fitur sendiri.",
-    price: "Custom",
-    unit: "kontrak musim",
+    price: "Rp2.489.000",
+    unit: "bulan",
     features: [
       "Semua fitur Growth Enterprise",
       "Server terpisah khusus untuk travel Anda",
@@ -130,6 +136,9 @@ export const PRICING_TIERS: PricingTier[] = [
       "Jalur dukungan prioritas",
     ],
     cta: "Hubungi Enterprise Sales",
+    // A dedicated server and bespoke development need a conversation, not a
+    // self-service sign-up.
+    contactSales: true,
   },
 ];
 
