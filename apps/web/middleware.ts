@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { extractTenantSlug, isUsableTenantSlug, platformBaseHostname } from "@/lib/tenant-host";
+import { PLATFORM_BASE_HOSTS, extractTenantSlug, isUsableTenantSlug, platformBaseHostname } from "@/lib/tenant-host";
 
 const PUBLIC_PATHS = [
   "/login",
@@ -62,6 +62,65 @@ async function connectFetch<T>(procedure: string, body: Record<string, string>):
 
 const operatorCache = new Map<string, { operatorId: string | null; activeSeasonId: string | null; expiresAt: number }>();
 
+/** True when the hostname is one the platform itself owns. */
+/** Rewrites while preserving the tenant identity for the re-entered request. */
+function tenantRewrite(request: NextRequest, target: URL, slug: string) {
+  const headers = new Headers(request.headers);
+  headers.set(TENANT_SLUG_HEADER, slug);
+  return NextResponse.rewrite(target, { request: { headers } });
+}
+
+function isPlatformHost(host: string): boolean {
+  const hostname = normalizedHost(host);
+  return PLATFORM_BASE_HOSTS.some((base) => hostname === base || hostname.endsWith(`.${base}`));
+}
+
+function normalizedHost(host: string): string {
+  return (host.split(":")[0] ?? "").toLowerCase().replace(/\.$/, "");
+}
+
+/** The platform's own apex, taken from the configured app origin. */
+function platformApexHostname(): string {
+  const configured = process.env.NEXT_PUBLIC_APP_URL;
+  if (configured) {
+    try {
+      return new URL(configured).hostname;
+    } catch {
+      // fall through to the compiled-in default below
+    }
+  }
+  return PLATFORM_BASE_HOSTS[0] ?? "tawafiqhub.id";
+}
+
+const TENANT_SLUG_HEADER = "x-tenant-slug";
+
+const domainCache = new Map<string, { slug: string | null; expiresAt: number }>();
+
+/**
+ * Resolves a client's own hostname to its operator slug. Returns null for
+ * platform hostnames and for anything unrecognised, so the caller falls through
+ * to the normal application routing.
+ */
+async function resolveCustomDomainSlug(host: string): Promise<string | null> {
+  const hostname = (host.split(":")[0] ?? "").toLowerCase().replace(/\.$/, "");
+  // A bare hostname with no dot is never a routable client domain, and this
+  // keeps localhost and internal health checks from making a lookup per request.
+  if (!hostname || !hostname.includes(".")) return null;
+  if (PLATFORM_BASE_HOSTS.some((base) => hostname === base || hostname.endsWith(`.${base}`))) return null;
+
+  const cached = domainCache.get(hostname);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) return cached.slug;
+
+  const data = await connectFetch<{ slug?: string }>(
+    "/hajj.v1.OperatorService/ResolveOperatorDomain",
+    { hostname },
+  );
+  const slug = data?.slug || null;
+  domainCache.set(hostname, { slug, expiresAt: now + CACHE_TTL_MS });
+  return slug;
+}
+
 async function resolveOperator(slug: string): Promise<{ operatorId: string | null; activeSeasonId: string | null }> {
   const cached = operatorCache.get(slug);
   const now = Date.now();
@@ -101,12 +160,39 @@ async function resolveSeason(operatorId: string, seasonSlug: string): Promise<st
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  const slug = extractTenantSlug(request.headers.get("host") ?? "");
+  const host = request.headers.get("host") ?? "";
+  // A platform subdomain still carries its slug in the hostname. Anything else
+  // may be a client's own domain, which has no slug to derive and must be
+  // looked up. Only verified domains resolve, so pointing a hostname at us
+  // without proving ownership routes nowhere.
+  // Next re-enters middleware on the path we rewrite to, and on that pass the
+  // Host is the server's own address — so the tenant identity derived from the
+  // hostname is gone. Carrying it in a request header keeps every later branch
+  // (notably the legacy /p/{slug} redirect) seeing the same tenant it did on
+  // the first pass, instead of concluding there is none.
+  const forwardedSlug = request.headers.get(TENANT_SLUG_HEADER);
+  // Our own rewrite, coming back through. Routing was already decided on the
+  // first pass and the target is tenant content by definition, so re-running
+  // the rules here can only misfire — the rewritten /p/{slug} path is not a
+  // tenant route, so it would be treated as an application route and bounced
+  // to the apex.
+  if (forwardedSlug) {
+    return NextResponse.next();
+  }
+
+  const slug = extractTenantSlug(host) || (await resolveCustomDomainSlug(host));
 
   // /p/{slug} was the original public URL. Keep old bookmarks working, but
   // make the tenant subdomain root the one canonical address visitors see.
   const legacyProfile = pathname.match(/^\/p\/([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)\/?$/);
-  if (!slug && legacyProfile?.[1] && isUsableTenantSlug(legacyProfile[1])) {
+  // Only on a platform hostname. tenantUrl builds {slug}.{platform base}, which
+  // is meaningless on a client's own domain — it would bounce a visitor off
+  // umrohvacana.com onto the platform subdomain. It also collides with the
+  // rewrite below: the tenant root rewrites "/" to "/p/{slug}", and if that
+  // path is ever seen here without a resolved slug, this would redirect away
+  // from the client's domain instead of rendering it.
+  const platformHostname = isPlatformHost(host);
+  if (platformHostname && !slug && legacyProfile?.[1] && isUsableTenantSlug(legacyProfile[1])) {
     return NextResponse.redirect(tenantUrl(request, legacyProfile[1], "/"), 308);
   }
 
@@ -115,7 +201,7 @@ export async function middleware(request: NextRequest) {
   if (slug && pathname === "/") {
     const rewritten = request.nextUrl.clone();
     rewritten.pathname = `/p/${slug}`;
-    return NextResponse.rewrite(rewritten);
+    return tenantRewrite(request, rewritten, slug);
   }
 
   // Tenant editorial pages stay on the tenant hostname while rendering from
@@ -123,7 +209,7 @@ export async function middleware(request: NextRequest) {
   if (slug && (/^\/(blog|berita)\/[^/]+\/?$/.test(pathname))) {
     const rewritten = request.nextUrl.clone();
     rewritten.pathname = `/p/${slug}${pathname}`;
-    return NextResponse.rewrite(rewritten);
+    return tenantRewrite(request, rewritten, slug);
   }
 
   const subdomainRoute = slug && SUBDOMAIN_ROUTES.find((route) => pathname === route || pathname.startsWith(`${route}/`));
@@ -153,7 +239,7 @@ export async function middleware(request: NextRequest) {
 
     const rewritten = request.nextUrl.clone();
     rewritten.pathname = `${subdomainRoute}/${operatorId}${rest}`;
-    return NextResponse.rewrite(rewritten);
+    return tenantRewrite(request, rewritten, slug);
   }
 
   // Anything still on a tenant hostname here is an application route, not
@@ -173,7 +259,17 @@ export async function middleware(request: NextRequest) {
     const host = request.headers.get("host") ?? "";
     const port = host.includes(":") ? `:${host.split(":")[1]}` : "";
     const protocol = request.headers.get("x-forwarded-proto") ?? request.nextUrl.protocol.replace(":", "");
-    const apex = `${protocol}://${platformBaseHostname(host)}${port}${pathname}${request.nextUrl.search}`;
+    // platformBaseHostname returns a client's own domain unchanged, which would
+    // redirect that domain to itself forever. Application routes always belong
+    // to the platform apex, so fall back to the configured app origin for any
+    // hostname we do not own.
+    //
+    // TEMPORARY: this redirect exists only because Better Auth is pinned to a
+    // single origin. Once sessions are issued per client domain (Level 3),
+    // these routes should be served on the client's domain, not redirected.
+    const derivedHost = platformBaseHostname(host);
+    const apexHost = derivedHost === normalizedHost(host) ? platformApexHostname() : derivedHost;
+    const apex = `${protocol}://${apexHost}${port}${pathname}${request.nextUrl.search}`;
     return new NextResponse(null, { status: 307, headers: { location: apex } });
   }
 

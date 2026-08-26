@@ -21,6 +21,12 @@ service OperatorService {
   // routes. Deliberately returns only id + name, nothing sensitive.
   rpc ResolveOperatorSlug(ResolveOperatorSlugRequest) returns (ResolveOperatorSlugResponse);
 
+  // Public — resolves a client's own domain (umrohvacana.com) to its operator.
+  // Platform subdomains do not use this: their slug is still read straight out
+  // of the hostname. Only verified domains resolve, so claiming a hostname
+  // without proving control of it grants nothing.
+  rpc ResolveOperatorDomain(ResolveOperatorDomainRequest) returns (ResolveOperatorDomainResponse);
+
   // Updates the calling operator's public-profile fields (used by the
   // onboarding wizard's final step and the dashboard settings editor).
   rpc UpdateMyProfile(UpdateMyProfileRequest) returns (Operator);
@@ -374,6 +380,18 @@ message CheckOperatorSlugRequest {
   string slug = 1 [(buf.validate.field).string = {min_len: 3, max_len: 63, pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"}];
 }
 message CheckOperatorSlugResponse { bool available = 1; }
+
+message ResolveOperatorDomainRequest {
+  // The Host header as received; the server normalizes case, port and any
+  // trailing dot before lookup.
+  string hostname = 1 [(buf.validate.field).string = {min_len: 4, max_len: 253}];
+}
+message ResolveOperatorDomainResponse {
+  string operator_id = 1;
+  string slug = 2;
+  string name = 3;
+  string active_season_id = 4;
+}
 
 message ResolveOperatorSlugRequest {
   string slug = 1 [(buf.validate.field).string.min_len = 1];

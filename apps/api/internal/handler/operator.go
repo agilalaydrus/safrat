@@ -143,6 +143,14 @@ func (h *OperatorHandler) ConfirmStorefrontUpload(ctx context.Context, req *conn
 	return connect.NewResponse(result), nil
 }
 
+func (h *OperatorHandler) ResolveOperatorDomain(ctx context.Context, req *connect.Request[hajjv1.ResolveOperatorDomainRequest]) (*connect.Response[hajjv1.ResolveOperatorDomainResponse], error) {
+	result, err := h.operatorService.ResolveDomain(ctx, req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *OperatorHandler) ResolveOperatorSlug(ctx context.Context, req *connect.Request[hajjv1.ResolveOperatorSlugRequest]) (*connect.Response[hajjv1.ResolveOperatorSlugResponse], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

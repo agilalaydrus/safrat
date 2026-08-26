@@ -23,17 +23,19 @@ type OperatorService struct {
 	seasonRepository            *repository.SeasonRepository
 	storefrontRepository        *repository.StorefrontRepository
 	storefrontAssetRepository   *repository.StorefrontAssetRepository
+	domainRepository            *repository.OperatorDomainRepository
 	objectStorage               *storage.Store
 	storefrontStorageQuotaBytes int64
 }
 
 const storefrontUploadConfirmationGrace = 15 * time.Minute
 
-func NewOperatorService(repository *repository.OperatorRepository, seasonRepository *repository.SeasonRepository, storefrontRepository *repository.StorefrontRepository, storefrontAssetRepository *repository.StorefrontAssetRepository, objectStorage *storage.Store, storefrontStorageQuotaBytes int64) *OperatorService {
+func NewOperatorService(repository *repository.OperatorRepository, seasonRepository *repository.SeasonRepository, storefrontRepository *repository.StorefrontRepository, storefrontAssetRepository *repository.StorefrontAssetRepository, domainRepository *repository.OperatorDomainRepository, objectStorage *storage.Store, storefrontStorageQuotaBytes int64) *OperatorService {
 	return &OperatorService{
 		repository: repository, seasonRepository: seasonRepository,
 		storefrontRepository: storefrontRepository, storefrontAssetRepository: storefrontAssetRepository,
-		objectStorage: objectStorage, storefrontStorageQuotaBytes: storefrontStorageQuotaBytes,
+		domainRepository: domainRepository,
+		objectStorage:    objectStorage, storefrontStorageQuotaBytes: storefrontStorageQuotaBytes,
 	}
 }
 
@@ -143,6 +145,31 @@ func (s *OperatorService) ListAuditLogs(ctx context.Context, authenticatedOrgID 
 // vacana.tawafiqhub.id into the operator ID the existing /register, /apply,
 // /waitlist path-based routes already expect. Deliberately returns only
 // id + name, nothing an anonymous caller shouldn't see.
+// ResolveDomain maps a client's own hostname to its operator. Platform
+// subdomains never reach here — their slug is still derived from the hostname,
+// so existing tenants are unaffected by this path entirely.
+func (s *OperatorService) ResolveDomain(ctx context.Context, request *hajjv1.ResolveOperatorDomainRequest) (*hajjv1.ResolveOperatorDomainResponse, error) {
+	if request == nil || strings.TrimSpace(request.Hostname) == "" {
+		return nil, serviceError("OperatorService.ResolveDomain", apperror.ErrValidation)
+	}
+	operatorID, err := s.domainRepository.ResolveVerified(ctx, request.Hostname)
+	if err != nil {
+		return nil, serviceError("OperatorService.ResolveDomain", err)
+	}
+	operator, err := s.repository.GetByID(ctx, operatorID)
+	if err != nil {
+		return nil, serviceError("OperatorService.ResolveDomain", err)
+	}
+	// Between seasons is a normal state, not an error — same as ResolveSlug.
+	activeSeasonID, err := s.seasonRepository.GetActiveSeasonID(ctx, operator.ID)
+	if err != nil && !errors.Is(err, apperror.ErrNotFound) {
+		return nil, serviceError("OperatorService.ResolveDomain", err)
+	}
+	return &hajjv1.ResolveOperatorDomainResponse{
+		OperatorId: operator.ID, Slug: operator.Slug, Name: operator.Name, ActiveSeasonId: activeSeasonID,
+	}, nil
+}
+
 func (s *OperatorService) ResolveSlug(ctx context.Context, request *hajjv1.ResolveOperatorSlugRequest) (*hajjv1.ResolveOperatorSlugResponse, error) {
 	if request == nil || !repository.IsUsableOperatorSlug(request.Slug) {
 		return nil, serviceError("OperatorService.ResolveSlug", apperror.ErrValidation)

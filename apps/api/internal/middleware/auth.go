@@ -87,6 +87,9 @@ var publicProcedures = map[string]bool{
 	// on every subdomain request (before any session exists) to map a slug
 	// like "vacana" to an operator ID. Returns only id + name.
 	"/hajj.v1.OperatorService/ResolveOperatorSlug": true,
+	// Same reason: apps/web/middleware.ts resolves a client's own domain before
+	// any session exists. Only verified domains resolve.
+	"/hajj.v1.OperatorService/ResolveOperatorDomain": true,
 	// Onboarding availability check contains no tenant data and runs before
 	// the new operator record exists.
 	"/hajj.v1.OperatorService/CheckOperatorSlug": true,

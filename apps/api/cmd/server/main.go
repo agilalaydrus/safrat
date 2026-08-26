@@ -115,6 +115,7 @@ func main() {
 		analyticsRepository := repository.NewAnalyticsRepository(queries)
 		storefrontRepository := repository.NewStorefrontRepository(pool)
 		storefrontAssetRepository := repository.NewStorefrontAssetRepository(pool)
+		operatorDomainRepository := repository.NewOperatorDomainRepository(pool)
 
 		objectStorage, storageErr := storage.New(ctx, config.StorefrontStorage)
 		if storageErr != nil {
@@ -142,7 +143,7 @@ func main() {
 			logger.Info("event bus backend", "type", "in-memory", "note", "single instance only")
 		}
 
-		operatorService := service.NewOperatorService(operatorRepository, seasonRepository, storefrontRepository, storefrontAssetRepository, objectStorage, config.StorefrontStorageQuotaBytes)
+		operatorService := service.NewOperatorService(operatorRepository, seasonRepository, storefrontRepository, storefrontAssetRepository, operatorDomainRepository, objectStorage, config.StorefrontStorageQuotaBytes)
 		pilgrimService := service.NewPilgrimService(operatorRepository, pilgrimRepository, accommodationRepository, transportRepository, auditRepository, pool)
 		seasonService := service.NewSeasonService(operatorRepository, seasonRepository, auditRepository, analyticsRepository, monitoringRepository)
 		accommodationService := service.NewAccommodationService(operatorRepository, pilgrimRepository, accommodationRepository, auditRepository)
