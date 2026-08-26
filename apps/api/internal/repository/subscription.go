@@ -141,6 +141,15 @@ func (r *SubscriptionRepository) IssueBankTransferInvoice(ctx context.Context, o
 		// Either index rejecting means this suffix is taken — by a live invoice,
 		// or by one already issued today. Both are retryable; anything else is a
 		// real fault and must not be swallowed by another attempt.
+		// Another request for this operator won the race and already holds the
+		// only pending invoice. Hand back theirs rather than failing or
+		// retrying: the caller asked for an invoice and there is one.
+		if isUniqueViolation(err, "subscription_invoices_one_pending_idx") {
+			return r.PendingInvoice(ctx, operatorID)
+		}
+		// A suffix already taken — by a live invoice, or by one issued today.
+		// Both are retryable; anything else is a real fault and must not be
+		// swallowed by another attempt.
 		if isUniqueViolation(err, "subscription_invoices_transfer_amount_idx") ||
 			isUniqueViolation(err, "subscription_invoices_transfer_daily_idx") {
 			continue
@@ -163,7 +172,11 @@ func (r *SubscriptionRepository) IssueGatewayInvoice(ctx context.Context, operat
 	}
 	// No unique suffix: the gateway identifies the payment by its own id, so
 	// charging a round figure is clearer for the payer.
-	return r.insertInvoice(ctx, id, plan, "GATEWAY", base, base, externalID, checkoutURL)
+	invoice, err := r.insertInvoice(ctx, id, plan, "GATEWAY", base, base, externalID, checkoutURL)
+	if isUniqueViolation(err, "subscription_invoices_one_pending_idx") {
+		return r.PendingInvoice(ctx, operatorID)
+	}
+	return invoice, err
 }
 
 func (r *SubscriptionRepository) insertInvoice(ctx context.Context, operatorID any, plan, channel string, base, amount int64, externalID, checkoutURL string) (Invoice, error) {

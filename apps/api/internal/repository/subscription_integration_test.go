@@ -245,12 +245,58 @@ func TestSubscriptionTransferAmountIsUniquePerDayIntegration(t *testing.T) {
 		t.Fatalf("amount was not released on a different day: %v", err)
 	}
 
-	// And the issuer still finds a free suffix rather than failing.
-	next, err := subscriptions.IssueBankTransferInvoice(ctx, second, "STARTER")
+	// And the issuer still finds a free suffix rather than failing. A third
+	// operator is needed: `second` now holds a pending invoice, so issuing for
+	// them correctly returns that one instead of minting a new amount.
+	third := newTestOperator(t, pool, "STARTER")
+	next, err := subscriptions.IssueBankTransferInvoice(ctx, third, "STARTER")
 	if err != nil {
 		t.Fatalf("issue after collision: %v", err)
 	}
 	if next.Amount == invoice.Amount {
 		t.Fatalf("issued the same amount twice on one day: %d", next.Amount)
+	}
+}
+
+// A double-clicked button or a retried request must not leave an operator
+// holding two live unique amounts. Checking for an existing invoice before
+// inserting cannot prevent this — both requests pass the check — so the
+// database decides, and the loser is handed the invoice that won.
+func TestSubscriptionConcurrentRequestsYieldOneInvoiceIntegration(t *testing.T) {
+	pool := subscriptionTestPool(t)
+	ctx := context.Background()
+	subscriptions := NewSubscriptionRepository(pool)
+	operatorID := newTestOperator(t, pool, "STARTER")
+
+	const attempts = 12
+	var wg sync.WaitGroup
+	results := make([]Invoice, attempts)
+	failures := make([]error, attempts)
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			results[index], failures[index] = subscriptions.IssueBankTransferInvoice(ctx, operatorID, "STARTER")
+		}(i)
+	}
+	wg.Wait()
+
+	ids := map[string]bool{}
+	for i, invoice := range results {
+		if failures[i] != nil {
+			t.Fatalf("attempt %d failed instead of returning the existing invoice: %v", i, failures[i])
+		}
+		ids[invoice.ID] = true
+	}
+	if len(ids) != 1 {
+		t.Fatalf("%d distinct invoices issued for one operator, want 1", len(ids))
+	}
+
+	var pending int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM subscription_invoices WHERE operator_id = $1 AND status = 'PENDING'`, operatorID).Scan(&pending); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if pending != 1 {
+		t.Fatalf("%d pending invoices in the database, want 1", pending)
 	}
 }
