@@ -22,13 +22,21 @@ cd apps/api && go test ./...          # run Go tests
 cd apps/api && go test ./internal/service/ -run TestTransport   # single test
 ```
 
+Browser end-to-end specs live in `apps/web/e2e/` (Playwright) and are deliberately outside `pnpm lint`/`typecheck`/CI — they drive the real local stack (Next.js, Go API, PostgreSQL, MinIO) and write to the local database. `apps/web/e2e/README.md` covers how to run them, the fixture accounts, and what is still unverified. The storefront upload path is a no-op locally unless `apps/api/.env` carries the `S3_*` variables from `.env.example`.
+
+```bash
+pnpm --filter @hajj-saas/web e2e                  # all projects (needs every service up)
+pnpm --filter @hajj-saas/web e2e --project=cms    # one project
+pnpm --filter @hajj-saas/web e2e:clean            # drop the fixture accounts
+```
+
 Local Postgres + Redis + migrations:
 ```bash
 docker compose up -d postgres redis
 goose -dir apps/api/db/migrations postgres "$DATABASE_URL" up
 ```
 
-The Go API refuses to start unless `DATABASE_URL`, `BETTER_AUTH_SECRET`, and `CORS_ALLOWED_ORIGIN` are all set (see `apps/api/internal/config/config.go`). `cmd/worker` is a separate entrypoint requiring `DATABASE_URL` and `REDIS_URL` — it runs an asynq scheduler + server with two periodic tasks: agent tier recalculation (`internal/worker/tier.go`, every 5 minutes — does **not** compute payouts, see the `TODO(payout)` in `internal/service/agent.go`) and SOS escalation (`internal/worker/sos.go`, every 1 minute — flips `ACTIVE` alerts older than 10 minutes to `ESCALATED` and pushes coordinators, per the business rule in `CODEX_SPEC.md` §7).
+The Go API refuses to start unless `DATABASE_URL`, `BETTER_AUTH_SECRET`, and `CORS_ALLOWED_ORIGIN` are all set (see `apps/api/internal/config/config.go`). `cmd/worker` is a separate entrypoint requiring `DATABASE_URL` and `REDIS_URL` — it runs an asynq scheduler + server with six periodic tasks: agent tier recalculation (`internal/worker/tier.go`, every 5 minutes), SOS escalation (`internal/worker/sos.go`, every 1 minute — flips `ACTIVE` alerts older than 10 minutes to `ESCALATED` and pushes coordinators, per the business rule in `CODEX_SPEC.md` §7), waitlist expiry (every 5 minutes), overdue vendor payments (hourly), the transactional-outbox relay (`internal/worker/outbox.go`, every 10 seconds), and storefront media cleanup (`internal/worker/storefront_assets.go`, hourly). That last one reads the same `S3_*` variables as the API via `storage.ConfigFromEnv()`; with storage unconfigured it logs a warning and disables itself, but a *partial* configuration is fatal. Agent payouts are implemented (`ListPayouts`/`RecordPayout`/withdrawal requests in `internal/service/agent.go`) — they are simply not part of the tier sweep.
 
 Go integration tests (e.g. `apps/api/internal/service/transport_test.go`) are skipped unless `TEST_DATABASE_URL` is set — they run against a real, disposable Postgres database and clean up the rows they create. Never point `TEST_DATABASE_URL` at a database you care about.
 
