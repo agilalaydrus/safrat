@@ -300,7 +300,7 @@ func randomSuffix() (int64, error) {
 	return n.Int64() + 1, nil
 }
 
-// isUniqueViolation reports whether err is a unique-constraint failure on the
+// IsUniqueViolation reports whether err is a unique-constraint failure on the
 // named index. Matching the specific index matters: any other unique violation
 // is a real bug and must not be silently retried.
 func IsUniqueViolation(err error, constraint string) bool {
@@ -421,7 +421,7 @@ func (r *SubscriptionRepository) CloseByExternalID(ctx context.Context, external
 	return nil
 }
 
-// isForeignKeyViolation reports whether err is a foreign key failure on the
+// IsForeignKeyViolation reports whether err is a foreign key failure on the
 // named constraint, so callers can turn it into an explanation rather than an
 // internal error.
 func IsForeignKeyViolation(err error, constraint string) bool {

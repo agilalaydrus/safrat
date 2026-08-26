@@ -66,12 +66,31 @@ func (h *transportHarness) movement(t *testing.T, status string) string {
 	if err != nil {
 		t.Fatalf("create movement: %v", err)
 	}
-	if status != "scheduled" {
-		if _, err := h.service.UpdateMovementStatus(h.ctx, h.orgID, &hajjv1.UpdateMovementStatusRequest{MovementId: v.Id, Status: status}); err != nil {
-			t.Fatalf("set movement status: %v", err)
+	for _, step := range transitionPath(status) {
+		if _, err := h.service.UpdateMovementStatus(h.ctx, h.orgID, &hajjv1.UpdateMovementStatusRequest{MovementId: v.Id, Status: step}); err != nil {
+			t.Fatalf("set movement status %s: %v", step, err)
 		}
 	}
 	return v.Id
+}
+
+// transitionPath is the sequence of status changes that reaches status from a
+// freshly created "scheduled" record.
+//
+// "arrived" is only reachable through "departed" (see transitionAllowed). A
+// fixture that jumped straight to it was rejected by the very rule these tests
+// exist to check, so the setup failed rather than the assertion. Writing the
+// status directly with an UPDATE would also make the tests pass, but it would
+// quietly stop proving that the legal path is walkable at all.
+func transitionPath(status string) []string {
+	switch status {
+	case "scheduled":
+		return nil
+	case "arrived":
+		return []string{"departed", "arrived"}
+	default:
+		return []string{status}
+	}
 }
 
 func (h *transportHarness) vehicle(t *testing.T, movementID string, capacity int32) string {
@@ -186,10 +205,9 @@ func TestMovementAndVehicleTransitions(t *testing.T) {
 		t.Run("vehicle "+tc.from+"-"+tc.to, func(t *testing.T) {
 			mid := h.movement(t, "scheduled")
 			id := h.vehicle(t, mid, 3)
-			if tc.from != "scheduled" {
-				_, err := h.service.UpdateVehicleStatus(h.ctx, h.orgID, &hajjv1.UpdateVehicleStatusRequest{VehicleId: id, Status: tc.from})
-				if err != nil {
-					t.Fatal(err)
+			for _, step := range transitionPath(tc.from) {
+				if _, err := h.service.UpdateVehicleStatus(h.ctx, h.orgID, &hajjv1.UpdateVehicleStatusRequest{VehicleId: id, Status: step}); err != nil {
+					t.Fatalf("set vehicle status %s: %v", step, err)
 				}
 			}
 			_, err := h.service.UpdateVehicleStatus(h.ctx, h.orgID, &hajjv1.UpdateVehicleStatusRequest{VehicleId: id, Status: tc.to})

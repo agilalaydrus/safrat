@@ -149,9 +149,21 @@ It records a refund; it does not call the gateway to move money. Operators
 refund by transfer or at the counter today, and an honest record is the part
 that has to exist first.
 
-**Note, unrelated and pre-existing:** `TestMovementAndVehicleTransitions` and
-`TestDeleteMovement` fail on `cannot transition from scheduled to arrived`.
-Confirmed failing before this work as well — not caused by it, still unfixed.
+#### Fixed alongside — two red tests
+
+- **Transport transition fixtures.** `TestMovementAndVehicleTransitions` and
+  `TestDeleteMovement` failed on `cannot transition from scheduled to arrived`.
+  Pre-existing and unrelated to the ledgers: `arrived` is only reachable through
+  `departed` (see `transitionAllowed`), but the fixtures jumped straight to it,
+  so the setup was rejected by the very rule the tests exist to check. They now
+  walk the legal path via `transitionPath`. Writing the status with a direct
+  UPDATE would also have made them pass, while quietly ending any proof that the
+  legal path is walkable.
+- **An inverted assertion I introduced** in the ledger commit: renaming
+  `isUniqueViolation` to `IsUniqueViolation` dropped the `!` in
+  `TestSubscriptionTransferAmountIsUniquePerDay`, so a correct rejection was
+  reported as the wrong reason. Every other renamed call site was checked; only
+  that one was affected.
 
 #### Open — ordered
 
