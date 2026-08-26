@@ -16,6 +16,27 @@
 
 ### Session log — 2026-08-26
 
+
+**Pricing tiers map onto the white-label levels** (owner, 2026-08-26). The
+`plan` enum from migration 001 already matches them:
+
+| Plan | Tier | Entitlement |
+| --- | --- | --- |
+| `STARTER` | Starter PPIU | Platform subdomain. Landing page still fully customisable, and pilgrim / muttawwif / agent portals all included. |
+| `GROWTH` | Growth Enterprises | Everything in Starter plus their own domain. |
+| `PRO` | PIHK & Konsorsium | Custom, up to a separate VPS and bespoke development. |
+
+**`plan` was decorative until now** — the column existed since 001 but was read
+nowhere in the Go code, so no feature was gated by it. Custom domains are the
+first entitlement actually enforced. If other paid features are assumed to be
+gated, check: they probably are not.
+
+Enforcement is at **resolution**, not only at creation: a verified domain stops
+resolving and drops out of the CORS allowlist the moment the plan no longer
+includes it. Gating only on create would leave a downgraded operator's domain
+served forever. `ListMyDomains` returns `customDomainsEnabled` so the CMS can
+explain the entitlement, but the server stays the authority.
+
 **White-label foundation (Level 2)**
 
 The owner's direction: clients will eventually bring their own domains, and

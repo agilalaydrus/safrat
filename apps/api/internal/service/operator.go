@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -155,7 +156,15 @@ func (s *OperatorService) ListMyDomains(ctx context.Context, orgID string) (*haj
 	if err != nil {
 		return nil, serviceError("OperatorService.ListMyDomains", err)
 	}
-	response := &hajjv1.ListMyDomainsResponse{Domains: make([]*hajjv1.OperatorDomain, 0, len(domains))}
+	plan, err := s.domainRepository.PlanFor(ctx, operator.ID)
+	if err != nil {
+		return nil, serviceError("OperatorService.ListMyDomains", err)
+	}
+	response := &hajjv1.ListMyDomainsResponse{
+		Domains:              make([]*hajjv1.OperatorDomain, 0, len(domains)),
+		Plan:                 plan,
+		CustomDomainsEnabled: slices.Contains(repository.CustomDomainPlans, plan),
+	}
 	for _, domain := range domains {
 		response.Domains = append(response.Domains, domainMessage(domain))
 	}
@@ -174,6 +183,9 @@ func (s *OperatorService) AddMyDomain(ctx context.Context, orgID string, request
 		return nil, serviceError("OperatorService.AddMyDomain", err)
 	}
 	domain, err := s.domainRepository.Add(ctx, operator.ID, request.Hostname)
+	if errors.Is(err, repository.ErrPlanForbidsCustomDomain) {
+		return nil, connect.NewError(connect.CodeFailedPrecondition, errors.New("paket Starter memakai subdomain TawafiqHub; tingkatkan ke Growth untuk memakai domain sendiri"))
+	}
 	if errors.Is(err, apperror.ErrConflict) {
 		return nil, connect.NewError(connect.CodeAlreadyExists, errors.New("domain sudah terdaftar; hubungi administrator bila Anda pemiliknya"))
 	}

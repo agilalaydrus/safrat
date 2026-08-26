@@ -21,11 +21,15 @@ export default function DomainPanel() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
+  const [entitled, setEntitled] = useState(true);
+  const [plan, setPlan] = useState("");
 
   const load = useCallback(async () => {
     try {
       const response = await operatorClient.listMyDomains({});
       setDomains(response.domains);
+      setEntitled(response.customDomainsEnabled);
+      setPlan(response.plan);
     } catch (caught) {
       setError(ConnectError.from(caught).rawMessage);
     }
@@ -82,7 +86,12 @@ export default function DomainPanel() {
       <p style={muted}>Arahkan domain milik Anda ke halaman travel ini. Pengunjung akan melihat alamat Anda sendiri, bukan subdomain TawafiqHub.</p>
     </header>
 
-    <div style={addRow}>
+    {!entitled && <div style={upsell}>
+      <strong>Paket {plan === "STARTER" ? "Starter PPIU" : plan} memakai subdomain TawafiqHub.</strong>
+      <span style={muted}>Halaman travel, portal jamaah, muttawwif, dan agen tetap lengkap di subdomain Anda. Tingkatkan ke Growth untuk memakai domain travel sendiri.</span>
+    </div>}
+
+    {entitled && <div style={addRow}>
       <input
         value={hostname}
         onChange={(event) => setHostname(event.target.value)}
@@ -93,13 +102,13 @@ export default function DomainPanel() {
         style={input}
       />
       <button type="button" onClick={() => void add()} disabled={busy} style={primaryButton}>Tambah domain</button>
-    </div>
+    </div>}
 
     {error && <p style={alertError}>{error}</p>}
     {notice && <p style={alertOk}>{notice}</p>}
 
     {domains.length === 0
-      ? <p style={muted}>Belum ada domain. Anda tetap bisa memakai subdomain TawafiqHub seperti biasa.</p>
+      ? (entitled && <p style={muted}>Belum ada domain. Anda tetap bisa memakai subdomain TawafiqHub seperti biasa.</p>)
       : <ul style={list}>
           {domains.map((domain) => <li key={domain.id} style={row}>
             <div style={{ display: "grid", gap: 6, minWidth: 0 }}>
@@ -138,6 +147,7 @@ export default function DomainPanel() {
 const card: React.CSSProperties = { display: "grid", gap: 18, border: "1px solid var(--color-cream-400)", borderRadius: 14, background: "var(--color-cream-100)", padding: 24 };
 const eyebrow: React.CSSProperties = { margin: 0, color: "var(--color-warm-400)", fontSize: 11, fontWeight: 800, letterSpacing: "0.14em" };
 const muted: React.CSSProperties = { margin: 0, color: "var(--color-warm-500)", fontSize: 13, lineHeight: 1.6 };
+const upsell: React.CSSProperties = { display: "grid", gap: 6, border: "1px solid var(--color-cream-400)", borderRadius: 12, background: "#fff", padding: 16 };
 const addRow: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };
 const input: React.CSSProperties = { minHeight: 44, flex: "1 1 260px", border: "1px solid var(--color-cream-400)", borderRadius: 10, padding: "0 12px", fontSize: 14 };
 const primaryButton: React.CSSProperties = { minHeight: 44, border: 0, borderRadius: 10, background: "var(--color-emerald-900)", padding: "0 18px", color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" };

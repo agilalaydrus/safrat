@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/hajj-saas/api/internal/apperror"
@@ -23,6 +24,18 @@ type OperatorDomainRepository struct {
 func NewOperatorDomainRepository(pool *pgxpool.Pool) *OperatorDomainRepository {
 	return &OperatorDomainRepository{pool: pool}
 }
+
+// CustomDomainPlans are the plans entitled to bring their own domain: Growth
+// Enterprises and PIHK/Konsorsium. Starter PPIU stays on a platform subdomain.
+//
+// The entitlement is enforced at *resolution*, not only when a domain is added,
+// so a downgrade stops the domain being served instead of leaving it live
+// forever because it was created while the plan still allowed it.
+var CustomDomainPlans = []string{"GROWTH", "PRO"}
+
+// ErrPlanForbidsCustomDomain means the operator's plan does not include
+// bringing their own domain.
+var ErrPlanForbidsCustomDomain = errors.New("plan does not include custom domains")
 
 // NormalizeHostname strips the port, lowercases, and drops a trailing dot so a
 // Host header can never miss a stored row on formatting alone.
@@ -46,9 +59,12 @@ func (r *OperatorDomainRepository) ResolveVerified(ctx context.Context, host str
 	}
 	var operatorID string
 	err := r.pool.QueryRow(ctx, `
-		SELECT operator_id::text
-		FROM operator_domains
-		WHERE hostname = $1 AND verified_at IS NOT NULL`, hostname).Scan(&operatorID)
+		SELECT domains.operator_id::text
+		FROM operator_domains AS domains
+		JOIN operators ON operators.id = domains.operator_id
+		WHERE domains.hostname = $1
+		  AND domains.verified_at IS NOT NULL
+		  AND operators.plan::text = ANY($2)`, hostname, CustomDomainPlans).Scan(&operatorID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", apperror.ErrNotFound
 	}
@@ -62,7 +78,12 @@ func (r *OperatorDomainRepository) ResolveVerified(ctx context.Context, host str
 // on-demand TLS "ask" check, so one table decides every place a hostname is
 // trusted.
 func (r *OperatorDomainRepository) ListVerifiedHostnames(ctx context.Context) ([]string, error) {
-	rows, err := r.pool.Query(ctx, `SELECT hostname FROM operator_domains WHERE verified_at IS NOT NULL ORDER BY hostname`)
+	rows, err := r.pool.Query(ctx, `
+		SELECT domains.hostname
+		FROM operator_domains AS domains
+		JOIN operators ON operators.id = domains.operator_id
+		WHERE domains.verified_at IS NOT NULL AND operators.plan::text = ANY($1)
+		ORDER BY domains.hostname`, CustomDomainPlans)
 	if err != nil {
 		return nil, err
 	}
@@ -98,6 +119,16 @@ func (r *OperatorDomainRepository) Add(ctx context.Context, operatorID, host str
 	if !isRoutableHostname(hostname) {
 		return Domain{}, apperror.ErrValidation
 	}
+	var plan string
+	if err := r.pool.QueryRow(ctx, `SELECT plan::text FROM operators WHERE id = $1`, id).Scan(&plan); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Domain{}, apperror.ErrNotFound
+		}
+		return Domain{}, err
+	}
+	if !slices.Contains(CustomDomainPlans, plan) {
+		return Domain{}, ErrPlanForbidsCustomDomain
+	}
 	var domain Domain
 	err = r.pool.QueryRow(ctx, `
 		INSERT INTO operator_domains (operator_id, hostname)
@@ -111,6 +142,21 @@ func (r *OperatorDomainRepository) Add(ctx context.Context, operatorID, host str
 		return Domain{}, err
 	}
 	return domain, nil
+}
+
+// PlanFor returns the operator's plan, so callers can explain an entitlement
+// rather than only refuse it.
+func (r *OperatorDomainRepository) PlanFor(ctx context.Context, operatorID string) (string, error) {
+	id, err := pgUUID(operatorID)
+	if err != nil {
+		return "", apperror.ErrValidation
+	}
+	var plan string
+	err = r.pool.QueryRow(ctx, `SELECT plan::text FROM operators WHERE id = $1`, id).Scan(&plan)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", apperror.ErrNotFound
+	}
+	return plan, err
 }
 
 // ListForOperator returns every hostname the operator has claimed.

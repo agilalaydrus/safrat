@@ -24,7 +24,9 @@ func TestOperatorDomainResolutionIntegration(t *testing.T) {
 	t.Cleanup(pool.Close)
 
 	operatorID := uuid.NewString()
-	_, err = pool.Exec(ctx, `INSERT INTO operators (id, better_auth_org_id, name, country, email, slug) VALUES ($1, $2, 'Domain Test', 'ID', 'domain@example.com', $3)`,
+	// GROWTH: custom domains are a paid entitlement, so a STARTER fixture would
+	// correctly refuse to resolve and this test would be measuring the wrong thing.
+	_, err = pool.Exec(ctx, `INSERT INTO operators (id, better_auth_org_id, name, country, email, slug, plan) VALUES ($1, $2, 'Domain Test', 'ID', 'domain@example.com', $3, 'GROWTH')`,
 		operatorID, "domain-test-"+uuid.NewString(), "domain-"+operatorID[:8])
 	if err != nil {
 		t.Fatalf("insert operator: %v", err)
@@ -79,4 +81,61 @@ func contains(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// A verified domain must stop resolving when the operator's plan no longer
+// includes custom domains — otherwise a downgrade leaves it served forever.
+func TestOperatorDomainRespectsPlanEntitlementIntegration(t *testing.T) {
+	databaseURL := os.Getenv("STOREFRONT_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("STOREFRONT_TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("connect database: %v", err)
+	}
+	t.Cleanup(pool.Close)
+
+	operatorID := uuid.NewString()
+	_, err = pool.Exec(ctx, `INSERT INTO operators (id, better_auth_org_id, name, country, email, slug, plan) VALUES ($1, $2, 'Plan Test', 'ID', 'plan@example.com', $3, 'STARTER')`,
+		operatorID, "plan-test-"+uuid.NewString(), "plan-"+operatorID[:8])
+	if err != nil {
+		t.Fatalf("insert operator: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), `DELETE FROM operators WHERE id = $1`, operatorID) })
+
+	domains := NewOperatorDomainRepository(pool)
+	const hostname = "starter-should-not-serve.example"
+
+	// Starter cannot claim one at all.
+	if _, err := domains.Add(ctx, operatorID, hostname); !errors.Is(err, ErrPlanForbidsCustomDomain) {
+		t.Fatalf("Starter was allowed to add a domain: %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, `UPDATE operators SET plan = 'GROWTH' WHERE id = $1`, operatorID); err != nil {
+		t.Fatalf("upgrade plan: %v", err)
+	}
+	domain, err := domains.Add(ctx, operatorID, hostname)
+	if err != nil {
+		t.Fatalf("Growth could not add a domain: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE operator_domains SET verified_at = NOW() WHERE id = $1::uuid`, domain.ID); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if resolved, err := domains.ResolveVerified(ctx, hostname); err != nil || resolved != operatorID {
+		t.Fatalf("verified domain on Growth did not resolve: %q, %v", resolved, err)
+	}
+
+	// Downgrade: the row stays, but it must no longer be served or trusted.
+	if _, err := pool.Exec(ctx, `UPDATE operators SET plan = 'STARTER' WHERE id = $1`, operatorID); err != nil {
+		t.Fatalf("downgrade plan: %v", err)
+	}
+	if _, err := domains.ResolveVerified(ctx, hostname); !errors.Is(err, apperror.ErrNotFound) {
+		t.Fatalf("domain still resolved after downgrade: %v", err)
+	}
+	hostnames, err := domains.ListVerifiedHostnames(ctx)
+	if err != nil || contains(hostnames, hostname) {
+		t.Fatalf("downgraded domain still in the CORS allowlist: %v, %v", hostnames, err)
+	}
 }

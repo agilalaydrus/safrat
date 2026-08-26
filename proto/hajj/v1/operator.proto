@@ -401,6 +401,11 @@ message OperatorDomain {
 message ListMyDomainsRequest {}
 message ListMyDomainsResponse {
   repeated OperatorDomain domains = 1;
+  // Whether this operator's plan includes bringing their own domain, so the
+  // CMS can explain the entitlement rather than present a form the server
+  // will refuse. The server remains the authority either way.
+  bool custom_domains_enabled = 2;
+  string plan = 3;
 }
 message AddMyDomainRequest {
   string hostname = 1 [(buf.validate.field).string = {min_len: 4, max_len: 253}];
