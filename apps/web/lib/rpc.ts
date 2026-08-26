@@ -27,6 +27,7 @@ import { RitualService } from "@hajj-saas/proto-gen/hajj/v1/ritual_connect";
 import { SeasonService } from "@hajj-saas/proto-gen/hajj/v1/season_connect";
 import { SOSService } from "@hajj-saas/proto-gen/hajj/v1/sos_connect";
 import { StaffScheduleService } from "@hajj-saas/proto-gen/hajj/v1/staff_schedule_connect";
+import { SubscriptionService } from "@hajj-saas/proto-gen/hajj/v1/subscription_connect";
 import { TransportService } from "@hajj-saas/proto-gen/hajj/v1/transport_connect";
 import { TripService } from "@hajj-saas/proto-gen/hajj/v1/trip_connect";
 import { VendorService } from "@hajj-saas/proto-gen/hajj/v1/vendor_connect";
@@ -34,6 +35,7 @@ import { WaitlistService } from "@hajj-saas/proto-gen/hajj/v1/waitlist_connect";
 import { transport } from "./transport";
 
 export const operatorClient = createClient(OperatorService, transport);
+export const subscriptionClient = createClient(SubscriptionService, transport);
 export const pilgrimClient = createClient(PilgrimService, transport);
 export const seasonClient = createClient(SeasonService, transport);
 export const accommodationClient = createClient(AccommodationService, transport);
