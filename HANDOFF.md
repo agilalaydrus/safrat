@@ -16,6 +16,57 @@
 
 ### Session log — 2026-08-26
 
+**White-label foundation (Level 2)**
+
+The owner's direction: clients will eventually bring their own domains, and
+possibly their own VPS, with jamaah / tour leader / agent all signing in on the
+client's domain. Levels: 1 = platform subdomain (where we were), 2 = client
+domain for public pages with auth still on the apex (where we are now), 3 =
+sessions issued per client domain, 4 = dedicated instance per client.
+
+Shipped:
+- **Migration 085 `operator_domains`** (`19ebaf7`). Tenancy used to be *derived*
+  from the hostname; a client domain has no slug to derive, so identity is now
+  stored. Additive by design — platform subdomains still resolve exactly as
+  before and nothing was backfilled. Only verified rows resolve, enforced in
+  SQL and in the repository.
+- **Dynamic CORS** (`35b9dd8`) reading the same table, since `/register` and
+  `/apply` are served on client domains and call the API from the browser.
+- **Domain claim + DNS TXT verification** with a settings panel (`7b8b694`).
+
+Three routing traps found only by testing against the standalone server, none
+visible by reading the code:
+1. `platformBaseHostname` returns a client domain unchanged, so the app-route
+   redirect would have sent it to itself forever.
+2. The legacy `/p/{slug}` redirect bounced visitors off the client domain onto
+   the platform subdomain.
+3. Next re-enters middleware on the rewritten path with the server's own Host,
+   losing tenant identity — now carried in a request header.
+
+**Still open, in order**
+- **Caddy + on-demand TLS.** The wildcard is issued by lego + Hostinger DNS-01,
+  which cannot work for domains at a client's registrar; those need HTTP-01.
+  Plan: Caddy terminates TLS, loads the existing wildcard from disk (so the
+  proven renewal path is untouched) and issues on-demand certificates for
+  client domains, gated by an `ask` endpoint backed by `operator_domains`.
+  Deliberately a separate migration, not bundled with feature work.
+- **Level 3 auth.** Better Auth is pinned to one origin and its cookie is
+  host-only for the apex. `trustedOrigins` supports an async per-request
+  function in 1.6.28, but was deliberately NOT widened yet — auth never happens
+  on a client domain today, so trusting those origins would be risk without use.
+- **Centralised OAuth handoff.** Google requires every redirect URI to be
+  registered manually, so social login cannot happen directly on arbitrary
+  client domains. One central callback issues a single-use, short-lived,
+  origin-bound code that the client domain exchanges server-side. Never put a
+  session token in a URL.
+- **The app-route redirect is TEMPORARY** and inverts at Level 3. It is marked
+  as such in `middleware.ts`.
+
+**Also outstanding (user-side audit)**
+- No `manifest.json` or icons: the pilgrim/leader PWAs cannot be installed.
+- `favicon.ico` 404s on every origin; `<html lang="en">` on an Indonesian UI;
+  `/pilgrim`, `/leader`, `/agent` all inherit the title "Operator Dashboard".
+
 **Later the same day — storefront UI round**
 
 - **The tenant header was never sticky.** `.tenant-scope` carried
