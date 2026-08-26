@@ -16,6 +16,38 @@
 
 ### Session log — 2026-08-26
 
+**Later the same day — storefront UI round**
+
+- **The tenant header was never sticky.** `.tenant-scope` carried
+  `overflow-x: hidden`, which forces `overflow-y` to compute as `auto` and makes
+  the element a scroll container; `position: sticky` then anchored the header to
+  that box instead of the viewport, so it scrolled away with the page. Measured
+  at `scrollY 2500` the header sat at viewport top `-2500`. Fixed with
+  `overflow-x: clip` (`2a0b83d`), which contains horizontal overflow without
+  creating a scroll container. Nothing in the CSS *looked* wrong, so
+  `storefront-sticky-nav.spec.ts` asserts the header's measured bounding rect
+  and pins `overflow-y: visible` — reintroducing `hidden` now fails loudly.
+  Any future `overflow` change on `.tenant-scope` must keep this in mind.
+
+- **Packages section reworked** (`6018cd7`): a carousel of 4:5 poster cards
+  (operators upload portrait promo flyers, so the artwork is shown whole rather
+  than cropped through the price), plus a picker panel opened by a card or the
+  floating shortcut — dark header, scrollable departures, expandable rows
+  carrying the facilities/hotels/airline/room-price detail that previously hid
+  behind a `<details>` element. Built entirely from existing proto fields; no
+  CMS or schema change. Carousel arrows only render when the track overflows.
+
+- **Contrast constraint, worth repeating:** `--tenant-brand-text` comes from
+  `readableText`, a binary luminance flip calibrated against `--tenant-brand`
+  exactly. A gradient that darkens below the brand colour destroys it — a first
+  attempt at the contact panels did precisely that and made the copy nearly
+  unreadable. Panels now only ever lighten. Screenshot the result; reading the
+  CSS will not catch this.
+
+- **Reminder about the local PWA server:** `pnpm build` overwrites
+  `public/sw.js` and breaks the offline project until `e2e:pwa:build` is re-run.
+  That failure mimics a real regression exactly.
+
 Everything below shipped to production in four deploys, all green. Ordered by
 what a reader most likely needs to know first.
 
