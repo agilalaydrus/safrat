@@ -80,15 +80,18 @@ func TestS3CompatibleUploadIntegration(t *testing.T) {
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		t.Fatalf("PUT status = %d", response.StatusCode)
 	}
-	publicURL, err := store.ConfirmStorefrontUpload(context.Background(), operatorID, upload.ObjectKey)
+	confirmed, err := store.ConfirmStorefrontUpload(context.Background(), operatorID, upload.ObjectKey)
 	if err != nil {
 		t.Fatalf("confirm: %v", err)
 	}
 	wantURL := endpoint + "/safrat-uploads/" + strings.Replace(upload.ObjectKey, "storefront-pending/", "storefront/", 1)
-	if publicURL != wantURL {
-		t.Fatalf("confirmed URL = %q, want %q", publicURL, wantURL)
+	if confirmed.PublicURL != wantURL {
+		t.Fatalf("confirmed URL = %q, want %q", confirmed.PublicURL, wantURL)
 	}
-	publicResponse, err := http.Get(publicURL)
+	if confirmed.SizeBytes != int64(len(imageBytes)) {
+		t.Fatalf("confirmed size = %d, want %d", confirmed.SizeBytes, len(imageBytes))
+	}
+	publicResponse, err := http.Get(confirmed.PublicURL)
 	if err != nil {
 		t.Fatalf("public GET: %v", err)
 	}
@@ -99,8 +102,8 @@ func TestS3CompatibleUploadIntegration(t *testing.T) {
 	if contentType := publicResponse.Header.Get("Content-Type"); contentType != StorefrontContentType {
 		t.Fatalf("public GET Content-Type = %q", contentType)
 	}
-	if _, err := store.client.HeadObject(context.Background(), &s3.HeadObjectInput{Bucket: aws.String(store.bucket), Key: aws.String(upload.ObjectKey)}); err == nil {
-		t.Fatal("pending object still exists after confirmation")
+	if _, err := store.client.HeadObject(context.Background(), &s3.HeadObjectInput{Bucket: aws.String(store.bucket), Key: aws.String(upload.ObjectKey)}); err != nil {
+		t.Fatalf("pending source should remain for retry safety: %v", err)
 	}
 }
 

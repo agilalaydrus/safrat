@@ -44,6 +44,7 @@ export default function OperatorProfilePanel() {
   const [draftRevision, setDraftRevision] = useState(0n);
   const [publishedRevision, setPublishedRevision] = useState(0n);
   const [publishedAt, setPublishedAt] = useState("");
+  const [storageUsage, setStorageUsage] = useState({ usedBytes: 0, quotaBytes: 0, assetCount: 0, pendingCount: 0 });
   const [tab, setTab] = useState<Tab>("brand");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -59,6 +60,7 @@ export default function OperatorProfilePanel() {
       setDraftRevision(editor.draftRevision);
       setPublishedRevision(editor.publishedRevision);
       setPublishedAt(editor.publishedAt?.toDate().toLocaleString("id-ID") ?? "");
+      setStorageUsage({ usedBytes: Number(editor.storageUsedBytes), quotaBytes: Number(editor.storageQuotaBytes), assetCount: editor.storageAssetCount, pendingCount: editor.storagePendingCount });
       setOperator({ name: current.name, country: current.country, email: current.email, licenseNumber: current.licenseNumber, slug: current.slug });
     } catch (cause) { setError(message(cause, "CMS storefront gagal dimuat.")); }
     finally { setLoading(false); }
@@ -74,6 +76,7 @@ export default function OperatorProfilePanel() {
       setDraftRevision(editor.draftRevision);
       setPublishedRevision(editor.publishedRevision);
       setPublishedAt(editor.publishedAt?.toDate().toLocaleString("id-ID") ?? "");
+      setStorageUsage({ usedBytes: Number(editor.storageUsedBytes), quotaBytes: Number(editor.storageQuotaBytes), assetCount: editor.storageAssetCount, pendingCount: editor.storagePendingCount });
       setNotice("Draft tersimpan. Halaman publik belum berubah.");
       return editor.draftRevision;
     } catch (cause) {
@@ -103,6 +106,7 @@ export default function OperatorProfilePanel() {
       setDraftRevision(editor.draftRevision);
       setPublishedRevision(editor.publishedRevision);
       setPublishedAt(editor.publishedAt?.toDate().toLocaleString("id-ID") ?? "");
+      setStorageUsage({ usedBytes: Number(editor.storageUsedBytes), quotaBytes: Number(editor.storageQuotaBytes), assetCount: editor.storageAssetCount, pendingCount: editor.storagePendingCount });
       setNotice("Perubahan berhasil dipublikasikan.");
     } catch (cause) { setError(conflictMessage(cause)); }
     finally { setBusy(false); }
@@ -124,7 +128,14 @@ export default function OperatorProfilePanel() {
   return <div style={{ display: "grid", gap: 18 }}>
     <header style={cmsHeader}>
       <div><p style={eyebrow}>STOREFRONT CMS</p><h2 style={{ margin: 0, fontSize: 24 }}>Landing page travel</h2><p style={muted}>Simpan sebagai draft, tinjau halaman sebenarnya, lalu publikasikan saat siap.</p></div>
-      <div style={statusBox}><strong style={{ color: dirty ? "var(--color-gold-800)" : "var(--color-emerald-900)" }}>{dirty ? "Ada draft baru" : "Sudah sinkron"}</strong><span>Draft {draftRevision.toString()} · Live {publishedRevision.toString()}</span>{publishedAt && <span>Terbit {publishedAt}</span>}</div>
+      <div style={statusBox}>
+        <strong style={{ color: dirty ? "var(--color-gold-800)" : "var(--color-emerald-900)" }}>{dirty ? "Ada draft baru" : "Sudah sinkron"}</strong>
+        <span>Draft {draftRevision.toString()} · Live {publishedRevision.toString()}</span>
+        {publishedAt && <span>Terbit {publishedAt}</span>}
+        <span style={storageLabel}>Media {formatBytes(storageUsage.usedBytes)} dari {formatBytes(storageUsage.quotaBytes)}</span>
+        <span>{storageUsage.assetCount} file aktif{storageUsage.pendingCount > 0 ? ` · ${storageUsage.pendingCount} upload tertunda` : ""}</span>
+        <span aria-hidden="true" style={storageTrack}><span style={{ ...storageFill, width: `${storagePercent(storageUsage.usedBytes, storageUsage.quotaBytes)}%` }} /></span>
+      </div>
     </header>
 
     {(notice || error) && <p role={error ? "alert" : "status"} style={{ ...alert, color: error ? "var(--color-danger-600)" : "var(--color-emerald-900)" }}>{error || notice}</p>}
@@ -360,11 +371,15 @@ function contrastRatio(foreground: string, background: string) { const luminance
 function conflictMessage(cause: unknown) { const text = message(cause, "Perubahan gagal disimpan."); return text.toLowerCase().includes("aborted") || text.toLowerCase().includes("conflict") ? "Draft berubah dari tab lain. Muat ulang CMS sebelum melanjutkan agar perubahan tidak tertimpa." : text; }
 function message(cause: unknown, fallback: string) { return cause instanceof Error && cause.message ? cause.message : fallback; }
 function formatBytes(bytes: number) { return bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`; }
+function storagePercent(usedBytes: number, quotaBytes: number) { return quotaBytes > 0 ? Math.min(100, Math.max(0, usedBytes / quotaBytes * 100)) : 0; }
 
 const cmsHeader: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20, flexWrap: "wrap" };
 const eyebrow: React.CSSProperties = { margin: "0 0 5px", color: "var(--color-gold-800)", fontSize: 11, fontWeight: 800, letterSpacing: "0.12em" };
 const muted: React.CSSProperties = { margin: "4px 0 0", color: "var(--color-warm-400)", fontSize: 12 };
 const statusBox: React.CSSProperties = { display: "grid", gap: 2, minWidth: 180, border: "1px solid var(--color-cream-400)", borderRadius: 10, padding: "10px 12px", background: "var(--color-cream-200)", fontSize: 11, color: "var(--color-warm-400)" };
+const storageLabel: React.CSSProperties = { marginTop: 5, color: "var(--color-warm-700)", fontWeight: 700 };
+const storageTrack: React.CSSProperties = { display: "block", height: 5, marginTop: 3, overflow: "hidden", borderRadius: 999, background: "var(--color-cream-500)" };
+const storageFill: React.CSSProperties = { display: "block", height: "100%", borderRadius: 999, background: "var(--color-gold-600)", transition: "width 180ms ease" };
 const alert: React.CSSProperties = { margin: 0, border: "1px solid var(--color-cream-400)", borderRadius: 10, padding: "10px 12px", background: "var(--color-cream-200)", fontSize: 13 };
 const tabs: React.CSSProperties = { display: "flex", gap: 6, overflowX: "auto", borderBottom: "1px solid var(--color-cream-400)", paddingBottom: 8 };
 const tabButton: React.CSSProperties = { minHeight: 38, flexShrink: 0, border: 0, borderRadius: 8, padding: "0 12px", background: "transparent", color: "var(--color-warm-400)", fontWeight: 700, cursor: "pointer" };

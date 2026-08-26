@@ -47,6 +47,12 @@ type PresignedUpload struct {
 	ExpiresAt   time.Time
 }
 
+type ConfirmedUpload struct {
+	PublicURL string
+	ObjectKey string
+	SizeBytes int64
+}
+
 type storefrontAssetSpec struct {
 	contentType string
 	extension   string
@@ -136,55 +142,55 @@ func (s *Store) PresignStorefrontUpload(ctx context.Context, operatorID, kind st
 	}, nil
 }
 
-func (s *Store) ConfirmStorefrontUpload(ctx context.Context, operatorID, objectKey string) (string, error) {
+func (s *Store) ConfirmStorefrontUpload(ctx context.Context, operatorID, objectKey string) (ConfirmedUpload, error) {
 	if s == nil {
-		return "", ErrNotConfigured
+		return ConfirmedUpload{}, ErrNotConfigured
 	}
 	prefix := path.Join("storefront-pending", operatorID) + "/"
 	if _, err := uuid.Parse(operatorID); err != nil || !strings.HasPrefix(objectKey, prefix) || path.Clean(objectKey) != objectKey {
-		return "", fmt.Errorf("invalid object key")
+		return ConfirmedUpload{}, fmt.Errorf("invalid object key")
 	}
 	relativeKey := strings.TrimPrefix(objectKey, prefix)
 	parts := strings.Split(relativeKey, "/")
 	if len(parts) != 2 {
-		return "", fmt.Errorf("invalid object key")
+		return ConfirmedUpload{}, fmt.Errorf("invalid object key")
 	}
 	spec, err := storefrontSpec(parts[0])
 	if err != nil || !strings.HasSuffix(parts[1], spec.extension) {
-		return "", fmt.Errorf("invalid object key")
+		return ConfirmedUpload{}, fmt.Errorf("invalid object key")
 	}
 	head, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(objectKey)})
 	if err != nil {
-		return "", fmt.Errorf("inspect storefront upload: %w", err)
+		return ConfirmedUpload{}, fmt.Errorf("inspect storefront upload: %w", err)
 	}
 	validMetadata := head.ContentLength != nil && *head.ContentLength > 0 && *head.ContentLength <= spec.maxBytes && head.ContentType != nil && *head.ContentType == spec.contentType
 	if !validMetadata {
 		s.deleteInvalid(ctx, objectKey)
-		return "", fmt.Errorf("uploaded object metadata is invalid")
+		return ConfirmedUpload{}, fmt.Errorf("uploaded object metadata is invalid")
 	}
 	object, err := s.client.GetObject(ctx, &s3.GetObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(objectKey)})
 	if err != nil {
-		return "", fmt.Errorf("read storefront upload signature: %w", err)
+		return ConfirmedUpload{}, fmt.Errorf("read storefront upload signature: %w", err)
 	}
 	defer object.Body.Close()
 	data, readErr := io.ReadAll(io.LimitReader(object.Body, spec.maxBytes+1))
 	if readErr != nil {
 		s.deleteInvalid(ctx, objectKey)
-		return "", fmt.Errorf("read storefront upload signature: %w", readErr)
+		return ConfirmedUpload{}, fmt.Errorf("read storefront upload signature: %w", readErr)
 	}
 	if int64(len(data)) != *head.ContentLength || !validStorefrontPayload(spec, data) {
 		s.deleteInvalid(ctx, objectKey)
-		return "", fmt.Errorf("uploaded object signature is invalid")
+		return ConfirmedUpload{}, fmt.Errorf("uploaded object signature is invalid")
 	}
 	if spec.contentType == StorefrontContentType {
 		imageConfig, decodeErr := webp.DecodeConfig(bytes.NewReader(data))
 		if decodeErr != nil || imageConfig.Width <= 0 || imageConfig.Height <= 0 || imageConfig.Width > 5000 || imageConfig.Height > 5000 || int64(imageConfig.Width)*int64(imageConfig.Height) > 10_000_000 {
 			s.deleteInvalid(ctx, objectKey)
-			return "", fmt.Errorf("uploaded WebP dimensions are invalid")
+			return ConfirmedUpload{}, fmt.Errorf("uploaded WebP dimensions are invalid")
 		}
 		if _, decodeErr = webp.Decode(bytes.NewReader(data)); decodeErr != nil {
 			s.deleteInvalid(ctx, objectKey)
-			return "", fmt.Errorf("uploaded WebP payload is invalid")
+			return ConfirmedUpload{}, fmt.Errorf("uploaded WebP payload is invalid")
 		}
 	}
 	liveKey := path.Join("storefront", operatorID, strings.TrimPrefix(objectKey, prefix))
@@ -192,12 +198,26 @@ func (s *Store) ConfirmStorefrontUpload(ctx context.Context, operatorID, objectK
 	if _, err := s.client.CopyObject(ctx, &s3.CopyObjectInput{
 		Bucket: aws.String(s.bucket), Key: aws.String(liveKey), CopySource: aws.String(copySource),
 	}); err != nil {
-		return "", fmt.Errorf("promote storefront upload: %w", err)
+		return ConfirmedUpload{}, fmt.Errorf("promote storefront upload: %w", err)
 	}
-	// A failed delete is harmless: the pending-prefix lifecycle rule removes
-	// the verified source object later, while the promoted live object remains.
-	_, _ = s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(objectKey)})
-	return s.publicBaseURL + "/" + liveKey, nil
+	// Keep the pending source until its one-day lifecycle expiry. Confirmation
+	// is then safe to retry if registering the promoted object in PostgreSQL
+	// fails after this copy succeeds.
+	return ConfirmedUpload{PublicURL: s.publicBaseURL + "/" + liveKey, ObjectKey: liveKey, SizeBytes: *head.ContentLength}, nil
+}
+
+func (s *Store) DeleteStorefrontObject(ctx context.Context, operatorID, objectKey string) error {
+	if s == nil {
+		return ErrNotConfigured
+	}
+	prefix := path.Join("storefront", operatorID) + "/"
+	if _, err := uuid.Parse(operatorID); err != nil || !strings.HasPrefix(objectKey, prefix) || path.Clean(objectKey) != objectKey {
+		return fmt.Errorf("invalid storefront object key")
+	}
+	if _, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(objectKey)}); err != nil {
+		return fmt.Errorf("delete storefront object: %w", err)
+	}
+	return nil
 }
 
 func storefrontSpec(kind string) (storefrontAssetSpec, error) {

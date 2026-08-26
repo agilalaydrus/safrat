@@ -14,6 +14,22 @@
 
 ## Continuation after this snapshot
 
+- Storefront media hardening now has a PostgreSQL-backed reservation and live
+  asset registry (migration 084), enforcing a configurable per-operator quota
+  under an advisory transaction lock so concurrent uploads across API replicas
+  cannot overrun the limit. Confirmation records the verified live object and
+  stays retry-safe if PostgreSQL is temporarily unavailable. The CMS reports
+  used/quota bytes, active files, and pending uploads. An hourly worker expires
+  stale reservations, marks files unused only when absent from both draft and
+  published snapshots, waits a seven-day recovery window, then removes the
+  object before its registry row. The worker has the same least-privilege S3
+  configuration as the API. Migration 084 and its quota/reference integration
+  tests pass on the local PostgreSQL database; worker ordering/error tests,
+  storage tests, full Go test/vet/build, frontend lint/typecheck/build, Buf lint,
+  and Compose validation also pass. Existing pre-registry objects remain safe
+  and unmanaged; a one-time inventory/backfill is recommended later if exact
+  historical usage accounting is required.
+
 - Storefront customization now also covers the previously hard-coded details:
   operators can upload a dedicated WebP About image with required alt text and
   caption, edit exactly four unique assurance pillars, define one to seven
@@ -203,7 +219,7 @@
   and rebuilt by CI — never commit it. `apps/web/tsconfig.tsbuildinfo` and
   untracked scratch `*.md` / media are also excluded.
 - **Local dev DB was wiped clean** (all rows truncated, schema kept) for fresh
-  manual testing. Migrations **073–083 are applied locally**; in prod goose
+  manual testing. Migrations **073–084 are applied locally**; in prod goose
   applies them on deploy.
 - Local processes: web dev on `:3131`; Go API on `:8131`. Both are expected to
   be restarted from current source after the latest local commit.

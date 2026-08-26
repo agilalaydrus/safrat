@@ -4,25 +4,27 @@ import (
 	"errors"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 )
 
 type Config struct {
-	Port                       string
-	DatabaseURL                string
-	BetterAuthSecret           string
-	AllowedOrigin              string
-	SentryDSN                  string
-	FirebaseServiceAccountJSON string
-	XenditSecretKey            string
-	XenditWebhookToken         string
-	S3Endpoint                 string
-	S3Region                   string
-	S3Bucket                   string
-	S3AccessKeyID              string
-	S3SecretAccessKey          string
-	S3PublicBaseURL            string
-	S3ForcePathStyle           bool
+	Port                        string
+	DatabaseURL                 string
+	BetterAuthSecret            string
+	AllowedOrigin               string
+	SentryDSN                   string
+	FirebaseServiceAccountJSON  string
+	XenditSecretKey             string
+	XenditWebhookToken          string
+	S3Endpoint                  string
+	S3Region                    string
+	S3Bucket                    string
+	S3AccessKeyID               string
+	S3SecretAccessKey           string
+	S3PublicBaseURL             string
+	S3ForcePathStyle            bool
+	StorefrontStorageQuotaBytes int64
 }
 
 func Load() (Config, error) {
@@ -50,6 +52,11 @@ func Load() (Config, error) {
 		S3PublicBaseURL:    strings.TrimRight(firstValue("S3_PUBLIC_BASE_URL", strings.TrimSpace(os.Getenv("R2_PUBLIC_BASE_URL"))), "/"),
 		S3ForcePathStyle:   strings.EqualFold(value("S3_FORCE_PATH_STYLE", "true"), "true"),
 	}
+	quotaMB, err := strconv.ParseInt(value("STOREFRONT_STORAGE_QUOTA_MB", "250"), 10, 64)
+	if err != nil || quotaMB < 25 || quotaMB > 10240 {
+		return Config{}, errors.New("STOREFRONT_STORAGE_QUOTA_MB must be between 25 and 10240")
+	}
+	config.StorefrontStorageQuotaBytes = quotaMB * 1024 * 1024
 	// DatabaseURL is optional — when unset, pgxpool.New in main.go is called
 	// with an empty string, which pgx resolves from PGHOST/PGPORT/PGUSER/
 	// PGPASSWORD/PGDATABASE directly (no URL parsing at all). Kept as a

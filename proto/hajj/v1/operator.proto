@@ -287,6 +287,10 @@ message StorefrontEditor {
   string operator_slug = 7;
   string license_number = 8;
   string country = 9;
+  int64 storage_used_bytes = 10;
+  int64 storage_quota_bytes = 11;
+  int32 storage_asset_count = 12;
+  int32 storage_pending_count = 13;
 }
 
 message SaveMyStorefrontDraftRequest {

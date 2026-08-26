@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/hajj-saas/api/internal/events"
@@ -12,6 +13,7 @@ import (
 	"github.com/hajj-saas/api/internal/notification"
 	"github.com/hajj-saas/api/internal/repository"
 	"github.com/hajj-saas/api/internal/service"
+	"github.com/hajj-saas/api/internal/storage"
 	"github.com/hajj-saas/api/internal/worker"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -54,6 +56,7 @@ func main() {
 	notificationRepository := repository.NewNotificationRepository(queries)
 	auditRepository := repository.NewAuditRepository(queries)
 	outboxRepository := repository.NewOutboxRepository(queries)
+	storefrontAssetRepository := repository.NewStorefrontAssetRepository(pool)
 	journeyRepository := repository.NewJourneyRepository(queries)
 	agentService := service.NewAgentService(operatorRepository, agentRepository, auditRepository, pool)
 	journeyService := service.NewJourneyService(operatorRepository, journeyRepository, auditRepository)
@@ -71,6 +74,17 @@ func main() {
 	waitlistHandler := worker.NewWaitlistHandler(logger, waitlistRepository)
 	cashFlowHandler := worker.NewCashFlowHandler(logger, queries)
 	outboxHandler := worker.NewOutboxHandler(logger, outboxRepository, firebasePusher, journeyService, eventBus)
+	objectStorage, storageErr := storage.New(context.Background(), storefrontStorageConfig())
+	if storageErr != nil {
+		logger.Error("init storefront object storage", "error", storageErr)
+		os.Exit(1)
+	}
+	var storefrontAssetHandler *worker.StorefrontAssetHandler
+	if objectStorage != nil {
+		storefrontAssetHandler = worker.NewStorefrontAssetHandler(logger, storefrontAssetRepository, objectStorage)
+	} else {
+		logger.Warn("storefront asset cleanup disabled", "reason", "object storage is not configured")
+	}
 
 	redisOpt, err := asynq.ParseRedisURI(redisURL)
 	if err != nil {
@@ -101,6 +115,12 @@ func main() {
 		logger.Error("register cascade dispatch schedule", "error", err)
 		os.Exit(1)
 	}
+	if storefrontAssetHandler != nil {
+		if _, err := scheduler.Register("@every 1h", worker.NewStorefrontAssetGCTask()); err != nil {
+			logger.Error("register storefront asset cleanup schedule", "error", err)
+			os.Exit(1)
+		}
+	}
 	go func() {
 		if err := scheduler.Run(); err != nil {
 			logger.Error("scheduler stopped", "error", err)
@@ -114,6 +134,9 @@ func main() {
 	mux.HandleFunc(worker.TaskWaitlistExpire, waitlistHandler.HandleExpire)
 	mux.HandleFunc(worker.TaskMarkOverdueVendorPayments, cashFlowHandler.HandleMarkOverdue)
 	mux.HandleFunc(worker.TaskCascadeDispatch, outboxHandler.HandleDispatch)
+	if storefrontAssetHandler != nil {
+		mux.HandleFunc(worker.TaskStorefrontAssetGC, storefrontAssetHandler.HandleGC)
+	}
 
 	server := asynq.NewServer(redisOpt, asynq.Config{Concurrency: 5, Logger: slogAdapter{logger}})
 	logger.Info("worker listening", "redis", redisURL)
@@ -121,6 +144,26 @@ func main() {
 		logger.Error("worker stopped", "error", err)
 		os.Exit(1)
 	}
+}
+
+func storefrontStorageConfig() storage.Config {
+	forcePathStyle, err := strconv.ParseBool(environmentValue("S3_FORCE_PATH_STYLE", "true"))
+	if err != nil {
+		forcePathStyle = true
+	}
+	return storage.Config{
+		Endpoint: strings.TrimSpace(os.Getenv("S3_ENDPOINT")), Region: environmentValue("S3_REGION", "auto"),
+		Bucket: strings.TrimSpace(os.Getenv("S3_BUCKET")), AccessKeyID: strings.TrimSpace(os.Getenv("S3_ACCESS_KEY_ID")),
+		SecretAccessKey: strings.TrimSpace(os.Getenv("S3_SECRET_ACCESS_KEY")), PublicBaseURL: strings.TrimRight(strings.TrimSpace(os.Getenv("S3_PUBLIC_BASE_URL")), "/"),
+		ForcePathStyle: forcePathStyle,
+	}
+}
+
+func environmentValue(key, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value
+	}
+	return fallback
 }
 
 // slogAdapter satisfies asynq's minimal logger interface with our existing slog.Logger.

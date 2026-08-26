@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
+	"connectrpc.com/connect"
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
@@ -17,14 +19,22 @@ import (
 )
 
 type OperatorService struct {
-	repository           *repository.OperatorRepository
-	seasonRepository     *repository.SeasonRepository
-	storefrontRepository *repository.StorefrontRepository
-	objectStorage        *storage.Store
+	repository                  *repository.OperatorRepository
+	seasonRepository            *repository.SeasonRepository
+	storefrontRepository        *repository.StorefrontRepository
+	storefrontAssetRepository   *repository.StorefrontAssetRepository
+	objectStorage               *storage.Store
+	storefrontStorageQuotaBytes int64
 }
 
-func NewOperatorService(repository *repository.OperatorRepository, seasonRepository *repository.SeasonRepository, storefrontRepository *repository.StorefrontRepository, objectStorage *storage.Store) *OperatorService {
-	return &OperatorService{repository: repository, seasonRepository: seasonRepository, storefrontRepository: storefrontRepository, objectStorage: objectStorage}
+const storefrontUploadConfirmationGrace = 15 * time.Minute
+
+func NewOperatorService(repository *repository.OperatorRepository, seasonRepository *repository.SeasonRepository, storefrontRepository *repository.StorefrontRepository, storefrontAssetRepository *repository.StorefrontAssetRepository, objectStorage *storage.Store, storefrontStorageQuotaBytes int64) *OperatorService {
+	return &OperatorService{
+		repository: repository, seasonRepository: seasonRepository,
+		storefrontRepository: storefrontRepository, storefrontAssetRepository: storefrontAssetRepository,
+		objectStorage: objectStorage, storefrontStorageQuotaBytes: storefrontStorageQuotaBytes,
+	}
 }
 
 func (s *OperatorService) Create(ctx context.Context, authenticatedOrgID string, request *hajjv1.CreateOperatorRequest) (*hajjv1.Operator, error) {
@@ -327,6 +337,11 @@ func (s *OperatorService) CreateStorefrontUpload(ctx context.Context, authentica
 	if err != nil {
 		return nil, serviceError("OperatorService.CreateStorefrontUpload", err)
 	}
+	if err = s.storefrontAssetRepository.Reserve(ctx, operator.ID, upload.ObjectKey, kind, request.SizeBytes, upload.ExpiresAt.Add(storefrontUploadConfirmationGrace), s.storefrontStorageQuotaBytes); errors.Is(err, repository.ErrStorefrontStorageQuota) {
+		return nil, connect.NewError(connect.CodeResourceExhausted, errors.New("kuota media storefront penuh; hapus media yang tidak lagi digunakan atau hubungi administrator"))
+	} else if err != nil {
+		return nil, serviceError("OperatorService.CreateStorefrontUpload", err)
+	}
 	return &hajjv1.CreateStorefrontUploadResponse{
 		UploadUrl: upload.UploadURL, Method: "PUT",
 		ContentType: upload.ContentType, ExpiresAt: timestamppb.New(upload.ExpiresAt), ObjectKey: upload.ObjectKey,
@@ -341,14 +356,20 @@ func (s *OperatorService) ConfirmStorefrontUpload(ctx context.Context, authentic
 	if err != nil {
 		return nil, serviceError("OperatorService.ConfirmStorefrontUpload", err)
 	}
-	publicURL, err := s.objectStorage.ConfirmStorefrontUpload(ctx, operator.ID, request.ObjectKey)
+	confirmed, err := s.objectStorage.ConfirmStorefrontUpload(ctx, operator.ID, request.ObjectKey)
 	if errors.Is(err, storage.ErrNotConfigured) {
 		return nil, serviceError("OperatorService.ConfirmStorefrontUpload", apperror.ErrFailedPrecondition)
 	}
 	if err != nil {
 		return nil, serviceError("OperatorService.ConfirmStorefrontUpload", fmt.Errorf("%w: %v", apperror.ErrValidation, err))
 	}
-	return &hajjv1.ConfirmStorefrontUploadResponse{PublicUrl: publicURL}, nil
+	if err = s.storefrontAssetRepository.Confirm(ctx, operator.ID, request.ObjectKey, confirmed.ObjectKey, confirmed.PublicURL, confirmed.SizeBytes); err != nil {
+		// If PostgreSQL registration fails, remove the promoted copy and leave
+		// the pending source intact so the client can safely retry confirmation.
+		_ = s.objectStorage.DeleteStorefrontObject(ctx, operator.ID, confirmed.ObjectKey)
+		return nil, serviceError("OperatorService.ConfirmStorefrontUpload", err)
+	}
+	return &hajjv1.ConfirmStorefrontUploadResponse{PublicUrl: confirmed.PublicURL}, nil
 }
 
 func (s *OperatorService) authenticatedOperator(ctx context.Context, authenticatedOrgID string) (*domain.Operator, error) {
@@ -385,10 +406,16 @@ func (s *OperatorService) storefrontEditor(ctx context.Context, operator *domain
 	if err != nil {
 		return nil, err
 	}
+	usage, err := s.storefrontAssetRepository.Usage(ctx, operator.ID)
+	if err != nil {
+		return nil, err
+	}
 	return &hajjv1.StorefrontEditor{
 		Content: content, ActiveSeasons: publicSeasonMessages(seasons),
 		DraftRevision: draftRevision, PublishedRevision: publishedRevision, PublishedAt: publishedAt,
 		OperatorName: operator.Name, OperatorSlug: operator.Slug, LicenseNumber: operator.LicenseNumber, Country: operator.Country,
+		StorageUsedBytes: usage.UsedBytes, StorageQuotaBytes: s.storefrontStorageQuotaBytes,
+		StorageAssetCount: usage.AssetCount, StoragePendingCount: usage.PendingCount,
 	}, nil
 }
 

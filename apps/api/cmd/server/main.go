@@ -114,6 +114,7 @@ func main() {
 		monitoringRepository := repository.NewMonitoringRepository(queries)
 		analyticsRepository := repository.NewAnalyticsRepository(queries)
 		storefrontRepository := repository.NewStorefrontRepository(pool)
+		storefrontAssetRepository := repository.NewStorefrontAssetRepository(pool)
 
 		objectStorage, storageErr := storage.New(ctx, storage.Config{
 			Endpoint: config.S3Endpoint, Region: config.S3Region, Bucket: config.S3Bucket,
@@ -145,7 +146,7 @@ func main() {
 			logger.Info("event bus backend", "type", "in-memory", "note", "single instance only")
 		}
 
-		operatorService := service.NewOperatorService(operatorRepository, seasonRepository, storefrontRepository, objectStorage)
+		operatorService := service.NewOperatorService(operatorRepository, seasonRepository, storefrontRepository, storefrontAssetRepository, objectStorage, config.StorefrontStorageQuotaBytes)
 		pilgrimService := service.NewPilgrimService(operatorRepository, pilgrimRepository, accommodationRepository, transportRepository, auditRepository, pool)
 		seasonService := service.NewSeasonService(operatorRepository, seasonRepository, auditRepository, analyticsRepository, monitoringRepository)
 		accommodationService := service.NewAccommodationService(operatorRepository, pilgrimRepository, accommodationRepository, auditRepository)
