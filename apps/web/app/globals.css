@@ -996,3 +996,138 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-seri
   .tenant-floating-package,
   .tenant-music-control { transition: none; }
 }
+
+/* ------------------------------------------------------------------
+   Tenant storefront polish
+   Layered after the editorial template so these win on equal specificity.
+   ------------------------------------------------------------------ */
+
+/* Hover stayed visible over the hero (white overlay) but effectively vanished
+   once the nav went solid: --tenant-brand-soft is a very light tint and reads
+   as nothing against the surface. Give the scrolled state a hover with real
+   contrast, plus a ring so the target is legible on any brand colour. */
+.tenant-nav.is-scrolled .tenant-nav-link:hover,
+.tenant-nav.is-menu-open .tenant-nav-link:hover {
+  background: color-mix(in srgb, var(--tenant-brand) 16%, transparent);
+  color: var(--tenant-brand-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tenant-brand) 30%, transparent);
+}
+.dark .tenant-nav.is-scrolled .tenant-nav-link:hover,
+.dark .tenant-nav.is-menu-open .tenant-nav-link:hover {
+  background: color-mix(in srgb, var(--tenant-brand) 26%, transparent);
+  color: color-mix(in srgb, var(--tenant-brand) 70%, #f8fafc);
+}
+/* The active pill must still outrank hover, or the current section loses its
+   marker the moment the pointer crosses it. */
+.tenant-nav.is-scrolled .tenant-nav-link.is-active:hover,
+.tenant-nav.is-menu-open .tenant-nav-link.is-active:hover {
+  background: var(--tenant-brand);
+  color: var(--tenant-brand-text);
+  box-shadow: none;
+}
+
+/* The floating package shortcut now shows from the very top of the page, so it
+   has to hold its own over the hero photo rather than only over a solid
+   surface: gradient body, a brighter icon chip, and a shadow tinted with the
+   brand instead of flat neutral grey. */
+.tenant-floating-package {
+  gap: 12px;
+  border-color: color-mix(in srgb, var(--tenant-brand-text) 26%, transparent);
+  background:
+    radial-gradient(120% 140% at 12% 0%, color-mix(in srgb, #fff 26%, transparent) 0%, transparent 58%),
+    linear-gradient(135deg, var(--tenant-brand-strong) 0%, var(--tenant-brand) 62%, color-mix(in srgb, var(--tenant-brand) 78%, #fff) 100%);
+  padding: 7px 18px 7px 8px;
+  box-shadow:
+    0 18px 42px color-mix(in srgb, var(--tenant-brand) 40%, transparent),
+    0 2px 6px color-mix(in srgb, var(--tenant-heading) 22%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 30%, transparent);
+  transition: transform 200ms cubic-bezier(.2, .8, .3, 1), box-shadow 200ms ease;
+}
+.tenant-floating-package > svg {
+  box-sizing: content-box;
+  border-radius: 999px;
+  background: color-mix(in srgb, #fff 22%, transparent);
+  padding: 7px;
+}
+.tenant-floating-package small { opacity: .82; letter-spacing: .08em; text-transform: uppercase; }
+.tenant-floating-package strong { font-size: 14px; letter-spacing: -.01em; }
+.tenant-floating-package:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 26px 56px color-mix(in srgb, var(--tenant-brand) 48%, transparent),
+    0 3px 8px color-mix(in srgb, var(--tenant-heading) 26%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 38%, transparent);
+}
+
+/* Both the partnership and contact blocks were the same flat brand rectangle,
+   so the page read as one long slab. Give each depth and its own identity —
+   but note the constraint: --tenant-brand-text is a binary light/dark flip
+   (readableText in TenantStorefront.tsx) chosen for --tenant-brand exactly. For
+   an emerald brand it resolves to dark navy, so darkening the panel destroys
+   the contrast it was calibrated against. Every gradient below therefore only
+   ever moves *lighter* than --tenant-brand, never darker, which keeps contrast
+   at or above the flat original whichever way the flip landed. */
+.tenant-contact {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  gap: 32px;
+  border: 1px solid color-mix(in srgb, var(--tenant-brand-text) 16%, transparent);
+  border-radius: 26px;
+  background: var(--tenant-brand);
+  padding: 40px;
+  box-shadow:
+    0 30px 70px color-mix(in srgb, var(--tenant-brand) 26%, transparent),
+    0 4px 12px color-mix(in srgb, var(--tenant-heading) 14%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent);
+}
+/* A soft light source rather than a flat fill. */
+.tenant-contact::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+}
+/* Partnership: light gathers at the top-left, behind the headline. */
+#agen .tenant-contact::after {
+  background:
+    radial-gradient(78% 108% at 6% 0%, color-mix(in srgb, #fff 20%, transparent) 0%, transparent 60%),
+    linear-gradient(140deg, color-mix(in srgb, #fff 10%, transparent) 0%, transparent 52%);
+}
+/* Contact: brighter and warmer, light gathering at the top-right instead, so
+   the two panels are not mirror images of one another. */
+#kontak .tenant-contact::after {
+  background:
+    radial-gradient(84% 116% at 94% 2%, color-mix(in srgb, #fff 26%, transparent) 0%, transparent 62%),
+    linear-gradient(200deg, color-mix(in srgb, #fff 14%, transparent) 0%, transparent 58%);
+}
+.tenant-contact .tenant-eyebrow { letter-spacing: .16em; }
+/* Solid pill on a saturated ground, with a lift on hover. */
+.tenant-contact-cta {
+  border-color: transparent;
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--tenant-heading) 26%, transparent);
+}
+.tenant-contact-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--tenant-heading) 34%, transparent);
+}
+.tenant-contact-ghost:hover {
+  border-color: var(--tenant-brand-text);
+  background: color-mix(in srgb, var(--tenant-brand-text) 12%, transparent);
+}
+/* Inputs lighten rather than darken, for the same contrast reason as above. */
+.tenant-agent-form :is(input, select) {
+  border-color: color-mix(in srgb, var(--tenant-brand-text) 30%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, #fff 16%, transparent);
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+.tenant-agent-form :is(input, select):focus {
+  border-color: color-mix(in srgb, var(--tenant-brand-text) 62%, transparent);
+  background: color-mix(in srgb, #fff 26%, transparent);
+  outline: none;
+}
+@media (max-width: 640px) {
+  .tenant-contact { border-radius: 20px; padding: 26px; }
+}
