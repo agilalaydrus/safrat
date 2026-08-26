@@ -1,0 +1,143 @@
+# TawafiqHub edge.
+#
+# Replaces deploy/nginx/safrat.conf. The reason for the change is narrow: the
+# wildcard certificate is issued by lego over Hostinger DNS-01, which can only
+# ever cover domains in our own Hostinger account. A client bringing
+# umrohvacana.com has DNS at their own registrar, so their certificate must be
+# obtained over HTTP/TLS-ALPN instead — per domain, on demand, without a human
+# writing a vhost for every new client.
+#
+# Deliberately conservative: the existing wildcard keeps being renewed by the
+# existing lego timer and is loaded from disk here, so the proven certificate
+# path is untouched. On-demand issuance applies ONLY to hostnames we do not own.
+{
+	# Caddy asks before obtaining a certificate for a hostname it has not seen,
+	# appending ?domain=<name>. A 200 authorises issuance, so this endpoint is
+	# exactly as strict as routing: verified, and on a plan that includes custom
+	# domains. Without it, anyone could point DNS at this server and make it
+	# request certificates on their behalf, burning Let's Encrypt rate limits
+	# until issuance stops working for real clients.
+	on_demand_tls {
+		ask http://127.0.0.1:9100/internal/tls-authorize
+	}
+}
+
+(proxy_headers) {
+	header_up Host {host}
+	# The Go rate limiter trusts X-Real-IP precisely because the proxy always
+	# sets it itself (internal/middleware/ratelimit.go). Caddy does not set it
+	# by default, so it must be set here — and it must be {remote_host}, never
+	# a value the client supplied, or per-IP limits become trivially bypassed.
+	header_up X-Real-IP {remote_host}
+	# X-Forwarded-Proto and X-Forwarded-For are set by reverse_proxy already.
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+# --- API -------------------------------------------------------------------
+api.tawafiqhub.id {
+	tls /etc/letsencrypt/live/app.tawafiqhub.id/fullchain.pem /etc/letsencrypt/live/app.tawafiqhub.id/privkey.pem
+	import security_headers
+
+	# Never expose the on-demand gate publicly. It is reached over loopback by
+	# Caddy itself; routing it here would let anyone probe which hostnames are
+	# registered.
+	handle /internal/* {
+		respond 404
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:9100 {
+			import proxy_headers
+		}
+	}
+}
+
+# --- Platform apex ---------------------------------------------------------
+tawafiqhub.id {
+	tls /etc/letsencrypt/live/tawafiqhub.id/fullchain.pem /etc/letsencrypt/live/tawafiqhub.id/privkey.pem
+	import security_headers
+
+	# The service worker must never be served stale, or a client keeps an old
+	# precache and the app appears not to update.
+	handle /sw.js {
+		header Cache-Control "no-cache, no-store, must-revalidate"
+		reverse_proxy 127.0.0.1:9101 {
+			import proxy_headers
+		}
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:9101 {
+			import proxy_headers
+		}
+	}
+}
+
+www.tawafiqhub.id {
+	tls /etc/letsencrypt/live/tawafiqhub.id/fullchain.pem /etc/letsencrypt/live/tawafiqhub.id/privkey.pem
+	redir https://tawafiqhub.id{uri} 301
+}
+
+app.tawafiqhub.id {
+	tls /etc/letsencrypt/live/app.tawafiqhub.id/fullchain.pem /etc/letsencrypt/live/app.tawafiqhub.id/privkey.pem
+	redir https://tawafiqhub.id{uri} 301
+}
+
+# --- Storefront media ------------------------------------------------------
+assets.tawafiqhub.id {
+	tls /etc/safrat/lego/certificates/tawafiqhub.id.crt /etc/safrat/lego/certificates/tawafiqhub.id.key
+	import security_headers
+	request_body {
+		max_size 6MB
+	}
+
+	reverse_proxy 127.0.0.1:9102 {
+		import proxy_headers
+	}
+}
+
+# --- Reserved platform subdomains -----------------------------------------
+# Kept explicitly 404 rather than falling through to a tenant lookup, matching
+# RESERVED_TENANT_SUBDOMAINS in apps/web/lib/tenant-host.ts.
+admin.tawafiqhub.id, auth.tawafiqhub.id, cdn.tawafiqhub.id,
+dashboard.tawafiqhub.id, docs.tawafiqhub.id, help.tawafiqhub.id,
+media.tawafiqhub.id, status.tawafiqhub.id, storage.tawafiqhub.id,
+support.tawafiqhub.id {
+	tls /etc/safrat/lego/certificates/tawafiqhub.id.crt /etc/safrat/lego/certificates/tawafiqhub.id.key
+	import security_headers
+	respond 404
+}
+
+# --- Tenant subdomains -----------------------------------------------------
+*.tawafiqhub.id {
+	tls /etc/safrat/lego/certificates/tawafiqhub.id.crt /etc/safrat/lego/certificates/tawafiqhub.id.key
+	import security_headers
+
+	reverse_proxy 127.0.0.1:9101 {
+		import proxy_headers
+	}
+}
+
+# --- Client-owned domains --------------------------------------------------
+# Anything not matched above. Caddy prefers the more specific site blocks, so
+# this only ever sees hostnames we do not own — exactly the set that needs a
+# certificate of its own, and only after the ask endpoint authorises it.
+https:// {
+	tls {
+		on_demand
+	}
+	import security_headers
+
+	reverse_proxy 127.0.0.1:9101 {
+		import proxy_headers
+	}
+}

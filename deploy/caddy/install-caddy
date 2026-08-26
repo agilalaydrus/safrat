@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Promotes the Caddyfile and reloads Caddy, restoring the previous config if
+# anything fails. Mirrors deploy/nginx/install-nginx: validate before reload,
+# and never leave the edge in a state we did not verify.
+#
+# This does NOT switch the edge from nginx to Caddy. The cutover is a manual,
+# deliberate step (see deploy/caddy/README.md) because it changes what
+# terminates TLS for every existing tenant.
+set -euo pipefail
+
+readonly source_config="/home/deploy/safrat/deploy/caddy/Caddyfile"
+readonly target_config="/etc/caddy/Caddyfile"
+readonly wildcard_certificate="/etc/safrat/lego/certificates/tawafiqhub.id.crt"
+readonly wildcard_private_key="/etc/safrat/lego/certificates/tawafiqhub.id.key"
+readonly backup_config="$(mktemp /etc/caddy/Caddyfile.backup.XXXXXX)"
+
+restore_previous_config() {
+  /usr/bin/cp "${backup_config}" "${target_config}"
+  if /usr/bin/caddy validate --config "${target_config}" >/dev/null 2>&1; then
+    /usr/bin/systemctl reload caddy
+  else
+    echo "restored Caddy configuration is invalid; manual recovery required" >&2
+  fi
+}
+
+cleanup() {
+  /usr/bin/rm -f "${backup_config}"
+}
+trap cleanup EXIT
+
+for required_file in \
+  "${source_config}" \
+  "${target_config}" \
+  "${wildcard_certificate}" \
+  "${wildcard_private_key}"; do
+  if [[ ! -f "${required_file}" ]]; then
+    echo "missing required Caddy file: ${required_file}" >&2
+    exit 1
+  fi
+done
+
+# The on-demand gate must answer before Caddy is allowed to rely on it. A
+# reload that leaves the gate unreachable would make Caddy refuse certificates
+# for every client domain — it fails closed, which is correct, but silently.
+if ! /usr/bin/curl --fail --silent --max-time 5 \
+  "http://127.0.0.1:9100/internal/tls-authorize?domain=preflight.invalid" >/dev/null 2>&1; then
+  # A 403 for an unknown domain is the expected, healthy answer; only a
+  # connection failure is fatal.
+  if ! /usr/bin/curl --silent --max-time 5 --output /dev/null \
+    "http://127.0.0.1:9100/internal/tls-authorize?domain=preflight.invalid"; then
+    echo "on-demand TLS gate is unreachable on 127.0.0.1:9100; refusing to reload" >&2
+    exit 1
+  fi
+fi
+
+/usr/bin/cp "${target_config}" "${backup_config}"
+
+if ! /usr/bin/install -o root -g root -m 0644 "${source_config}" "${target_config}"; then
+  echo "Caddy promotion failed; restoring previous configuration" >&2
+  restore_previous_config
+  exit 1
+fi
+
+if ! /usr/bin/caddy validate --config "${target_config}"; then
+  echo "Caddy validation failed; restoring previous configuration" >&2
+  restore_previous_config
+  exit 1
+fi
+
+if ! /usr/bin/systemctl reload caddy; then
+  echo "Caddy reload failed; restoring previous configuration" >&2
+  restore_previous_config
+  exit 1
+fi

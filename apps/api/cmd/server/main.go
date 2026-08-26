@@ -119,6 +119,30 @@ func main() {
 		storefrontRepository := repository.NewStorefrontRepository(pool)
 		storefrontAssetRepository := repository.NewStorefrontAssetRepository(pool)
 		operatorDomainRepository := repository.NewOperatorDomainRepository(pool)
+
+		// Gate for Caddy's on-demand TLS. Caddy asks before obtaining a
+		// certificate for a hostname it has never seen; answering 200 here is
+		// what authorises issuance, so this must be exactly as strict as
+		// routing: verified, and on a plan that includes custom domains.
+		//
+		// Without this gate, anyone could point a DNS record at the server and
+		// make it request certificates on their behalf — which burns Let's
+		// Encrypt rate limits and would eventually stop issuance for real
+		// clients. It is deliberately not routed publicly (see deploy/caddy).
+		mux.HandleFunc("GET /internal/tls-authorize", func(w http.ResponseWriter, request *http.Request) {
+			hostname := repository.NormalizeHostname(request.URL.Query().Get("domain"))
+			if hostname == "" {
+				http.Error(w, "domain is required", http.StatusBadRequest)
+				return
+			}
+			if _, err := operatorDomainRepository.ResolveVerified(request.Context(), hostname); err != nil {
+				// Same answer for "unknown" and "not entitled": this endpoint
+				// should not become a way to probe which plan a domain is on.
+				http.Error(w, "not authorized for this domain", http.StatusForbidden)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		})
 		// Plain http is only acceptable when the configured origin is itself
 		// http, i.e. local development.
 		tenantOrigins = middleware.NewTenantOriginAllowlist(operatorDomainRepository, logger, time.Minute, strings.HasPrefix(config.AllowedOrigin, "http://"))
