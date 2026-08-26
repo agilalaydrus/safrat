@@ -116,11 +116,7 @@ func main() {
 		storefrontRepository := repository.NewStorefrontRepository(pool)
 		storefrontAssetRepository := repository.NewStorefrontAssetRepository(pool)
 
-		objectStorage, storageErr := storage.New(ctx, storage.Config{
-			Endpoint: config.S3Endpoint, Region: config.S3Region, Bucket: config.S3Bucket,
-			AccessKeyID: config.S3AccessKeyID, SecretAccessKey: config.S3SecretAccessKey,
-			PublicBaseURL: config.S3PublicBaseURL, ForcePathStyle: config.S3ForcePathStyle,
-		})
+		objectStorage, storageErr := storage.New(ctx, config.StorefrontStorage)
 		if storageErr != nil {
 			logger.Warn("storefront object storage disabled", "error", storageErr)
 		}

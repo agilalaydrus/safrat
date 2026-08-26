@@ -6,6 +6,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/hajj-saas/api/internal/storage"
 )
 
 type Config struct {
@@ -17,13 +19,7 @@ type Config struct {
 	FirebaseServiceAccountJSON  string
 	XenditSecretKey             string
 	XenditWebhookToken          string
-	S3Endpoint                  string
-	S3Region                    string
-	S3Bucket                    string
-	S3AccessKeyID               string
-	S3SecretAccessKey           string
-	S3PublicBaseURL             string
-	S3ForcePathStyle            bool
+	StorefrontStorage           storage.Config
 	StorefrontStorageQuotaBytes int64
 }
 
@@ -44,13 +40,9 @@ func Load() (Config, error) {
 		// payment was created (see internal/payment/xendit.go).
 		XenditSecretKey:    strings.TrimSpace(os.Getenv("XENDIT_SECRET_KEY")),
 		XenditWebhookToken: strings.TrimSpace(os.Getenv("XENDIT_WEBHOOK_TOKEN")),
-		S3Endpoint:         firstValue("S3_ENDPOINT", r2Endpoint()),
-		S3Region:           value("S3_REGION", "auto"),
-		S3Bucket:           firstValue("S3_BUCKET", strings.TrimSpace(os.Getenv("R2_BUCKET_NAME"))),
-		S3AccessKeyID:      firstValue("S3_ACCESS_KEY_ID", strings.TrimSpace(os.Getenv("R2_ACCESS_KEY_ID"))),
-		S3SecretAccessKey:  firstValue("S3_SECRET_ACCESS_KEY", strings.TrimSpace(os.Getenv("R2_SECRET_ACCESS_KEY"))),
-		S3PublicBaseURL:    strings.TrimRight(firstValue("S3_PUBLIC_BASE_URL", strings.TrimSpace(os.Getenv("R2_PUBLIC_BASE_URL"))), "/"),
-		S3ForcePathStyle:   strings.EqualFold(value("S3_FORCE_PATH_STYLE", "true"), "true"),
+		// Resolved by the storage package so the server, the cleanup worker,
+		// and the backfill command all read these the same way.
+		StorefrontStorage: storage.ConfigFromEnv(),
 	}
 	quotaMB, err := strconv.ParseInt(value("STOREFRONT_STORAGE_QUOTA_MB", "250"), 10, 64)
 	if err != nil || quotaMB < 25 || quotaMB > 10240 {
@@ -79,19 +71,4 @@ func value(key, fallback string) string {
 		return value
 	}
 	return fallback
-}
-
-func firstValue(key, fallback string) string {
-	if current := strings.TrimSpace(os.Getenv(key)); current != "" {
-		return current
-	}
-	return fallback
-}
-
-func r2Endpoint() string {
-	accountID := strings.TrimSpace(os.Getenv("R2_ACCOUNT_ID"))
-	if accountID == "" {
-		return ""
-	}
-	return "https://" + accountID + ".r2.cloudflarestorage.com"
 }

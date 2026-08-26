@@ -14,6 +14,31 @@
 
 ## Continuation after this snapshot
 
+- The one-time inventory/backfill for pre-registry storefront objects now
+  exists as `apps/api/cmd/storefront-backfill`. It pages the live `storefront/`
+  prefix, resolves each key to its operator and asset kind, and adopts the
+  objects into the registry as LIVE rows so their bytes count toward the
+  operator quota and the cleanup worker can manage them. It only reads the
+  bucket and inserts rows — it never uploads, moves, or deletes an object, and
+  never modifies an existing row, so it is safe to re-run. It defaults to a dry
+  run whose counts are exact, because the real statement runs in a transaction
+  that is rolled back; `-apply` commits. Objects whose operator no longer
+  exists, whose size is out of the registry's bounds, or whose key does not
+  parse are counted and reported rather than silently skipped. **Adopting an
+  object brings it under the cleanup sweep**, so an adopted object referenced by
+  neither the draft nor the published snapshot is deleted after the seven-day
+  recovery window — run the dry run first and read the counts. Verified
+  end-to-end against local MinIO plus PostgreSQL: dry run wrote nothing,
+  `-apply` adopted the object with its real size, a second `-apply` adopted
+  nothing and left quota usage unchanged, and a deliberately unparsable key was
+  reported and left alone. The local database and bucket were returned to their
+  prior state afterwards.
+
+- The S3 environment resolution now lives once in `storage.ConfigFromEnv()`.
+  `cmd/worker` previously had its own copy that silently dropped the legacy
+  `R2_*` fallbacks `config.Load()` honours; the server, the worker, and the
+  backfill command now all read the same variables the same way.
+
 - Storefront media hardening now has a PostgreSQL-backed reservation and live
   asset registry (migration 084), enforcing a configurable per-operator quota
   under an advisory transaction lock so concurrent uploads across API replicas

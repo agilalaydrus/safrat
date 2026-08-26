@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/hajj-saas/api/internal/events"
@@ -74,7 +73,7 @@ func main() {
 	waitlistHandler := worker.NewWaitlistHandler(logger, waitlistRepository)
 	cashFlowHandler := worker.NewCashFlowHandler(logger, queries)
 	outboxHandler := worker.NewOutboxHandler(logger, outboxRepository, firebasePusher, journeyService, eventBus)
-	objectStorage, storageErr := storage.New(context.Background(), storefrontStorageConfig())
+	objectStorage, storageErr := storage.New(context.Background(), storage.ConfigFromEnv())
 	if storageErr != nil {
 		logger.Error("init storefront object storage", "error", storageErr)
 		os.Exit(1)
@@ -144,26 +143,6 @@ func main() {
 		logger.Error("worker stopped", "error", err)
 		os.Exit(1)
 	}
-}
-
-func storefrontStorageConfig() storage.Config {
-	forcePathStyle, err := strconv.ParseBool(environmentValue("S3_FORCE_PATH_STYLE", "true"))
-	if err != nil {
-		forcePathStyle = true
-	}
-	return storage.Config{
-		Endpoint: strings.TrimSpace(os.Getenv("S3_ENDPOINT")), Region: environmentValue("S3_REGION", "auto"),
-		Bucket: strings.TrimSpace(os.Getenv("S3_BUCKET")), AccessKeyID: strings.TrimSpace(os.Getenv("S3_ACCESS_KEY_ID")),
-		SecretAccessKey: strings.TrimSpace(os.Getenv("S3_SECRET_ACCESS_KEY")), PublicBaseURL: strings.TrimRight(strings.TrimSpace(os.Getenv("S3_PUBLIC_BASE_URL")), "/"),
-		ForcePathStyle: forcePathStyle,
-	}
-}
-
-func environmentValue(key, fallback string) string {
-	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
-		return value
-	}
-	return fallback
 }
 
 // slogAdapter satisfies asynq's minimal logger interface with our existing slog.Logger.

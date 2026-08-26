@@ -194,3 +194,82 @@ func (r *StorefrontAssetRepository) DeleteReservation(ctx context.Context, opera
 	}
 	return nil
 }
+
+// BackfillLive adopts pre-registry live objects into the asset registry as
+// LIVE rows. It never touches the bucket and never overwrites an existing row,
+// so it is safe to re-run. Rows whose operator no longer exists or whose size
+// violates the registry's bounds are counted and skipped rather than aborting
+// the batch.
+//
+// The work always runs inside a transaction and is committed only when apply
+// is true, so a dry run reports exactly the counts a real run would produce.
+func (r *StorefrontAssetRepository) BackfillLive(ctx context.Context, assets []domain.StorefrontAssetImport, apply bool) (domain.StorefrontBackfillReport, error) {
+	var report domain.StorefrontBackfillReport
+	if len(assets) == 0 {
+		return report, nil
+	}
+	reservationKeys := make([]string, len(assets))
+	objectKeys := make([]string, len(assets))
+	operatorIDs := make([]string, len(assets))
+	kinds := make([]string, len(assets))
+	publicURLs := make([]string, len(assets))
+	sizes := make([]int64, len(assets))
+	for i, asset := range assets {
+		if asset.ReservationKey == "" || asset.ObjectKey == "" || asset.Kind == "" || asset.PublicURL == "" {
+			return report, apperror.ErrValidation
+		}
+		if _, err := pgUUID(asset.OperatorID); err != nil {
+			return report, apperror.ErrValidation
+		}
+		reservationKeys[i], objectKeys[i] = asset.ReservationKey, asset.ObjectKey
+		operatorIDs[i], kinds[i] = asset.OperatorID, asset.Kind
+		publicURLs[i], sizes[i] = asset.PublicURL, asset.SizeBytes
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return report, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	err = tx.QueryRow(ctx, `
+		WITH candidate AS (
+		  SELECT *
+		  FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::bigint[])
+		    AS t(reservation_key, object_key, operator_id, kind, public_url, size_bytes)
+		),
+		classified AS (
+		  SELECT candidate.*,
+		    EXISTS (SELECT 1 FROM operators WHERE operators.id = candidate.operator_id::uuid) AS operator_known,
+		    EXISTS (
+		      SELECT 1 FROM operator_storefront_assets AS existing
+		      WHERE existing.object_key = candidate.object_key
+		         OR existing.reservation_key = candidate.reservation_key
+		    ) AS already_registered,
+		    (candidate.size_bytes > 0 AND candidate.size_bytes <= 10485760) AS size_valid
+		  FROM candidate
+		),
+		adopted AS (
+		  INSERT INTO operator_storefront_assets
+		    (reservation_key, object_key, operator_id, kind, size_bytes, state, public_url, expires_at, confirmed_at)
+		  SELECT reservation_key, object_key, operator_id::uuid, kind, size_bytes, 'LIVE', public_url, NOW(), NOW()
+		  FROM classified
+		  WHERE operator_known AND size_valid AND NOT already_registered
+		  ON CONFLICT DO NOTHING
+		  RETURNING 1
+		)
+		SELECT (SELECT COUNT(*) FROM adopted),
+		       (SELECT COUNT(*) FROM classified WHERE already_registered),
+		       (SELECT COUNT(*) FROM classified WHERE NOT operator_known),
+		       (SELECT COUNT(*) FROM classified WHERE operator_known AND NOT size_valid)`,
+		reservationKeys, objectKeys, operatorIDs, kinds, publicURLs, sizes).
+		Scan(&report.Inserted, &report.AlreadyRegistered, &report.UnknownOperator, &report.InvalidSize)
+	if err != nil {
+		return domain.StorefrontBackfillReport{}, err
+	}
+	if !apply {
+		return report, nil
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return domain.StorefrontBackfillReport{}, err
+	}
+	return report, nil
+}
