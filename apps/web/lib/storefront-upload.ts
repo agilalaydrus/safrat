@@ -3,6 +3,7 @@ import { operatorClient } from "@/lib/rpc";
 
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+export const MAX_AUDIO_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 const DIMENSIONS: Record<StorefrontAssetKind, number> = {
   [StorefrontAssetKind.UNSPECIFIED]: 0,
@@ -10,6 +11,7 @@ const DIMENSIONS: Record<StorefrontAssetKind, number> = {
   [StorefrontAssetKind.HERO]: 2400,
   [StorefrontAssetKind.GALLERY]: 2000,
   [StorefrontAssetKind.PACKAGE]: 2000,
+  [StorefrontAssetKind.BACKGROUND_MUSIC]: 0,
 };
 
 export async function uploadStorefrontImage(file: File, kind: StorefrontAssetKind): Promise<{ url: string; originalBytes: number; optimizedBytes: number }> {
@@ -27,6 +29,32 @@ export async function uploadStorefrontImage(file: File, kind: StorefrontAssetKin
   if (!response.ok) throw new Error(`Object storage menolak upload (${response.status}). Periksa CORS bucket.`);
   const confirmed = await operatorClient.confirmStorefrontUpload({ objectKey: ticket.objectKey });
   return { url: confirmed.publicUrl, originalBytes: file.size, optimizedBytes: blob.size };
+}
+
+export async function uploadStorefrontAudio(file: File): Promise<{ url: string; bytes: number }> {
+  const isMP3 = file.type === "audio/mpeg" || file.type === "audio/mp3" || file.name.toLowerCase().endsWith(".mp3");
+  if (!isMP3) throw new Error("Musik latar harus berupa MP3.");
+  if (file.size > MAX_AUDIO_UPLOAD_BYTES) throw new Error("Musik latar maksimal 10 MB.");
+  if (!(await hasMP3Signature(file))) throw new Error("Isi file bukan MP3 yang valid.");
+
+  const ticket = await operatorClient.createStorefrontUpload({ kind: StorefrontAssetKind.BACKGROUND_MUSIC, sizeBytes: BigInt(file.size) });
+  const response = await fetch(ticket.uploadUrl, {
+    method: ticket.method || "PUT",
+    headers: { "Content-Type": ticket.contentType || "audio/mpeg" },
+    body: file,
+  });
+  if (!response.ok) throw new Error(`Object storage menolak upload (${response.status}). Periksa CORS bucket.`);
+  const confirmed = await operatorClient.confirmStorefrontUpload({ objectKey: ticket.objectKey });
+  return { url: confirmed.publicUrl, bytes: file.size };
+}
+
+async function hasMP3Signature(file: File): Promise<boolean> {
+  const bytes = new Uint8Array(await file.slice(0, 3).arrayBuffer());
+  const [first = 0, second = 0, third = 0] = bytes;
+  return bytes.length >= 3 && (
+    (first === 0x49 && second === 0x44 && third === 0x33)
+    || (first === 0xff && (second & 0xe0) === 0xe0)
+  );
 }
 
 async function compressToWebP(file: File, maxDimension: number): Promise<Blob> {

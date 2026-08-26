@@ -308,10 +308,11 @@ func (s *OperatorService) CreateStorefrontUpload(ctx context.Context, authentica
 		return nil, serviceError("OperatorService.CreateStorefrontUpload", err)
 	}
 	kinds := map[hajjv1.StorefrontAssetKind]string{
-		hajjv1.StorefrontAssetKind_STOREFRONT_ASSET_KIND_LOGO:    "logo",
-		hajjv1.StorefrontAssetKind_STOREFRONT_ASSET_KIND_HERO:    "hero",
-		hajjv1.StorefrontAssetKind_STOREFRONT_ASSET_KIND_GALLERY: "gallery",
-		hajjv1.StorefrontAssetKind_STOREFRONT_ASSET_KIND_PACKAGE: "package",
+		hajjv1.StorefrontAssetKind_STOREFRONT_ASSET_KIND_LOGO:             "logo",
+		hajjv1.StorefrontAssetKind_STOREFRONT_ASSET_KIND_HERO:             "hero",
+		hajjv1.StorefrontAssetKind_STOREFRONT_ASSET_KIND_GALLERY:          "gallery",
+		hajjv1.StorefrontAssetKind_STOREFRONT_ASSET_KIND_PACKAGE:          "package",
+		hajjv1.StorefrontAssetKind_STOREFRONT_ASSET_KIND_BACKGROUND_MUSIC: "background-music",
 	}
 	kind, ok := kinds[request.Kind]
 	if !ok {
@@ -326,7 +327,7 @@ func (s *OperatorService) CreateStorefrontUpload(ctx context.Context, authentica
 	}
 	return &hajjv1.CreateStorefrontUploadResponse{
 		UploadUrl: upload.UploadURL, Method: "PUT",
-		ContentType: storage.StorefrontContentType, ExpiresAt: timestamppb.New(upload.ExpiresAt), ObjectKey: upload.ObjectKey,
+		ContentType: upload.ContentType, ExpiresAt: timestamppb.New(upload.ExpiresAt), ObjectKey: upload.ObjectKey,
 	}, nil
 }
 
@@ -393,8 +394,35 @@ func (s *OperatorService) validateStorefront(ctx context.Context, operatorID str
 	if content.DisplayName == "" || !validHTTPURLOrEmpty(content.LogoUrl) || !validHTTPURLOrEmpty(content.Website) || !validHTTPURLOrEmpty(content.HeroImageUrl) {
 		return apperror.ErrValidation
 	}
-	if len(content.Packages) > 20 || len(content.PublicPackages) > 30 || len(content.Gallery) > 12 || len(content.Testimonials) > 6 || len(content.Faqs) > 10 || len(content.News) > 30 || len(content.BlogPosts) > 50 || len(content.TrustBadges) > 8 {
+	if len(content.Packages) > 20 || len(content.PublicPackages) > 30 || len(content.Gallery) > 12 || len(content.Testimonials) > 6 || len(content.Faqs) > 10 || len(content.News) > 30 || len(content.BlogPosts) > 50 || len(content.TrustBadges) > 8 || len(content.SocialLinks) > 8 {
 		return apperror.ErrValidation
+	}
+	if !validHTTPURLOrEmpty(content.BackgroundMusicUrl) || (content.BackgroundMusicEnabled && strings.TrimSpace(content.BackgroundMusicUrl) == "") {
+		return apperror.ErrValidation
+	}
+	allowedSocialPlatforms := map[string]struct{}{
+		"instagram": {}, "tiktok": {}, "youtube": {}, "facebook": {},
+		"linkedin": {}, "threads": {}, "x": {}, "whatsapp": {},
+	}
+	seenSocialPlatforms := make(map[string]struct{}, len(content.SocialLinks))
+	seenSocialURLs := make(map[string]struct{}, len(content.SocialLinks))
+	for _, item := range content.SocialLinks {
+		if item == nil || strings.TrimSpace(item.Label) == "" || !validHTTPURL(item.Url) {
+			return apperror.ErrValidation
+		}
+		platform := strings.ToLower(strings.TrimSpace(item.Platform))
+		if _, allowed := allowedSocialPlatforms[platform]; !allowed {
+			return apperror.ErrValidation
+		}
+		if _, duplicate := seenSocialPlatforms[platform]; duplicate {
+			return apperror.ErrValidation
+		}
+		seenSocialPlatforms[platform] = struct{}{}
+		normalizedURL := strings.TrimSpace(item.Url)
+		if _, duplicate := seenSocialURLs[normalizedURL]; duplicate {
+			return apperror.ErrValidation
+		}
+		seenSocialURLs[normalizedURL] = struct{}{}
 	}
 	seasons, err := s.seasonRepository.ListPublicSeasons(ctx, operatorID)
 	if err != nil {

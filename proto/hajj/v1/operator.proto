@@ -171,6 +171,19 @@ message StorefrontContent {
   // Semantic colors keep headings, body copy, and secondary text independently
   // legible in both modes while preserving brand customization.
   StorefrontTheme theme = 34;
+  repeated StorefrontSocialLink social_links = 35;
+  string social_title = 36 [(buf.validate.field).string.max_len = 120];
+  string social_description = 37 [(buf.validate.field).string.max_len = 600];
+  string background_music_url = 38 [(buf.validate.field).string.max_len = 2048];
+  string background_music_title = 39 [(buf.validate.field).string.max_len = 120];
+  bool background_music_enabled = 40;
+}
+
+message StorefrontSocialLink {
+  string platform = 1 [(buf.validate.field).string = {pattern: "^(instagram|tiktok|youtube|facebook|linkedin|threads|x|whatsapp)$"}];
+  string label = 2 [(buf.validate.field).string.max_len = 80];
+  string handle = 3 [(buf.validate.field).string.max_len = 120];
+  string url = 4 [(buf.validate.field).string.max_len = 2048];
 }
 
 message StorefrontPackage {
@@ -275,11 +288,12 @@ enum StorefrontAssetKind {
   STOREFRONT_ASSET_KIND_HERO = 2;
   STOREFRONT_ASSET_KIND_GALLERY = 3;
   STOREFRONT_ASSET_KIND_PACKAGE = 4;
+  STOREFRONT_ASSET_KIND_BACKGROUND_MUSIC = 5;
 }
 
 message CreateStorefrontUploadRequest {
   StorefrontAssetKind kind = 1 [(buf.validate.field).enum = {defined_only: true, not_in: [0]}];
-  int64 size_bytes = 2 [(buf.validate.field).int64 = {gt: 0, lte: 5242880}];
+  int64 size_bytes = 2 [(buf.validate.field).int64 = {gt: 0, lte: 10485760}];
 }
 
 message CreateStorefrontUploadResponse {

@@ -1,7 +1,7 @@
 # Handoff Notes
 
 > Working state + prioritized roadmap for the next agent. Point-in-time snapshot
-> (2026-08-25). Verify against current code before trusting any file:line.
+> (2026-08-26). Verify against current code before trusting any file:line.
 
 ## Owner workflow preferences
 
@@ -13,6 +13,21 @@
   remaining/unverified work, recommendations, local commit, and server status.
 
 ## Continuation after this snapshot
+
+- The tenant storefront now has a transparent hero-overlay header that remains
+  sticky, resolves to the tenant's semantic surface after the hero, highlights
+  the active anchor with a rounded state, and exposes an accessible mobile menu.
+  A floating package shortcut only appears after leaving the hero. Operators can
+  configure up to eight unique social channels in the CMS, rendered as a
+  theme-aware social hub. They can also upload one tenant-scoped MP3 up to 10 MB,
+  enable looping background music, and set its title. Image uploads remain WebP
+  capped at 5 MB. The API verifies MIME, size, tenant key, extension, and WebP or
+  MP3 signature before promoting pending media. The storefront attempts autoplay,
+  falls back after browser interaction when blocked, provides play/mute controls,
+  and stores the visitor's mute preference locally. Production build, ESLint,
+  Buf lint, storage tests, service tests, and the full Go suite pass. Interactive
+  browser automation remains unavailable, so signed-in CMS and device-level
+  audio autoplay QA remain recommended before production push.
 
 - The tenant storefront now has a full CMS in Dashboard Settings with separate
   draft and published JSON snapshots, optimistic revision checks, authenticated
@@ -155,7 +170,7 @@
 
 ## Repo / deploy state
 
-- The production release through `dfabc98` is on `origin/main` and passed CI,
+- The production release through `0228b55` is on `origin/main` and passed CI,
   image builds, migrations, VPS restart, and public smoke tests.
   **Pushing `main` triggers a production deploy** (`.github/workflows/deploy.yml`
   → builds images, runs goose migrations, installs validated nginx config, and

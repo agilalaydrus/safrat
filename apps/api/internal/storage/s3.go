@@ -20,9 +20,12 @@ import (
 )
 
 const (
-	StorefrontContentType = "image/webp"
-	MaxStorefrontBytes    = int64(5 * 1024 * 1024)
-	presignLifetime       = 10 * time.Minute
+	StorefrontContentType      = "image/webp"
+	StorefrontAudioContentType = "audio/mpeg"
+	MaxStorefrontImageBytes    = int64(5 * 1024 * 1024)
+	MaxStorefrontAudioBytes    = int64(10 * 1024 * 1024)
+	MaxStorefrontBytes         = MaxStorefrontAudioBytes
+	presignLifetime            = 10 * time.Minute
 )
 
 var ErrNotConfigured = errors.New("S3-compatible object storage is not configured")
@@ -38,9 +41,16 @@ type Config struct {
 }
 
 type PresignedUpload struct {
-	UploadURL string
-	ObjectKey string
-	ExpiresAt time.Time
+	UploadURL   string
+	ObjectKey   string
+	ContentType string
+	ExpiresAt   time.Time
+}
+
+type storefrontAssetSpec struct {
+	contentType string
+	extension   string
+	maxBytes    int64
 }
 
 type Store struct {
@@ -99,22 +109,18 @@ func (s *Store) PresignStorefrontUpload(ctx context.Context, operatorID, kind st
 	if s == nil {
 		return PresignedUpload{}, ErrNotConfigured
 	}
-	if sizeBytes <= 0 || sizeBytes > MaxStorefrontBytes {
+	spec, err := storefrontSpec(kind)
+	if err != nil || sizeBytes <= 0 || sizeBytes > spec.maxBytes {
 		return PresignedUpload{}, fmt.Errorf("invalid object size")
-	}
-	switch kind {
-	case "logo", "hero", "gallery", "package":
-	default:
-		return PresignedUpload{}, fmt.Errorf("invalid asset kind")
 	}
 	if _, err := uuid.Parse(operatorID); err != nil {
 		return PresignedUpload{}, fmt.Errorf("invalid operator ID")
 	}
-	key := path.Join("storefront-pending", operatorID, kind, uuid.NewString()+".webp")
+	key := path.Join("storefront-pending", operatorID, kind, uuid.NewString()+spec.extension)
 	request, err := s.presigner.PresignPutObject(ctx, &s3.PutObjectInput{
 		Bucket:        aws.String(s.bucket),
 		Key:           aws.String(key),
-		ContentType:   aws.String(StorefrontContentType),
+		ContentType:   aws.String(spec.contentType),
 		ContentLength: aws.Int64(sizeBytes),
 	}, func(options *s3.PresignOptions) {
 		options.Expires = presignLifetime
@@ -123,9 +129,10 @@ func (s *Store) PresignStorefrontUpload(ctx context.Context, operatorID, kind st
 		return PresignedUpload{}, fmt.Errorf("presign storefront upload: %w", err)
 	}
 	return PresignedUpload{
-		UploadURL: request.URL,
-		ObjectKey: key,
-		ExpiresAt: time.Now().Add(presignLifetime),
+		UploadURL:   request.URL,
+		ObjectKey:   key,
+		ContentType: spec.contentType,
+		ExpiresAt:   time.Now().Add(presignLifetime),
 	}, nil
 }
 
@@ -134,14 +141,23 @@ func (s *Store) ConfirmStorefrontUpload(ctx context.Context, operatorID, objectK
 		return "", ErrNotConfigured
 	}
 	prefix := path.Join("storefront-pending", operatorID) + "/"
-	if _, err := uuid.Parse(operatorID); err != nil || !strings.HasPrefix(objectKey, prefix) || !strings.HasSuffix(objectKey, ".webp") || path.Clean(objectKey) != objectKey {
+	if _, err := uuid.Parse(operatorID); err != nil || !strings.HasPrefix(objectKey, prefix) || path.Clean(objectKey) != objectKey {
+		return "", fmt.Errorf("invalid object key")
+	}
+	relativeKey := strings.TrimPrefix(objectKey, prefix)
+	parts := strings.Split(relativeKey, "/")
+	if len(parts) != 2 {
+		return "", fmt.Errorf("invalid object key")
+	}
+	spec, err := storefrontSpec(parts[0])
+	if err != nil || !strings.HasSuffix(parts[1], spec.extension) {
 		return "", fmt.Errorf("invalid object key")
 	}
 	head, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(objectKey)})
 	if err != nil {
 		return "", fmt.Errorf("inspect storefront upload: %w", err)
 	}
-	validMetadata := head.ContentLength != nil && *head.ContentLength > 0 && *head.ContentLength <= MaxStorefrontBytes && head.ContentType != nil && *head.ContentType == StorefrontContentType
+	validMetadata := head.ContentLength != nil && *head.ContentLength > 0 && *head.ContentLength <= spec.maxBytes && head.ContentType != nil && *head.ContentType == spec.contentType
 	if !validMetadata {
 		s.deleteInvalid(ctx, objectKey)
 		return "", fmt.Errorf("uploaded object metadata is invalid")
@@ -151,23 +167,25 @@ func (s *Store) ConfirmStorefrontUpload(ctx context.Context, operatorID, objectK
 		return "", fmt.Errorf("read storefront upload signature: %w", err)
 	}
 	defer object.Body.Close()
-	data, readErr := io.ReadAll(io.LimitReader(object.Body, MaxStorefrontBytes+1))
+	data, readErr := io.ReadAll(io.LimitReader(object.Body, spec.maxBytes+1))
 	if readErr != nil {
 		s.deleteInvalid(ctx, objectKey)
 		return "", fmt.Errorf("read storefront upload signature: %w", readErr)
 	}
-	if int64(len(data)) != *head.ContentLength || len(data) < 12 || !bytes.Equal(data[0:4], []byte("RIFF")) || !bytes.Equal(data[8:12], []byte("WEBP")) {
+	if int64(len(data)) != *head.ContentLength || !validStorefrontPayload(spec, data) {
 		s.deleteInvalid(ctx, objectKey)
-		return "", fmt.Errorf("uploaded object is not a WebP image")
+		return "", fmt.Errorf("uploaded object signature is invalid")
 	}
-	imageConfig, decodeErr := webp.DecodeConfig(bytes.NewReader(data))
-	if decodeErr != nil || imageConfig.Width <= 0 || imageConfig.Height <= 0 || imageConfig.Width > 5000 || imageConfig.Height > 5000 || int64(imageConfig.Width)*int64(imageConfig.Height) > 10_000_000 {
-		s.deleteInvalid(ctx, objectKey)
-		return "", fmt.Errorf("uploaded WebP dimensions are invalid")
-	}
-	if _, decodeErr = webp.Decode(bytes.NewReader(data)); decodeErr != nil {
-		s.deleteInvalid(ctx, objectKey)
-		return "", fmt.Errorf("uploaded WebP payload is invalid")
+	if spec.contentType == StorefrontContentType {
+		imageConfig, decodeErr := webp.DecodeConfig(bytes.NewReader(data))
+		if decodeErr != nil || imageConfig.Width <= 0 || imageConfig.Height <= 0 || imageConfig.Width > 5000 || imageConfig.Height > 5000 || int64(imageConfig.Width)*int64(imageConfig.Height) > 10_000_000 {
+			s.deleteInvalid(ctx, objectKey)
+			return "", fmt.Errorf("uploaded WebP dimensions are invalid")
+		}
+		if _, decodeErr = webp.Decode(bytes.NewReader(data)); decodeErr != nil {
+			s.deleteInvalid(ctx, objectKey)
+			return "", fmt.Errorf("uploaded WebP payload is invalid")
+		}
 	}
 	liveKey := path.Join("storefront", operatorID, strings.TrimPrefix(objectKey, prefix))
 	copySource := url.PathEscape(s.bucket + "/" + objectKey)
@@ -180,6 +198,50 @@ func (s *Store) ConfirmStorefrontUpload(ctx context.Context, operatorID, objectK
 	// the verified source object later, while the promoted live object remains.
 	_, _ = s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(objectKey)})
 	return s.publicBaseURL + "/" + liveKey, nil
+}
+
+func storefrontSpec(kind string) (storefrontAssetSpec, error) {
+	switch kind {
+	case "logo", "hero", "gallery", "package":
+		return storefrontAssetSpec{contentType: StorefrontContentType, extension: ".webp", maxBytes: MaxStorefrontImageBytes}, nil
+	case "background-music":
+		return storefrontAssetSpec{contentType: StorefrontAudioContentType, extension: ".mp3", maxBytes: MaxStorefrontAudioBytes}, nil
+	default:
+		return storefrontAssetSpec{}, fmt.Errorf("invalid asset kind")
+	}
+}
+
+func validStorefrontPayload(spec storefrontAssetSpec, data []byte) bool {
+	if spec.contentType == StorefrontContentType {
+		return len(data) >= 12 && bytes.Equal(data[0:4], []byte("RIFF")) && bytes.Equal(data[8:12], []byte("WEBP"))
+	}
+	if spec.contentType == StorefrontAudioContentType {
+		return validMP3Payload(data)
+	}
+	return false
+}
+
+func validMP3Payload(data []byte) bool {
+	offset := 0
+	if len(data) >= 3 && bytes.Equal(data[0:3], []byte("ID3")) {
+		if len(data) < 10 || data[6]&0x80 != 0 || data[7]&0x80 != 0 || data[8]&0x80 != 0 || data[9]&0x80 != 0 {
+			return false
+		}
+		tagSize := int(data[6])<<21 | int(data[7])<<14 | int(data[8])<<7 | int(data[9])
+		offset = 10 + tagSize
+		if data[5]&0x10 != 0 {
+			offset += 10
+		}
+	}
+	if len(data) < offset+4 {
+		return false
+	}
+	first, second, third := data[offset], data[offset+1], data[offset+2]
+	version := (second >> 3) & 0x03
+	layer := (second >> 1) & 0x03
+	bitrate := (third >> 4) & 0x0f
+	sampleRate := (third >> 2) & 0x03
+	return first == 0xff && second&0xe0 == 0xe0 && version != 0x01 && layer != 0 && bitrate != 0 && bitrate != 0x0f && sampleRate != 0x03
 }
 
 func (s *Store) deleteInvalid(ctx context.Context, objectKey string) {

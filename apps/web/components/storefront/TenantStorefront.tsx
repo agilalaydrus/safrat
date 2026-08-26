@@ -1,19 +1,32 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import {
   IconArrowRight,
+  IconBrandFacebook,
+  IconBrandInstagram,
+  IconBrandLinkedin,
+  IconBrandThreads,
+  IconBrandTiktok,
   IconBrandWhatsapp,
+  IconBrandX,
+  IconBrandYoutube,
   IconBuildingStore,
   IconCalendarEvent,
   IconCertificate,
   IconCheck,
   IconExternalLink,
   IconMapPin,
+  IconMenu2,
+  IconPackages,
+  IconPlayerPlay,
   IconQuote,
   IconShieldCheck,
+  IconVolume,
+  IconVolumeOff,
+  IconX,
 } from "@tabler/icons-react";
 import { ThemeProvider } from "@/components/landing/ThemeProvider";
 import TenantThemeToggle from "@/components/storefront/TenantThemeToggle";
@@ -94,6 +107,13 @@ export type StorefrontTheme = {
   heroBodyColor?: string;
 };
 
+export type StorefrontSocialLink = {
+  platform: "instagram" | "tiktok" | "youtube" | "facebook" | "linkedin" | "threads" | "x" | "whatsapp";
+  label: string;
+  handle?: string;
+  url: string;
+};
+
 export type StorefrontContent = {
   displayName?: string;
   logoUrl?: string;
@@ -129,6 +149,12 @@ export type StorefrontContent = {
   managerWhatsapp?: string;
   trustBadges?: string[];
   theme?: StorefrontTheme;
+  socialLinks?: StorefrontSocialLink[];
+  socialTitle?: string;
+  socialDescription?: string;
+  backgroundMusicUrl?: string;
+  backgroundMusicTitle?: string;
+  backgroundMusicEnabled?: boolean;
 };
 
 export type StorefrontProfile = {
@@ -229,6 +255,14 @@ export default function TenantStorefront({ profile, preview = false }: { profile
   const [lightbox, setLightbox] = useState<{ imageUrl: string; altText: string; caption?: string } | null>(null);
   const [booking, setBooking] = useState<{ packageTitle: string; seasonName?: string; whatsapp: string } | null>(null);
   const [accessOpen, setAccessOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState("beranda");
+  const [navSolid, setNavSolid] = useState(false);
+  const [musicMuted, setMusicMuted] = useState(false);
+  const [musicPlaying, setMusicPlaying] = useState(false);
+  const [musicBlocked, setMusicBlocked] = useState(false);
+  const heroRef = useRef<HTMLElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   const brandColorCandidate = content.brandColor || profile.brandColor;
   const brandColor = brandColorCandidate && HEX_COLOR.test(brandColorCandidate) ? brandColorCandidate : DEFAULT_BRAND_COLOR;
@@ -264,15 +298,104 @@ export default function TenantStorefront({ profile, preview = false }: { profile
   } as CSSProperties;
   const configuredTrustBadges = content.trustBadges?.filter(Boolean) ?? [];
   const trustBadges = configuredTrustBadges.length ? configuredTrustBadges : DEFAULT_TRUST_BADGES;
+  const socialLinks = (content.socialLinks ?? []).filter((item) => safeWebLink(item.url));
+  const musicURL = content.backgroundMusicEnabled ? safeWebLink(content.backgroundMusicUrl) : null;
+  const navItems = [
+    { id: "beranda", label: "Beranda" },
+    { id: "profil", label: "Profil" },
+    { id: "paket", label: "Paket" },
+    { id: "berita", label: "Artikel" },
+    { id: "galeri", label: "Galeri" },
+    ...(socialLinks.length ? [{ id: "sosial", label: "Sosial" }] : []),
+    { id: "tentang", label: "Tentang" },
+    { id: "kontak", label: "Kontak" },
+    { id: "agen", label: "Agen" },
+    ...(faqs.length ? [{ id: "faq", label: "FAQ" }] : []),
+  ];
+  const navSectionIDs = navItems.map((item) => item.id).join(",");
+
+  useEffect(() => {
+    const hero = heroRef.current;
+    if (!hero) return;
+    const observer = new IntersectionObserver(([entry]) => { if (entry) setNavSolid(!entry.isIntersecting); }, {
+      rootMargin: "-72px 0px -78% 0px",
+      threshold: 0,
+    });
+    observer.observe(hero);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const sections = navSectionIDs.split(",").map((id) => document.getElementById(id)).filter((section): section is HTMLElement => Boolean(section));
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting).sort((first, second) => second.intersectionRatio - first.intersectionRatio)[0];
+      if (visible?.target.id) setActiveSection(visible.target.id);
+    }, { rootMargin: "-24% 0px -64% 0px", threshold: [0, 0.1, 0.35] });
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, [navSectionIDs]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !musicURL) return;
+    const storedMuted = window.localStorage.getItem("tawafiq-storefront-music-muted") === "true";
+    audio.muted = storedMuted;
+    setMusicMuted(storedMuted);
+    let interactionFallback = false;
+    const play = async () => {
+      try {
+        await audio.play();
+        setMusicPlaying(true);
+        setMusicBlocked(false);
+      } catch {
+        setMusicPlaying(false);
+        setMusicBlocked(true);
+        interactionFallback = true;
+      }
+    };
+    const resumeAfterInteraction = () => {
+      if (interactionFallback) void play();
+    };
+    void play();
+    document.addEventListener("pointerdown", resumeAfterInteraction, { once: true });
+    document.addEventListener("keydown", resumeAfterInteraction, { once: true });
+    return () => {
+      interactionFallback = false;
+      document.removeEventListener("pointerdown", resumeAfterInteraction);
+      document.removeEventListener("keydown", resumeAfterInteraction);
+      audio.pause();
+    };
+  }, [musicURL]);
+
+  const toggleMusic = async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (!musicPlaying) {
+      audio.muted = false;
+      setMusicMuted(false);
+      window.localStorage.setItem("tawafiq-storefront-music-muted", "false");
+      try { await audio.play(); setMusicPlaying(true); setMusicBlocked(false); } catch { setMusicBlocked(true); }
+      return;
+    }
+    const nextMuted = !audio.muted;
+    audio.muted = nextMuted;
+    setMusicMuted(nextMuted);
+    window.localStorage.setItem("tawafiq-storefront-music-muted", String(nextMuted));
+  };
+
+  const selectSection = (id: string) => {
+    setActiveSection(id);
+    setMobileNavOpen(false);
+  };
 
   return (
     <ThemeProvider>
       <main className="tenant-scope min-h-[100dvh]" style={themeStyle}>
         {preview && <div className="tenant-preview-ribbon">Preview draft. Belum dilihat publik.</div>}
         {preview && <div className="tenant-live-bar">Live subdomain: <strong>{profile.slug}.tawafiqhub.id</strong></div>}
-        <header className="tenant-nav">
+        <header className={`tenant-nav${navSolid ? " is-scrolled" : " is-transparent"}${mobileNavOpen ? " is-menu-open" : ""}`}>
           <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-            <a href="#beranda" className="flex min-w-0 items-center gap-3" aria-label={`${name} beranda`}>
+            <a href="#beranda" className="tenant-nav-brand flex min-w-0 items-center gap-3" aria-label={`${name} beranda`} onClick={() => selectSection("beranda")}>
               {logoImage ? (
                 <img src={logoImage} alt={`Logo ${name}`} className="h-11 w-11 rounded-xl border border-slate-200 object-contain dark:border-slate-700" />
               ) : <span className="tenant-logo-fallback">{initials}</span>}
@@ -281,22 +404,15 @@ export default function TenantStorefront({ profile, preview = false }: { profile
                 <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Travel Umrah &amp; Haji</span>
               </span>
             </a>
-            <nav className="hidden items-center gap-7 text-sm font-semibold text-slate-600 md:flex dark:text-slate-300" aria-label="Navigasi utama">
-              <a href="#profil" className="tenant-nav-link">Profil</a>
-              <a href="#paket" className="tenant-nav-link">Paket</a>
-              <a href="#berita" className="tenant-nav-link">Berita</a>
-              <a href="#blog" className="tenant-nav-link">Blog</a>
-              <a href="#galeri" className="tenant-nav-link">Galeri</a>
-              <a href="#tentang" className="tenant-nav-link">Tentang</a>
-              <a href="#kontak" className="tenant-nav-link">Kontak</a>
-              <a href="#agen" className="tenant-nav-link">Agen</a>
-              {faqs.length > 0 && <a href="#faq" className="tenant-nav-link">FAQ</a>}
+            <nav className="tenant-nav-primary hidden items-center lg:flex" aria-label="Navigasi utama">
+              {navItems.map((item) => <a key={item.id} href={`#${item.id}`} className={`tenant-nav-link${activeSection === item.id ? " is-active" : ""}`} aria-current={activeSection === item.id ? "location" : undefined} onClick={() => selectSection(item.id)}>{item.label}</a>)}
             </nav>
-            <div className="tenant-nav-actions"><a href="/sign-in" className="tenant-login-link">Masuk</a><button type="button" className="tenant-register-button" onClick={() => setAccessOpen(true)}>Daftar</button><TenantThemeToggle /></div>
+            <div className="tenant-nav-actions"><a href="/sign-in" className="tenant-login-link">Masuk</a><button type="button" className="tenant-register-button" onClick={() => setAccessOpen(true)}>Daftar</button><TenantThemeToggle /><button type="button" className="tenant-mobile-menu-button lg:hidden" aria-expanded={mobileNavOpen} aria-controls="tenant-mobile-nav" aria-label={mobileNavOpen ? "Tutup navigasi" : "Buka navigasi"} onClick={() => setMobileNavOpen((open) => !open)}>{mobileNavOpen ? <IconX size={20} stroke={1.9} /> : <IconMenu2 size={20} stroke={1.9} />}</button></div>
           </div>
+          <nav id="tenant-mobile-nav" className="tenant-mobile-nav lg:hidden" aria-label="Navigasi seluler" hidden={!mobileNavOpen}>{navItems.map((item) => <a key={item.id} href={`#${item.id}`} className={activeSection === item.id ? "is-active" : ""} aria-current={activeSection === item.id ? "location" : undefined} onClick={() => selectSection(item.id)}>{item.label}</a>)}</nav>
         </header>
 
-        <section id="beranda" className="tenant-hero scroll-mt-24">
+        <section ref={heroRef} id="beranda" className="tenant-hero scroll-mt-24">
           <img src={heroImage} alt={`Perjalanan Umrah bersama ${name}`} className="tenant-hero-backdrop" fetchPriority="high" />
           <div className="tenant-hero-scrim" aria-hidden="true" />
           <div className="tenant-hero-content mx-auto flex max-w-7xl items-center justify-center px-4 py-14 text-center sm:px-6 lg:px-8">
@@ -352,6 +468,8 @@ export default function TenantStorefront({ profile, preview = false }: { profile
 
         <EditorialHub news={news} blogPosts={blogPosts} activeTab={editorialTab} onTabChange={setEditorialTab} />
 
+        {socialLinks.length > 0 && <section id="sosial" className="tenant-social-section scroll-mt-24"><div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24"><div className="tenant-social-intro"><h2>{content.socialTitle || `Terhubung lebih dekat bersama ${name}`}</h2><p>{content.socialDescription || "Ikuti kabar perjalanan, panduan ibadah, dan dokumentasi jamaah melalui kanal resmi travel kami."}</p></div><div className="tenant-social-grid">{socialLinks.map((item, index) => <a key={`${item.platform}-${item.url}`} href={safeWebLink(item.url) || "#"} target="_blank" rel="noreferrer" className={index < 2 ? "tenant-social-link is-featured" : "tenant-social-link"}><span className="tenant-social-icon"><SocialPlatformIcon platform={item.platform} /></span><span><small>{socialPlatformName(item.platform)}</small><strong>{item.label}</strong>{item.handle && <em>{item.handle}</em>}</span><IconArrowRight className="tenant-social-arrow" size={20} stroke={1.8} /></a>)}</div></div></section>}
+
         <section id="tentang" className="tenant-about scroll-mt-24"><div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-20 sm:px-6 md:grid-cols-[0.88fr_1.12fr] lg:px-8 lg:py-24"><div className="tenant-about-image"><img src="/images/tenant-editorial/about_pilgrim_editorial_1787645090421.webp" alt={`Pendampingan jamaah ${name}`} loading="lazy" /><span>Perjalanan yang dirawat, bukan sekadar dijual.</span></div><div><p className="tenant-eyebrow">Tentang kami</p><h2 className="mt-4 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl dark:text-slate-100">{content.aboutTitle || `Mengenal ${name}`}</h2><p className="mt-6 max-w-2xl whitespace-pre-line text-base leading-8 text-slate-600 dark:text-slate-300">{content.aboutBody || description || `${name} membantu jamaah mempersiapkan perjalanan Umrah dan Haji dengan informasi yang jelas serta pendampingan yang mudah dihubungi.`}</p><div className="tenant-about-facts mt-8"><div><IconBuildingStore size={22} stroke={1.7} /><span><small>Brand travel</small><strong>{name}</strong></span></div>{city && <div><IconMapPin size={22} stroke={1.7} /><span><small>Lokasi kantor</small><strong>{city}</strong></span></div>}{profile.licenseNumber && <div><IconCertificate size={22} stroke={1.7} /><span><small>Nomor izin</small><strong>{profile.licenseNumber}</strong></span></div>}{website && <a href={website} target="_blank" rel="noreferrer"><IconExternalLink size={22} stroke={1.7} /><span><small>Website resmi</small><strong>Kunjungi website</strong></span></a>}</div></div></div></section>
 
         {testimonials.length > 0 && <section className="tenant-testimonials"><div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-24"><h2 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl dark:text-slate-100">Cerita dari jamaah</h2><div className="mt-10 grid gap-5 md:grid-cols-2">{testimonials.map((item, index) => <blockquote key={`${item.name}-${index}`} className={index === 0 && testimonials.length > 2 ? "tenant-testimonial-featured" : "tenant-testimonial"}><IconQuote size={26} stroke={1.5} /><p>{item.quote}</p><footer><strong>{item.name}</strong>{item.role && <span>{item.role}</span>}</footer></blockquote>)}</div></div></section>}
@@ -362,7 +480,9 @@ export default function TenantStorefront({ profile, preview = false }: { profile
 
         <section id="kontak" className="scroll-mt-24 px-4 pb-20 sm:px-6 lg:px-8 lg:pb-24"><div className="tenant-contact mx-auto max-w-7xl"><div><p className="tenant-eyebrow">Hubungi kami</p><h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">Mari menyiapkan perjalanan Anda</h2><p className="mt-4 max-w-xl text-base leading-7 opacity-80">Tim {name} siap membantu memilih jadwal, tipe kamar, dan kebutuhan pendampingan keluarga.</p><div className="tenant-contact-details"><span>{[address, city].filter(Boolean).join(", ") || "Alamat kantor tersedia melalui tim travel"}</span><span>Senin sampai Sabtu, 09.00 sampai 17.00 WIB</span>{content.contactEmail && <a href={`mailto:${content.contactEmail}`}>{content.contactEmail}</a>}</div></div><div className="flex flex-col gap-3 sm:flex-row">{whatsapp ? <a href={whatsapp} target="_blank" rel="noreferrer" className="tenant-contact-cta"><IconBrandWhatsapp size={19} stroke={1.9} /> Konsultasi WhatsApp</a> : <span className="tenant-contact-ghost">Nomor WhatsApp segera tersedia</span>}{website && <a href={website} target="_blank" rel="noreferrer" className="tenant-contact-ghost"><IconExternalLink size={19} stroke={1.9} /> Website</a>}</div></div></section>
 
-        <footer className="tenant-footer"><div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.2fr_0.8fr_1fr] lg:px-8"><div><div className="flex items-center gap-3">{logoImage ? <img src={logoImage} alt={`Logo ${name}`} className="h-12 w-12 rounded-xl object-contain" /> : <span className="tenant-logo-fallback">{initials}</span>}<strong>{name}</strong></div><p>{content.tagline || description || "Pendampingan perjalanan ibadah yang hangat dan terpercaya."}</p></div><div><strong>Navigasi</strong><nav className="mt-4 grid gap-2 text-sm"><a href="#beranda">Beranda</a><a href="#paket">Paket</a><a href="#tentang">Tentang Kami</a><a href="#kontak">Hubungi Kami</a></nav></div><div><strong>Kontak &amp; legalitas</strong><p>{address || city || "Alamat kantor tersedia melalui tim travel."}</p>{content.contactEmail && <a href={`mailto:${content.contactEmail}`}>{content.contactEmail}</a>}{profile.licenseNumber && <p className="mt-2">Izin PPIU/PIHK: {profile.licenseNumber}</p>}{content.mapUrl && <a className="tenant-footer-map" href={content.mapUrl} target="_blank" rel="noreferrer">Buka lokasi di Google Maps <IconExternalLink size={15} /></a>}</div></div><div className="mx-auto flex max-w-7xl flex-col gap-3 border-t border-white/10 px-4 py-5 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"><span>© {new Date().getFullYear()} {name}. All Rights Reserved.</span><a href="https://tawafiqhub.id" className="tenant-powered" target="_blank" rel="noreferrer">Powered by <strong>TawafiqHub</strong></a></div></footer>
+        <footer className="tenant-footer"><div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.2fr_0.8fr_1fr] lg:px-8"><div><div className="flex items-center gap-3">{logoImage ? <img src={logoImage} alt={`Logo ${name}`} className="h-12 w-12 rounded-xl object-contain" /> : <span className="tenant-logo-fallback">{initials}</span>}<strong>{name}</strong></div><p>{content.tagline || description || "Pendampingan perjalanan ibadah yang hangat dan terpercaya."}</p></div><div><strong>Navigasi</strong><nav className="mt-4 grid gap-2 text-sm"><a href="#beranda">Beranda</a><a href="#paket">Paket</a>{socialLinks.length > 0 && <a href="#sosial">Sosial Media</a>}<a href="#tentang">Tentang Kami</a><a href="#kontak">Hubungi Kami</a></nav></div><div><strong>Kontak &amp; legalitas</strong><p>{address || city || "Alamat kantor tersedia melalui tim travel."}</p>{content.contactEmail && <a href={`mailto:${content.contactEmail}`}>{content.contactEmail}</a>}{profile.licenseNumber && <p className="mt-2">Izin PPIU/PIHK: {profile.licenseNumber}</p>}{content.mapUrl && <a className="tenant-footer-map" href={content.mapUrl} target="_blank" rel="noreferrer">Buka lokasi di Google Maps <IconExternalLink size={15} /></a>}</div></div><div className="mx-auto flex max-w-7xl flex-col gap-3 border-t border-white/10 px-4 py-5 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"><span>© {new Date().getFullYear()} {name}. All Rights Reserved.</span><a href="https://tawafiqhub.id" className="tenant-powered" target="_blank" rel="noreferrer">Powered by <strong>TawafiqHub</strong></a></div></footer>
+        <div className="tenant-floating-tools" aria-label="Akses cepat">{navSolid && <a href="#paket" className="tenant-floating-package" onClick={() => selectSection("paket")}><IconPackages size={20} stroke={1.8} /><span><small>Lihat pilihan</small><strong>Cek Paket</strong></span></a>}{musicURL && <button type="button" className={`tenant-music-control${musicBlocked ? " is-blocked" : ""}`} onClick={() => void toggleMusic()} aria-label={!musicPlaying ? "Putar musik latar" : musicMuted ? "Nyalakan suara musik" : "Bisukan musik"} title={content.backgroundMusicTitle || "Musik latar"}>{!musicPlaying ? <IconPlayerPlay size={20} stroke={1.9} /> : musicMuted ? <IconVolumeOff size={20} stroke={1.9} /> : <IconVolume size={20} stroke={1.9} />}<span>{!musicPlaying ? "Putar musik" : musicMuted ? "Suara mati" : content.backgroundMusicTitle || "Musik latar"}</span></button>}</div>
+        {musicURL && <audio ref={audioRef} src={musicURL} loop preload="metadata" onPlay={() => setMusicPlaying(true)} onPause={() => setMusicPlaying(false)} onError={() => { setMusicPlaying(false); setMusicBlocked(true); }} />}
         {lightbox && <div className="tenant-lightbox" role="dialog" aria-modal="true" aria-label={lightbox.altText} onClick={() => setLightbox(null)}><button type="button" onClick={() => setLightbox(null)} aria-label="Tutup foto">×</button><figure onClick={(event) => event.stopPropagation()}><img src={safeImageLink(lightbox.imageUrl)} alt={lightbox.altText} />{lightbox.caption && <figcaption>{lightbox.caption}</figcaption>}</figure></div>}
         {booking && <BookingModal booking={booking} onClose={() => setBooking(null)} />}
         {accessOpen && <ClientAccessPanel name={name} whatsapp={managerWhatsapp} onClose={() => setAccessOpen(false)} />}
@@ -395,6 +515,28 @@ function BookingModal({ booking, onClose }: { booking: { packageTitle: string; s
   const [note, setNote] = useState("");
   const submit = (event: React.FormEvent) => { event.preventDefault(); if (!booking.whatsapp) return; const text = encodeURIComponent(`Assalamu'alaikum, saya ingin reservasi.\nPaket: ${booking.packageTitle}\nMusim: ${booking.seasonName || "Konsultasi"}\nTipe kamar: ${room}\nJumlah jamaah: ${count}\nCatatan: ${note || "-"}`); window.open(`${booking.whatsapp}?text=${text}`, "_blank", "noopener,noreferrer"); onClose(); };
   return <div className="tenant-modal-backdrop" role="dialog" aria-modal="true" aria-label="Reservasi paket" onClick={onClose}><form className="tenant-modal" onSubmit={submit} onClick={(event) => event.stopPropagation()}><button type="button" className="tenant-modal-close" onClick={onClose} aria-label="Tutup">×</button><p className="tenant-eyebrow">RESERVASI</p><h2>{booking.packageTitle}</h2><label>Tipe kamar<select value={room} onChange={(event) => setRoom(event.target.value)}><option>Quad</option><option>Triple</option><option>Double</option></select></label><label>Jumlah jamaah<input type="number" min="1" max="99" value={count} onChange={(event) => setCount(event.target.value)} /></label><label>Catatan khusus<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Lansia, kursi roda, atau kebutuhan lain" rows={3} /></label><button type="submit" className="tenant-primary-cta" disabled={!booking.whatsapp}>Lanjut ke WhatsApp <IconArrowRight size={18} /></button></form></div>;
+}
+
+function SocialPlatformIcon({ platform }: { platform: StorefrontSocialLink["platform"] }) {
+  const props = { size: 24, stroke: 1.8 };
+  switch (platform) {
+    case "instagram": return <IconBrandInstagram {...props} />;
+    case "tiktok": return <IconBrandTiktok {...props} />;
+    case "youtube": return <IconBrandYoutube {...props} />;
+    case "facebook": return <IconBrandFacebook {...props} />;
+    case "linkedin": return <IconBrandLinkedin {...props} />;
+    case "threads": return <IconBrandThreads {...props} />;
+    case "x": return <IconBrandX {...props} />;
+    case "whatsapp": return <IconBrandWhatsapp {...props} />;
+  }
+}
+
+function socialPlatformName(platform: StorefrontSocialLink["platform"]) {
+  const names: Record<StorefrontSocialLink["platform"], string> = {
+    instagram: "Instagram", tiktok: "TikTok", youtube: "YouTube", facebook: "Facebook",
+    linkedin: "LinkedIn", threads: "Threads", x: "X", whatsapp: "WhatsApp",
+  };
+  return names[platform];
 }
 
 function waLink(raw: string) { const digits = raw.replace(/\D/g, ""); return `https://wa.me/${digits.startsWith("0") ? `62${digits.slice(1)}` : digits}`; }

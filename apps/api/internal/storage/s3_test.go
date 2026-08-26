@@ -147,6 +147,52 @@ func TestPresignStorefrontUploadScopesKeyAndContentType(t *testing.T) {
 	}
 }
 
+func TestPresignStorefrontMusicUploadUsesTenantScopedMP3(t *testing.T) {
+	store, err := New(context.Background(), Config{
+		Endpoint: "http://127.0.0.1:9000", Region: "us-east-1", Bucket: "safrat-uploads",
+		AccessKeyID: "local-access", SecretAccessKey: "local-secret",
+		PublicBaseURL: "http://127.0.0.1:9000/safrat-uploads", ForcePathStyle: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	operatorID := "00000000-0000-4000-8000-000000000001"
+	upload, err := store.PresignStorefrontUpload(context.Background(), operatorID, "background-music", 1024)
+	if err != nil {
+		t.Fatalf("PresignStorefrontUpload: %v", err)
+	}
+	parsed, err := url.Parse(upload.UploadURL)
+	if err != nil {
+		t.Fatalf("parse upload URL: %v", err)
+	}
+	if !strings.HasPrefix(parsed.Path, "/safrat-uploads/storefront-pending/"+operatorID+"/background-music/") || !strings.HasSuffix(parsed.Path, ".mp3") {
+		t.Fatalf("unexpected tenant-scoped key: %s", parsed.Path)
+	}
+	if upload.ContentType != StorefrontAudioContentType {
+		t.Fatalf("content type = %q, want %q", upload.ContentType, StorefrontAudioContentType)
+	}
+}
+
+func TestValidStorefrontPayloadRecognizesWebPAndMP3(t *testing.T) {
+	imageSpec, _ := storefrontSpec("hero")
+	audioSpec, _ := storefrontSpec("background-music")
+	if !validStorefrontPayload(imageSpec, []byte("RIFFxxxxWEBP")) {
+		t.Fatal("valid WebP signature rejected")
+	}
+	if !validStorefrontPayload(audioSpec, []byte{'I', 'D', '3', 4, 0, 0, 0, 0, 0, 0, 0xff, 0xfb, 0x90, 0x64}) {
+		t.Fatal("valid ID3 MP3 signature rejected")
+	}
+	if !validStorefrontPayload(audioSpec, []byte{0xff, 0xfb, 0x90, 0x64}) {
+		t.Fatal("valid MPEG frame signature rejected")
+	}
+	if validStorefrontPayload(audioSpec, []byte("ID3metadata")) {
+		t.Fatal("ID3-only payload accepted as MP3")
+	}
+	if validStorefrontPayload(audioSpec, []byte("RIFFxxxxWEBP")) {
+		t.Fatal("WebP signature accepted as MP3")
+	}
+}
+
 func TestPresignStorefrontUploadValidatesInputs(t *testing.T) {
 	store, err := New(context.Background(), Config{
 		Endpoint: "http://127.0.0.1:9000", Region: "us-east-1", Bucket: "safrat-uploads",
@@ -162,7 +208,8 @@ func TestPresignStorefrontUploadValidatesInputs(t *testing.T) {
 	}{
 		{"invalid", "hero", 100},
 		{"00000000-0000-4000-8000-000000000001", "document", 100},
-		{"00000000-0000-4000-8000-000000000001", "hero", MaxStorefrontBytes + 1},
+		{"00000000-0000-4000-8000-000000000001", "hero", MaxStorefrontImageBytes + 1},
+		{"00000000-0000-4000-8000-000000000001", "background-music", MaxStorefrontAudioBytes + 1},
 	} {
 		if _, err := store.PresignStorefrontUpload(context.Background(), test.operatorID, test.kind, test.size); err == nil {
 			t.Fatalf("PresignStorefrontUpload(%q, %q, %d) succeeded", test.operatorID, test.kind, test.size)
