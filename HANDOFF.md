@@ -14,6 +14,57 @@
 
 ## Continuation after this snapshot
 
+### Billing — operator subscriptions (2026-08-26)
+
+Until this, `plan` was a label with nothing behind it: prices were published but
+nothing could charge for them, and the only way to change a plan was UPDATE by
+hand. Shipped in four commits: `2d113c5` schema, `a5f8e45` the gate, `ae9cae5`
+the operator-facing screen, `35ba085` gateway settlement.
+
+**Rules that matter**
+
+- New operators get a **3-day trial**. Existing operators were seeded ACTIVE
+  with 90 days — they are live and were never charged; a migration must not lock
+  them out.
+- Access is granted **by time (`access_until`), never by status**. A stale
+  status can then never hand out free access.
+- **Dashboard locks, everything else keeps running.** The gate sits after the
+  staff session resolves, so the storefront, registration, and the pilgrim,
+  leader and agent portals are untouched. Pressure lands on the operator who
+  owes money, not on pilgrims who already registered.
+- Billing procedures stay reachable while locked; everything else fails closed.
+  A missing subscription row is *allowed* — locking a paying customer out over a
+  missing row is the worse failure.
+- The screen lives **outside the dashboard shell** because the shell loads gated
+  data on mount and would not render for a locked operator.
+
+**Bank transfer matching**
+
+The unique amount suffix is the only thing tying a mutation to an invoice, so
+uniqueness is enforced by a partial unique index over unpaid transfers — not by
+checking before inserting, which would hand two simultaneous requests the same
+amount. A test drives 40 concurrent issuances. `FindPayableByAmount` is written
+and tested but **has no caller yet**: bank transfers are still settled by hand.
+
+Before building a scraper, consider an aggregator with a real API (Moota,
+Mutasibank). A scraper fails *silently* — the operator has paid, the system does
+not know, and they stay locked out. The code shape is identical either way:
+`FindPayableByAmount` then `MarkPaid`.
+
+**Two traps found while building this**
+
+1. The gate first landed in the `sessionOnlyProcedures` branch, which would have
+   locked out **tour leaders** instead of operators. A compile error caught it.
+   The anchor is now asserted unique so the slip cannot recur silently.
+2. `err?.code === "unauthenticated"` in the dashboard shell **never worked**:
+   Connect-ES exposes the code as a numeric enum, so the string comparison is
+   always false. The new redirect uses `Code.FailedPrecondition`; the pre-existing
+   string checks alongside it are still wrong and worth a separate fix.
+
+**Do not rely on bank transfer in production until matching exists** — the
+operator will pay and stay locked out. QRIS/card is safe: verified end to end
+against the running API.
+
 ### Session log — 2026-08-26
 
 
