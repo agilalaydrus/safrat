@@ -83,7 +83,12 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', Georgia, serif; font-weight: 5
   --tenant-brand-muted: color-mix(in srgb, var(--tenant-brand) 24%, var(--tenant-surface));
   --tenant-brand-strong: color-mix(in srgb, var(--tenant-brand) 78%, var(--tenant-heading));
   min-height: 100dvh;
-  overflow-x: hidden;
+  /* clip, NOT hidden: overflow-x: hidden forces overflow-y to compute as auto,
+     which makes this element a scroll container. position: sticky then anchors
+     the header to *this* box instead of the viewport — and since the page
+     scrolls, not this box, the header simply scrolled away. clip contains
+     horizontal overflow the same way without creating a scroll container. */
+  overflow-x: clip;
   background: var(--tenant-page-bg);
   color: var(--tenant-body);
   font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif;
