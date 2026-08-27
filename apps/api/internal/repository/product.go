@@ -414,3 +414,17 @@ func (r *ProductRepository) SavePlatformProduct(ctx context.Context, productID s
 	}
 	return toProduct(updated), nil
 }
+
+// PlatformCatalogue is everything TawafiqHub supplies, in the order somebody
+// working through it would want: the rows that cannot be sold yet first.
+func (r *ProductRepository) PlatformCatalogue(ctx context.Context) ([]*domain.Product, error) {
+	rows, err := r.queries.ListPlatformCatalogue(ctx)
+	if err != nil {
+		return nil, err
+	}
+	products := make([]*domain.Product, 0, len(rows))
+	for _, row := range rows {
+		products = append(products, toProduct(row))
+	}
+	return products, nil
+}

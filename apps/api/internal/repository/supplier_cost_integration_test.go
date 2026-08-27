@@ -266,6 +266,29 @@ func TestSavePlatformProductIntegration(t *testing.T) {
 		t.Fatalf("produk milik travel dapat disunting dari jalur platform: %v", err)
 	}
 
+	// The catalogue lists what the platform supplies and nothing else. A
+	// tenant's product appearing here would be one travel's catalogue shown to
+	// the admin as if it were shared by all of them.
+	catalogue, err := products.PlatformCatalogue(ctx)
+	if err != nil {
+		t.Fatalf("catalogue: %v", err)
+	}
+	var found bool
+	for _, item := range catalogue {
+		if item.ID == tenantProductID {
+			t.Fatal("katalog platform memuat produk milik travel")
+		}
+		if !item.IsPlatformOwned() {
+			t.Fatalf("katalog memuat produk bertuan: %s", item.ID)
+		}
+		if item.ID == created.ID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("produk yang baru dibuat tidak muncul di katalog")
+	}
+
 	// And it really is untouched.
 	var owner string
 	if err := pool.QueryRow(ctx, `SELECT COALESCE(operator_id::text,'') FROM products WHERE id = $1`, tenantProductID).Scan(&owner); err != nil {

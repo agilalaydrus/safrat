@@ -1,10 +1,17 @@
 import { expect, test } from "@playwright/test";
 import { ensurePublishedMusic, musicControl, tenantURL } from "./audio-setup";
-import { loadWebEnv } from "./fixture";
+import { enrolFixtureStaff, loadWebEnv, unenrolFixtureStaff } from "./fixture";
 
 loadWebEnv();
 
 // This project launches Chromium with --autoplay-policy=no-user-gesture-required.
+// Staff cannot reach the dashboard without a second factor. This spec drives
+// staff screens, so the gate applies to it — it was simply never updated when
+// the requirement landed, and every test here has been redirected to the
+// enrolment page since.
+test.beforeEach(enrolFixtureStaff);
+test.afterAll(unenrolFixtureStaff);
+
 test("background music autoplays when the browser policy permits it", async ({ page }) => {
   await ensurePublishedMusic(page);
 

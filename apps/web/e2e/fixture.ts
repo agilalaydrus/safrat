@@ -75,3 +75,20 @@ export async function operatorID(): Promise<string> {
   if (!row) throw new Error("fixture operator is missing — did the setup project run?");
   return row.id;
 }
+
+/**
+ * Staff cannot reach the dashboard without a second factor, so any spec that
+ * drives a staff screen has to enrol the fixture first.
+ *
+ * Shared rather than repeated, because it has a matching half that is easy to
+ * forget: an enrolled account cannot sign in again — Better Auth answers with
+ * a TOTP challenge instead of a session — so the next run's setup would save
+ * an empty storage state. Enrol before, restore after, always as a pair.
+ */
+export async function enrolFixtureStaff(): Promise<void> {
+  await query(`UPDATE "user" SET "twoFactorEnabled" = true WHERE email = $1`, [fixture.email]);
+}
+
+export async function unenrolFixtureStaff(): Promise<void> {
+  await query(`UPDATE "user" SET "twoFactorEnabled" = false WHERE email = $1`, [fixture.email]);
+}

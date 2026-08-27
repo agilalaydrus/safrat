@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import path from "node:path";
-import { loadWebEnv, operatorID, query } from "./fixture";
+import { enrolFixtureStaff, loadWebEnv, operatorID, query, unenrolFixtureStaff } from "./fixture";
 
 loadWebEnv();
 
@@ -17,6 +17,13 @@ async function activeFileCount(page: import("@playwright/test").Page): Promise<n
   const text = (await label.textContent()) ?? "";
   return Number(/(\d+) file aktif/.exec(text)?.[1] ?? NaN);
 }
+
+// Staff cannot reach the dashboard without a second factor. This spec drives
+// staff screens, so the gate applies to it — it was simply never updated when
+// the requirement landed, and every test here has been redirected to the
+// enrolment page since.
+test.beforeEach(enrolFixtureStaff);
+test.afterAll(unenrolFixtureStaff);
 
 test("uploading a hero image runs the full presign, verify, promote, register chain", async ({ page }) => {
   const operator = await operatorID();

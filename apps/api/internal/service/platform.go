@@ -258,6 +258,43 @@ func (s *PlatformService) SavePlatformProduct(ctx context.Context, req *hajjv1.S
 	return &hajjv1.SavePlatformProductResponse{Product: platformProductMessage(product)}, nil
 }
 
+// ListPlatformCatalogue is the admin's view of what TawafiqHub supplies.
+func (s *PlatformService) ListPlatformCatalogue(ctx context.Context, req *hajjv1.ListPlatformCatalogueRequest) (*hajjv1.ListPlatformCatalogueResponse, error) {
+	if _, err := s.requirePlatformAdmin(ctx); err != nil {
+		return nil, err
+	}
+	products, err := s.productRepository.PlatformCatalogue(ctx)
+	if err != nil {
+		return nil, serviceError("PlatformService.ListPlatformCatalogue", err)
+	}
+	out := make([]*hajjv1.PlatformProduct, 0, len(products))
+	for _, product := range products {
+		message := &hajjv1.PlatformProduct{
+			Id: product.ID, Name: product.Name, Category: product.Category,
+			// Named rather than left blank: this catalogue belongs to the
+			// platform, and a blank operator column reads as missing data.
+			OperatorName:       "TawafiqHub",
+			PriceIdr:           product.PriceIDR,
+			SupplierCostSource: product.SupplierCostSource,
+			Code:               product.Code,
+			Description:        product.Description,
+			IsActive:           product.IsActive,
+		}
+		if product.NominalIDR != nil {
+			message.NominalIdr = *product.NominalIDR
+		}
+		if product.SupplierCostIDR != nil {
+			message.SupplierCostIdr = *product.SupplierCostIDR
+		}
+		if product.BasePriceIDR != nil {
+			message.BasePriceIdr = *product.BasePriceIDR
+			message.BasePriceSet = true
+		}
+		out = append(out, message)
+	}
+	return &hajjv1.ListPlatformCatalogueResponse{Products: out}, nil
+}
+
 func formatBasePriceNote(previous *int64, next int64) string {
 	if previous == nil {
 		return fmt.Sprintf("harga dasar ditetapkan %s", rupiah(next))

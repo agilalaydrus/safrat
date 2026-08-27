@@ -51,6 +51,12 @@ service PlatformService {
   // not on ProductService.
   rpc SavePlatformProduct(SavePlatformProductRequest) returns (SavePlatformProductResponse);
 
+  // ListPlatformCatalogue returns only the products TawafiqHub supplies.
+  // Separate from ListProductsNeedingCost, which spans every tenant: filtering
+  // that list down on the client works until the catalogue grows past its
+  // limit, and then quietly starts hiding rows.
+  rpc ListPlatformCatalogue(ListPlatformCatalogueRequest) returns (ListPlatformCatalogueResponse);
+
   // Supplier catalogue. Digital products are supplied by the platform, so all
   // of this is platform-owned — a travel neither sets nor sees it.
   rpc ListSuppliers(ListSuppliersRequest) returns (ListSuppliersResponse);
@@ -143,6 +149,13 @@ message PlatformProduct {
   // two must not look alike on this screen.
   int64 base_price_idr = 11;
   bool base_price_set = 12;
+
+  // Carried so the admin catalogue can edit a row without a second fetch.
+  // The screen that lists is the screen that edits.
+  string code = 13;
+  int64 nominal_idr = 14;
+  string description = 15;
+  bool is_active = 16;
 }
 
 message ListProductsNeedingCostRequest {
@@ -184,6 +197,9 @@ message SavePlatformProductRequest {
   bool is_active = 8;
 }
 message SavePlatformProductResponse { PlatformProduct product = 1; }
+
+message ListPlatformCatalogueRequest {}
+message ListPlatformCatalogueResponse { repeated PlatformProduct products = 1; }
 
 message PlatformSupplier {
   string id = 1;

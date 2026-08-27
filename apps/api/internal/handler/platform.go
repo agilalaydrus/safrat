@@ -246,3 +246,11 @@ func (h *PlatformHandler) SavePlatformProduct(ctx context.Context, req *connect.
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) ListPlatformCatalogue(ctx context.Context, req *connect.Request[hajjv1.ListPlatformCatalogueRequest]) (*connect.Response[hajjv1.ListPlatformCatalogueResponse], error) {
+	result, err := h.platformService.ListPlatformCatalogue(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

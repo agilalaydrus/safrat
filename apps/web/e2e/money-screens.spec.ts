@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { fixture, operatorID, query } from "./fixture";
+import { enrolFixtureStaff, fixture, operatorID, query, unenrolFixtureStaff } from "./fixture";
 
 /**
  * Every screen built for the money work — transaction history, the refund and
@@ -64,23 +64,12 @@ async function seedOrders(): Promise<{ paid: string; held: string }> {
   return { paid: paid.id, held: held.id };
 }
 
-/**
- * Staff must enrol a second factor before the dashboard opens. The fixture
- * account is enrolled here rather than in each test: this spec is about how the
- * screens look, and every one of them lives behind that gate.
- */
-async function enrolFixtureStaff() {
-  await query(`UPDATE "user" SET "twoFactorEnabled" = true WHERE email = $1`, [fixture.email]);
-}
-
 test.describe("money screens render", () => {
   test.beforeEach(enrolFixtureStaff);
   // Restored, because an enrolled fixture cannot sign in again: Better Auth
   // answers with a TOTP challenge instead of a session, and the next run's
   // setup would save an empty storage state.
-  test.afterAll(async () => {
-    await query(`UPDATE "user" SET "twoFactorEnabled" = false WHERE email = $1`, [fixture.email]);
-  });
+  test.afterAll(unenrolFixtureStaff);
 
   test("orders dashboard shows both money actions, and each dialog opens", async ({ page }) => {
     await seedOrders();
@@ -107,6 +96,25 @@ test.describe("money screens render", () => {
     // The shortfall is the whole reason this screen exists.
     await expect(review.getByText(/Kurang/)).toBeVisible();
     await capture(page, "03-review-held-dialog");
+  });
+
+  // The travel's own pricing screen. Every level of the price is shown here,
+  // and the two buyer prices are computed by the server — so this is the one
+  // place a person can see whether the layered pricing agrees with itself.
+  test("the pricing screen shows each level and both buyer prices", async ({ page }) => {
+    await page.goto("/dashboard/products/harga");
+    await expect(page.getByRole("heading", { name: /Harga & Markup/i })).toBeVisible();
+
+    // The rule the screen exists to make visible: the base is TawafiqHub's and
+    // the travel cannot move it.
+    await expect(page.getByText(/Harga dasar ditetapkan TawafiqHub/i)).toBeVisible();
+
+    // Column headers, so a layout change that drops a level is caught rather
+    // than silently shipping a price nobody can explain.
+    for (const heading of ["HARGA DASAR", "MARKUP TRAVEL", "MARKUP AGEN", "HARGA AGEN", "HARGA JAMAAH"]) {
+      await expect(page.getByRole("columnheader", { name: heading })).toBeVisible();
+    }
+    await capture(page, "15-pricing-levels");
   });
 
   test("two-factor enrolment renders its first step", async ({ page }) => {
@@ -162,8 +170,38 @@ test.describe("money screens render", () => {
     await capture(page, "07-admin-operators");
 
     await page.getByRole("button", { name: /Harga Modal/ }).click();
-    await expect(page.getByText(/tanpa harga modal dijual tanpa batas bawah/i)).toBeVisible();
+    await expect(page.getByText(/Harga dasar adalah yang\s+TawafiqHub tagih ke travel/i)).toBeVisible();
     await capture(page, "08-admin-supplier-costs");
+
+    // The catalogue the platform supplies to every travel. This is the screen
+    // that replaced writing product rows by hand in SQL, so it is worth
+    // driving rather than trusting: the RPC being green says nothing about
+    // whether a person can reach it.
+    await page.getByRole("button", { name: /^Katalog$/ }).click();
+    await expect(page.getByText(/dipasok TawafiqHub dan dijual oleh semua travel/i)).toBeVisible();
+
+    // Whatever a previous run left behind — a failure before the delete below
+    // leaks a row, and a leaked platform product is visible to every travel.
+    await query("DELETE FROM products WHERE code LIKE 'E2E-PULSA-%' AND operator_id IS NULL", []);
+
+    const code = `E2E-PULSA-${Date.now().toString().slice(-6)}`;
+    await page.getByRole("button", { name: /Tambah Produk Platform/ }).click();
+    await page.getByLabel("Nama").fill("Pulsa E2E 10K");
+    await page.getByLabel("Kode").fill(code);
+    await page.getByLabel("Nominal (Rp)").fill("10000");
+    await page.getByLabel("Harga Dasar (Rp)").fill("10500");
+    await page.getByRole("button", { name: /^Simpan$/ }).click();
+
+    // It has to come back in the list, formatted as rupiah. Unformatted money
+    // has slipped through here before — the value was right and the screen was
+    // still wrong.
+    await expect(page.getByText(code)).toBeVisible();
+    // Rp\u00a010.500: Intl puts a non-breaking space after the symbol, so the
+    // separator is matched loosely rather than asserted as a literal.
+    await expect(page.getByText(/Rp\s?10\.500/).first()).toBeVisible();
+    await capture(page, "14-admin-catalogue");
+
+    await query("DELETE FROM products WHERE code = $1 AND operator_id IS NULL", [code]);
 
     // Accounts: the tab that removed the last need for a SQL client.
     await page.getByRole("button", { name: /^Akun$/ }).click();

@@ -149,3 +149,11 @@ SET name = sqlc.arg(name), code = sqlc.arg(code), category = sqlc.arg(category),
     is_active = sqlc.arg(is_active), updated_at = NOW()
 WHERE id = sqlc.arg(id) AND operator_id IS NULL
 RETURNING *;
+
+-- name: ListPlatformCatalogue :many
+-- The platform's own catalogue: no operator, no season. Ordered so the rows
+-- that cannot be sold yet surface first — a base price or supplier cost that
+-- is still missing is the thing somebody has to act on.
+SELECT * FROM products
+WHERE operator_id IS NULL
+ORDER BY (base_price_idr IS NOT NULL AND supplier_cost_idr IS NOT NULL), category, code;

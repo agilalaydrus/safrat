@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { ensurePublishedMusic, musicControl, tenantURL } from "./audio-setup";
-import { loadWebEnv } from "./fixture";
+import { enrolFixtureStaff, loadWebEnv, unenrolFixtureStaff } from "./fixture";
 
 loadWebEnv();
 
@@ -14,6 +14,13 @@ loadWebEnv();
  * policy. Real-device autoplay behaviour — iOS Safari especially — still needs
  * a human with a phone.
  */
+// Staff cannot reach the dashboard without a second factor. This spec drives
+// staff screens, so the gate applies to it — it was simply never updated when
+// the requirement landed, and every test here has been redirected to the
+// enrolment page since.
+test.beforeEach(enrolFixtureStaff);
+test.afterAll(unenrolFixtureStaff);
+
 test("a blocked autoplay falls back to the play control and recovers on interaction", async ({ page }) => {
   await ensurePublishedMusic(page);
 

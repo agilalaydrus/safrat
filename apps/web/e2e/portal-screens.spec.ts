@@ -34,12 +34,19 @@ async function seedPilgrimTransactions(): Promise<void> {
     `SELECT id, operator_id, season_id FROM pilgrims WHERE email = $1`, [pilgrimFixture.email]);
   if (!pilgrim) throw new Error("fixture pilgrim is missing — did setup run?");
 
+  // Platform-owned: a digital product belongs to TawafiqHub, not to the travel
+  // selling it, so it carries no operator and no season. The travel's own price
+  // is the base plus the markup row below.
   const [product] = await query<{ id: string }>(
-    `INSERT INTO products (operator_id, season_id, name, code, category, price_idr, nominal_idr)
-     VALUES ($1, $2, 'Kuota Roaming 5GB', $3, 'ROAMING_DATA', 275000, 250000)
+    `INSERT INTO products (operator_id, season_id, name, code, category, price_idr, base_price_idr, nominal_idr)
+     VALUES (NULL, NULL, 'Kuota Roaming 5GB', $1, 'ROAMING_DATA', 275000, 250000, 250000)
      RETURNING id::text AS id`,
-    [pilgrim.operator_id, pilgrim.season_id, `ROAM-5GB-${Date.now()}`]);
+    [`ROAM-5GB-${Date.now()}`]);
   if (!product) throw new Error("could not seed a product");
+  await query(
+    `INSERT INTO product_markups (product_id, operator_id, operator_markup_idr, agent_markup_idr)
+     VALUES ($1, $2, 25000, 0) ON CONFLICT DO NOTHING`,
+    [product.id, pilgrim.operator_id]);
 
   const [paid] = await query<{ id: string }>(
     `INSERT INTO orders (operator_id, season_id, pilgrim_id, product_id, quantity,
