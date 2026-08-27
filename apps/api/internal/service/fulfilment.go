@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/getsentry/sentry-go"
@@ -24,11 +27,127 @@ type FulfilmentService struct {
 	suppliers   *repository.SupplierRepository
 	costs       *repository.SupplierCostRepository
 	orders      *repository.OrderRepository
+	// http is shared so connections are reused across sends. Per-supplier
+	// timeouts are applied to the request context rather than to this client,
+	// which is why it carries none of its own.
+	http *http.Client
 }
 
 func NewFulfilmentService(fulfilments *repository.FulfilmentRepository, suppliers *repository.SupplierRepository,
 	costs *repository.SupplierCostRepository, orders *repository.OrderRepository) *FulfilmentService {
-	return &FulfilmentService{fulfilments: fulfilments, suppliers: suppliers, costs: costs, orders: orders}
+	return &FulfilmentService{
+		fulfilments: fulfilments, suppliers: suppliers, costs: costs, orders: orders,
+		http: &http.Client{},
+	}
+}
+
+// Dispatch sends one pending fulfilment to its supplier and applies whatever
+// comes back.
+//
+// The claim comes first and is a conditional UPDATE, so a second worker holding
+// the same order finds nothing to claim and stops. Everything after that point
+// has already been counted as an attempt: a request that was sent and then lost
+// must never look like one that was never sent, because the difference is
+// whether the jamaah's pulsa is already on its way.
+//
+// Any answer at all is logged with the request beside it, redacted. A response
+// no rule recognises leaves the fulfilment for a human rather than failing it —
+// the supplier may well have delivered.
+func (s *FulfilmentService) Dispatch(ctx context.Context, pending repository.PendingDispatch) error {
+	claimed, err := s.fulfilments.Claim(ctx, pending.OrderID)
+	if err != nil {
+		return err
+	}
+	if !claimed {
+		// Somebody else has it, or it is no longer pending. Not an error.
+		return nil
+	}
+
+	endpoint, err := s.suppliers.EndpointFor(ctx, pending.SupplierID)
+	if err != nil {
+		return s.failDispatch(ctx, pending, "", "supplier tidak dapat dihubungi: "+err.Error())
+	}
+	built, err := supplier.Build(endpoint, supplier.Order{
+		Reference: pending.OrderID, SKU: pending.SupplierSKU,
+		AmountIDR: pending.AmountIDR, Destination: pending.Destination,
+	})
+	if err != nil {
+		// Configuration is wrong — a bad base URL, an unknown signature recipe,
+		// an address pointing inside the network. Not something a retry fixes,
+		// so it goes straight to a human.
+		return s.failDispatch(ctx, pending, "", "permintaan tidak dapat dibentuk: "+err.Error())
+	}
+
+	timeout := endpoint.Timeout
+	if timeout <= 0 {
+		timeout = 20 * time.Second
+	}
+	sendCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	response, err := s.http.Do(built.Request.WithContext(sendCtx))
+	if err != nil {
+		// The request may have arrived. Treating a transport failure as a
+		// definite non-delivery is how a jamaah gets refunded for pulsa that
+		// was sent, so this waits for a person or a later callback.
+		return s.failDispatch(ctx, pending, built.Loggable,
+			"tidak ada jawaban dari supplier: "+err.Error())
+	}
+	defer func() { _ = response.Body.Close() }()
+	raw, _ := io.ReadAll(io.LimitReader(response.Body, 64*1024))
+	body := string(raw)
+
+	rules, err := s.suppliers.ActiveRulesFor(ctx, pending.SupplierID)
+	if err != nil {
+		return err
+	}
+	reading := supplier.Read(rules, body)
+
+	status := ""
+	switch reading.Outcome {
+	case supplier.OutcomeSuccess:
+		status = "DELIVERED"
+	case supplier.OutcomeFailed:
+		status = "FAILED"
+	case supplier.OutcomePending:
+		// Accepted, not yet delivered. A callback or the stuck sweep decides.
+	default:
+		status = "NEEDS_REVIEW"
+	}
+	if status != "" {
+		if _, err := s.fulfilments.Settle(ctx, pending.OrderID, status, reading.Reference, failureText(reading)); err != nil {
+			return err
+		}
+	}
+	if reading.CostIDR != nil && status == "DELIVERED" {
+		if err := s.recordCost(ctx, pending.OrderID, pending.SupplierID, *reading.CostIDR, reading.Reference); err != nil {
+			// The delivery stands regardless; only the price floor is missing.
+			sentry.CaptureException(fmt.Errorf("FulfilmentService.Dispatch: record cost: %w", err))
+		}
+	}
+
+	httpStatus := int32(response.StatusCode)
+	s.logExchange(ctx, pending.SupplierID, pending.OrderID, repository.LogEntry{
+		Direction: "REQUEST", Endpoint: built.Endpoint, RequestBody: built.Loggable,
+		ResponseBody: body, HTTPStatus: &httpStatus, Outcome: string(reading.Outcome),
+		SupplierReference: reading.Reference, CostIDR: reading.CostIDR,
+		Error: skippedSummary(reading.SkippedRules),
+	}, reading.RuleID)
+	return nil
+}
+
+// failDispatch parks a fulfilment a person has to look at, and records why.
+//
+// Never FAILED: everything reaching here is either a configuration fault or an
+// unanswered request, and neither proves the supplier did not deliver.
+func (s *FulfilmentService) failDispatch(ctx context.Context, pending repository.PendingDispatch, request, reason string) error {
+	if _, err := s.fulfilments.Settle(ctx, pending.OrderID, "NEEDS_REVIEW", "", reason); err != nil {
+		return err
+	}
+	s.logExchange(ctx, pending.SupplierID, pending.OrderID, repository.LogEntry{
+		Direction: "REQUEST", RequestBody: request, Outcome: string(supplier.OutcomeUnmatched), Error: reason,
+	}, "")
+	return nil
 }
 
 // Open records that a paid order now owes a delivery.

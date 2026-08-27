@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -254,5 +257,163 @@ func TestCallbackRejectsAnUnknownTokenIntegration(t *testing.T) {
 	}
 	if status, _ := f.status(t); status != "PENDING" {
 		t.Fatalf("status = %s after a rejected callback, want PENDING", status)
+	}
+}
+
+// The outbound half, against a stub that answers the way a real terminal does.
+// Everything up to here was tested from the supplier's side; this is ours.
+func TestDispatchSendsAndSettlesIntegration(t *testing.T) {
+	f := newFulfilmentFixture(t)
+	ctx := context.Background()
+
+	var seenQuery string
+	var seenCount int
+	terminal := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenQuery = r.URL.RawQuery
+		seenCount++
+		_, _ = w.Write([]byte(`{"status":"OK","sn":"SN-DISPATCH","harga":9.750}`))
+	}))
+	t.Cleanup(terminal.Close)
+
+	// A plain GET terminal — the shape a good many of these still use.
+	if _, err := f.pool.Exec(ctx, `
+		UPDATE suppliers SET protocol = 'HTTP_GET', base_url = $2,
+			request_template = 'kode={{sku}}&reff={{reference}}&tujuan={{destination}}'
+		WHERE id = $1`, f.supplierID, terminal.URL); err != nil {
+		t.Fatalf("configure supplier: %v", err)
+	}
+	f.service.Open(ctx, f.orderID, f.operatorID)
+
+	pending, err := repository.NewSupplierRepository(f.pool).ListPendingDispatch(ctx, 10)
+	if err != nil {
+		t.Fatalf("list pending: %v", err)
+	}
+	var mine *repository.PendingDispatch
+	for index := range pending {
+		if pending[index].OrderID == f.orderID {
+			mine = &pending[index]
+		}
+	}
+	if mine == nil {
+		t.Fatal("the paid order is not queued for dispatch")
+	}
+
+	if err := f.service.Dispatch(ctx, *mine); err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+
+	// Our own order id goes out as the reference — that is what makes a retry
+	// the same purchase to the supplier rather than a second one.
+	if !strings.Contains(seenQuery, "reff="+f.orderID) || !strings.Contains(seenQuery, "kode=PULSA10") {
+		t.Fatalf("the terminal received %q", seenQuery)
+	}
+
+	status, reference := f.status(t)
+	if status != "DELIVERED" || reference != "SN-DISPATCH" {
+		t.Fatalf("status=%s reference=%s, want DELIVERED and SN-DISPATCH", status, reference)
+	}
+
+	// A second pass must not send again: the claim is the lock.
+	if err := f.service.Dispatch(ctx, *mine); err != nil {
+		t.Fatalf("second dispatch: %v", err)
+	}
+	if seenCount != 1 {
+		t.Fatalf("the terminal was called %d times, want 1", seenCount)
+	}
+
+	// The exchange is on the record, with the request beside the response.
+	var request, response string
+	if err := f.pool.QueryRow(ctx,
+		`SELECT request_body, response_body FROM supplier_request_logs WHERE order_id = $1 AND direction = 'REQUEST'`,
+		f.orderID).Scan(&request, &response); err != nil {
+		t.Fatalf("read log: %v", err)
+	}
+	if !strings.Contains(response, "SN-DISPATCH") || !strings.Contains(request, "kode=PULSA10") {
+		t.Fatalf("log did not capture the exchange: %q / %q", request, response)
+	}
+}
+
+// A supplier that never answers must not look like one that refused. The
+// difference decides whether a jamaah gets refunded for something already sent.
+func TestDispatchWithNoAnswerWaitsForAPersonIntegration(t *testing.T) {
+	f := newFulfilmentFixture(t)
+	ctx := context.Background()
+
+	// Closed immediately, so the connection is refused rather than hanging.
+	dead := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	deadURL := dead.URL
+	dead.Close()
+
+	if _, err := f.pool.Exec(ctx, `
+		UPDATE suppliers SET protocol = 'HTTP_GET', base_url = $2, request_template = 'ref={{reference}}'
+		WHERE id = $1`, f.supplierID, deadURL); err != nil {
+		t.Fatalf("configure supplier: %v", err)
+	}
+	f.service.Open(ctx, f.orderID, f.operatorID)
+
+	pending, err := repository.NewSupplierRepository(f.pool).ListPendingDispatch(ctx, 10)
+	if err != nil {
+		t.Fatalf("list pending: %v", err)
+	}
+	for _, item := range pending {
+		if item.OrderID != f.orderID {
+			continue
+		}
+		if err := f.service.Dispatch(ctx, item); err != nil {
+			t.Fatalf("dispatch: %v", err)
+		}
+	}
+
+	status, _ := f.status(t)
+	if status != "NEEDS_REVIEW" {
+		t.Fatalf("status = %s when the supplier never answered, want NEEDS_REVIEW — not FAILED", status)
+	}
+	// And the attempt was counted, so a lost request never looks like one that
+	// was never sent.
+	var attempts int
+	if err := f.pool.QueryRow(ctx, `SELECT attempts FROM order_fulfilments WHERE order_id = $1`, f.orderID).Scan(&attempts); err != nil {
+		t.Fatalf("read attempts: %v", err)
+	}
+	if attempts != 1 {
+		t.Fatalf("attempts = %d, want 1", attempts)
+	}
+}
+
+// A supplier address pointing inside our own network is refused before anything
+// is sent, and lands in front of a person rather than being retried forever.
+func TestDispatchRefusesAnInternalSupplierAddressIntegration(t *testing.T) {
+	f := newFulfilmentFixture(t)
+	ctx := context.Background()
+
+	if _, err := f.pool.Exec(ctx, `
+		UPDATE suppliers SET protocol = 'HTTP_GET', base_url = 'http://169.254.169.254/latest/meta-data/',
+			request_template = 'ref={{reference}}'
+		WHERE id = $1`, f.supplierID); err != nil {
+		t.Fatalf("configure supplier: %v", err)
+	}
+	f.service.Open(ctx, f.orderID, f.operatorID)
+
+	pending, err := repository.NewSupplierRepository(f.pool).ListPendingDispatch(ctx, 10)
+	if err != nil {
+		t.Fatalf("list pending: %v", err)
+	}
+	for _, item := range pending {
+		if item.OrderID == f.orderID {
+			if err := f.service.Dispatch(ctx, item); err != nil {
+				t.Fatalf("dispatch: %v", err)
+			}
+		}
+	}
+
+	var status, reason string
+	if err := f.pool.QueryRow(ctx, `SELECT status, last_error FROM order_fulfilments WHERE order_id = $1`,
+		f.orderID).Scan(&status, &reason); err != nil {
+		t.Fatalf("read fulfilment: %v", err)
+	}
+	if status != "NEEDS_REVIEW" {
+		t.Fatalf("status = %s, want NEEDS_REVIEW", status)
+	}
+	if !strings.Contains(reason, "jaringan internal") {
+		t.Fatalf("reason = %q, want it to name the internal address", reason)
 	}
 }

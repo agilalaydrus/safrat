@@ -61,6 +61,8 @@ func main() {
 	journeyRepository := repository.NewJourneyRepository(queries)
 	orderRepository := repository.NewOrderRepository(queries)
 	fulfilmentRepository := repository.NewFulfilmentRepository(pool)
+	supplierRepository := repository.NewSupplierRepository(pool)
+	supplierCostRepository := repository.NewSupplierCostRepository(pool)
 	productRepository := repository.NewProductRepository(queries, pool)
 	ledgerRepository := repository.NewLedgerRepository(pool)
 	refundRepository := repository.NewRefundRepository(pool)
@@ -89,7 +91,8 @@ func main() {
 		agentRepository, pool, payment.NewClient(strings.TrimSpace(os.Getenv("XENDIT_SECRET_KEY"))),
 		strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGIN")))
 	paymentHandler := worker.NewPaymentHandler(logger, orderRepository, orderService)
-	fulfilmentHandler := worker.NewFulfilmentHandler(logger, fulfilmentRepository)
+	fulfilmentService := service.NewFulfilmentService(fulfilmentRepository, supplierRepository, supplierCostRepository, orderRepository)
+	fulfilmentHandler := worker.NewFulfilmentHandler(logger, fulfilmentRepository, supplierRepository, fulfilmentService)
 	objectStorage, storageErr := storage.New(context.Background(), storage.ConfigFromEnv())
 	if storageErr != nil {
 		logger.Error("init storefront object storage", "error", storageErr)
@@ -160,6 +163,12 @@ func main() {
 		logger.Error("register fulfilment sweep schedule", "error", err)
 		os.Exit(1)
 	}
+	// Every minute. A jamaah who has paid for pulsa is waiting from the moment
+	// the payment clears, and this is the step between that and it arriving.
+	if _, err := scheduler.Register("@every 1m", worker.NewFulfilmentDispatchTask()); err != nil {
+		logger.Error("register fulfilment dispatch schedule", "error", err)
+		os.Exit(1)
+	}
 	if storefrontAssetHandler != nil {
 		if _, err := scheduler.Register("@every 1h", worker.NewStorefrontAssetGCTask()); err != nil {
 			logger.Error("register storefront asset cleanup schedule", "error", err)
@@ -183,6 +192,7 @@ func main() {
 	mux.HandleFunc(worker.TaskCommissionReconcile, commissionHandler.HandleReconcile)
 	mux.HandleFunc(worker.TaskPaymentPoll, paymentHandler.HandlePoll)
 	mux.HandleFunc(worker.TaskFulfilmentSweep, fulfilmentHandler.HandleSweep)
+	mux.HandleFunc(worker.TaskFulfilmentDispatch, fulfilmentHandler.HandleDispatch)
 	if storefrontAssetHandler != nil {
 		mux.HandleFunc(worker.TaskStorefrontAssetGC, storefrontAssetHandler.HandleGC)
 	}

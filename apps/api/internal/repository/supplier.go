@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"os"
 	"time"
 
 	"github.com/hajj-saas/api/internal/apperror"
@@ -357,4 +358,91 @@ func (r *SupplierRepository) RouteForOrder(ctx context.Context, orderID string) 
 		return nil, apperror.ErrNotFound
 	}
 	return &route, err
+}
+
+// EndpointFor resolves everything needed to call a supplier, reading the
+// credentials from the environment variables the row names.
+//
+// Credentials are looked up here rather than stored, so a database dump carries
+// none and rotating a key touches no data. A supplier configured with an env
+// var that is not set comes back with empty credentials — the request will fail
+// at the supplier, which is the right place for it to fail and be logged,
+// rather than silently sending an unsigned request that looks legitimate.
+func (r *SupplierRepository) EndpointFor(ctx context.Context, supplierID string) (supplier.Endpoint, error) {
+	id, err := pgUUID(supplierID)
+	if err != nil {
+		return supplier.Endpoint{}, apperror.ErrValidation
+	}
+	var (
+		endpoint                      supplier.Endpoint
+		protocol, method              string
+		timeoutSeconds                int32
+		usernameEnvVar, credentialEnv string
+	)
+	err = r.pool.QueryRow(ctx, `
+		SELECT protocol, base_url, http_method, request_template, rpc_method,
+		       signature_recipe, timeout_seconds, username_env_var, credential_env_var
+		FROM suppliers WHERE id = $1 AND status = 'ACTIVE'`, id).
+		Scan(&protocol, &endpoint.BaseURL, &method, &endpoint.Template, &endpoint.RPCMethod,
+			&endpoint.SignatureRecipe, &timeoutSeconds, &usernameEnvVar, &credentialEnv)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return supplier.Endpoint{}, apperror.ErrNotFound
+	}
+	if err != nil {
+		return supplier.Endpoint{}, err
+	}
+	endpoint.Protocol = supplier.Protocol(protocol)
+	endpoint.Method = method
+	endpoint.Timeout = time.Duration(timeoutSeconds) * time.Second
+	if usernameEnvVar != "" {
+		endpoint.Username = os.Getenv(usernameEnvVar)
+	}
+	if credentialEnv != "" {
+		endpoint.Credential = os.Getenv(credentialEnv)
+	}
+	return endpoint, nil
+}
+
+// PendingDispatch is a fulfilment waiting to be sent, with what the supplier
+// needs to identify the purchase.
+type PendingDispatch struct {
+	OrderID     string
+	OperatorID  string
+	SupplierID  string
+	SupplierSKU string
+	AmountIDR   int64
+	Destination string
+}
+
+// ListPendingDispatch returns fulfilments that have never been sent, oldest
+// first — somebody has already been waiting longest for those.
+func (r *SupplierRepository) ListPendingDispatch(ctx context.Context, limit int32) ([]PendingDispatch, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT f.order_id::text, f.operator_id::text, f.supplier_id::text,
+		       pr.supplier_sku, o.total_price_idr, COALESCE(p.phone, '')
+		FROM order_fulfilments f
+		JOIN orders o ON o.id = f.order_id
+		JOIN pilgrims p ON p.id = o.pilgrim_id
+		JOIN product_routes pr ON pr.product_id = o.product_id AND pr.is_active
+		JOIN suppliers s ON s.id = f.supplier_id AND s.status = 'ACTIVE'
+		WHERE f.status = 'PENDING'
+		ORDER BY f.created_at ASC
+		LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	pending := make([]PendingDispatch, 0)
+	for rows.Next() {
+		var item PendingDispatch
+		if err := rows.Scan(&item.OrderID, &item.OperatorID, &item.SupplierID,
+			&item.SupplierSKU, &item.AmountIDR, &item.Destination); err != nil {
+			return nil, err
+		}
+		pending = append(pending, item)
+	}
+	return pending, rows.Err()
 }

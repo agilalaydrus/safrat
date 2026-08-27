@@ -1022,10 +1022,59 @@ is only about whether the app refuses to open in the meantime.
 **Admin screens** for suppliers and their reading rules, including the rule
 tester — try a pattern against a real sample before trusting it with money.
 
-**Still to build:** the outbound call to a supplier. Its *shape* is speculative
-without a real supplier contract — the request template column exists for it —
-while everything around it (state machine, idempotency, logging, reading,
-cost learning, escalation) is built and tested.
+**The outbound call is built too** — see PR 20 below.
+
+#### Done — PR 20: calling suppliers (migration 104)
+
+Owner: *"rata rata API, ada juga yang http get biasa, ada yang XML RPC ...
+standard host to host."*
+
+**The request is configuration, exactly like the response rules.** These shapes
+do not converge and there is no prospect of them doing so, so a client written
+per supplier would mean a deploy every time one is added. `internal/supplier`
+builds all four from a row: `REST_JSON`, `HTTP_GET` (everything in the query
+string), `FORM_POST`, and `XML_RPC` for the older host-to-host terminals.
+
+**Signatures are recipes**, `md5:{{username}}{{credential}}{{reference}}` and
+the like, with md5/sha1/sha256. md5 and sha1 are weak and are nonetheless what
+a good number of these providers mandate — supported because refusing them
+means refusing the supplier, not because either is sound.
+
+**Credentials never touch the database.** The row names the environment
+variables; the values are read at send time. A dump carries no secrets and
+rotating a key touches no row.
+
+**The log copy is redacted separately**, not by finding secrets in the finished
+request and blanking them — that would depend on a credential being distinctive
+enough to find, which it is not. The template is substituted twice, once for
+real and once with the secrets replaced.
+
+**SSRF is refused before anything is sent.** Supplier addresses are typed in by
+a person, and one pointing at loopback or a private range turns this worker into
+a request forwarder aimed at whatever the server can reach — cloud metadata
+endpoints being why this matters rather than a theoretical concern.
+
+That guard refused the tests too, since every stub server binds to 127.0.0.1.
+Loopback is therefore permitted **only when `testing.Testing()` is true** — a
+condition that cannot hold in a compiled server and that nobody can set by
+accident. Private and link-local stay refused even under test, because those are
+the addresses that actually matter.
+
+**Dispatch is a sweep, not a job queued at payment time.** A queued job is lost
+if the enqueue fails or the queue is drained, and the jamaah waits with nothing
+to notice it. A sweep re-reads the truth every pass, so anything unsent is
+eventually picked up however it got that way. Runs every minute.
+
+**Nothing that fails becomes FAILED.** A transport error, an unresolvable
+address, a bad recipe — none of them prove the supplier did not deliver, so all
+of them go to a person. The attempt is still counted, so a request that was sent
+and lost never looks like one that was never sent.
+
+Verified: a GET terminal receives our order id as the reference and the SKU,
+settles DELIVERED, learns the price from the same answer, and **is not called a
+second time** on the next pass; a supplier that never answers becomes
+NEEDS_REVIEW with the attempt counted; and an address pointing at cloud metadata
+is refused with a reason that names it.
 
 #### Open — ordered
 

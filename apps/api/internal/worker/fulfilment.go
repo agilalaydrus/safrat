@@ -6,10 +6,14 @@ import (
 	"time"
 
 	"github.com/hajj-saas/api/internal/repository"
+	"github.com/hajj-saas/api/internal/service"
 	"github.com/hibiken/asynq"
 )
 
-const TaskFulfilmentSweep = "fulfilment:sweep"
+const (
+	TaskFulfilmentSweep    = "fulfilment:sweep"
+	TaskFulfilmentDispatch = "fulfilment:dispatch"
+)
 
 // stuckAfter is how long a fulfilment may sit unanswered before somebody should
 // be told. Suppliers here normally answer in seconds; an hour is generous
@@ -19,6 +23,10 @@ const stuckAfter = time.Hour
 
 func NewFulfilmentSweepTask() *asynq.Task {
 	return asynq.NewTask(TaskFulfilmentSweep, nil)
+}
+
+func NewFulfilmentDispatchTask() *asynq.Task {
+	return asynq.NewTask(TaskFulfilmentDispatch, nil)
 }
 
 // FulfilmentHandler watches the transactions that need a human.
@@ -38,10 +46,40 @@ func NewFulfilmentSweepTask() *asynq.Task {
 type FulfilmentHandler struct {
 	logger      *slog.Logger
 	fulfilments *repository.FulfilmentRepository
+	suppliers   *repository.SupplierRepository
+	service     *service.FulfilmentService
 }
 
-func NewFulfilmentHandler(logger *slog.Logger, fulfilments *repository.FulfilmentRepository) *FulfilmentHandler {
-	return &FulfilmentHandler{logger: logger, fulfilments: fulfilments}
+func NewFulfilmentHandler(logger *slog.Logger, fulfilments *repository.FulfilmentRepository,
+	suppliers *repository.SupplierRepository, fulfilmentService *service.FulfilmentService) *FulfilmentHandler {
+	return &FulfilmentHandler{logger: logger, fulfilments: fulfilments, suppliers: suppliers, service: fulfilmentService}
+}
+
+// HandleDispatch sends fulfilments that have never been sent.
+//
+// Deliberately a sweep rather than a queued job per order. A job enqueued at
+// payment time is lost if the enqueue fails or the queue is drained, and the
+// jamaah is left waiting with nothing to notice it; a sweep re-reads the truth
+// from the database every pass, so anything unsent is eventually picked up
+// however it got that way.
+//
+// One failure never stops the batch: the next order in line may be somebody
+// who has been waiting far longer.
+func (h *FulfilmentHandler) HandleDispatch(ctx context.Context, _ *asynq.Task) error {
+	pending, err := h.suppliers.ListPendingDispatch(ctx, 25)
+	if err != nil {
+		return err
+	}
+	for _, item := range pending {
+		if err := h.service.Dispatch(ctx, item); err != nil {
+			h.logger.Error("dispatch fulfilment", "order_id", item.OrderID, "error", err)
+			continue
+		}
+	}
+	if len(pending) > 0 {
+		h.logger.Info("dispatched fulfilments", "count", len(pending), "task", TaskFulfilmentDispatch)
+	}
+	return nil
 }
 
 func (h *FulfilmentHandler) HandleSweep(ctx context.Context, _ *asynq.Task) error {
