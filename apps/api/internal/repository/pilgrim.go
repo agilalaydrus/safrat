@@ -255,11 +255,7 @@ func (r *PilgrimRepository) WriteAuditLogTx(ctx context.Context, tx pgx.Tx, oper
 	if err != nil {
 		return err
 	}
-	entityUUID, err := pgUUID(entityID)
-	if err != nil {
-		return err
-	}
-	return databaseError(r.queries.WithTx(tx).CreateAuditLog(ctx, db.CreateAuditLogParams{OperatorID: operatorUUID, UserID: userID, Action: action, EntityType: "pilgrim", EntityID: entityUUID, Column6: message}))
+	return databaseError(r.queries.WithTx(tx).CreateAuditLog(ctx, db.CreateAuditLogParams{OperatorID: operatorUUID, UserID: userID, Action: action, EntityType: "pilgrim", EntityID: entityID, Column6: message}))
 }
 
 func (r *PilgrimRepository) CountBySeason(ctx context.Context, operatorID, seasonID string) (int64, error) {

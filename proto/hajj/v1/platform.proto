@@ -67,6 +67,23 @@ service PlatformService {
   // paid — an abandoned checkout is still a record, and one that never
   // appeared anywhere would be a gap nobody could investigate.
   rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
+
+  // Accounts, and who holds platform access. Granting used to require a SQL
+  // client, which is precisely what this panel exists to remove.
+  rpc ListAccounts(ListAccountsRequest) returns (ListAccountsResponse);
+  rpc GrantPlatformAdmin(GrantPlatformAdminRequest) returns (GrantPlatformAdminResponse);
+  rpc RevokePlatformAdmin(RevokePlatformAdminRequest) returns (RevokePlatformAdminResponse);
+  // RevokeSessions signs an account out everywhere. The response to a suspected
+  // takeover: resetting a password changes nothing for whoever already holds a
+  // live session.
+  rpc RevokeSessions(RevokeSessionsRequest) returns (RevokeSessionsResponse);
+
+  // Identity records, kept as their own thing and readable on request.
+  rpc ListKycRecords(ListKycRecordsRequest) returns (ListKycRecordsResponse);
+  // GetKycRecord returns the identity numbers in the clear, and is audit-logged
+  // every time — reading somebody's NIK should leave a trace.
+  rpc GetKycRecord(GetKycRecordRequest) returns (GetKycRecordResponse);
+  rpc SetKycStatus(SetKycStatusRequest) returns (SetKycStatusResponse);
 }
 
 message AmIPlatformAdminRequest {}
@@ -303,3 +320,83 @@ message ListTransactionsRequest {
   int32 limit = 2;
 }
 message ListTransactionsResponse { repeated PlatformTransaction transactions = 1; }
+
+message PlatformAccount {
+  string user_id = 1;
+  string name = 2;
+  string email = 3;
+  bool email_verified = 4;
+  bool two_factor_enabled = 5;
+  bool is_platform_admin = 6;
+  // Empty for an account belonging to no organisation — a jamaah signing in to
+  // see their own schedule.
+  string operator_name = 7;
+  string org_role = 8;
+  int32 active_sessions = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message ListAccountsRequest {
+  string search = 1 [(buf.validate.field).string.max_len = 120];
+  int32 limit = 2;
+}
+message ListAccountsResponse { repeated PlatformAccount accounts = 1; }
+
+message GrantPlatformAdminRequest {
+  string user_id = 1 [(buf.validate.field).string.min_len = 1];
+  string note = 2 [(buf.validate.field).string.max_len = 300];
+}
+message GrantPlatformAdminResponse {}
+
+message RevokePlatformAdminRequest { string user_id = 1 [(buf.validate.field).string.min_len = 1]; }
+message RevokePlatformAdminResponse {}
+
+message RevokeSessionsRequest { string user_id = 1 [(buf.validate.field).string.min_len = 1]; }
+message RevokeSessionsResponse { int32 sessions_ended = 1; }
+
+message KycRecordSummary {
+  string id = 1;
+  string operator_name = 2;
+  string user_id = 3;
+  // AGENT | PILGRIM
+  string subject_type = 4;
+  string subject_id = 5;
+  string full_name = 6;
+  // PENDING_REVIEW | VERIFIED | REJECTED
+  string status = 7;
+  // SELF | STAFF
+  string source = 8;
+  string verified_by = 9;
+  google.protobuf.Timestamp verified_at = 10;
+  string rejection_reason = 11;
+  google.protobuf.Timestamp created_at = 12;
+  // Deliberately absent from the summary: the identity numbers themselves.
+  // A list that carries them turns one careless screenshot into a leak of
+  // everybody on it.
+}
+
+message ListKycRecordsRequest {
+  string status = 1 [(buf.validate.field).string = {in: ["", "PENDING_REVIEW", "VERIFIED", "REJECTED"]}];
+  int32 limit = 2;
+}
+message ListKycRecordsResponse { repeated KycRecordSummary records = 1; }
+
+message GetKycRecordRequest {
+  string subject_type = 1 [(buf.validate.field).string = {in: ["AGENT", "PILGRIM"]}];
+  string subject_id = 2 [(buf.validate.field).string.uuid = true];
+}
+message GetKycRecordResponse {
+  KycRecordSummary summary = 1;
+  // In the clear, and audit-logged on every read.
+  string nik = 2;
+  string npwp = 3;
+  string address = 4;
+  string place_of_birth = 5;
+}
+
+message SetKycStatusRequest {
+  string record_id = 1 [(buf.validate.field).string.uuid = true];
+  string status = 2 [(buf.validate.field).string = {in: ["VERIFIED", "REJECTED"]}];
+  string reason = 3 [(buf.validate.field).string.max_len = 500];
+}
+message SetKycStatusResponse {}

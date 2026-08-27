@@ -242,3 +242,121 @@ func (r *PlatformRepository) ListTransactions(ctx context.Context, needsAttentio
 	}
 	return transactions, rows.Err()
 }
+
+// PlatformAccount is one person as the platform sees them, across whatever
+// roles they hold.
+type PlatformAccount struct {
+	UserID           string
+	Name             string
+	Email            string
+	EmailVerified    bool
+	TwoFactorEnabled bool
+	IsPlatformAdmin  bool
+	// OperatorName and OrgRole are empty for an account that belongs to no
+	// organisation — a jamaah signing in to see their own schedule.
+	OperatorName   string
+	OrgRole        string
+	ActiveSessions int32
+	CreatedAt      time.Time
+}
+
+// ListAccounts returns people, most recently created first.
+//
+// search is matched against name and email, and is required beyond a small
+// listing: a platform panel that will happily page through every account in
+// every tenant is a data export waiting for a curious employee.
+func (r *PlatformRepository) ListAccounts(ctx context.Context, search string, limit int32) ([]*PlatformAccount, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT u.id, u.name, u.email, u."emailVerified",
+		       COALESCE(u."twoFactorEnabled", false),
+		       EXISTS(SELECT 1 FROM platform_admins pa WHERE pa.user_id = u.id),
+		       COALESCE(o.name, ''), COALESCE(m.role, ''),
+		       COALESCE(s.count, 0)::int, u."createdAt"
+		FROM "user" u
+		LEFT JOIN member m ON m."userId" = u.id
+		LEFT JOIN operators o ON o.better_auth_org_id = m."organizationId"
+		LEFT JOIN (
+			SELECT "userId", COUNT(*) AS count FROM session
+			WHERE "expiresAt" > NOW() GROUP BY "userId"
+		) s ON s."userId" = u.id
+		WHERE $1 = '' OR u.name ILIKE '%' || $1 || '%' OR u.email ILIKE '%' || $1 || '%'
+		ORDER BY u."createdAt" DESC
+		LIMIT $2`, search, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	accounts := make([]*PlatformAccount, 0)
+	for rows.Next() {
+		var account PlatformAccount
+		if err := rows.Scan(&account.UserID, &account.Name, &account.Email, &account.EmailVerified,
+			&account.TwoFactorEnabled, &account.IsPlatformAdmin, &account.OperatorName,
+			&account.OrgRole, &account.ActiveSessions, &account.CreatedAt); err != nil {
+			return nil, err
+		}
+		accounts = append(accounts, &account)
+	}
+	return accounts, rows.Err()
+}
+
+// GrantPlatformAdmin adds platform access.
+//
+// Idempotent, so granting twice is not an error — the caller asked for the
+// access to exist, and it does.
+func (r *PlatformRepository) GrantPlatformAdmin(ctx context.Context, userID, note, grantedBy string) error {
+	if userID == "" {
+		return apperror.ErrValidation
+	}
+	var exists bool
+	if err := r.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM "user" WHERE id = $1)`, userID).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return apperror.ErrNotFound
+	}
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO platform_admins (user_id, note, granted_by) VALUES ($1, $2, $3)
+		ON CONFLICT (user_id) DO UPDATE SET note = EXCLUDED.note`, userID, note, grantedBy)
+	return err
+}
+
+// RevokePlatformAdmin removes platform access, and reports how many admins are
+// left so the caller can refuse to remove the last one.
+func (r *PlatformRepository) RevokePlatformAdmin(ctx context.Context, userID string) (int, error) {
+	if userID == "" {
+		return 0, apperror.ErrValidation
+	}
+	if _, err := r.pool.Exec(ctx, `DELETE FROM platform_admins WHERE user_id = $1`, userID); err != nil {
+		return 0, err
+	}
+	var remaining int
+	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM platform_admins`).Scan(&remaining)
+	return remaining, err
+}
+
+// CountPlatformAdmins is how many hold platform access.
+func (r *PlatformRepository) CountPlatformAdmins(ctx context.Context) (int, error) {
+	var count int
+	err := r.pool.QueryRow(ctx, `SELECT COUNT(*) FROM platform_admins`).Scan(&count)
+	return count, err
+}
+
+// RevokeSessions signs an account out everywhere, and reports how many sessions
+// it ended.
+//
+// The response to a suspected account takeover: the password can be reset
+// afterwards, but nothing stops whoever holds a live session until the session
+// itself is gone.
+func (r *PlatformRepository) RevokeSessions(ctx context.Context, userID string) (int64, error) {
+	if userID == "" {
+		return 0, apperror.ErrValidation
+	}
+	tag, err := r.pool.Exec(ctx, `DELETE FROM session WHERE "userId" = $1`, userID)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}

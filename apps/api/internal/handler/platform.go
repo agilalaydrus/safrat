@@ -147,3 +147,80 @@ func (h *PlatformHandler) ListTransactions(ctx context.Context, req *connect.Req
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) ListAccounts(ctx context.Context, req *connect.Request[hajjv1.ListAccountsRequest]) (*connect.Response[hajjv1.ListAccountsResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.ListAccounts(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) GrantPlatformAdmin(ctx context.Context, req *connect.Request[hajjv1.GrantPlatformAdminRequest]) (*connect.Response[hajjv1.GrantPlatformAdminResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.GrantPlatformAdmin(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) RevokePlatformAdmin(ctx context.Context, req *connect.Request[hajjv1.RevokePlatformAdminRequest]) (*connect.Response[hajjv1.RevokePlatformAdminResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.RevokePlatformAdmin(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) RevokeSessions(ctx context.Context, req *connect.Request[hajjv1.RevokeSessionsRequest]) (*connect.Response[hajjv1.RevokeSessionsResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.RevokeSessions(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) ListKycRecords(ctx context.Context, req *connect.Request[hajjv1.ListKycRecordsRequest]) (*connect.Response[hajjv1.ListKycRecordsResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.ListKycRecords(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) GetKycRecord(ctx context.Context, req *connect.Request[hajjv1.GetKycRecordRequest]) (*connect.Response[hajjv1.GetKycRecordResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.GetKycRecord(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) SetKycStatus(ctx context.Context, req *connect.Request[hajjv1.SetKycStatusRequest]) (*connect.Response[hajjv1.SetKycStatusResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.SetKycStatus(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

@@ -1307,6 +1307,49 @@ states are colour-coded consistently** — amber for anything held or waiting,
 red for refunded or failed, emerald for settled. Cashplus uses the same three
 for the same meanings, so this survives the restyle if it is done on purpose.
 
+#### Done — PR 24: account management, identity access, and an audit trail that was not there
+
+**The bug worth reading first.** Every platform-level audit entry had been
+failing silently since PR 14. `audit_logs.operator_id` is `NOT NULL` with a
+foreign key, and a platform action belongs to no tenant — so granting platform
+access, changing a supplier, reading an identity, all of it was discarded by an
+error the caller ignored. **The code claimed an audit trail it did not have,
+which is worse than having none.**
+
+Found by a test asserting that reading somebody's NIK leaves a trace. Nothing
+else would have noticed, because failure looked exactly like success.
+
+Migration 108 makes `operator_id` nullable for platform actions and widens
+`entity_id` from UUID to text — a Better Auth account id is not a UUID, and
+granting somebody access is an action about exactly that. Encoding it into a
+fake UUID to satisfy the column would have made the trail unreadable. The error
+is now reported rather than discarded.
+
+**Account management** removes the last thing that needed a SQL client:
+
+- Every account across every tenant, with whether they hold platform access,
+  whether they have a second factor, and how many live sessions.
+- Grant and revoke platform access. **Revoking the last admin is refused** —
+  it would lock the panel for everybody and the only way back would be the SQL
+  client this replaces.
+- **End every session for an account.** The response to a suspected takeover:
+  resetting a password changes nothing for whoever already holds a live
+  session, and nothing else in this system ends one early.
+
+**Identity records are now readable, and reading is recorded.**
+
+- The **list carries no identity numbers at all**. One careless screenshot of a
+  list that did would leak everybody on it.
+- `GetKycRecord` returns them in the clear and audit-logs every read, without
+  exception. Reading somebody's NIK is not a neutral act, and the record of who
+  looked is the only thing that makes the access reviewable.
+- Rejecting requires a reason: a rejection nobody can act on gets resubmitted
+  unchanged.
+
+Search on the account list is deliberate rather than open paging — a platform
+panel that will happily page through every account in every tenant is a data
+export waiting for a curious employee.
+
 #### Open — ordered
 
 Items 1, 3, 4 and 5 of the original list are done (see PR sections above).

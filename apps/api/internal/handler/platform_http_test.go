@@ -2,12 +2,15 @@ package handler_test
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 
 	"connectrpc.com/connect"
+	"github.com/hajj-saas/api/internal/crypto"
 	"github.com/hajj-saas/api/internal/gen/db"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/gen/hajj/v1/hajjv1connect"
@@ -38,7 +41,7 @@ func TestPlatformPanelIsClosedToOperatorStaffIntegration(t *testing.T) {
 
 	queries := db.New(pool)
 	platform := service.NewPlatformService(
-		repository.NewPlatformRepository(pool), repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool),
+		repository.NewPlatformRepository(pool), repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool), repository.NewKYCRepository(pool),
 		repository.NewAuditRepository(queries))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
@@ -152,7 +155,7 @@ func TestPlatformCostSettingRespectsObservedCostsIntegration(t *testing.T) {
 
 	queries := db.New(pool)
 	costs := repository.NewSupplierCostRepository(pool)
-	platform := service.NewPlatformService(repository.NewPlatformRepository(pool), costs, repository.NewSupplierRepository(pool), repository.NewAuditRepository(queries))
+	platform := service.NewPlatformService(repository.NewPlatformRepository(pool), costs, repository.NewSupplierRepository(pool), repository.NewKYCRepository(pool), repository.NewAuditRepository(queries))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
@@ -220,7 +223,7 @@ func TestPlatformAccessRequiresTwoFactorIntegration(t *testing.T) {
 
 	queries := db.New(pool)
 	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
-		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool), repository.NewAuditRepository(queries))
+		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool), repository.NewKYCRepository(pool), repository.NewAuditRepository(queries))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
@@ -303,7 +306,7 @@ func TestSupplierCatalogueOverHTTPIntegration(t *testing.T) {
 
 	queries := db.New(pool)
 	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
-		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool),
+		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool), repository.NewKYCRepository(pool),
 		repository.NewAuditRepository(queries))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
@@ -442,4 +445,233 @@ func TestSupplierCatalogueOverHTTPIntegration(t *testing.T) {
 	if _, err := client.ListSuppliers(ctx, deniedReq); connect.CodeOf(err) != connect.CodePermissionDenied {
 		t.Fatalf("an operator owner reached the supplier catalogue (%v)", connect.CodeOf(err))
 	}
+}
+
+// Granting and revoking platform access from the panel, which previously
+// required a SQL client — the thing the panel exists to remove.
+func TestPlatformAccountManagementIntegration(t *testing.T) {
+	databaseURL := os.Getenv("STOREFRONT_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("STOREFRONT_TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	t.Cleanup(pool.Close)
+
+	fixture := newHTTPFixture(t, pool)
+	var userID string
+	if err := pool.QueryRow(ctx, `SELECT "userId" FROM session WHERE token = $1`, fixture.sessionToken).Scan(&userID); err != nil {
+		t.Fatalf("read session user: %v", err)
+	}
+	// Start from a known state whatever a previous run left behind.
+	if _, err := pool.Exec(ctx, `DELETE FROM platform_admins`); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO platform_admins (user_id) VALUES ($1)`, userID); err != nil {
+		t.Fatalf("grant: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE "user" SET "twoFactorEnabled" = true WHERE id = $1`, userID); err != nil {
+		t.Fatalf("enrol: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), `DELETE FROM platform_admins`) })
+
+	queries := db.New(pool)
+	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
+		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool),
+		repository.NewKYCRepository(pool), repository.NewAuditRepository(queries))
+	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
+		handler.NewPlatformHandler(platform),
+		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
+			repository.NewIdentityRepository(queries, repository.NewAgentRepository(queries)),
+			repository.NewSubscriptionRepository(pool))),
+	)
+	mux := http.NewServeMux()
+	mux.Handle(path, serviceHandler)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	client := hajjv1connect.NewPlatformServiceClient(server.Client(), server.URL)
+	auth := func(r interface{ Header() http.Header }) {
+		r.Header().Set("Authorization", "Bearer "+fixture.sessionToken)
+	}
+
+	// The account list finds the fixture staff, and reports what matters about
+	// them: whether they hold platform access and whether they have 2FA.
+	listReq := connect.NewRequest(&hajjv1.ListAccountsRequest{Search: "example.test", Limit: 50})
+	auth(listReq)
+	accounts, err := client.ListAccounts(ctx, listReq)
+	if err != nil {
+		t.Fatalf("list accounts: %v", err)
+	}
+	var found *hajjv1.PlatformAccount
+	for _, account := range accounts.Msg.Accounts {
+		if account.UserId == userID {
+			found = account
+		}
+	}
+	if found == nil {
+		t.Fatal("the signed-in admin is not in the account list")
+	}
+	if !found.IsPlatformAdmin || !found.TwoFactorEnabled || found.ActiveSessions < 1 {
+		t.Fatalf("account reported admin=%v 2fa=%v sessions=%d",
+			found.IsPlatformAdmin, found.TwoFactorEnabled, found.ActiveSessions)
+	}
+
+	// Revoking the only admin would lock the panel for everybody, and the way
+	// back would be the SQL client this replaces.
+	revokeSelf := connect.NewRequest(&hajjv1.RevokePlatformAdminRequest{UserId: userID})
+	auth(revokeSelf)
+	if _, err := client.RevokePlatformAdmin(ctx, revokeSelf); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("revoking the last admin returned %v, want failed_precondition", connect.CodeOf(err))
+	}
+
+	// With a second admin, revoking works.
+	other := newHTTPFixture(t, pool)
+	var otherUserID string
+	if err := pool.QueryRow(ctx, `SELECT "userId" FROM session WHERE token = $1`, other.sessionToken).Scan(&otherUserID); err != nil {
+		t.Fatalf("read second user: %v", err)
+	}
+	grant := connect.NewRequest(&hajjv1.GrantPlatformAdminRequest{UserId: otherUserID, Note: "cadangan"})
+	auth(grant)
+	if _, err := client.GrantPlatformAdmin(ctx, grant); err != nil {
+		t.Fatalf("grant: %v", err)
+	}
+	// Granting twice is not an error: the caller asked for the access to exist.
+	if _, err := client.GrantPlatformAdmin(ctx, grant); err != nil {
+		t.Fatalf("second grant: %v", err)
+	}
+	revokeOther := connect.NewRequest(&hajjv1.RevokePlatformAdminRequest{UserId: otherUserID})
+	auth(revokeOther)
+	if _, err := client.RevokePlatformAdmin(ctx, revokeOther); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+
+	// Ending sessions is the response to a suspected takeover.
+	endSessions := connect.NewRequest(&hajjv1.RevokeSessionsRequest{UserId: otherUserID})
+	auth(endSessions)
+	ended, err := client.RevokeSessions(ctx, endSessions)
+	if err != nil {
+		t.Fatalf("revoke sessions: %v", err)
+	}
+	if ended.Msg.SessionsEnded < 1 {
+		t.Fatalf("ended %d sessions, want at least the one that existed", ended.Msg.SessionsEnded)
+	}
+	var remaining int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM session WHERE "userId" = $1`, otherUserID).Scan(&remaining); err != nil {
+		t.Fatalf("count sessions: %v", err)
+	}
+	if remaining != 0 {
+		t.Fatalf("%d sessions survived the revocation", remaining)
+	}
+}
+
+// Reading somebody's identity number is not a neutral act, and the record of
+// who looked is the only thing that makes the access reviewable afterwards.
+func TestReadingAnIdentityIsAuditedIntegration(t *testing.T) {
+	databaseURL := os.Getenv("STOREFRONT_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("STOREFRONT_TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	t.Cleanup(pool.Close)
+
+	fixture := newHTTPFixture(t, pool)
+	var userID, agentID string
+	if err := pool.QueryRow(ctx, `SELECT "userId" FROM session WHERE token = $1`, fixture.sessionToken).Scan(&userID); err != nil {
+		t.Fatalf("read session user: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO platform_admins (user_id) VALUES ($1) ON CONFLICT DO NOTHING`, userID); err != nil {
+		t.Fatalf("grant: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE "user" SET "twoFactorEnabled" = true WHERE id = $1`, userID); err != nil {
+		t.Fatalf("enrol: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM platform_admins WHERE user_id = $1`, userID)
+	})
+	if err := pool.QueryRow(ctx, `SELECT id::text FROM agents WHERE operator_id = $1 LIMIT 1`, fixture.operatorID).Scan(&agentID); err != nil {
+		t.Fatalf("read agent: %v", err)
+	}
+
+	// The sealer is installed from main in a real process; a test binary has to
+	// do it itself. That it is required at all is the point — without a key,
+	// storing an identity is refused rather than done in the clear.
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		t.Fatalf("key: %v", err)
+	}
+	sealer, err := crypto.NewSealer(base64.StdEncoding.EncodeToString(key))
+	if err != nil {
+		t.Fatalf("sealer: %v", err)
+	}
+	repository.SetKYCSealer(sealer)
+	t.Cleanup(func() { repository.SetKYCSealer(nil) })
+
+	queries := db.New(pool)
+	kyc := repository.NewKYCRepository(pool)
+	if _, err := kyc.Save(ctx, repository.KYCRecord{
+		OperatorID: fixture.operatorID, UserID: userID, SubjectType: "AGENT", SubjectID: agentID,
+		FullName: "Agen Uji Audit", NIK: "3174012345670009", Source: "SELF",
+	}); err != nil {
+		t.Fatalf("save kyc: %v", err)
+	}
+
+	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
+		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool),
+		kyc, repository.NewAuditRepository(queries))
+	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
+		handler.NewPlatformHandler(platform),
+		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
+			repository.NewIdentityRepository(queries, repository.NewAgentRepository(queries)),
+			repository.NewSubscriptionRepository(pool))),
+	)
+	mux := http.NewServeMux()
+	mux.Handle(path, serviceHandler)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	client := hajjv1connect.NewPlatformServiceClient(server.Client(), server.URL)
+
+	// The list carries no identity numbers at all: one careless screenshot of
+	// it would otherwise leak everybody on it.
+	listReq := connect.NewRequest(&hajjv1.ListKycRecordsRequest{Limit: 20})
+	listReq.Header().Set("Authorization", "Bearer "+fixture.sessionToken)
+	list, err := client.ListKycRecords(ctx, listReq)
+	if err != nil {
+		t.Fatalf("list kyc: %v", err)
+	}
+	if len(list.Msg.Records) == 0 {
+		t.Fatal("no identity records listed")
+	}
+
+	before := auditCount(t, pool, fixture.operatorID)
+
+	getReq := connect.NewRequest(&hajjv1.GetKycRecordRequest{SubjectType: "AGENT", SubjectId: agentID})
+	getReq.Header().Set("Authorization", "Bearer "+fixture.sessionToken)
+	record, err := client.GetKycRecord(ctx, getReq)
+	if err != nil {
+		t.Fatalf("get kyc: %v", err)
+	}
+	if record.Msg.Nik != "3174012345670009" {
+		t.Fatalf("identity read back as %q", record.Msg.Nik)
+	}
+
+	if after := auditCount(t, pool, fixture.operatorID); after <= before {
+		t.Fatal("reading an identity number left no audit entry")
+	}
+}
+
+func auditCount(t *testing.T, pool *pgxpool.Pool, operatorID string) int {
+	t.Helper()
+	var count int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM audit_logs WHERE action = 'kyc_record_read'`).Scan(&count); err != nil {
+		t.Fatalf("count audit: %v", err)
+	}
+	return count
 }

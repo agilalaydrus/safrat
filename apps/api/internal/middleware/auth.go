@@ -148,6 +148,15 @@ var sessionOnlyProcedures = map[string]bool{
 	"/hajj.v1.PlatformService/TestResponseRules":     true,
 	"/hajj.v1.PlatformService/ListSupplierLogs":      true,
 	"/hajj.v1.PlatformService/ListTransactions":      true,
+	// Accounts, platform access and identity records. Same gate: every one
+	// checks requirePlatformAdmin, and GetKycRecord audit-logs each read.
+	"/hajj.v1.PlatformService/ListAccounts":        true,
+	"/hajj.v1.PlatformService/GrantPlatformAdmin":  true,
+	"/hajj.v1.PlatformService/RevokePlatformAdmin": true,
+	"/hajj.v1.PlatformService/RevokeSessions":      true,
+	"/hajj.v1.PlatformService/ListKycRecords":      true,
+	"/hajj.v1.PlatformService/GetKycRecord":        true,
+	"/hajj.v1.PlatformService/SetKycStatus":        true,
 }
 
 // restrictedMemberProcedures lists RPCs a "restricted member" — an org

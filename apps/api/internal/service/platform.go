@@ -23,11 +23,12 @@ type PlatformService struct {
 	platformRepository     *repository.PlatformRepository
 	supplierCostRepository *repository.SupplierCostRepository
 	supplierRepository     *repository.SupplierRepository
+	kycRepository          *repository.KYCRepository
 	auditRepository        *repository.AuditRepository
 }
 
-func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, audit *repository.AuditRepository) *PlatformService {
-	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, supplierRepository: suppliers, auditRepository: audit}
+func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, kyc *repository.KYCRepository, audit *repository.AuditRepository) *PlatformService {
+	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, supplierRepository: suppliers, kycRepository: kyc, auditRepository: audit}
 }
 
 // requirePlatformAdmin is the only thing standing between a signed-in operator

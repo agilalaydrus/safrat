@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"connectrpc.com/connect"
+	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/apperror"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/repository"
@@ -237,19 +239,24 @@ func (s *PlatformService) ListSupplierLogs(ctx context.Context, req *hajjv1.List
 	return result, nil
 }
 
-// auditPlatform records a platform-side change. There is no operator to scope
-// it to, so it is written against the platform's own zero operator id — the
-// alternative, attributing it to whichever tenant happened to be involved,
-// would put platform actions in a travel's trail where they do not belong.
+// auditPlatform records a platform-side change.
+//
+// Written with no operator, because a platform action belongs to no tenant.
+// Attributing it to whichever travel happened to be involved would put platform
+// actions in a customer's trail where they do not belong.
+//
+// The error is reported rather than discarded. It used to be ignored, and every
+// one of these was failing against a NOT NULL column — the code claimed an
+// audit trail it did not have, which is worse than having none. Found by a test
+// asserting that reading an identity leaves a trace.
 func (s *PlatformService) auditPlatform(ctx context.Context, userID, action, entityID, detail string) {
 	if s.auditRepository == nil {
 		return
 	}
-	_ = s.auditRepository.Write(ctx, platformAuditOperatorID, userID, action, "platform", entityID, detail)
+	if err := s.auditRepository.Write(ctx, "", userID, action, "platform", entityID, detail); err != nil {
+		sentry.CaptureException(fmt.Errorf("PlatformService.auditPlatform: %s: %w", action, err))
+	}
 }
-
-// platformAuditOperatorID is the nil UUID, reserved for platform-level actions.
-const platformAuditOperatorID = "00000000-0000-0000-0000-000000000000"
 
 // ListTransactions is every transaction across every tenant, paid or not.
 //
