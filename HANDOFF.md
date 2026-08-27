@@ -735,15 +735,20 @@ baked into code that already exists, so they are recorded verbatim in intent.
    their jamaah. So price is layered: platform cost → travel markup → agent
    price → jamaah price.
 
-   **The referral tree is up to 9 levels deep.** Sideways is unlimited.
+   **Referral depth: one level, revised the same day.** The owner originally
+   asked for a nine-level tree, then cut it to one after seeing what nine would
+   cost. Sideways stays unlimited.
 
-   *This is the big one.* Today `orders.agent_id` names a single referrer and
-   one commission entry is written. A 9-level tree means one sale produces a
-   *chain* of commission entries, and the current shape cannot express it. The
-   ledger itself copes — it is already append-only entries keyed per agent —
-   but attribution, the split calculation, and every "commission for this
-   order" read assume exactly one earner. Budget for this properly; it is not
-   an increment on PR 6.
+   That is a significant piece of luck: one level is exactly the shape already
+   built. `orders.agent_id` names the single referrer, one commission entry is
+   written, and every "commission for this order" read assumes one earner —
+   all of which stays correct. **The layered pricing is still to build; the
+   referral chain is not.**
+
+   If depth ever grows beyond one, the ledger itself copes (append-only entries
+   keyed per agent), but attribution, the split calculation and those reads all
+   assume a single earner and would each need reworking. Worth knowing before
+   anyone agrees to it casually.
 
 3. **Two-factor applies to travel staff and jamaah too**, not only platform
    admins, because both will be transacting. Currently only platform access
