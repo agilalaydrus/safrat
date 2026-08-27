@@ -8,19 +8,40 @@ import { platformClient } from "@/lib/rpc";
 const rupiah = (n: bigint) => `Rp${Number(n).toLocaleString("id-ID")}`;
 
 export default function PlatformAdminPage() {
-  // Three states, not two: "still asking" must not look like "refused", or the
-  // panel flashes an access error at the admin it belongs to on every load.
-  const [access, setAccess] = useState<"checking" | "granted" | "denied">("checking");
+  // Four states, not two. "Still asking" must not look like "refused", or the
+  // panel flashes an access error at the admin it belongs to on every load —
+  // and a failed call must not look like one either. Conflating the two sent me
+  // hunting a permissions bug that was never there, so the error now says what
+  // actually happened.
+  const [access, setAccess] = useState<"checking" | "granted" | "denied" | "error">("checking");
+  const [failure, setFailure] = useState("");
   const [tab, setTab] = useState<"operators" | "costs">("operators");
 
   useEffect(() => {
     platformClient.amIPlatformAdmin({})
       .then((r) => setAccess(r.isPlatformAdmin ? "granted" : "denied"))
-      .catch(() => setAccess("denied"));
+      .catch((err: unknown) => {
+        setFailure(err instanceof Error ? err.message : String(err));
+        setAccess("error");
+      });
   }, []);
 
   if (access === "checking") {
     return <main style={page}><p style={{ color: "var(--color-warm-500)" }}>Memeriksa akses...</p></main>;
+  }
+  if (access === "error") {
+    return (
+      <main style={page}>
+        <section style={locked}>
+          <IconAlertTriangle size={44} color="var(--color-danger-600)" />
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 500 }}>Gagal memeriksa akses</h1>
+          <p style={{ color: "var(--color-warm-500)", margin: 0, maxWidth: 520 }}>
+            Ini bukan penolakan akses — permintaannya sendiri yang gagal.
+          </p>
+          <code style={failureBox}>{failure}</code>
+        </section>
+      </main>
+    );
   }
   if (access === "denied") {
     return (
@@ -219,4 +240,5 @@ const td: React.CSSProperties = { padding: 14, color: "var(--color-warm-700)", v
 const alert: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 99, background: "var(--color-gold-50)", color: "#b45309", fontWeight: 700, fontSize: 12 };
 const costInput: React.CSSProperties = { minHeight: 40, width: 140, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 10px" };
 const saveButton: React.CSSProperties = { minHeight: 40, border: 0, borderRadius: 8, padding: "0 16px", background: "var(--color-gold-500)", color: "#fff", fontWeight: 700 };
+const failureBox: React.CSSProperties = { display: "block", maxWidth: 520, padding: 12, background: "var(--color-cream-100)", borderRadius: 8, fontSize: 13, color: "var(--color-danger-600)", overflowWrap: "anywhere" };
 const locked: React.CSSProperties = { minHeight: 320, display: "grid", placeItems: "center", alignContent: "center", gap: 12, textAlign: "center", border: "1px dashed var(--color-cream-400)", borderRadius: 12, padding: 32 };
