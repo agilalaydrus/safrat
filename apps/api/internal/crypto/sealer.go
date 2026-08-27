@@ -146,3 +146,61 @@ func (s *Sealer) Fingerprint() string {
 	}
 	return s.fingerprint
 }
+
+// Rotator re-seals values from one key to another.
+//
+// Rotation is two keys held at once, briefly: the old one to read what exists,
+// the new one to write it back. Nothing else in this package holds two, and
+// nothing should — a type that could silently fall back to a second key would
+// make "which key opened this" unanswerable, which is the question the whole
+// fingerprint mechanism exists to answer.
+type Rotator struct {
+	from *Sealer
+	to   *Sealer
+}
+
+// NewRotator prepares a re-seal from one key to another.
+//
+// Refuses to rotate a key onto itself. That is not a rotation, and permitting
+// it would let somebody believe they had rotated when they had done nothing —
+// the fingerprints would agree, the records would be unchanged, and the old key
+// they were about to destroy would still be the only one that works.
+func NewRotator(fromKey, toKey string) (*Rotator, error) {
+	from, err := NewSealer(fromKey)
+	if err != nil {
+		return nil, fmt.Errorf("kunci lama: %w", err)
+	}
+	to, err := NewSealer(toKey)
+	if err != nil {
+		return nil, fmt.Errorf("kunci baru: %w", err)
+	}
+	if from == nil || to == nil {
+		return nil, errors.New("rotasi memerlukan kunci lama dan kunci baru")
+	}
+	if from.Fingerprint() == to.Fingerprint() {
+		return nil, errors.New("kunci lama dan baru sama; tidak ada yang dirotasi")
+	}
+	return &Rotator{from: from, to: to}, nil
+}
+
+// FromFingerprint and ToFingerprint identify the two keys without revealing
+// them, for logging progress and for stamping the re-sealed rows.
+func (r *Rotator) FromFingerprint() string { return r.from.Fingerprint() }
+func (r *Rotator) ToFingerprint() string   { return r.to.Fingerprint() }
+
+// Reseal opens a value with the old key and seals it with the new one.
+//
+// An empty value stays empty. A value that will not open under the old key is
+// an error rather than a skip: rotating past it would leave a row stamped with
+// the new key that only the old one can read, and the stamp is what everything
+// else trusts.
+func (r *Rotator) Reseal(stored string) (string, error) {
+	if stored == "" {
+		return "", nil
+	}
+	plaintext, err := r.from.Open(stored)
+	if err != nil {
+		return "", err
+	}
+	return r.to.Seal(plaintext)
+}

@@ -194,3 +194,104 @@ func TestFingerprintIdentifiesAKeyWithoutRevealingIt(t *testing.T) {
 		t.Fatal("a missing key produced a fingerprint")
 	}
 }
+
+// Rotation is the one operation that holds two keys at once. What matters is
+// that it never leaves a record stamped with a key that cannot open it.
+func TestRotatorResealsBetweenKeys(t *testing.T) {
+	oldKey := make([]byte, 32)
+	newKey := make([]byte, 32)
+	if _, err := rand.Read(oldKey); err != nil {
+		t.Fatalf("key: %v", err)
+	}
+	if _, err := rand.Read(newKey); err != nil {
+		t.Fatalf("key: %v", err)
+	}
+	oldEncoded := base64.StdEncoding.EncodeToString(oldKey)
+	newEncoded := base64.StdEncoding.EncodeToString(newKey)
+
+	sealedByOld, err := mustSealer(t, oldEncoded).Seal("3174012345670001")
+	if err != nil {
+		t.Fatalf("seal: %v", err)
+	}
+
+	rotator, err := NewRotator(oldEncoded, newEncoded)
+	if err != nil {
+		t.Fatalf("rotator: %v", err)
+	}
+	resealed, err := rotator.Reseal(sealedByOld)
+	if err != nil {
+		t.Fatalf("reseal: %v", err)
+	}
+	if resealed == sealedByOld {
+		t.Fatal("the value was not re-sealed")
+	}
+
+	// The new key opens it; the old one no longer does.
+	if opened, err := mustSealer(t, newEncoded).Open(resealed); err != nil || opened != "3174012345670001" {
+		t.Fatalf("new key opened %q (%v)", opened, err)
+	}
+	if _, err := mustSealer(t, oldEncoded).Open(resealed); err == nil {
+		t.Fatal("the old key still opens a re-sealed value")
+	}
+
+	// Empty stays empty: an absent identity number is not a secret, and
+	// re-sealing nothing would make "not provided" indistinguishable from
+	// "provided".
+	if out, err := rotator.Reseal(""); err != nil || out != "" {
+		t.Fatalf("empty re-sealed to %q (%v)", out, err)
+	}
+}
+
+// Rotating a key onto itself would let somebody believe they had rotated when
+// nothing happened — and then destroy the old key that is still the only one
+// that works.
+func TestRotatorRefusesUselessOrUnusableRotations(t *testing.T) {
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		t.Fatalf("key: %v", err)
+	}
+	encoded := base64.StdEncoding.EncodeToString(key)
+
+	if _, err := NewRotator(encoded, encoded); err == nil {
+		t.Fatal("rotating a key onto itself was accepted")
+	}
+	if _, err := NewRotator("", encoded); err == nil {
+		t.Fatal("rotating from no key was accepted")
+	}
+	if _, err := NewRotator(encoded, ""); err == nil {
+		t.Fatal("rotating to no key was accepted")
+	}
+	if _, err := NewRotator("not-base64!!", encoded); err == nil {
+		t.Fatal("an unusable old key was accepted")
+	}
+}
+
+// A value the old key cannot open must stop the rotation rather than be
+// skipped: stamping it with the new key would claim a key that cannot read it.
+func TestRotatorRefusesValuesTheOldKeyCannotOpen(t *testing.T) {
+	first, second, third := make([]byte, 32), make([]byte, 32), make([]byte, 32)
+	for _, key := range [][]byte{first, second, third} {
+		if _, err := rand.Read(key); err != nil {
+			t.Fatalf("key: %v", err)
+		}
+	}
+	// Sealed with a key that is neither side of the rotation.
+	stranger, _ := mustSealer(t, base64.StdEncoding.EncodeToString(third)).Seal("3174012345670001")
+
+	rotator, err := NewRotator(base64.StdEncoding.EncodeToString(first), base64.StdEncoding.EncodeToString(second))
+	if err != nil {
+		t.Fatalf("rotator: %v", err)
+	}
+	if _, err := rotator.Reseal(stranger); err == nil {
+		t.Fatal("a value sealed by a third key was re-sealed anyway")
+	}
+}
+
+func mustSealer(t *testing.T, encoded string) *Sealer {
+	t.Helper()
+	sealer, err := NewSealer(encoded)
+	if err != nil {
+		t.Fatalf("sealer: %v", err)
+	}
+	return sealer
+}

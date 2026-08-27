@@ -12,6 +12,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// currentTestKey is what kycFixture installed, so a rotation test can rotate
+// away from it. Package-level because the fixture returns a pool and ids, and
+// threading a key through every caller for the one test that needs it would be
+// noise.
+var currentTestKey string
+
 func kycFixture(t *testing.T) (*pgxpool.Pool, *KYCRepository, string, string) {
 	t.Helper()
 	databaseURL := os.Getenv("STOREFRONT_TEST_DATABASE_URL")
@@ -35,6 +41,7 @@ func kycFixture(t *testing.T) (*pgxpool.Pool, *KYCRepository, string, string) {
 	}
 	previous := kycSealer
 	SetKYCSealer(sealer)
+	currentTestKey = base64.StdEncoding.EncodeToString(key)
 	t.Cleanup(func() { SetKYCSealer(previous) })
 
 	operatorID, agentID := uuid.NewString(), uuid.NewString()
@@ -254,4 +261,82 @@ func newOtherSealer(t *testing.T) *crypto.Sealer {
 		t.Fatalf("sealer: %v", err)
 	}
 	return sealer
+}
+
+// Rotation over a real dataset is not one command — it is a command run until
+// the old fingerprint's count reaches zero. So it has to be resumable, and
+// running it again after it finishes has to do nothing.
+func TestKeyRotationIsResumableAndIdempotentIntegration(t *testing.T) {
+	pool, kyc, operatorID, agentID := kycFixture(t)
+	ctx := context.Background()
+
+	if _, err := kyc.Save(ctx, KYCRecord{
+		OperatorID: operatorID, SubjectType: "AGENT", SubjectID: agentID,
+		NIK: "3174012345670022", NPWP: "01.234.567.8-901.000",
+	}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	oldFingerprint := KYCKeyFingerprint()
+
+	// A new key, and a rotator between them.
+	newKeyBytes := make([]byte, 32)
+	if _, err := rand.Read(newKeyBytes); err != nil {
+		t.Fatalf("key: %v", err)
+	}
+	newKey := base64.StdEncoding.EncodeToString(newKeyBytes)
+	rotator, err := crypto.NewRotator(currentTestKey, newKey)
+	if err != nil {
+		t.Fatalf("rotator: %v", err)
+	}
+
+	rotated, err := kyc.RotateKey(ctx, rotator, 100)
+	if err != nil {
+		t.Fatalf("rotate: %v", err)
+	}
+	if rotated < 1 {
+		t.Fatal("nothing was rotated")
+	}
+
+	// The stamp moved with the value.
+	var stamped string
+	if err := pool.QueryRow(ctx, `SELECT key_fingerprint FROM kyc_records WHERE subject_id = $1`,
+		agentID).Scan(&stamped); err != nil {
+		t.Fatalf("read stamp: %v", err)
+	}
+	if stamped != rotator.ToFingerprint() {
+		t.Fatalf("stamp = %q, want the new key's %q", stamped, rotator.ToFingerprint())
+	}
+	if stamped == oldFingerprint {
+		t.Fatal("the stamp did not change")
+	}
+
+	// The new key reads it; nothing is lost in the move.
+	newSealer, err := crypto.NewSealer(newKey)
+	if err != nil {
+		t.Fatalf("sealer: %v", err)
+	}
+	SetKYCSealer(newSealer)
+	record, err := kyc.ForSubject(ctx, "AGENT", agentID)
+	if err != nil {
+		t.Fatalf("read after rotation: %v", err)
+	}
+	if record.NIK != "3174012345670022" || record.NPWP != "01.234.567.8-901.000" {
+		t.Fatalf("after rotation the record reads %q / %q", record.NIK, record.NPWP)
+	}
+
+	// Running again finds nothing: it only selects rows still on the old key.
+	if again, err := kyc.RotateKey(ctx, rotator, 100); err != nil {
+		t.Fatalf("second pass: %v", err)
+	} else if again != 0 {
+		t.Fatalf("a second pass rotated %d already-rotated records", again)
+	}
+
+	// And the progress count is what tells somebody it is finished.
+	counts, err := kyc.KeyFingerprintsInUse(ctx)
+	if err != nil {
+		t.Fatalf("counts: %v", err)
+	}
+	if counts[oldFingerprint] != 0 {
+		t.Fatalf("%d records still hold the old key", counts[oldFingerprint])
+	}
 }

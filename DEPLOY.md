@@ -835,11 +835,38 @@ That query is safe to run and safe to share: a fingerprint is not a key.
 
 ### Rotating it
 
-Not yet automated, and worth knowing the shape of. Because every record carries
-the fingerprint of the key that sealed it, a rotation can proceed record by
-record and its progress is legible — two fingerprints appear while it runs, and
-the old one's count reaching zero is what "finished" means. **Keep the old key
-until that count is zero.**
+`cmd/rotatekyc` re-seals every stored identity from one key to another. A
+separate command rather than a scheduled task on purpose: rotation needs both
+keys in one process, and a long-running server holding both would be one
+configuration mistake away from writing new data with the old key.
+
+```bash
+cd /home/deploy/safrat
+docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm \
+  -e KYC_ROTATE_FROM="<old base64 key>" \
+  -e KYC_ROTATE_TO="<new base64 key>" \
+  api /app/rotatekyc
+```
+
+It is **safe to run repeatedly**: it only touches records still stamped with
+the old key, so it resumes where it stopped and does nothing once finished. A
+record the old key cannot open **stops** the run rather than being skipped —
+leaving one stamped with a key that cannot read it would be worse than stopping.
+
+**Order matters.** Rotate first, change `KYC_ENCRYPTION_KEY` second:
+
+1. Generate the new key and store it in the password manager beside the old
+   one. Keep both.
+2. Run the rotation until it reports `still_on_old_key=0`.
+3. Only then set `KYC_ENCRYPTION_KEY` to the new key and restart. The startup
+   log will show the new fingerprint and no mismatch.
+4. **Keep the old key for a while anyway** — long enough that any database
+   backup taken before the rotation is out of retention. Those backups still
+   contain records only the old key opens.
+
+Doing it the other way round — changing the variable first — leaves every
+existing record unreadable until the rotation catches up, and the startup log
+will say so.
 
 ## 13. Security Checklist Before Go-Live
 

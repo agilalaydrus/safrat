@@ -5,7 +5,10 @@ import (
 	"errors"
 	"time"
 
+	"fmt"
+
 	"github.com/hajj-saas/api/internal/apperror"
+	"github.com/hajj-saas/api/internal/crypto"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -346,4 +349,78 @@ func (r *KYCRepository) KeyFingerprintsInUse(ctx context.Context) (map[string]in
 		counts[fingerprint] = count
 	}
 	return counts, rows.Err()
+}
+
+// RotateKey re-seals records from one key to another, a batch at a time, and
+// reports how many it moved.
+//
+// Resumable by construction: it only ever selects rows still stamped with the
+// old key, so stopping and restarting continues where it left off, and running
+// it after it has finished does nothing. That matters because a rotation over
+// a real dataset is not one command — it is a command run repeatedly until the
+// old fingerprint's count reaches zero.
+//
+// Each record is re-sealed and re-stamped in a single UPDATE. A row can
+// therefore never carry a fingerprint that does not match the value beside it,
+// which is the property everything else — the startup check, the mismatch
+// warning, the progress count — relies on being true.
+//
+// A value the old key cannot open stops the batch rather than being skipped.
+// Skipping it would leave a row nothing can read and nothing is looking for.
+func (r *KYCRepository) RotateKey(ctx context.Context, rotator *crypto.Rotator, limit int32) (int, error) {
+	if rotator == nil {
+		return 0, apperror.ErrValidation
+	}
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT id::text, nik_encrypted, npwp_encrypted
+		FROM kyc_records
+		WHERE key_fingerprint = $1 AND (nik_encrypted <> '' OR npwp_encrypted <> '')
+		ORDER BY created_at ASC
+		LIMIT $2`, rotator.FromFingerprint(), limit)
+	if err != nil {
+		return 0, err
+	}
+	type pending struct{ id, nik, npwp string }
+	batch := make([]pending, 0)
+	for rows.Next() {
+		var item pending
+		if err := rows.Scan(&item.id, &item.nik, &item.npwp); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		batch = append(batch, item)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	rotated := 0
+	for _, item := range batch {
+		nik, err := rotator.Reseal(item.nik)
+		if err != nil {
+			return rotated, fmt.Errorf("record %s: %w", item.id, err)
+		}
+		npwp, err := rotator.Reseal(item.npwp)
+		if err != nil {
+			return rotated, fmt.Errorf("record %s: %w", item.id, err)
+		}
+		id, err := pgUUID(item.id)
+		if err != nil {
+			return rotated, err
+		}
+		// The value and the stamp move together, or neither does.
+		if _, err := r.pool.Exec(ctx, `
+			UPDATE kyc_records
+			SET nik_encrypted = $2, npwp_encrypted = $3, key_fingerprint = $4, updated_at = NOW()
+			WHERE id = $1 AND key_fingerprint = $5`,
+			id, nik, npwp, rotator.ToFingerprint(), rotator.FromFingerprint()); err != nil {
+			return rotated, err
+		}
+		rotated++
+	}
+	return rotated, nil
 }

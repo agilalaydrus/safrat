@@ -1397,10 +1397,23 @@ a log, in a password manager note, or read out over the phone.
 That makes a candidate key checkable *before* it is deployed: set it, start the
 API, compare. Nothing is decrypted to find out.
 
-It also makes rotation legible, which is why it was worth doing now rather than
-when rotation is built: two fingerprints appear while a rotation runs, and the
-old one's count reaching zero is what "finished" means. **Rotation itself is
-not built** — the shape is documented, the mechanism is not.
+It also makes rotation legible: two fingerprints appear while one runs, and the
+old one's count reaching zero is what "finished" means. **Rotation is now built
+too** — `cmd/rotatekyc`, a separate command rather than a scheduled task,
+because rotation needs both keys in one process and a long-running server
+holding both would be one configuration mistake away from writing new data with
+the old key.
+
+Resumable by construction: it only selects rows still stamped with the old key,
+so it continues where it stopped and does nothing once finished. Value and stamp
+move in a single UPDATE, so a row can never carry a fingerprint that does not
+match the value beside it — which is the property the startup check and the
+mismatch warning both depend on. A record the old key cannot open **stops** the
+run rather than being skipped.
+
+The order is documented and matters: rotate first, change the variable second,
+and keep the old key until backups taken before the rotation are out of
+retention — those still hold records only it can open.
 
 **Storage guidance, stated plainly in `.env.example` and DEPLOY.md:** a
 password manager, with a sealed offline copy as a second line, and **never on
