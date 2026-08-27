@@ -42,7 +42,9 @@ export default function ProductFormDialog({ open, seasonId, initial, onClose, on
       name: initial.name, category: initial.category || "TRAVEL_PACKAGE", type: initial.type || "HAJJ",
       price: String(initial.priceIdr), duration: String(initial.durationDays), description: initial.description,
       inclusions: initial.inclusions.join("\n"), active: initial.isActive,
-      platformMargin: String(Math.round(initial.platformMarginPct * 100)), operatorMargin: String(Math.round(initial.operatorMarginPct * 100)), agentMargin: String(Math.round(initial.agentMarginPct * 100)),
+      // The wire carries basis points (1500 = 15%); operators think in whole
+      // percent, so the form stays in percent and converts at the boundary.
+      platformMargin: String(Math.round(initial.platformMarginBps / 100)), operatorMargin: String(Math.round(initial.operatorMarginBps / 100)), agentMargin: String(Math.round(initial.agentMarginBps / 100)),
       itinerary: initial.itineraryDays.map(fromProtoDay), hotelIds: initial.hotelIds, defaultKloterId: initial.defaultKloterId,
     } : { ...empty };
     initialRef.current = v;
@@ -86,7 +88,7 @@ export default function ProductFormDialog({ open, seasonId, initial, onClose, on
         name: form.name.trim(), category: form.category, type: isTravelPackage ? form.type : "",
         priceIdr: BigInt(form.price), durationDays: Number(form.duration), description: form.description.trim(),
         inclusions: form.inclusions.split("\n").map((v) => v.trim()).filter(Boolean),
-        platformMarginPct: (Number(form.platformMargin) || 0) / 100, operatorMarginPct: (Number(form.operatorMargin) || 0) / 100, agentMarginPct: (Number(form.agentMargin) || 0) / 100,
+        platformMarginBps: Math.round((Number(form.platformMargin) || 0) * 100), operatorMarginBps: Math.round((Number(form.operatorMargin) || 0) * 100), agentMarginBps: Math.round((Number(form.agentMargin) || 0) * 100),
         itineraryDays: isTravelPackage ? form.itinerary : [], hotelIds: isTravelPackage ? form.hotelIds : [], defaultKloterId: isTravelPackage ? form.defaultKloterId : "",
       };
       if (initial) await productClient.updateProduct({ ...payload, productId: initial.id, isActive: form.active });

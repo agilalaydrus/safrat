@@ -56,13 +56,18 @@ type orderSplit struct {
 // a jamaah somebody else referred must not collect that referrer's commission.
 func computeSplit(product *domain.Product, quantity int32, agentID string) orderSplit {
 	split := orderSplit{TotalPrice: product.PriceIDR * int64(quantity)}
-	// Rounds down — a fraction of a rupiah has nowhere to go, and
-	// under-crediting by a fraction is the safe direction for a split
-	// that must sum to <= total, never over.
-	split.PlatformAmount = int64(float64(split.TotalPrice) * product.PlatformMarginPct)
-	split.OperatorAmount = int64(float64(split.TotalPrice) * product.OperatorMarginPct)
+	// Integer arithmetic throughout. The margin is basis points, so this is
+	// exact: multiplying by a float64 fraction landed a hair low and truncation
+	// then dropped a rupiah on roughly one order in two hundred, always in the
+	// same direction.
+	//
+	// Still rounds down, which is deliberate — a fraction of a rupiah has
+	// nowhere to go, and under-crediting is the safe direction for a split that
+	// must sum to at most the total, never over.
+	split.PlatformAmount = split.TotalPrice * int64(product.PlatformMarginBps) / 10000
+	split.OperatorAmount = split.TotalPrice * int64(product.OperatorMarginBps) / 10000
 	if strings.TrimSpace(agentID) != "" {
-		split.AgentCommission = int64(float64(split.TotalPrice) * product.AgentMarginPct)
+		split.AgentCommission = split.TotalPrice * int64(product.AgentMarginBps) / 10000
 	}
 	return split
 }

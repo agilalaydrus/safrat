@@ -77,7 +77,7 @@ func newReferralFixture(t *testing.T) *referralFixture {
 
 	seasonID, productID, pilgrimID := uuid.NewString(), uuid.NewString(), uuid.NewString()
 	exec(`INSERT INTO seasons (id, operator_id, name, type, start_date, end_date, capacity) VALUES ($1,$2,'Musim','UMRAH_REGULER',NOW(),NOW()+INTERVAL '30 days',10)`, seasonID, operatorID)
-	exec(`INSERT INTO products (id, operator_id, season_id, name, price_idr, agent_margin_pct) VALUES ($1,$2,$3,'Paket Uji',$4,0.15)`,
+	exec(`INSERT INTO products (id, operator_id, season_id, name, price_idr, agent_margin_bps) VALUES ($1,$2,$3,'Paket Uji',$4,1500)`,
 		productID, operatorID, seasonID, referralPrice)
 	exec(`INSERT INTO pilgrims (id, season_id, operator_id, full_name, passport_number, nationality, date_of_birth, gender, agent_id)
 	      VALUES ($1,$2,$3,'Jamaah Referral','P-REF','ID','1990-01-01'::timestamptz,'MALE',$4)`,

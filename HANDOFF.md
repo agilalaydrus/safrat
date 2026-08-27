@@ -526,6 +526,33 @@ then reload. Until then the application guard runs open and warns at startup,
 which is the safe direction — and the poller settles anything a blocked or
 dropped delivery would have missed.
 
+#### Done — PR 11: margins in basis points (migration 097)
+
+Money columns were already `BIGINT` rupiah and exact. The **multiplier** was
+not: margins were `double precision`, and each order's split was
+`int64(float64(total) * pct)`. `0.70` has no exact binary representation, so
+the product lands a hair under the true value and truncation drops a rupiah.
+
+**Measured before changing anything**: across 25,070 price/margin combinations,
+120 came out one rupiah short — about 1 in 200, always downward, and mostly out
+of the operator's 70% share. Small per transaction, but systematic and
+permanent.
+
+Margins are now integer basis points (`1500` = 15.00%), and the split is
+`total * bps / 10000` — exact integer arithmetic end to end. The sum constraint
+became exact too: the float version needed an epsilon (`> 1.0 + 1e-9`) to avoid
+rejecting a split that added up to exactly 100%.
+
+`699110 × 70%` now returns 489,377 where the float version returned 489,376 —
+that exact case is pinned in `order_split_test.go`, along with a property test
+that the parts never exceed what was charged across a range of prices,
+quantities and margin combinations.
+
+The API contract changed with it: the old `double *_margin_pct` fields are
+`reserved` and replaced by `int32 *_margin_bps`. The dashboard form still works
+in whole percent, because that is how operators think, and converts at the
+boundary. Nothing else in the web app referenced margins at all.
+
 #### Open — ordered
 
 1. **Duplicate orders.** `CreateOrder` has no idempotency key and `orders` has

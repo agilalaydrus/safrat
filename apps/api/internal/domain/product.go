@@ -16,9 +16,12 @@ type Product struct {
 	IsActive          bool
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
-	PlatformMarginPct float64
-	OperatorMarginPct float64
-	AgentMarginPct    float64
+	// Basis points (1500 = 15.00%). Integers so the split is exact integer
+	// arithmetic; a float multiplier lost a rupiah on about one order in two
+	// hundred, always downward.
+	PlatformMarginBps int32
+	OperatorMarginBps int32
+	AgentMarginBps    int32
 	// Only meaningful when Category == "TRAVEL_PACKAGE".
 	ItineraryDays   []ItineraryDay
 	HotelIDs        []string

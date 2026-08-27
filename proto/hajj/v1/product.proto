@@ -35,11 +35,17 @@ message Product {
   google.protobuf.Timestamp updated_at = 12;
   string category = 13;
   // Split of price_idr on every order of this product — see §7:
-  // platform_margin_pct + operator_margin_pct + agent_margin_pct <= 1.0,
+  // Basis points, not fractions: 1500 = 15.00%. Integers, because the split
+  // is computed as total * bps / 10000 and a floating-point multiplier
+  // silently dropped a rupiah on roughly one order in two hundred.
+  //
+  // platform_margin_bps + operator_margin_bps + agent_margin_bps <= 10000,
   // validated on save (service/product.go), not just documented.
-  double platform_margin_pct = 14;
-  double operator_margin_pct = 15;
-  double agent_margin_pct = 16;
+  reserved 14, 15, 16;
+  reserved "platform_margin_pct", "operator_margin_pct", "agent_margin_pct";
+  int32 platform_margin_bps = 26;
+  int32 operator_margin_bps = 27;
+  int32 agent_margin_bps = 28;
   // The three fields below only apply when category == TRAVEL_PACKAGE.
   repeated ItineraryDay itinerary_days = 17;
   repeated string hotel_ids = 18;
@@ -68,9 +74,11 @@ message CreateProductRequest {
   string description = 6;
   repeated string inclusions = 7;
   string category = 8 [(buf.validate.field).string.min_len = 1];
-  double platform_margin_pct = 9;
-  double operator_margin_pct = 10;
-  double agent_margin_pct = 11;
+  reserved 9, 10, 11;
+  reserved "platform_margin_pct", "operator_margin_pct", "agent_margin_pct";
+  int32 platform_margin_bps = 20;
+  int32 operator_margin_bps = 21;
+  int32 agent_margin_bps = 22;
   repeated ItineraryDay itinerary_days = 12;
   repeated string hotel_ids = 13;
   string default_kloter_id = 14;
@@ -90,9 +98,11 @@ message UpdateProductRequest {
   repeated string inclusions = 7;
   bool is_active = 8;
   string category = 9 [(buf.validate.field).string.min_len = 1];
-  double platform_margin_pct = 10;
-  double operator_margin_pct = 11;
-  double agent_margin_pct = 12;
+  reserved 10, 11, 12;
+  reserved "platform_margin_pct", "operator_margin_pct", "agent_margin_pct";
+  int32 platform_margin_bps = 20;
+  int32 operator_margin_bps = 21;
+  int32 agent_margin_bps = 22;
   repeated ItineraryDay itinerary_days = 13;
   repeated string hotel_ids = 14;
   string default_kloter_id = 15;

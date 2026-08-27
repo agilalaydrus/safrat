@@ -15,13 +15,17 @@ import (
 var productCategories = map[string]bool{"TRAVEL_PACKAGE": true, "EQUIPMENT": true, "ROAMING_DATA": true, "PPOB_CREDIT": true}
 
 // Default margin split for products created before this feature existed,
-// or via a request that omits margins entirely (all three zero) — the
-// same 15/70/15 split the products.platform_margin_pct etc. column
-// DEFAULTs use, kept in sync deliberately.
+// or via a request that omits margins entirely (all three zero) — the same
+// 15/70/15 split the products.platform_margin_bps etc. column DEFAULTs use,
+// kept in sync deliberately.
+//
+// Basis points: 1500 = 15.00%.
 const (
-	defaultPlatformMarginPct = 0.15
-	defaultOperatorMarginPct = 0.70
-	defaultAgentMarginPct    = 0.15
+	defaultPlatformMarginBps = 1500
+	defaultOperatorMarginBps = 7000
+	defaultAgentMarginBps    = 1500
+	// marginDenominator is what basis points are out of. 10000 bps = 100%.
+	marginDenominator = 10000
 )
 
 // resolveMargins applies the defaults above only when the caller sent all
@@ -30,17 +34,21 @@ const (
 // would mean nobody, including the platform, earns anything). Explicit
 // zero on just one or two fields (e.g. no agent commission on this
 // product) is preserved as-is.
-func resolveMargins(platform, operatorPct, agent float64) (float64, float64, float64, error) {
-	if platform == 0 && operatorPct == 0 && agent == 0 {
-		return defaultPlatformMarginPct, defaultOperatorMarginPct, defaultAgentMarginPct, nil
+//
+// An omitted proto int32 field decodes to 0, same as the double it replaced.
+func resolveMargins(platform, operatorBps, agent int32) (int32, int32, int32, error) {
+	if platform == 0 && operatorBps == 0 && agent == 0 {
+		return defaultPlatformMarginBps, defaultOperatorMarginBps, defaultAgentMarginBps, nil
 	}
-	if platform < 0 || operatorPct < 0 || agent < 0 {
+	if platform < 0 || operatorBps < 0 || agent < 0 {
 		return 0, 0, 0, apperror.ErrValidation
 	}
-	if platform+operatorPct+agent > 1.0+1e-9 {
+	// An exact comparison, where the float version needed an epsilon to avoid
+	// rejecting a split that summed to exactly 100%.
+	if platform+operatorBps+agent > marginDenominator {
 		return 0, 0, 0, apperror.ErrValidation
 	}
-	return platform, operatorPct, agent, nil
+	return platform, operatorBps, agent, nil
 }
 
 // validateProductTypeAndCategory enforces that `type` (HAJJ/UMRAH) only
@@ -68,7 +76,7 @@ func (s *ProductService) Create(ctx context.Context, orgID string, req *hajjv1.C
 	if req == nil || strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.SeasonId) == "" || !validateProductTypeAndCategory(req.Category, req.Type) {
 		return nil, serviceError("ProductService.Create", apperror.ErrValidation)
 	}
-	platformMargin, operatorMargin, agentMargin, err := resolveMargins(req.PlatformMarginPct, req.OperatorMarginPct, req.AgentMarginPct)
+	platformMargin, operatorMargin, agentMargin, err := resolveMargins(req.PlatformMarginBps, req.OperatorMarginBps, req.AgentMarginBps)
 	if err != nil {
 		return nil, serviceError("ProductService.Create", err)
 	}
@@ -121,7 +129,7 @@ func (s *ProductService) Update(ctx context.Context, orgID string, req *hajjv1.U
 	if _, err := uuid.Parse(req.ProductId); err != nil {
 		return nil, serviceError("ProductService.Update", apperror.ErrValidation)
 	}
-	platformMargin, operatorMargin, agentMargin, err := resolveMargins(req.PlatformMarginPct, req.OperatorMarginPct, req.AgentMarginPct)
+	platformMargin, operatorMargin, agentMargin, err := resolveMargins(req.PlatformMarginBps, req.OperatorMarginBps, req.AgentMarginBps)
 	if err != nil {
 		return nil, serviceError("ProductService.Update", err)
 	}
@@ -153,7 +161,7 @@ func productMessage(product *domain.Product) *hajjv1.Product {
 		Id: product.ID, OperatorId: product.OperatorID, SeasonId: product.SeasonID, Name: product.Name, Category: product.Category, Type: product.Type,
 		PriceIdr: product.PriceIDR, DurationDays: product.DurationDays, Description: product.Description, Inclusions: product.Inclusions, IsActive: product.IsActive,
 		CreatedAt: timestamppb.New(product.CreatedAt), UpdatedAt: timestamppb.New(product.UpdatedAt),
-		PlatformMarginPct: product.PlatformMarginPct, OperatorMarginPct: product.OperatorMarginPct, AgentMarginPct: product.AgentMarginPct,
+		PlatformMarginBps: product.PlatformMarginBps, OperatorMarginBps: product.OperatorMarginBps, AgentMarginBps: product.AgentMarginBps,
 		HotelIds: product.HotelIDs, DefaultKloterId: product.DefaultKloterID,
 	}
 	for _, d := range product.ItineraryDays {
