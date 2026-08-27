@@ -1,17 +1,50 @@
 "use client";
 
 import { Code, ConnectError } from "@connectrpc/connect";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { IconBuildingHospital, IconBus, IconCalendar, IconCalendarEvent, IconCash, IconChecklist, IconClipboardList, IconFileAnalytics, IconFiles, IconHeartHandshake, IconLayoutDashboard, IconLogout, IconMapPinExclamation, IconMenu2, IconPlane, IconRadar, IconReceipt2, IconSettings, IconShieldCheck, IconShoppingCart, IconSos, IconSpeakerphone, IconUserCheck, IconUserDollar, IconUsers, IconUsersGroup } from "@tabler/icons-react";
+import {
+  IconBuildingHospital,
+  IconBus,
+  IconCalendar,
+  IconCalendarEvent,
+  IconCash,
+  IconChecklist,
+  IconChevronRight,
+  IconClipboardList,
+  IconFileAnalytics,
+  IconFiles,
+  IconHeartHandshake,
+  IconHome,
+  IconLayoutDashboard,
+  IconLogout,
+  IconMapPinExclamation,
+  IconMenu2,
+  IconPlane,
+  IconRadar,
+  IconReceipt2,
+  IconSettings,
+  IconShieldCheck,
+  IconShoppingCart,
+  IconSos,
+  IconSpeakerphone,
+  IconUserCheck,
+  IconUserDollar,
+  IconUsers,
+  IconUsersGroup,
+  IconX,
+} from "@tabler/icons-react";
 import { authClient } from "@/lib/auth-client";
 import { operatorClient, seasonClient } from "@/lib/rpc";
 import { RequireAccess } from "@/components/auth/RequireAccess";
 import { RequireTwoFactor } from "@/components/auth/RequireTwoFactor";
 import { invalidateMyAccessCache } from "@/lib/access-cache";
 
-const nav = [
+type NavItem = readonly [label: string, href: string, icon: typeof IconLayoutDashboard];
+type NavGroup = { readonly label: string; readonly items: readonly NavItem[] };
+
+const nav: readonly NavGroup[] = [
   { label: "", items: [["Ringkasan", "/dashboard", IconLayoutDashboard]] },
   {
     label: "Jamaah",
@@ -51,18 +84,152 @@ const nav = [
   },
   {
     label: "Laporan",
-    items: [
-      ["Laporan & Analitik", "/dashboard/reports", IconFileAnalytics],
-    ],
+    items: [["Laporan & Analitik", "/dashboard/reports", IconFileAnalytics]],
   },
-] as const;
+];
+
+function isActiveRoute(pathname: string, href: string) {
+  return pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
+}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname(); const router = useRouter(); const { data: session } = authClient.useSession(); const [open, setOpen] = useState(false); const [operator, setOperator] = useState(""); const [season, setSeason] = useState("");
-  useEffect(() => { operatorClient.getMyOperator({}).then((value) => setOperator(value.name)).catch(async (err) => { if (ConnectError.from(err).code === Code.FailedPrecondition) { router.push("/dashboard/langganan"); return; } if (err?.code === "unauthenticated") { await authClient.getSession({ fetchOptions: { cache: "no-store" } }); operatorClient.getMyOperator({}).then((value) => setOperator(value.name)).catch(() => router.push("/sign-in")); } }); seasonClient.listSeasons({}).then((value) => setSeason((value.seasons.find((item) => item.isActive) ?? value.seasons[0])?.name ?? "")).catch(async (err) => { if (ConnectError.from(err).code === Code.FailedPrecondition) { router.push("/dashboard/langganan"); return; } if (err?.code === "unauthenticated") { await authClient.getSession({ fetchOptions: { cache: "no-store" } }); seasonClient.listSeasons({}).then((value) => setSeason((value.seasons.find((item) => item.isActive) ?? value.seasons[0])?.name ?? "")).catch(() => router.push("/sign-in")); } }); }, [router]);
-  async function signOut() { await authClient.signOut(); invalidateMyAccessCache(); router.push("/sign-in"); }
+  const pathname = usePathname();
+  const router = useRouter();
+  const { data: session } = authClient.useSession();
+  const [open, setOpen] = useState(false);
+  const [operator, setOperator] = useState("");
+  const [season, setSeason] = useState("");
+
+  useEffect(() => {
+    operatorClient.getMyOperator({}).then((value) => setOperator(value.name)).catch(async (err) => {
+      if (ConnectError.from(err).code === Code.FailedPrecondition) {
+        router.push("/dashboard/langganan");
+        return;
+      }
+      if (err?.code === "unauthenticated") {
+        await authClient.getSession({ fetchOptions: { cache: "no-store" } });
+        operatorClient.getMyOperator({}).then((value) => setOperator(value.name)).catch(() => router.push("/sign-in"));
+      }
+    });
+    seasonClient.listSeasons({}).then((value) => {
+      setSeason((value.seasons.find((item) => item.isActive) ?? value.seasons[0])?.name ?? "");
+    }).catch(async (err) => {
+      if (ConnectError.from(err).code === Code.FailedPrecondition) {
+        router.push("/dashboard/langganan");
+        return;
+      }
+      if (err?.code === "unauthenticated") {
+        await authClient.getSession({ fetchOptions: { cache: "no-store" } });
+        seasonClient.listSeasons({}).then((value) => {
+          setSeason((value.seasons.find((item) => item.isActive) ?? value.seasons[0])?.name ?? "");
+        }).catch(() => router.push("/sign-in"));
+      }
+    });
+  }, [router]);
+
+  useEffect(() => setOpen(false), [pathname]);
+
+  async function signOut() {
+    await authClient.signOut();
+    invalidateMyAccessCache();
+    router.push("/sign-in");
+  }
+
+  const currentLabel = useMemo(() => {
+    if (pathname.startsWith("/dashboard/settings")) return "Pengaturan";
+    return nav.flatMap((group) => group.items)
+      .find(([, href]) => isActiveRoute(pathname, href))?.[0] ?? "Dashboard";
+  }, [pathname]);
+
+  const userLabel = session?.user?.name || session?.user?.email?.split("@")[0] || "Pengguna";
+  const initials = (operator || userLabel).split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   const settingsActive = pathname.startsWith("/dashboard/settings");
-  const sidebarNode = <nav style={sidebarStyle}><div style={brand}><Link href="/" aria-label="Tawafiq Hub home" style={logo}>Tawafiq Hub</Link>{operator && <p style={org}>{operator}</p>}{season && <p style={seasonStyle}><i style={dot} />{season}</p>}</div><div className="gold-divider" style={{ margin: "0 16px 8px" }} /><div style={list}>{nav.map((group, groupIndex) => <div key={group.label || groupIndex} style={groupIndex > 0 ? groupBlock : undefined}>{group.label && <p style={groupLabel}>{group.label}</p>}<ul style={groupList}>{group.items.map(([label, href, Icon]) => { const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href)); return <li key={href}><Link href={href} onClick={() => setOpen(false)} style={{ ...item, ...(active ? activeItem : {}) }}><Icon size={18} />{label}{active && <i style={activeDot} />}</Link></li>; })}</ul></div>)}</div><div style={bottom}><div className="gold-divider" /><Link href="/dashboard/settings" onClick={() => setOpen(false)} style={{ ...item, padding: "12px 0", ...(settingsActive ? activeItem : {}), ...(settingsActive ? { padding: "12px 0 12px 3px" } : {}) }}><IconSettings size={18} />Pengaturan{settingsActive && <i style={activeDot} />}</Link><p style={email}>{session?.user?.email}</p><button className="btn-signout" onClick={() => void signOut()} style={signOutStyle}><IconLogout size={16} />Keluar</button></div></nav>;
-  return <RequireAccess role="staff"><RequireTwoFactor mode="enforce"><div style={shell}><aside data-desktop-sidebar className="no-print" style={desktop}>{sidebarNode}</aside>{open && <div style={overlay} onClick={() => setOpen(false)}><div style={mobile} onClick={(event) => event.stopPropagation()}>{sidebarNode}</div></div>}<div style={content}><header data-mobile-header="" className="no-print" style={mobileHeader}><button aria-label="Open menu" onClick={() => setOpen(true)} style={menu}><IconMenu2 size={22} /></button><div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}><Link href="/" onClick={() => setOpen(false)} aria-label="Tawafiq Hub home" style={{ ...logo, fontSize: 18, lineHeight: 1 }}>Tawafiq Hub</Link>{season && <span style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", letterSpacing: "0.06em", fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500 }}>{season}</span>}</div><div style={{ width: 40 }} /></header>{children}</div></div></RequireTwoFactor></RequireAccess>;
+
+  const sidebarNode = (
+    <nav className="dashboard-sidebar" aria-label="Navigasi operator">
+      <div className="dashboard-brand-block">
+        <div className="dashboard-brand-row">
+          <Link href="/" aria-label="TawafiqHub home" className="dashboard-brand">
+            <span className="dashboard-brand-mark" aria-hidden>TH</span>
+            <span>TawafiqHub</span>
+          </Link>
+          <button type="button" className="dashboard-drawer-close" aria-label="Tutup menu" onClick={() => setOpen(false)}>
+            <IconX size={20} />
+          </button>
+        </div>
+        {operator && <p className="dashboard-operator-name">{operator}</p>}
+        {season && <p className="dashboard-season-name">{season}</p>}
+      </div>
+
+      <div className="dashboard-nav-scroll">
+        {nav.map((group, groupIndex) => (
+          <section className="dashboard-nav-group" key={group.label || groupIndex} aria-label={group.label || "Utama"}>
+            {group.label && <p className="dashboard-nav-label">{group.label}</p>}
+            <ul className="dashboard-nav-list">
+              {group.items.map(([label, href, Icon]) => {
+                const active = isActiveRoute(pathname, href);
+                return (
+                  <li key={href}>
+                    <Link className={`dashboard-nav-item${active ? " is-active" : ""}`} href={href} aria-current={active ? "page" : undefined}>
+                      <span className="dashboard-nav-icon"><Icon size={18} stroke={1.8} aria-hidden /></span>
+                      <span>{label}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </div>
+
+      <div className="dashboard-sidebar-footer">
+        <Link className={`dashboard-nav-item${settingsActive ? " is-active" : ""}`} href="/dashboard/settings" aria-current={settingsActive ? "page" : undefined}>
+          <span className="dashboard-nav-icon"><IconSettings size={18} stroke={1.8} aria-hidden /></span>
+          <span>Pengaturan</span>
+        </Link>
+        <div className="dashboard-user-card">
+          <span className="dashboard-avatar" aria-hidden>{initials || "TH"}</span>
+          <span className="dashboard-user-copy">
+            <strong>{userLabel}</strong>
+            <small>{session?.user?.email}</small>
+          </span>
+          <button type="button" className="dashboard-signout" onClick={() => void signOut()} aria-label="Keluar dari akun">
+            <IconLogout size={18} stroke={1.8} />
+          </button>
+        </div>
+      </div>
+    </nav>
+  );
+
+  return (
+    <RequireAccess role="staff">
+      <RequireTwoFactor mode="enforce">
+        <div className="dashboard-shell">
+          <aside data-desktop-sidebar className="dashboard-sidebar-rail no-print">{sidebarNode}</aside>
+          {open && (
+            <div className="dashboard-drawer-backdrop no-print" role="presentation" onClick={() => setOpen(false)}>
+              <div className="dashboard-drawer" onClick={(event) => event.stopPropagation()}>{sidebarNode}</div>
+            </div>
+          )}
+          <div className="dashboard-content">
+            <header className="dashboard-topbar no-print">
+              <button type="button" className="dashboard-menu-button" aria-label="Buka menu" aria-expanded={open} onClick={() => setOpen(true)}>
+                <IconMenu2 size={21} stroke={1.8} />
+              </button>
+              <div className="dashboard-breadcrumb" aria-label="Lokasi halaman">
+                <IconHome size={16} stroke={1.8} aria-hidden />
+                <IconChevronRight size={15} stroke={1.8} aria-hidden />
+                <span>{currentLabel}</span>
+              </div>
+              <div className="dashboard-topbar-user">
+                <span>Hai, {userLabel}</span>
+                <span className="dashboard-avatar" aria-hidden>{initials || "TH"}</span>
+              </div>
+            </header>
+            <main className="dashboard-workspace">{children}</main>
+          </div>
+        </div>
+      </RequireTwoFactor>
+    </RequireAccess>
+  );
 }
-const width=240; const shell:React.CSSProperties={display:"flex",minHeight:"100vh"}; const sidebarStyle:React.CSSProperties={width,minHeight:"100vh",background:"var(--color-emerald-900)",display:"flex",flexDirection:"column",paddingTop:24}; const desktop:React.CSSProperties={width,flexShrink:0,position:"sticky",top:0,height:"100vh",overflowY:"auto",display:"none"}; const content:React.CSSProperties={flex:1,minWidth:0}; const overlay:React.CSSProperties={position:"fixed",inset:0,zIndex:50,background:"rgba(0,0,0,.5)"}; const mobile:React.CSSProperties={width,height:"100vh",overflowY:"auto"}; const mobileHeader: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", background: "rgba(13,61,39,0.92)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)", position: "sticky", top: 0, zIndex: 40, borderBottom: "1px solid rgba(201,168,76,0.20)" }; const menu: React.CSSProperties = { width: 40, height: 40, border: "1px solid rgba(201,168,76,0.25)", borderRadius: 10, background: "rgba(255,255,255,0.06)", color: "var(--color-cream-100)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }; const brand:React.CSSProperties={padding:"0 20px 16px"}; const logo:React.CSSProperties={fontFamily:"'Playfair Display', Georgia, serif",color:"var(--color-gold-500)",fontSize:28,fontWeight:700}; const org:React.CSSProperties={color:"var(--color-cream-100)",fontSize:13,margin:"8px 0 4px",fontWeight:600}; const seasonStyle:React.CSSProperties={margin:0,color:"rgba(255,255,255,.6)",fontSize:12,display:"flex",alignItems:"center",gap:6}; const dot:React.CSSProperties={width:6,height:6,borderRadius:"50%",background:"var(--color-gold-500)"}; const list:React.CSSProperties={margin:0,padding:0,flex:1}; const groupBlock:React.CSSProperties={marginTop:18}; const groupLabel:React.CSSProperties={margin:"0 0 4px",padding:"0 20px",fontSize:11,fontWeight:700,letterSpacing:".08em",color:"rgba(255,255,255,.35)",textTransform:"uppercase"}; const groupList:React.CSSProperties={listStyle:"none",margin:0,padding:0}; const item:React.CSSProperties={minHeight:48,display:"flex",alignItems:"center",gap:12,padding:"12px 20px",color:"rgba(255,255,255,.7)",fontSize:14,position:"relative"}; const activeItem:React.CSSProperties={color:"var(--color-cream-100)",fontWeight:700,background:"rgba(255,255,255,.08)",borderLeft:"3px solid var(--color-gold-500)",padding:"12px 20px 12px 17px"}; const activeDot:React.CSSProperties={width:6,height:6,borderRadius:"50%",background:"var(--color-gold-500)",marginLeft:"auto"}; const bottom:React.CSSProperties={padding:"8px 20px 24px"}; const email:React.CSSProperties={color:"rgba(255,255,255,.5)",fontSize:12,margin:"16px 0 8px"}; const signOutStyle:React.CSSProperties={minHeight:40,border:0,background:"transparent",color:"rgba(255,255,255,.5)",display:"flex",alignItems:"center",gap:8};
