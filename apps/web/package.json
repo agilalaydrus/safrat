@@ -8,7 +8,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test",
-    "e2e:clean": "psql \"$DATABASE_URL\" -c \"DELETE FROM operators WHERE slug = 'e2e-fixture'; DELETE FROM \\\"user\\\" WHERE email IN ('e2e-operator@safrat.local', 'e2e-pilgrim@safrat.local');\"",
+    "e2e:clean": "psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -c \"BEGIN; SELECT set_config('app.allow_ledger_purge', 'on', true); DELETE FROM operators WHERE slug = 'e2e-fixture'; DELETE FROM \\\"user\\\" WHERE email IN ('e2e-operator@safrat.local', 'e2e-pilgrim@safrat.local'); COMMIT;\"",
     "e2e:pwa:build": "NEXT_DIST_DIR=.next-e2e NEXT_PUBLIC_APP_URL=http://127.0.0.1:3141 NEXT_PUBLIC_API_URL=http://127.0.0.1:8141 next build",
     "e2e:pwa:serve": "NEXT_DIST_DIR=.next-e2e BETTER_AUTH_URL=http://127.0.0.1:3141 NEXT_PUBLIC_APP_URL=http://127.0.0.1:3141 NEXT_PUBLIC_API_URL=http://127.0.0.1:8141 next start --port 3141",
     "e2e:pwa:api": "cd ../api && set -a && . ./.env && set +a && PORT=8141 CORS_ALLOWED_ORIGIN=http://127.0.0.1:3141 go run ./cmd/server",
