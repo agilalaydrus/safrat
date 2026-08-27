@@ -87,8 +87,8 @@ func (r *KYCRepository) Save(ctx context.Context, record KYCRecord) (string, err
 		INSERT INTO kyc_records
 			(operator_id, user_id, subject_type, subject_id, full_name,
 			 nik_encrypted, npwp_encrypted, address, place_of_birth, date_of_birth,
-			 status, source)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'PENDING_REVIEW', $11)
+			 status, source, key_fingerprint)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'PENDING_REVIEW', $11, $12)
 		ON CONFLICT (subject_type, subject_id) DO UPDATE SET
 			user_id = COALESCE(EXCLUDED.user_id, kyc_records.user_id),
 			full_name = EXCLUDED.full_name,
@@ -98,12 +98,14 @@ func (r *KYCRepository) Save(ctx context.Context, record KYCRecord) (string, err
 			place_of_birth = EXCLUDED.place_of_birth,
 			date_of_birth = EXCLUDED.date_of_birth,
 			source = EXCLUDED.source,
+			key_fingerprint = EXCLUDED.key_fingerprint,
 			status = 'PENDING_REVIEW',
 			verified_by = '', verified_at = NULL, rejection_reason = '',
 			updated_at = NOW()
 		RETURNING id::text`,
 		operatorID, userID, record.SubjectType, subjectID, record.FullName,
-		sealedNIK, sealedNPWP, record.Address, record.PlaceOfBirth, pgDate(record.DateOfBirth), source).Scan(&id)
+		sealedNIK, sealedNPWP, record.Address, record.PlaceOfBirth, pgDate(record.DateOfBirth),
+		source, KYCKeyFingerprint()).Scan(&id)
 	return id, err
 }
 
@@ -286,14 +288,14 @@ func (r *KYCRepository) MigrateLegacyIdentities(ctx context.Context, limit int32
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO kyc_records
 				(operator_id, user_id, subject_type, subject_id, full_name,
-				 nik_encrypted, npwp_encrypted, address, source)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'STAFF')
+				 nik_encrypted, npwp_encrypted, address, source, key_fingerprint)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'STAFF', $9)
 			ON CONFLICT (subject_type, subject_id) DO UPDATE SET
 				nik_encrypted = CASE WHEN kyc_records.nik_encrypted = '' THEN EXCLUDED.nik_encrypted ELSE kyc_records.nik_encrypted END,
 				npwp_encrypted = CASE WHEN kyc_records.npwp_encrypted = '' THEN EXCLUDED.npwp_encrypted ELSE kyc_records.npwp_encrypted END,
 				updated_at = NOW()`,
 			operatorID, userID, item.subjectType, subjectID, item.fullName,
-			sealedNIK, sealedNPWP, item.address); err != nil {
+			sealedNIK, sealedNPWP, item.address, KYCKeyFingerprint()); err != nil {
 			_ = tx.Rollback(ctx)
 			return moved, err
 		}
@@ -311,4 +313,37 @@ func (r *KYCRepository) MigrateLegacyIdentities(ctx context.Context, limit int32
 		moved++
 	}
 	return moved, nil
+}
+
+// KeyFingerprintsInUse reports which keys sealed the records currently stored,
+// and how many each accounts for.
+//
+// The question somebody asks after losing a key: "what am I looking for". A
+// fingerprint is not the key and cannot become one, but it identifies the key
+// that would open these rows — so a candidate found in a password manager can
+// be checked against it before being deployed, rather than after.
+//
+// It also makes a rotation legible: while one is in progress two fingerprints
+// appear, and the count of the old one falling to zero is what "finished"
+// means.
+func (r *KYCRepository) KeyFingerprintsInUse(ctx context.Context) (map[string]int, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT key_fingerprint, COUNT(*)
+		FROM kyc_records
+		WHERE nik_encrypted <> '' OR npwp_encrypted <> ''
+		GROUP BY key_fingerprint ORDER BY COUNT(*) DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	counts := make(map[string]int)
+	for rows.Next() {
+		var fingerprint string
+		var count int
+		if err := rows.Scan(&fingerprint, &count); err != nil {
+			return nil, err
+		}
+		counts[fingerprint] = count
+	}
+	return counts, rows.Err()
 }

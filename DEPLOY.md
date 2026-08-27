@@ -780,6 +780,67 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod exec postgres \
 
 Empty output is the healthy answer.
 
+## 12c. The KYC encryption key
+
+Identity numbers are encrypted with `KYC_ENCRYPTION_KEY` before they reach the
+database. Losing it loses every number sealed with it — there is no recovery
+path, deliberately, because one that existed would be a way in.
+
+**Generate it once:**
+
+```bash
+openssl rand -base64 32
+```
+
+**Where it belongs.** A password manager, and a sealed offline copy as a second
+line. **Not on the VPS beside the database backups** — whoever takes that
+machine would get the data and the key that opens it together, which is the
+exact outcome encrypting it was meant to prevent.
+
+### Finding it again
+
+The key is never printed, but a fingerprint of it is: eight hex characters of a
+SHA-256 over the key, which identify it without revealing it. Reversing that
+would mean breaking SHA-256.
+
+At every start the API logs:
+
+```
+KYC encryption key loaded  fingerprint=a1b2c3d4  records_by_key=map[a1b2c3d4:317]
+```
+
+Keep that fingerprint in the password manager entry beside the key. Then:
+
+- **Checking a candidate key** — set it, start the API, compare the fingerprint
+  it prints against the one the records carry. Matching means it is the right
+  key; nothing has to be decrypted to find out.
+- **A wrong key deployed** — the API says so on the spot:
+  ```
+  ERROR stored identities were sealed with a different key
+        their_fingerprint=a1b2c3d4 records=317 loaded_fingerprint=99887766
+  ```
+  Rather than the alternative, which is discovering it one unreadable identity
+  at a time, days later.
+
+To read the fingerprints the stored data expects, without the application:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec postgres \
+  psql -U safrat -d safrat -Atc \
+  "SELECT key_fingerprint, COUNT(*) FROM kyc_records
+   WHERE nik_encrypted <> '' GROUP BY key_fingerprint;"
+```
+
+That query is safe to run and safe to share: a fingerprint is not a key.
+
+### Rotating it
+
+Not yet automated, and worth knowing the shape of. Because every record carries
+the fingerprint of the key that sealed it, a rotation can proceed record by
+record and its progress is legible — two fingerprints appear while it runs, and
+the old one's count reaching zero is what "finished" means. **Keep the old key
+until that count is zero.**
+
 ## 13. Security Checklist Before Go-Live
 
 Full hashing/encryption audit run 2026-08-16, covering password storage,

@@ -1374,6 +1374,40 @@ two-factor enrolment, all three states of the platform panel, its six tabs,
 the jamaah's history and receipt, the customer service route, the Muttawwif
 ledger, and the agent recap.
 
+#### Done — PR 26: making the encryption key findable without making it exposed
+
+Owner asked how to keep `KYC_ENCRYPTION_KEY` safe *and* easy to find again.
+Those pull against each other, so the answer is split: storage advice in
+DEPLOY.md §12c, and a mechanism that answers "is this the right key" without
+anybody handling the key.
+
+**A fingerprint** — eight hex characters of a SHA-256 over the key. It
+identifies a key without revealing it; reversing it would mean breaking
+SHA-256, and 32 random bytes hold far more entropy than it could leak. Safe in
+a log, in a password manager note, or read out over the phone.
+
+- **Printed at every startup**, alongside a count of records by the key that
+  sealed them.
+- **Stored on every sealed record** (migration 109), so the data itself says
+  which key opens it.
+- **A mismatch is reported loudly at startup** — "317 records were sealed with
+  a1b2c3d4, this deployment loaded 99887766" — rather than being discovered one
+  unreadable identity at a time, days later.
+
+That makes a candidate key checkable *before* it is deployed: set it, start the
+API, compare. Nothing is decrypted to find out.
+
+It also makes rotation legible, which is why it was worth doing now rather than
+when rotation is built: two fingerprints appear while a rotation runs, and the
+old one's count reaching zero is what "finished" means. **Rotation itself is
+not built** — the shape is documented, the mechanism is not.
+
+**Storage guidance, stated plainly in `.env.example` and DEPLOY.md:** a
+password manager, with a sealed offline copy as a second line, and **never on
+the VPS beside the database backups** — whoever takes that machine would
+otherwise get the data and the key that opens it in one go, which is the exact
+outcome encrypting it was meant to prevent.
+
 #### Open — ordered
 
 Items 1, 3, 4 and 5 of the original list are done (see PR sections above).

@@ -21,6 +21,10 @@ var kycSealer *crypto.Sealer
 // SetKYCSealer installs the key. Called once from main before serving.
 func SetKYCSealer(sealer *crypto.Sealer) { kycSealer = sealer }
 
+// KYCKeyFingerprint identifies the installed key without revealing it, for
+// startup logging and for stamping onto the records it seals.
+func KYCKeyFingerprint() string { return kycSealer.Fingerprint() }
+
 // sealKYC encrypts a value for storage.
 //
 // Returns an error rather than falling back, so a deployment missing its key

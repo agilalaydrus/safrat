@@ -6,7 +6,9 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -38,7 +40,8 @@ var (
 // GCM also authenticates: a tampered ciphertext fails to open rather than
 // decrypting to something plausible.
 type Sealer struct {
-	aead cipher.AEAD
+	aead        cipher.AEAD
+	fingerprint string
 }
 
 // NewSealer builds a sealer from a base64-encoded 32-byte key.
@@ -64,7 +67,10 @@ func NewSealer(base64Key string) (*Sealer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Sealer{aead: aead}, nil
+	// Derived from the key itself, so the same key always yields the same
+	// fingerprint on any machine and in any deployment.
+	sum := sha256.Sum256(key)
+	return &Sealer{aead: aead, fingerprint: hex.EncodeToString(sum[:4])}, nil
 }
 
 // Seal encrypts a value. An empty value stays empty — an absent identity number
@@ -120,4 +126,23 @@ func (s *Sealer) Open(stored string) (string, error) {
 // migration that walks existing rows.
 func IsSealed(stored string) bool {
 	return strings.HasPrefix(stored, prefix)
+}
+
+// Fingerprint identifies a key without revealing it.
+//
+// Eight hex characters of a SHA-256 over the key. Safe to print in a log, a
+// startup banner or a note in a password manager: reversing it would mean
+// breaking SHA-256, and 32 random bytes have far more entropy than a
+// fingerprint could leak.
+//
+// It exists so two questions can be answered without handling the secret
+// itself: "is the key I am about to deploy the same one that encrypted this
+// data" and "which key sealed this record". Comparing fingerprints answers
+// both. Without it, a wrong key is discovered one unreadable record at a time,
+// long after the deployment that caused it.
+func (s *Sealer) Fingerprint() string {
+	if s == nil {
+		return ""
+	}
+	return s.fingerprint
 }

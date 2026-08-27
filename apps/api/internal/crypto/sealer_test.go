@@ -149,3 +149,48 @@ func TestNewSealerRejectsAnUnusableKey(t *testing.T) {
 		}
 	}
 }
+
+// A fingerprint answers "is this the same key" without anybody handling the
+// key, which is what makes a forgotten or rotated key diagnosable rather than
+// discovered one unreadable record at a time.
+func TestFingerprintIdentifiesAKeyWithoutRevealingIt(t *testing.T) {
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		t.Fatalf("key: %v", err)
+	}
+	encoded := base64.StdEncoding.EncodeToString(key)
+
+	first, err := NewSealer(encoded)
+	if err != nil {
+		t.Fatalf("sealer: %v", err)
+	}
+	// The same key, loaded again — as it would be on another machine or after a
+	// restart — must fingerprint identically, or comparing them proves nothing.
+	second, err := NewSealer(encoded)
+	if err != nil {
+		t.Fatalf("sealer: %v", err)
+	}
+	if first.Fingerprint() != second.Fingerprint() {
+		t.Fatal("the same key produced two different fingerprints")
+	}
+	if first.Fingerprint() == "" {
+		t.Fatal("no fingerprint was produced")
+	}
+
+	// A different key must not collide, or a wrong key would look correct.
+	other := newTestSealer(t)
+	if other.Fingerprint() == first.Fingerprint() {
+		t.Fatal("two different keys share a fingerprint")
+	}
+
+	// And it must not be the key, nor any part of it.
+	if strings.Contains(encoded, first.Fingerprint()) {
+		t.Fatal("the fingerprint appears inside the key itself")
+	}
+
+	// No key, no fingerprint — and no panic.
+	var absent *Sealer
+	if absent.Fingerprint() != "" {
+		t.Fatal("a missing key produced a fingerprint")
+	}
+}

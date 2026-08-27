@@ -196,3 +196,62 @@ func TestLegacyIdentitiesAreMovedAndClearedIntegration(t *testing.T) {
 		t.Fatalf("a second pass moved %d records that were already moved", again)
 	}
 }
+
+// After losing a key, the question is "what am I looking for". A fingerprint
+// answers it without being the key, so a candidate can be checked before it is
+// deployed rather than after.
+func TestStoredRecordsNameTheKeyThatSealedThemIntegration(t *testing.T) {
+	pool, kyc, operatorID, agentID := kycFixture(t)
+	ctx := context.Background()
+
+	if _, err := kyc.Save(ctx, KYCRecord{
+		OperatorID: operatorID, SubjectType: "AGENT", SubjectID: agentID, NIK: "3174012345670011",
+	}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	var stamped string
+	if err := pool.QueryRow(ctx,
+		`SELECT key_fingerprint FROM kyc_records WHERE subject_id = $1`, agentID).Scan(&stamped); err != nil {
+		t.Fatalf("read fingerprint: %v", err)
+	}
+	if stamped == "" {
+		t.Fatal("a sealed record does not name the key that sealed it")
+	}
+	if stamped != KYCKeyFingerprint() {
+		t.Fatalf("record stamped %q, key reports %q", stamped, KYCKeyFingerprint())
+	}
+	// It must not be the key, and must not be long enough to be useful as one.
+	if len(stamped) > 16 {
+		t.Fatalf("the fingerprint is suspiciously long: %q", stamped)
+	}
+
+	counts, err := kyc.KeyFingerprintsInUse(ctx)
+	if err != nil {
+		t.Fatalf("fingerprints in use: %v", err)
+	}
+	if counts[stamped] < 1 {
+		t.Fatalf("the stored record is not counted against its own key: %v", counts)
+	}
+
+	// Loading a different key makes the mismatch visible rather than silent —
+	// which is what turns "some records will not open" into "these records
+	// need that key".
+	other := newOtherSealer(t)
+	if other.Fingerprint() == stamped {
+		t.Fatal("two keys collided")
+	}
+}
+
+func newOtherSealer(t *testing.T) *crypto.Sealer {
+	t.Helper()
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		t.Fatalf("key: %v", err)
+	}
+	sealer, err := crypto.NewSealer(base64.StdEncoding.EncodeToString(key))
+	if err != nil {
+		t.Fatalf("sealer: %v", err)
+	}
+	return sealer
+}

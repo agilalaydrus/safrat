@@ -139,6 +139,28 @@ func main() {
 				"effect", "submissions will be refused rather than saved unencrypted")
 		}
 		repository.SetKYCSealer(kycSealer)
+		if kycSealer != nil {
+			// Printed at every start, on purpose. It identifies the key without
+			// revealing it, so a deployment carrying the wrong one is visible
+			// immediately in the logs rather than discovered later, one
+			// unreadable identity at a time. It is also what somebody compares
+			// a candidate key against when looking for the right one.
+			kycRepository := repository.NewKYCRepository(pool)
+			inUse, fingerprintErr := kycRepository.KeyFingerprintsInUse(context.Background())
+			if fingerprintErr != nil {
+				logger.Error("read KYC key fingerprints", "error", fingerprintErr)
+			}
+			logger.Info("KYC encryption key loaded",
+				"fingerprint", kycSealer.Fingerprint(), "records_by_key", inUse)
+			for fingerprint, count := range inUse {
+				if fingerprint != "" && fingerprint != kycSealer.Fingerprint() {
+					logger.Error("stored identities were sealed with a different key",
+						"their_fingerprint", fingerprint, "records", count,
+						"loaded_fingerprint", kycSealer.Fingerprint(),
+						"effect", "those records cannot be read until that key is restored")
+				}
+			}
+		}
 		platformRepository := repository.NewPlatformRepository(pool)
 		supplierCostRepository := repository.NewSupplierCostRepository(pool)
 		supplierRepository := repository.NewSupplierRepository(pool)
