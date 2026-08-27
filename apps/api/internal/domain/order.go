@@ -8,12 +8,17 @@ type Order struct {
 	SeasonID           string
 	PilgrimID          string
 	PilgrimName        string
+	BuyerAgentID       string
+	BuyerKind          string
 	ProductID          string
 	ProductName        string
 	AgentID            string
 	AgentName          string
 	Quantity           int32
 	UnitPriceIDR       int64
+	BasePriceIDR       int64
+	OperatorMarkupIDR  int64
+	AgentMarkupIDR     int64
 	TotalPriceIDR      int64
 	PlatformAmountIDR  int64
 	OperatorAmountIDR  int64

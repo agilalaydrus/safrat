@@ -18,26 +18,30 @@ func NewOrderRepository(queries *db.Queries) *OrderRepository {
 	return &OrderRepository{queries: queries}
 }
 
-// Create records the order with its commission split already computed
-// (see service/order.go) — the split is frozen at creation time, not
-// recomputed from the product later, so a subsequent product margin edit
-// never rewrites a past order's numbers. agentID may be empty ("" means
-// NULL, matching the pilgrims/movements NULLIF(...,”) convention used
+// Create records the order with every price level and settlement amount
+// already computed (see service/pricing.go). They are frozen at creation time,
+// so a later base-price or markup edit never rewrites a past transaction.
+// Agent identifiers may be empty ("" means NULL, matching the convention used
 // throughout this codebase).
 // CreateOrderParams describes one order to create. A struct rather than a
 // dozen positional arguments: two adjacent int64 amounts are trivially easy to
 // swap at a call site and impossible to notice afterwards.
 type CreateOrderParams struct {
-	OperatorID string
-	SeasonID   string
-	PilgrimID  string
-	ProductID  string
+	OperatorID   string
+	SeasonID     string
+	PilgrimID    string
+	BuyerAgentID string
+	BuyerKind    string
+	ProductID    string
 	// AgentID is the referrer who earns the commission, taken from the
 	// pilgrim's referral, never from whoever placed the order.
 	AgentID            string
 	PlacedByAgentID    string
 	Quantity           int32
 	UnitPriceIDR       int64
+	BasePriceIDR       int64
+	OperatorMarkupIDR  int64
+	AgentMarkupIDR     int64
 	TotalPriceIDR      int64
 	PlatformAmountIDR  int64
 	OperatorAmountIDR  int64
@@ -57,7 +61,11 @@ func (r *OrderRepository) Create(ctx context.Context, params CreateOrderParams) 
 	if err != nil {
 		return nil, false, err
 	}
-	pilgrimUUID, err := pgUUID(params.PilgrimID)
+	pilgrimUUID, err := optionalUUID(params.PilgrimID)
+	if err != nil {
+		return nil, false, err
+	}
+	buyerAgentUUID, err := optionalUUID(params.BuyerAgentID)
 	if err != nil {
 		return nil, false, err
 	}
@@ -67,10 +75,13 @@ func (r *OrderRepository) Create(ctx context.Context, params CreateOrderParams) 
 	}
 	order, err := r.queries.CreateOrder(ctx, db.CreateOrderParams{
 		OperatorID: opUUID, SeasonID: seasonUUID, PilgrimID: pilgrimUUID, ProductID: productUUID,
-		Column5: params.AgentID, Quantity: params.Quantity, UnitPriceIdr: params.UnitPriceIDR,
+		AgentID: params.AgentID, Quantity: params.Quantity, UnitPriceIdr: params.UnitPriceIDR,
 		TotalPriceIdr: params.TotalPriceIDR, PlatformAmountIdr: params.PlatformAmountIDR,
 		OperatorAmountIdr: params.OperatorAmountIDR, AgentCommissionIdr: params.AgentCommissionIDR,
-		IdempotencyKey: params.IdempotencyKey, Column13: params.PlacedByAgentID,
+		IdempotencyKey: params.IdempotencyKey, PlacedByAgentID: params.PlacedByAgentID,
+		BuyerAgentID: buyerAgentUUID, BuyerKind: params.BuyerKind,
+		BasePriceIdr: params.BasePriceIDR, OperatorMarkupIdr: params.OperatorMarkupIDR,
+		AgentMarkupIdr: params.AgentMarkupIDR,
 	})
 	if err == nil {
 		return toOrder(order), true, nil
@@ -193,8 +204,11 @@ func (r *OrderRepository) CountBySeason(ctx context.Context, operatorID, seasonI
 func toOrder(o db.Order) *domain.Order {
 	return &domain.Order{
 		ID: uuid.UUID(o.ID.Bytes).String(), OperatorID: uuid.UUID(o.OperatorID.Bytes).String(), SeasonID: uuid.UUID(o.SeasonID.Bytes).String(),
-		PilgrimID: uuid.UUID(o.PilgrimID.Bytes).String(), ProductID: uuid.UUID(o.ProductID.Bytes).String(), AgentID: nullableUUIDString(o.AgentID),
-		Quantity: o.Quantity, UnitPriceIDR: o.UnitPriceIdr, TotalPriceIDR: o.TotalPriceIdr,
+		PilgrimID: nullableUUIDString(o.PilgrimID), BuyerAgentID: nullableUUIDString(o.BuyerAgentID), BuyerKind: o.BuyerKind,
+		ProductID: uuid.UUID(o.ProductID.Bytes).String(), AgentID: nullableUUIDString(o.AgentID),
+		Quantity: o.Quantity, UnitPriceIDR: o.UnitPriceIdr,
+		BasePriceIDR: o.BasePriceIdr, OperatorMarkupIDR: o.OperatorMarkupIdr, AgentMarkupIDR: o.AgentMarkupIdr,
+		TotalPriceIDR:     o.TotalPriceIdr,
 		PlatformAmountIDR: o.PlatformAmountIdr, OperatorAmountIDR: o.OperatorAmountIdr, AgentCommissionIDR: o.AgentCommissionIdr,
 		Status: o.Status, HeldReason: o.HeldReason, ReceiptNumber: o.ReceiptNumber, XenditInvoiceID: o.XenditInvoiceID.String, XenditInvoiceURL: o.XenditInvoiceUrl.String,
 		PaidAmountIDR: int8Ptr(o.PaidAmountIdr),
@@ -204,8 +218,10 @@ func toOrder(o db.Order) *domain.Order {
 
 func toOrderFromRow(o db.GetOrderRow) *domain.Order {
 	base := toOrder(db.Order{
-		ID: o.ID, OperatorID: o.OperatorID, SeasonID: o.SeasonID, PilgrimID: o.PilgrimID, ProductID: o.ProductID, AgentID: o.AgentID,
+		ID: o.ID, OperatorID: o.OperatorID, SeasonID: o.SeasonID, PilgrimID: o.PilgrimID, BuyerAgentID: o.BuyerAgentID, BuyerKind: o.BuyerKind,
+		ProductID: o.ProductID, AgentID: o.AgentID,
 		Quantity: o.Quantity, UnitPriceIdr: o.UnitPriceIdr, TotalPriceIdr: o.TotalPriceIdr,
+		BasePriceIdr: o.BasePriceIdr, OperatorMarkupIdr: o.OperatorMarkupIdr, AgentMarkupIdr: o.AgentMarkupIdr,
 		PlatformAmountIdr: o.PlatformAmountIdr, OperatorAmountIdr: o.OperatorAmountIdr, AgentCommissionIdr: o.AgentCommissionIdr,
 		Status: o.Status, HeldReason: o.HeldReason, PaidAmountIdr: o.PaidAmountIdr, ReceiptNumber: o.ReceiptNumber,
 		XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
@@ -218,8 +234,10 @@ func toOrderFromRow(o db.GetOrderRow) *domain.Order {
 
 func toOrderFromListRow(o db.ListOrdersRow) *domain.Order {
 	base := toOrder(db.Order{
-		ID: o.ID, OperatorID: o.OperatorID, SeasonID: o.SeasonID, PilgrimID: o.PilgrimID, ProductID: o.ProductID, AgentID: o.AgentID,
+		ID: o.ID, OperatorID: o.OperatorID, SeasonID: o.SeasonID, PilgrimID: o.PilgrimID, BuyerAgentID: o.BuyerAgentID, BuyerKind: o.BuyerKind,
+		ProductID: o.ProductID, AgentID: o.AgentID,
 		Quantity: o.Quantity, UnitPriceIdr: o.UnitPriceIdr, TotalPriceIdr: o.TotalPriceIdr,
+		BasePriceIdr: o.BasePriceIdr, OperatorMarkupIdr: o.OperatorMarkupIdr, AgentMarkupIdr: o.AgentMarkupIdr,
 		PlatformAmountIdr: o.PlatformAmountIdr, OperatorAmountIdr: o.OperatorAmountIdr, AgentCommissionIdr: o.AgentCommissionIdr,
 		Status: o.Status, HeldReason: o.HeldReason, PaidAmountIdr: o.PaidAmountIdr, ReceiptNumber: o.ReceiptNumber,
 		XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,

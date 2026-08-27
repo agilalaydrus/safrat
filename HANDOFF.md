@@ -2174,22 +2174,24 @@ Konsekuensi yang harus dipertahankan siapa pun yang melanjutkan:
 - Query sqlc: `GetProductPricing`, `UpsertProductMarkup`, `ListProductMarkups`,
   `SetProductBasePrice`.
 - `ProductRepository.Pricing` / `SetMarkup` / `SetBasePrice` / `ListPricing`.
+- Ketiga jalur pembelian jamaah (`CreateOrder`, `CreateManualOrder`, dan
+  `CreateOrderForPilgrim`) sudah memakai `ComputePrice` dari satu pembacaan
+  atomik produk + markup. `computeSplit` dan `order_split_test.go` sudah
+  dihapus.
+- Order jamaah baru membekukan `buyer_kind`, harga unit, base, markup travel,
+  markup agen, total, dan tiga nilai settlement. Tes integrasi PostgreSQL
+  memeriksa nilai-nilai itu pada row sebenarnya, bukan hanya hasil fungsi.
+- Batas modal supplier sekarang dibandingkan dengan base milik TawafiqHub,
+  bukan total pelanggan: markup travel/agen tidak boleh menyamarkan kerugian
+  platform.
 
 ### Yang belum — urutan yang saya sarankan
 
-1. **`order.go` masih memakai `computeSplit`, bukan `ComputePrice`.** Tiga
-   pemanggil produksi: `CreateOrder` (baris ~138), `CreateManualOrder` (~219),
-   dan `CreateOrderForPilgrim` (~703). `applyPaidSideEffects` tidak menghitung
-   ulang; ia memakai angka yang sudah dibekukan di order. `order_split_test.go`
-   juga menguji helper lama di empat tempat, jadi tes itu harus dipindahkan atau
-   dihapus bersama helper-nya. `computeSplit` sengaja dibiarkan hidup supaya
-   pohon tetap hijau — hapus setelah ketiga jalur pindah, jangan sebelum.
-2. **Kolom order baru belum pernah ditulis**: `buyer_kind`, `base_price_idr`,
-   `operator_markup_idr`, `agent_markup_idr`, `buyer_agent_id`. Semua punya
-   default, jadi order lama tetap sah, tapi order baru harus mengisinya.
-3. **Jalur beli untuk agen belum ada** — proto, handler, UI. Skemanya sudah
-   menerimanya; belum ada yang mengirimnya.
-4. **Layar markup untuk travel** dan **layar harga dasar untuk admin** belum
+1. **Jalur beli untuk agen belum ada** — proto, handler, UI. Skema dan
+   repository sudah menerima `buyer_agent_id`, tetapi belum ada jalur produksi
+   yang mengirimnya. Buyer agen harus memakai `BuyerAgent`, tidak mengisi
+   `pilgrim_id`, tidak membawa markup agen, dan tidak menghasilkan komisi.
+2. **Layar markup untuk travel** dan **layar harga dasar untuk admin** belum
    ada. Perhatikan: harga dasar sengaja *tidak* lewat `UpdateProduct`, supaya
    travel tidak bisa menggeser harga yang mereka bayar.
 

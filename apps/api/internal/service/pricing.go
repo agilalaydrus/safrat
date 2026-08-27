@@ -37,6 +37,7 @@ type Price struct {
 	Quantity int32
 
 	// What the buyer pays, and what it is made of.
+	UnitPriceIDR      int64
 	BasePriceIDR      int64
 	OperatorMarkupIDR int64
 	AgentMarkupIDR    int64
@@ -73,6 +74,7 @@ func ComputePrice(levels domain.PriceLevels, quantity int32, buyer BuyerKind, re
 	qty := int64(quantity)
 	p := Price{
 		Quantity:          quantity,
+		UnitPriceIDR:      *levels.BasePriceIDR + levels.OperatorMarkupIDR,
 		BasePriceIDR:      *levels.BasePriceIDR * qty,
 		OperatorMarkupIDR: levels.OperatorMarkupIDR * qty,
 	}
@@ -81,6 +83,7 @@ func ComputePrice(levels domain.PriceLevels, quantity int32, buyer BuyerKind, re
 	// markup and nothing above it. The agent level is not discounted away for
 	// them — it is simply not part of what the agent price means.
 	if buyer == BuyerPilgrim {
+		p.UnitPriceIDR += levels.AgentMarkupIDR
 		p.AgentMarkupIDR = levels.AgentMarkupIDR * qty
 	}
 

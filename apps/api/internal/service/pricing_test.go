@@ -42,6 +42,9 @@ func TestAgentBuyingForThemselvesPaysNoAgentMarkup(t *testing.T) {
 	if p.TotalPriceIDR != 10_500 {
 		t.Fatalf("total = %d, mau 10500", p.TotalPriceIDR)
 	}
+	if p.UnitPriceIDR != 10_500 {
+		t.Fatalf("harga unit = %d, mau 10500", p.UnitPriceIDR)
+	}
 	if p.AgentMarkupIDR != 0 || p.AgentCommissionIDR != 0 {
 		t.Fatalf("agen membeli untuk diri sendiri tidak boleh menghasilkan komisi: markup=%d komisi=%d",
 			p.AgentMarkupIDR, p.AgentCommissionIDR)
@@ -136,6 +139,9 @@ func TestQuantityMultipliesEveryLevel(t *testing.T) {
 	one, _ := ComputePrice(levels(10_000, 500, 300), 1, BuyerPilgrim, "agent-1")
 	ten, _ := ComputePrice(levels(10_000, 500, 300), 10, BuyerPilgrim, "agent-1")
 
+	if one.UnitPriceIDR != 10_800 || ten.UnitPriceIDR != 10_800 {
+		t.Fatalf("harga unit berubah karena kuantitas: satu=%d sepuluh=%d, mau 10800", one.UnitPriceIDR, ten.UnitPriceIDR)
+	}
 	if ten.TotalPriceIDR != one.TotalPriceIDR*10 {
 		t.Fatalf("total qty=10 adalah %d, mau %d", ten.TotalPriceIDR, one.TotalPriceIDR*10)
 	}

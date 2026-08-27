@@ -5,9 +5,19 @@
 INSERT INTO orders (
   operator_id, season_id, pilgrim_id, product_id, agent_id, quantity,
   unit_price_idr, total_price_idr, platform_amount_idr, operator_amount_idr,
-  agent_commission_idr, idempotency_key, placed_by_agent_id
-) VALUES ($1, $2, $3, $4, NULLIF($5::text, '')::uuid, $6, $7, $8, $9, $10, $11,
-          $12, NULLIF($13::text, '')::uuid)
+  agent_commission_idr, idempotency_key, placed_by_agent_id, buyer_agent_id,
+  buyer_kind, base_price_idr, operator_markup_idr, agent_markup_idr
+) VALUES (
+  sqlc.arg(operator_id), sqlc.arg(season_id), sqlc.narg(pilgrim_id),
+  sqlc.arg(product_id), NULLIF(sqlc.arg(agent_id)::text, '')::uuid,
+  sqlc.arg(quantity), sqlc.arg(unit_price_idr), sqlc.arg(total_price_idr),
+  sqlc.arg(platform_amount_idr), sqlc.arg(operator_amount_idr),
+  sqlc.arg(agent_commission_idr), sqlc.arg(idempotency_key),
+  NULLIF(sqlc.arg(placed_by_agent_id)::text, '')::uuid,
+  sqlc.narg(buyer_agent_id), sqlc.arg(buyer_kind),
+  sqlc.arg(base_price_idr), sqlc.arg(operator_markup_idr),
+  sqlc.arg(agent_markup_idr)
+)
 ON CONFLICT (operator_id, idempotency_key) WHERE idempotency_key <> '' DO NOTHING
 RETURNING *;
 

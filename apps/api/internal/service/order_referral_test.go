@@ -32,6 +32,12 @@ type referralFixture struct {
 
 const referralPrice = int64(4_000_000)
 
+const (
+	referralBasePrice      = int64(600_000)
+	referralOperatorMarkup = int64(2_800_000)
+	referralAgentMarkup    = int64(600_000)
+)
+
 // A jamaah referred by one agent, a second agent who referred nobody, and a
 // product with a 15% agent margin.
 func newReferralFixture(t *testing.T) *referralFixture {
@@ -77,8 +83,11 @@ func newReferralFixture(t *testing.T) *referralFixture {
 
 	seasonID, productID, pilgrimID := uuid.NewString(), uuid.NewString(), uuid.NewString()
 	exec(`INSERT INTO seasons (id, operator_id, name, type, start_date, end_date, capacity) VALUES ($1,$2,'Musim','UMRAH_REGULER',NOW(),NOW()+INTERVAL '30 days',10)`, seasonID, operatorID)
-	exec(`INSERT INTO products (id, operator_id, season_id, name, price_idr, agent_margin_bps) VALUES ($1,$2,$3,'Paket Uji',$4,1500)`,
-		productID, operatorID, seasonID, referralPrice)
+	exec(`INSERT INTO products (id, operator_id, season_id, name, price_idr, base_price_idr, agent_margin_bps)
+	      VALUES ($1,$2,$3,'Paket Uji',$4,$5,1500)`,
+		productID, operatorID, seasonID, referralPrice, referralBasePrice)
+	exec(`INSERT INTO product_markups (product_id, operator_id, operator_markup_idr, agent_markup_idr)
+	      VALUES ($1,$2,$3,$4)`, productID, operatorID, referralOperatorMarkup, referralAgentMarkup)
 	exec(`INSERT INTO pilgrims (id, season_id, operator_id, full_name, passport_number, nationality, date_of_birth, gender, agent_id)
 	      VALUES ($1,$2,$3,'Jamaah Referral','P-REF','ID','1990-01-01'::timestamptz,'MALE',$4)`,
 		pilgrimID, seasonID, operatorID, referrer)
@@ -159,6 +168,28 @@ func TestReferralEarnsOnManualOrderIntegration(t *testing.T) {
 	// 15% of 4,000,000.
 	if commission != 600_000 {
 		t.Fatalf("commission = %d, want 600000", commission)
+	}
+
+	var buyerKind string
+	var buyerAgentID *string
+	var unit, total, base, operatorMarkup, agentMarkup, platformAmount, operatorAmount int64
+	if err := f.pool.QueryRow(ctx, `SELECT buyer_kind, buyer_agent_id::text,
+		unit_price_idr, total_price_idr, base_price_idr, operator_markup_idr,
+		agent_markup_idr, platform_amount_idr, operator_amount_idr
+		FROM orders WHERE id = $1`, response.Order.Id).Scan(
+		&buyerKind, &buyerAgentID, &unit, &total, &base, &operatorMarkup,
+		&agentMarkup, &platformAmount, &operatorAmount,
+	); err != nil {
+		t.Fatalf("read frozen pricing: %v", err)
+	}
+	if buyerKind != "PILGRIM" || buyerAgentID != nil {
+		t.Fatalf("buyer kind=%s buyer agent=%v, want PILGRIM and nil", buyerKind, buyerAgentID)
+	}
+	if unit != referralPrice || total != referralPrice || base != referralBasePrice ||
+		operatorMarkup != referralOperatorMarkup || agentMarkup != referralAgentMarkup ||
+		platformAmount != referralBasePrice || operatorAmount != referralOperatorMarkup {
+		t.Fatalf("frozen pricing unit=%d total=%d base=%d operator_markup=%d agent_markup=%d platform=%d operator=%d",
+			unit, total, base, operatorMarkup, agentMarkup, platformAmount, operatorAmount)
 	}
 
 	// Paid immediately by the CASH path, so the ledger should already carry it.
