@@ -29,6 +29,14 @@ type Product struct {
 	NominalIDR         *int64
 	SupplierCostIDR    *int64
 	SupplierCostSource string
+	// BasePriceIDR is what TawafiqHub charges the travel for this product,
+	// and the floor every other level is added to. Nil means unset, which is
+	// refused at sale — a product with no base has no price.
+	//
+	// Distinct from SupplierCostIDR, which is what TawafiqHub pays. The gap
+	// between them is the platform's own margin.
+	BasePriceIDR *int64
+
 	PlatformMarginBps  int32
 	OperatorMarginBps  int32
 	AgentMarginBps     int32
@@ -47,4 +55,27 @@ type ItineraryDay struct {
 	MealBreakfast bool
 	MealLunch     bool
 	MealDinner    bool
+}
+
+// PriceLevels is the per-unit price built from the bottom up. Every level is
+// present on every product; a level nobody has touched is zero, and zero is a
+// real setting rather than a missing one.
+type PriceLevels struct {
+	// BasePriceIDR is what TawafiqHub charges the travel. Nil means unset,
+	// which is refused — distinct from zero, which would mean free.
+	BasePriceIDR *int64
+
+	// OperatorMarkupIDR is what the travel adds. Base + this is the agent
+	// price.
+	OperatorMarkupIDR int64
+
+	// AgentMarkupIDR is the agent level. Part of the jamaah price whether or
+	// not a referrer exists, so a referred jamaah is never quoted more than a
+	// walk-in for the same product.
+	AgentMarkupIDR int64
+
+	// Configured records that a markup row was actually found. Without it the
+	// two zero markups above are indistinguishable from an unconfigured
+	// product.
+	Configured bool
 }

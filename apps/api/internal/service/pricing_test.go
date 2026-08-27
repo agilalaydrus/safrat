@@ -3,12 +3,14 @@ package service
 import (
 	"errors"
 	"testing"
+
+	"github.com/hajj-saas/api/internal/domain"
 )
 
 func idr(v int64) *int64 { return &v }
 
-func levels(base int64, operator, agent int64) PriceLevels {
-	return PriceLevels{
+func levels(base int64, operator, agent int64) domain.PriceLevels {
+	return domain.PriceLevels{
 		BasePriceIDR:      idr(base),
 		OperatorMarkupIDR: operator,
 		AgentMarkupIDR:    agent,
@@ -84,7 +86,7 @@ func TestZeroMarkupSellsAtBaseButUnconfiguredIsRefused(t *testing.T) {
 		t.Fatalf("total = %d, mau 10000", p.TotalPriceIDR)
 	}
 
-	unconfigured := PriceLevels{BasePriceIDR: idr(10_000)}
+	unconfigured := domain.PriceLevels{BasePriceIDR: idr(10_000)}
 	if _, err := ComputePrice(unconfigured, 1, BuyerPilgrim, ""); !errors.Is(err, ErrMarkupUnset) {
 		t.Fatalf("produk belum dikonfigurasi harus ditolak, dapat %v", err)
 	}

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/domain"
@@ -205,5 +206,112 @@ func optionalUUID(value string) (pgtype.UUID, error) {
 func toProduct(product db.Product) *domain.Product {
 	return &domain.Product{ID: uuid.UUID(product.ID.Bytes).String(), OperatorID: uuid.UUID(product.OperatorID.Bytes).String(), SeasonID: uuid.UUID(product.SeasonID.Bytes).String(), Name: product.Name, Category: product.Category, Type: product.Type, PriceIDR: product.PriceIdr, DurationDays: product.DurationDays, Description: product.Description, Inclusions: product.Inclusions, IsActive: product.IsActive, CreatedAt: product.CreatedAt.Time, UpdatedAt: product.UpdatedAt.Time, Code: product.Code, NominalIDR: int8Ptr(product.NominalIdr),
 		SupplierCostIDR: int8Ptr(product.SupplierCostIdr), SupplierCostSource: product.SupplierCostSource,
+		BasePriceIDR: int8Ptr(product.BasePriceIdr),
 		PlatformMarginBps: product.PlatformMarginBps, OperatorMarginBps: product.OperatorMarginBps, AgentMarginBps: product.AgentMarginBps, DefaultKloterID: nullableUUIDString(product.DefaultKloterID)}
+}
+
+// Pricing reads a product together with this operator's markups, in one
+// query. Sale pricing needs both, and two reads would let an operator's save
+// land between them — pricing the order from one version and itemising it
+// from another.
+//
+// A product that exists but has no markup row comes back with Configured
+// false rather than as an error, so the caller can say "belum diatur" instead
+// of "tidak ditemukan". Those send a person to two different screens.
+func (r *ProductRepository) Pricing(ctx context.Context, operatorID, productID string) (*domain.Product, domain.PriceLevels, error) {
+	operator, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, domain.PriceLevels{}, err
+	}
+	product, err := pgUUID(productID)
+	if err != nil {
+		return nil, domain.PriceLevels{}, err
+	}
+
+	row, err := r.queries.GetProductPricing(ctx, db.GetProductPricingParams{ID: product, OperatorID: operator})
+	if err != nil {
+		return nil, domain.PriceLevels{}, err
+	}
+	return toProduct(row.Product), toPriceLevels(row.Product, row.OperatorMarkupIdr, row.AgentMarkupIdr, row.MarkupConfigured), nil
+}
+
+// SetMarkup writes an operator's markups for one product.
+//
+// Upsert rather than read-then-write: two staff saving the pricing screen at
+// once would otherwise both see no row and both insert, leaving the product
+// with two markups and no way to say which applies.
+func (r *ProductRepository) SetMarkup(ctx context.Context, operatorID, productID string, operatorMarkupIDR, agentMarkupIDR int64) error {
+	if operatorMarkupIDR < 0 || agentMarkupIDR < 0 {
+		return errors.New("markup tidak boleh negatif")
+	}
+	operator, err := pgUUID(operatorID)
+	if err != nil {
+		return err
+	}
+	product, err := pgUUID(productID)
+	if err != nil {
+		return err
+	}
+
+	_, err = r.queries.UpsertProductMarkup(ctx, db.UpsertProductMarkupParams{
+		ProductID:         product,
+		OperatorID:        operator,
+		OperatorMarkupIdr: operatorMarkupIDR,
+		AgentMarkupIdr:    agentMarkupIDR,
+	})
+	return err
+}
+
+// SetBasePrice is the platform's own lever and is scoped by product id alone —
+// deliberately not by operator, because the operator is not allowed to move
+// the price they are charged. Callers must be platform admins; that check
+// belongs in the service, not here.
+func (r *ProductRepository) SetBasePrice(ctx context.Context, productID string, baseIDR int64) error {
+	if baseIDR < 0 {
+		return errors.New("harga dasar tidak boleh negatif")
+	}
+	product, err := pgUUID(productID)
+	if err != nil {
+		return err
+	}
+	_, err = r.queries.SetProductBasePrice(ctx, db.SetProductBasePriceParams{
+		ID:           product,
+		BasePriceIdr: pgtype.Int8{Int64: baseIDR, Valid: true},
+	})
+	return err
+}
+
+// ListPricing is the operator's pricing screen: every product in a season with
+// whatever markup it carries, including the ones carrying none.
+func (r *ProductRepository) ListPricing(ctx context.Context, operatorID, seasonID string) ([]*domain.Product, []domain.PriceLevels, error) {
+	operator, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, nil, err
+	}
+	season, err := pgUUID(seasonID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rows, err := r.queries.ListProductMarkups(ctx, db.ListProductMarkupsParams{OperatorID: operator, SeasonID: season})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	products := make([]*domain.Product, 0, len(rows))
+	levels := make([]domain.PriceLevels, 0, len(rows))
+	for _, row := range rows {
+		products = append(products, toProduct(row.Product))
+		levels = append(levels, toPriceLevels(row.Product, row.OperatorMarkupIdr, row.AgentMarkupIdr, row.MarkupConfigured))
+	}
+	return products, levels, nil
+}
+
+func toPriceLevels(product db.Product, operatorMarkup, agentMarkup pgtype.Int8, configured bool) domain.PriceLevels {
+	return domain.PriceLevels{
+		BasePriceIDR:      int8Ptr(product.BasePriceIdr),
+		OperatorMarkupIDR: operatorMarkup.Int64,
+		AgentMarkupIDR:    agentMarkup.Int64,
+		Configured:        configured,
+	}
 }

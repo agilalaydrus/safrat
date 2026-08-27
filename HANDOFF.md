@@ -2130,3 +2130,99 @@ least-privilege user, real browser. Prefer that over a convenient approximation.
 - Redis cross-instance tests: `REDIS_TEST_URL=redis://localhost:6380 go test ./internal/events/ ./internal/middleware/ ./internal/repository/`
 - Backend smoke tests run a throwaway server on `:8132` against the local DB
   (`PORT=8132 go run ./cmd/server`) — insert a temp operator, curl the RPC, clean up.
+
+---
+
+## Lanjutan: harga berlapis + pembeli agen (belum selesai)
+
+Berhenti di tengah karena limit. Yang ada di `main` **build bersih, vet bersih,
+tes hijau** — tidak ada yang setengah jadi di dalam pohon. Yang kurang adalah
+lapisan berikutnya yang belum ditulis sama sekali, bukan yang rusak.
+
+### Model harganya
+
+Harga dibangun ke atas, bukan dibagi ke bawah:
+
+```
+base_price_idr        harga TawafiqHub ke travel   (products.base_price_idr)
++ operator_markup     ditambah travel              -> HARGA AGEN
++ agent_markup        level agen                   -> HARGA JAMAAH
+```
+
+Konsekuensi yang harus dipertahankan siapa pun yang melanjutkan:
+
+- **Agen beli untuk diri sendiri tidak dapat komisi** — bukan aturan tambahan,
+  tapi karena harga agen memang tidak mengandung level agen. Ada CHECK di
+  `orders_agent_buyer_earns_no_commission_check` dan
+  `orders_agent_buyer_pays_no_agent_markup_check`.
+- **Jamaah tanpa perujuk membayar sama** dengan yang punya perujuk. Level agen
+  tetap ditagih; kalau tidak ada perujuk, jatuh ke travel. Kalau ini diubah,
+  agen jadi menghukum pelanggannya sendiri.
+- **Markup Rp0 itu keputusan, markup tidak ada itu kekosongan.** `Configured`
+  membedakan keduanya; produk yang belum diatur ditolak saat dijual
+  (`ErrMarkupUnset`), tidak dijual seharga markup saja.
+- **Tidak ada pembulatan.** Harga adalah penjumlahan. Uji
+  `TestNothingIsEverLostToRounding` menjaga komponen dan penyelesaian sama-sama
+  kembali ke total. Skema basis-point yang lama kehilangan 1 rupiah pada
+  sekitar 1 dari 200 order.
+
+### Yang sudah jadi dan teruji
+
+- Migrasi `110_order_buyers.sql`, `111_layered_pricing.sql` — naik dan turun
+  keduanya sudah diverifikasi terhadap Postgres lokal.
+- `domain.PriceLevels`, `service.ComputePrice` + 9 tes.
+- Query sqlc: `GetProductPricing`, `UpsertProductMarkup`, `ListProductMarkups`,
+  `SetProductBasePrice`.
+- `ProductRepository.Pricing` / `SetMarkup` / `SetBasePrice` / `ListPricing`.
+
+### Yang belum — urutan yang saya sarankan
+
+1. **`order.go` masih memakai `computeSplit`, bukan `ComputePrice`.** Tiga
+   pemanggil produksi: `CreateOrder` (baris ~138), `CreateManualOrder` (~219),
+   dan `CreateOrderForPilgrim` (~703). `applyPaidSideEffects` tidak menghitung
+   ulang; ia memakai angka yang sudah dibekukan di order. `order_split_test.go`
+   juga menguji helper lama di empat tempat, jadi tes itu harus dipindahkan atau
+   dihapus bersama helper-nya. `computeSplit` sengaja dibiarkan hidup supaya
+   pohon tetap hijau — hapus setelah ketiga jalur pindah, jangan sebelum.
+2. **Kolom order baru belum pernah ditulis**: `buyer_kind`, `base_price_idr`,
+   `operator_markup_idr`, `agent_markup_idr`, `buyer_agent_id`. Semua punya
+   default, jadi order lama tetap sah, tapi order baru harus mengisinya.
+3. **Jalur beli untuk agen belum ada** — proto, handler, UI. Skemanya sudah
+   menerimanya; belum ada yang mengirimnya.
+4. **Layar markup untuk travel** dan **layar harga dasar untuk admin** belum
+   ada. Perhatikan: harga dasar sengaja *tidak* lewat `UpdateProduct`, supaya
+   travel tidak bisa menggeser harga yang mereka bayar.
+
+### Keputusan owner yang sudah diambil tapi belum dikerjakan
+
+4. **PPOB tetap aktif**, produk tanpa routing harus menjawab jelas — "Produk
+   belum diatur routing-nya" — dan ditolak **sebelum** pembayaran dibuat, bukan
+   sesudah. Belum dikerjakan.
+5. **Batas Rp20 juta per akun per hari, produk digital saja.** Harus ditegakkan
+   di database (unique/exclusion atau agregat berkondisi), bukan cek-lalu-tulis
+   — dua permintaan bersamaan lolos dari cek-lalu-tulis. Belum dikerjakan.
+3. **Katalog produk digital pindah ke kepemilikan platform.** Belum dimulai;
+   `product_markups` sengaja tabel terpisah supaya perpindahan itu tidak perlu
+   membongkar apa pun.
+6. KYC manual — tidak ada pekerjaan. 7. HA — menyusul.
+
+### Yang masih menunggu tindakan owner
+
+- `KYC_ENCRYPTION_KEY` belum ada di `.env.prod`. Tanpa itu penulisan KYC
+  ditolak. Bikin dengan `openssl rand -base64 32` **di terminal sendiri**,
+  jangan di sesi bersama agen — outputnya masuk transkrip dan riwayat shell.
+  Simpan di Bitwarden bersama sidik jarinya (tercetak di log start server).
+- `XENDIT_WEBHOOK_ALLOWED_IPS` — harus diminta ke support Xendit.
+- Cutover role DB non-superuser (`DEPLOY.md §12b`) dan cutover Caddy
+  (`deploy/caddy/README.md`) — keduanya manual, belum dijalankan.
+- Ada commit lokal yang belum di-push. Jangan simpan angka tetap di handoff:
+  verifikasi saat melanjutkan dengan
+  `git rev-list --count origin/main..HEAD` karena commit dokumentasi yang
+  memperbarui angka itu sendiri langsung membuat angkanya basi.
+
+### Satu hal yang sengaja saya tinggalkan
+
+`orders.operator_id` dan `orders.season_id` masih `ON DELETE CASCADE`.
+`pilgrim_id` sudah saya ubah jadi `RESTRICT` — cascade-nya akan menghancurkan
+seluruh riwayat transaksi satu jamaah. Menghapus satu tenant utuh adalah
+keputusan berbeda dan butuh tujuan arsip dulu sebelum delete-nya bisa ditolak.

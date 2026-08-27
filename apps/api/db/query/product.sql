@@ -49,3 +49,47 @@ FROM product_hotels ph
 JOIN hotels h ON h.id = ph.hotel_id
 WHERE ph.product_id = $1
 ORDER BY h.city ASC, h.name ASC;
+
+-- name: GetProductPricing :one
+-- Product and its markup in one read, because a sale prices from both and
+-- fetching them separately leaves a window where the operator saves new
+-- markups between the two queries — the order would then be priced from one
+-- version and itemised from another.
+--
+-- LEFT JOIN so an unconfigured product still returns a row: the caller must be
+-- able to tell "no markup configured" from "product does not exist", and those
+-- carry different errors for the person on the screen.
+SELECT
+  sqlc.embed(p),
+  m.operator_markup_idr,
+  m.agent_markup_idr,
+  (m.id IS NOT NULL)::boolean AS markup_configured
+FROM products p
+LEFT JOIN product_markups m
+  ON m.product_id = p.id AND m.operator_id = $2
+WHERE p.id = $1 AND p.operator_id = $2;
+
+-- name: UpsertProductMarkup :one
+INSERT INTO product_markups (product_id, operator_id, operator_markup_idr, agent_markup_idr)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (product_id, operator_id) DO UPDATE
+SET operator_markup_idr = EXCLUDED.operator_markup_idr,
+    agent_markup_idr    = EXCLUDED.agent_markup_idr,
+    updated_at          = NOW()
+RETURNING *;
+
+-- name: ListProductMarkups :many
+SELECT sqlc.embed(p), m.operator_markup_idr, m.agent_markup_idr, (m.id IS NOT NULL)::boolean AS markup_configured
+FROM products p
+LEFT JOIN product_markups m ON m.product_id = p.id AND m.operator_id = $1
+WHERE p.operator_id = $1 AND p.season_id = $2
+ORDER BY p.created_at DESC;
+
+-- name: SetProductBasePrice :one
+-- The base is TawafiqHub's number, not the travel's, so this is deliberately
+-- not part of UpdateProduct — an operator editing their catalogue must not be
+-- able to move the price they pay.
+UPDATE products
+SET base_price_idr = $2, updated_at = NOW()
+WHERE id = $1
+RETURNING *;

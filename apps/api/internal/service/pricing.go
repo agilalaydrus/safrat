@@ -3,6 +3,8 @@ package service
 import (
 	"errors"
 	"strings"
+
+	"github.com/hajj-saas/api/internal/domain"
 )
 
 // BuyerKind is who a transaction is for. It decides the price, not just the
@@ -27,29 +29,6 @@ var (
 	// as a decision is how a product ends up sold at cost by accident.
 	ErrMarkupUnset = errors.New("markup produk belum diatur untuk travel ini")
 )
-
-// PriceLevels is the per-unit price built from the bottom up. Every level is
-// present on every product; a level nobody has touched is zero, and zero is a
-// real setting rather than a missing one.
-type PriceLevels struct {
-	// BasePriceIDR is what TawafiqHub charges the travel. Nil means unset,
-	// which is refused — distinct from zero, which would mean free.
-	BasePriceIDR *int64
-
-	// OperatorMarkupIDR is what the travel adds. Base + this is the agent
-	// price.
-	OperatorMarkupIDR int64
-
-	// AgentMarkupIDR is the agent level. Part of the jamaah price whether or
-	// not a referrer exists, so a referred jamaah is never quoted more than a
-	// walk-in for the same product.
-	AgentMarkupIDR int64
-
-	// Configured records that a markup row was actually found. Without it the
-	// two zero markups above are indistinguishable from an unconfigured
-	// product.
-	Configured bool
-}
 
 // Price is one transaction's money, itemised. The three components always sum
 // to the total and the three settlement amounts always sum to the total —
@@ -80,7 +59,7 @@ type Price struct {
 // referrerAgentID is the *referrer*, never whoever placed the order. An agent
 // selling to a jamaah somebody else referred must not collect that referrer's
 // commission (CODEX_SPEC §7).
-func ComputePrice(levels PriceLevels, quantity int32, buyer BuyerKind, referrerAgentID string) (Price, error) {
+func ComputePrice(levels domain.PriceLevels, quantity int32, buyer BuyerKind, referrerAgentID string) (Price, error) {
 	if quantity < 1 {
 		return Price{}, errors.New("kuantitas harus minimal 1")
 	}
