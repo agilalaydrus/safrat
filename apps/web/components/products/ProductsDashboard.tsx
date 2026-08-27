@@ -154,7 +154,14 @@ export default function ProductsDashboard() {
                 <tbody>
                   {items.map((p) => (
                     <tr key={p.id} style={tr}>
-                      <td style={td}>{p.name}</td>
+                      <td style={td}>
+                        {p.name}
+                        {/* Says why the row has no edit control, rather than
+                            leaving the operator to wonder. */}
+                        {!p.operatorId && (
+                          <small style={platformBadge}>Dikelola TawafiqHub</small>
+                        )}
+                      </td>
                       <td style={td}>
                         {p.type ? (
                           <b style={badge}>
@@ -196,35 +203,55 @@ export default function ProductsDashboard() {
                         </span>
                       </td>
                       <td style={td}>
-                        <button
-                          style={ghost}
-                          onClick={() => {
-                            setEdit(p);
-                            setOpen(true);
-                          }}
-                        >
-                          <IconPencil size={15} />
-                          Ubah
-                        </button>
-                        <RoleGate require={["owner", "admin"]}>
-                          <button
-                            style={{
-                              ...ghost,
-                              color: "var(--color-danger-600)",
-                            }}
-                            onClick={async () => {
-                              if (window.confirm(`Hapus produk ${p.name}?`)) {
-                                await productClient.deleteProduct({
-                                  productId: p.id,
-                                });
-                                void load();
-                              }
-                            }}
-                          >
-                            <IconTrash size={15} />
-                            Hapus
-                          </button>
-                        </RoleGate>
+                        {/* A platform product belongs to TawafiqHub. Offering
+                            Ubah and Hapus here would be offering buttons that
+                            cannot work — and the delete had no error handling,
+                            so it failed silently and looked like nothing
+                            happened. What the travel *can* change is the
+                            markup, so that is what is offered instead. */}
+                        {!p.operatorId ? (
+                          <Link href="/dashboard/products/harga" style={ghostLink}>
+                            <IconCoin size={15} />
+                            Atur markup
+                          </Link>
+                        ) : (
+                          <>
+                            <button
+                              style={ghost}
+                              onClick={() => {
+                                setEdit(p);
+                                setOpen(true);
+                              }}
+                            >
+                              <IconPencil size={15} />
+                              Ubah
+                            </button>
+                            <RoleGate require={["owner", "admin"]}>
+                              <button
+                                style={{
+                                  ...ghost,
+                                  color: "var(--color-danger-600)",
+                                }}
+                                onClick={async () => {
+                                  if (!window.confirm(`Hapus produk ${p.name}?`)) return;
+                                  try {
+                                    await productClient.deleteProduct({ productId: p.id });
+                                    void load();
+                                  } catch (err) {
+                                    setNotice(
+                                      err instanceof Error
+                                        ? err.message
+                                        : "Gagal menghapus produk.",
+                                    );
+                                  }
+                                }}
+                              >
+                                <IconTrash size={15} />
+                                Hapus
+                              </button>
+                            </RoleGate>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -381,3 +408,5 @@ const empty: React.CSSProperties = {
 };
 
 const ghostLink: React.CSSProperties = { minHeight: 44, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 16px", background: "transparent", color: "var(--color-warm-700)", display: "inline-flex", alignItems: "center", gap: 7, fontSize: 14, fontWeight: 600, textDecoration: "none" };
+
+const platformBadge: React.CSSProperties = { display: "block", fontSize: 11, color: "var(--color-emerald-800)", fontWeight: 700 };

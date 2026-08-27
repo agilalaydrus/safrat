@@ -2,8 +2,10 @@ package repository
 
 import (
 	"context"
+	"strings"
 
 	"github.com/hajj-saas/api/internal/apperror"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -22,10 +24,20 @@ func NewSupplierCostRepository(pool *pgxpool.Pool) *SupplierCostRepository {
 // It refuses to overwrite an observed cost. What a supplier actually charged
 // outranks what somebody typed, and letting a stale manual figure quietly
 // replace it would defeat the point of observing costs at all.
+// SetManualCost records what a product costs to supply.
+//
+// An empty operatorID means the product belongs to the platform, which is the
+// normal case for anything with a supplier: digital products are
+// platform-owned and carry no operator at all. Requiring one here rejected
+// every product that actually has a cost to record.
 func (r *SupplierCostRepository) SetManualCost(ctx context.Context, operatorID, productID string, costIDR int64) error {
-	opUUID, err := pgUUID(operatorID)
-	if err != nil {
-		return apperror.ErrValidation
+	opUUID := pgtype.UUID{}
+	if strings.TrimSpace(operatorID) != "" {
+		parsed, err := pgUUID(operatorID)
+		if err != nil {
+			return apperror.ErrValidation
+		}
+		opUUID = parsed
 	}
 	productUUID, err := pgUUID(productID)
 	if err != nil {
@@ -42,7 +54,10 @@ func (r *SupplierCostRepository) SetManualCost(ctx context.Context, operatorID, 
 		-- an operator_id predicate alone never matches NULL, so the cost of
 		-- every product that actually has a supplier would silently fail to
 		-- store.
-		WHERE id = $1 AND (operator_id = $2 OR operator_id IS NULL) AND supplier_cost_source <> 'OBSERVED'`,
+		-- IS NOT DISTINCT FROM rather than =, so an empty operator matches a
+		-- platform product's NULL. A plain equality never matches NULL, which
+		-- is how this silently refused every digital product.
+		WHERE id = $1 AND (operator_id IS NOT DISTINCT FROM $2 OR operator_id IS NULL) AND supplier_cost_source <> 'OBSERVED'`,
 		productUUID, opUUID, costIDR)
 	if err != nil {
 		return err
