@@ -738,6 +738,42 @@ What remains, in the order I would take it:
 
 9. **Caddy cutover** — still manual, still unstarted (`deploy/caddy/README.md`).
 
+10. **Two-factor authentication (Google Authenticator) on email/password
+    sign-in.** Owner's request, 2026-08-27: every login using email and
+    password must pass a TOTP check.
+
+    **Use Better Auth's own `twoFactor` plugin**, not a hand-rolled TOTP
+    implementation. `better-auth@^1.6.28` is already installed and already runs
+    the `organization` plugin, so the pattern is established: add `twoFactor()`
+    to the `plugins` array in `apps/web/lib/auth.ts`, run `npx better-auth
+    migrate` for its tables, and drive enrolment and verification from
+    `authClient`. Rolling our own would mean owning secret storage, clock skew,
+    replay windows and recovery codes — all of which the plugin already handles,
+    and all of which are easy to get subtly wrong.
+
+    **Scope it to email/password only, as asked.** Google sign-in
+    (`socialProviders`) already carries whatever second factor the Google
+    account has; forcing a second TOTP on top adds friction without adding
+    protection. `emailAndPassword` is separately configured in the same file,
+    so the two paths are already distinguishable.
+
+    Things this touches that are easy to miss:
+    - **`components/auth/AuthForm.tsx`** is the single sign-in surface for
+      staff, pilgrims, leaders and agents alike. A TOTP step added there appears
+      for everyone, which is probably right — but it means a jamaah who only
+      ever wanted to see their schedule now needs an authenticator app. Decide
+      deliberately whether enrolment is mandatory for all roles or only for
+      staff and platform admins.
+    - **Recovery codes are not optional.** Without them, a lost phone means a
+      locked-out operator and a support request that can only be resolved with
+      database access — exactly what the admin panel exists to avoid.
+    - **Platform admins should arguably be required to enrol**, since that
+      identity can read every tenant's data (see PR 14).
+    - The Go API never sees any of this: it validates opaque session tokens by
+      DB lookup, so a session that exists is already one Better Auth decided to
+      issue. No API change should be needed — worth confirming rather than
+      assuming.
+
 #### Standing rule for all of the above
 
 Enforce uniqueness and balance checks **in the database**, never by
