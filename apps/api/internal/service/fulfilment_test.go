@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/gen/db"
+	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -527,5 +528,105 @@ func TestFastPathAndSweepCannotBothSendIntegration(t *testing.T) {
 	}
 	if status, _ := f.status(t); status != "DELIVERED" {
 		t.Fatalf("status = %s, want DELIVERED", status)
+	}
+}
+
+// Refunding something the supplier already delivered is a straight loss: we
+// paid them and gave the money back too.
+func TestRefundIsRefusedOnceDeliveredIntegration(t *testing.T) {
+	f := newFulfilmentFixture(t)
+	ctx := context.Background()
+	queries := db.New(f.pool)
+	orders := NewOrderService(
+		repository.NewOperatorRepository(queries), repository.NewPilgrimRepository(queries),
+		repository.NewProductRepository(queries, f.pool), repository.NewOrderRepository(queries),
+		repository.NewAuditRepository(queries), repository.NewLedgerRepository(f.pool),
+		repository.NewRefundRepository(f.pool), repository.NewAgentRepository(queries),
+		f.pool, nil, "http://localhost:3000")
+	orders.AttachFulfilment(f.service, f.fulfilments)
+
+	var orgID string
+	if err := f.pool.QueryRow(ctx, `SELECT better_auth_org_id FROM operators WHERE id = $1`, f.operatorID).Scan(&orgID); err != nil {
+		t.Fatalf("read org: %v", err)
+	}
+	refund := func() error {
+		_, err := orders.RefundOrder(ctx, orgID, "staff-1", &hajjv1.RefundOrderRequest{
+			OrderId: f.orderID, Reason: "uji", IdempotencyKey: uuid.NewString(),
+		})
+		return err
+	}
+
+	f.service.Open(ctx, f.orderID, f.operatorID)
+
+	// Still out at the supplier: the answer is not known yet, so refunding now
+	// could easily be refunding something on its way.
+	if _, err := f.fulfilments.Claim(ctx, f.orderID); err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	if err := refund(); err == nil {
+		t.Fatal("refunded while the supplier was still working on it")
+	}
+
+	// Delivered: refused outright.
+	if _, err := f.service.ApplyCallback(ctx, f.token, f.orderID, `{"status":"OK","sn":"SN-9","harga":9.000}`); err != nil {
+		t.Fatalf("callback: %v", err)
+	}
+	err := refund()
+	if err == nil {
+		t.Fatal("refunded a product the supplier had already delivered")
+	}
+	if !strings.Contains(err.Error(), "sudah dikirim") {
+		t.Fatalf("error did not explain why: %v", err)
+	}
+
+	// The way out is to correct the delivery record, which leaves a trace of
+	// somebody deciding that — a bypass flag would leave none.
+	if err := f.service.ResolveManually(ctx, f.orderID, "FAILED", "staff-1", "dicek: tidak terkirim"); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if err := refund(); err != nil {
+		t.Fatalf("refund refused after the delivery was corrected: %v", err)
+	}
+}
+
+// Marking an order paid and opening its fulfilment are two writes, not one
+// transaction. A process dying between them leaves a paid order that no
+// dispatch path can see, because every one of them starts from the fulfilment
+// row.
+func TestSweepRecoversAPaidOrderWithNoFulfilmentIntegration(t *testing.T) {
+	f := newFulfilmentFixture(t)
+	ctx := context.Background()
+
+	// The order is PAID from the fixture and no fulfilment was ever opened —
+	// exactly the state a crash between the two writes leaves behind.
+	var rows int
+	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM order_fulfilments WHERE order_id = $1`, f.orderID).Scan(&rows); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if rows != 0 {
+		t.Fatalf("the fixture already has a fulfilment (%d)", rows)
+	}
+
+	opened, err := f.fulfilments.OpenMissing(ctx)
+	if err != nil {
+		t.Fatalf("open missing: %v", err)
+	}
+	if opened < 1 {
+		t.Fatal("a paid order owing a delivery was not recovered")
+	}
+	status, _ := f.status(t)
+	if status != "PENDING" {
+		t.Fatalf("recovered fulfilment status = %s, want PENDING so it gets sent", status)
+	}
+
+	// Running again must not create a second one.
+	if _, err := f.fulfilments.OpenMissing(ctx); err != nil {
+		t.Fatalf("second pass: %v", err)
+	}
+	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM order_fulfilments WHERE order_id = $1`, f.orderID).Scan(&rows); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if rows != 1 {
+		t.Fatalf("%d fulfilments after two recovery passes, want 1", rows)
 	}
 }

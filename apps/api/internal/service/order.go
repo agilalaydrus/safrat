@@ -19,17 +19,18 @@ import (
 )
 
 type OrderService struct {
-	operatorRepository *repository.OperatorRepository
-	pilgrimRepository  *repository.PilgrimRepository
-	productRepository  *repository.ProductRepository
-	orderRepository    *repository.OrderRepository
-	auditRepository    *repository.AuditRepository
-	xenditClient       *payment.Client
-	ledgerRepository   *repository.LedgerRepository
-	agentRepository    *repository.AgentRepository
-	fulfilmentService  *FulfilmentService
-	refundRepository   *repository.RefundRepository
-	db                 *pgxpool.Pool
+	operatorRepository   *repository.OperatorRepository
+	pilgrimRepository    *repository.PilgrimRepository
+	productRepository    *repository.ProductRepository
+	orderRepository      *repository.OrderRepository
+	auditRepository      *repository.AuditRepository
+	xenditClient         *payment.Client
+	ledgerRepository     *repository.LedgerRepository
+	agentRepository      *repository.AgentRepository
+	fulfilmentService    *FulfilmentService
+	fulfilmentRepository *repository.FulfilmentRepository
+	refundRepository     *repository.RefundRepository
+	db                   *pgxpool.Pool
 	// appBaseURL is where Xendit redirects the pilgrim's browser back to
 	// after payment — CORS_ALLOWED_ORIGIN doubles as this app's canonical
 	// web origin, so no separate env var.
@@ -515,6 +516,26 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 			errors.New("hanya pesanan berstatus LUNAS yang dapat direfund"))
 	}
 
+	// Refunding something the supplier already delivered is a straight loss:
+	// we paid them and gave the money back. Refused rather than warned, and
+	// deliberately not bypassable with a flag — if it was not really delivered,
+	// the honest fix is to correct the fulfilment first, which leaves a record
+	// of somebody deciding that. A flag would leave none.
+	if s.fulfilmentRepository != nil {
+		delivery, err := s.fulfilmentRepository.StatusFor(ctx, order.ID)
+		if err != nil {
+			return nil, serviceError("OrderService.RefundOrder", err)
+		}
+		if delivery == "DELIVERED" {
+			return nil, connect.NewError(connect.CodeFailedPrecondition,
+				errors.New("produk sudah dikirim supplier dan tidak dapat direfund; jika sebenarnya tidak terkirim, perbaiki status pengirimannya lebih dulu"))
+		}
+		if delivery == "SENT" {
+			return nil, connect.NewError(connect.CodeFailedPrecondition,
+				errors.New("pengiriman masih berjalan di supplier; tunggu hasilnya sebelum melakukan refund"))
+		}
+	}
+
 	// The whole transaction, and the whole commission with it. Commission is
 	// earned only on a sale that stands, and no part of this sale does.
 	refundAmount := order.TotalPriceIDR
@@ -847,6 +868,7 @@ func (s *OrderService) ResolveHeldOrder(ctx context.Context, orgID, userID strin
 // constructor would make the wiring in main.go order-dependent for no gain.
 // Nil is a valid state — an operator selling only travel packages owes no
 // supplier anything.
-func (s *OrderService) AttachFulfilment(fulfilments *FulfilmentService) {
+func (s *OrderService) AttachFulfilment(fulfilments *FulfilmentService, records *repository.FulfilmentRepository) {
 	s.fulfilmentService = fulfilments
+	s.fulfilmentRepository = records
 }

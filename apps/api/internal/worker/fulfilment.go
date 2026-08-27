@@ -115,6 +115,19 @@ func (h *FulfilmentHandler) HandleDispatch(ctx context.Context, _ *asynq.Task) e
 }
 
 func (h *FulfilmentHandler) HandleSweep(ctx context.Context, _ *asynq.Task) error {
+	// First, orders that owe a delivery nothing has recorded. Marking an order
+	// paid and opening its fulfilment are two writes, not one transaction, and
+	// a process dying between them leaves a paid order that no dispatch path
+	// can ever see — every one of them starts from the fulfilment row. Without
+	// this the jamaah has paid and no part of the system believes anything is
+	// owed.
+	if opened, err := h.fulfilments.OpenMissing(ctx); err != nil {
+		h.logger.Error("open missing fulfilments", "error", err)
+	} else if opened > 0 {
+		h.logger.Warn("paid orders were owed a delivery that nothing had recorded",
+			"count", opened, "task", TaskFulfilmentSweep)
+	}
+
 	waiting, err := h.fulfilments.ListNeedingAttention(ctx, stuckAfter, 50)
 	if err != nil {
 		return err

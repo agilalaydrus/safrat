@@ -247,7 +247,7 @@ func main() {
 			logger.Warn("fulfilment dispatch will wait for the periodic sweep",
 				"reason", "REDIS_URL is not set")
 		}
-		orderService.AttachFulfilment(fulfilmentService)
+		orderService.AttachFulfilment(fulfilmentService, fulfilmentRepository)
 		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, auditRepository)
 		orderHandler := handler.NewOrderHandler(orderService)
 		platformHandler := handler.NewPlatformHandler(platformService)

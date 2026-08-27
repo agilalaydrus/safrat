@@ -121,8 +121,18 @@ func (r *FulfilmentRepository) Settle(ctx context.Context, orderID, status, refe
 	return tag.RowsAffected() == 1, nil
 }
 
-// Resolve is a human closing a case the supplier never made readable. Recorded
-// distinctly from a supplier's own answer, so the two are never confused later.
+// Resolve is a human deciding what a fulfilment really was. Recorded distinctly
+// from a supplier's own answer, so the two are never confused later.
+//
+// DELIVERED is included among the states this can change, which is worth being
+// explicit about. It is the only way to correct a delivery that was recorded
+// but never happened — and without it, refusing to refund delivered goods would
+// point at a door that does not open, trapping an operator with a jamaah's
+// money and no lawful way to return it.
+//
+// The trade is that somebody could flip a real delivery to failed in order to
+// refund it. That is why who decided and why are both stored: the act is
+// permitted, but never anonymous.
 func (r *FulfilmentRepository) Resolve(ctx context.Context, orderID, status, userID, note string) error {
 	id, err := pgUUID(orderID)
 	if err != nil {
@@ -133,7 +143,7 @@ func (r *FulfilmentRepository) Resolve(ctx context.Context, orderID, status, use
 		SET status = $2, resolved_by_user_id = $3, resolution_note = $4,
 		    delivered_at = CASE WHEN $2 = 'DELIVERED' THEN NOW() ELSE delivered_at END,
 		    updated_at = NOW()
-		WHERE order_id = $1 AND status IN ('NEEDS_REVIEW', 'SENT')`, id, status, userID, note)
+		WHERE order_id = $1 AND status IN ('NEEDS_REVIEW', 'SENT', 'DELIVERED', 'FAILED')`, id, status, userID, note)
 	if err != nil {
 		return err
 	}
@@ -224,4 +234,51 @@ func (r *FulfilmentRepository) CountNeedingAttention(ctx context.Context, stuckA
 		   OR (status = 'SENT' AND sent_at < NOW() - make_interval(secs => $1::int))`,
 		int32(stuckAfter.Seconds())).Scan(&count)
 	return count, err
+}
+
+// StatusFor reports an order's delivery state, or empty when nothing is owed.
+func (r *FulfilmentRepository) StatusFor(ctx context.Context, orderID string) (string, error) {
+	id, err := pgUUID(orderID)
+	if err != nil {
+		return "", apperror.ErrValidation
+	}
+	var status string
+	err = r.pool.QueryRow(ctx, `SELECT status FROM order_fulfilments WHERE order_id = $1`, id).Scan(&status)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return status, err
+}
+
+// OpenMissing creates fulfilment rows for paid orders that owe a delivery and
+// have none, and reports how many it had to add.
+//
+// This closes a gap between two writes that are not in one transaction: an
+// order is marked paid, and then a fulfilment is opened. A process that dies
+// between them leaves a paid order owing a delivery that nothing records — and
+// because every dispatch path starts from the fulfilment row, nothing would
+// ever notice. The jamaah has paid and no part of the system believes anything
+// is owed.
+//
+// Set-based and keyed by the unique constraint, so it is safe to run
+// repeatedly and cannot race the normal path into a second row.
+func (r *FulfilmentRepository) OpenMissing(ctx context.Context) (int64, error) {
+	tag, err := r.pool.Exec(ctx, `
+		INSERT INTO order_fulfilments (order_id, operator_id, supplier_id, status, last_error)
+		SELECT o.id, o.operator_id, pr.supplier_id,
+		       CASE WHEN pr.supplier_id IS NULL THEN 'NEEDS_REVIEW' ELSE 'PENDING' END,
+		       CASE WHEN pr.supplier_id IS NULL
+		            THEN 'Produk belum punya routing supplier aktif'
+		            ELSE '' END
+		FROM orders o
+		JOIN products p ON p.id = o.product_id
+		LEFT JOIN product_routes pr ON pr.product_id = p.id AND pr.is_active
+		WHERE o.status = 'PAID'
+		  AND p.category <> 'TRAVEL_PACKAGE'
+		  AND NOT EXISTS (SELECT 1 FROM order_fulfilments f WHERE f.order_id = o.id)
+		ON CONFLICT (order_id) DO NOTHING`)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }

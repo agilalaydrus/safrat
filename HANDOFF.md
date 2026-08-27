@@ -1117,6 +1117,59 @@ first minutes, so that is where the attention goes. A check is recorded whether
 or not the gateway answered — otherwise one unreachable invoice would be
 retried on every pass while everything behind it starved.
 
+#### Race conditions and disaster cases — audited 2026-08-27
+
+Asked directly whether the money paths are safe from races. Honest answer: the
+ones below are, each with a concurrency test behind it rather than an argument.
+Two were **not**, and were closed during the audit.
+
+**Protected, and tested under concurrency:**
+
+| Hazard | What stops it |
+| --- | --- |
+| Paying one order twice | `PENDING → PAID` conditional UPDATE; a redelivered webhook moves nothing |
+| Refunding twice | one refund per order + idempotency index + `FOR UPDATE` on the order |
+| Crediting commission twice | unique `(order_id, kind)`, `ON CONFLICT DO NOTHING` |
+| Two orders from one double-click | unique `(operator_id, idempotency_key)` |
+| Sending a supplier the same order twice | the claim *is* a conditional UPDATE, not read-then-write |
+| Learning a cost twice from a retried callback | unique on `order_id` |
+| Withdrawing more commission than earned | advisory lock per agent |
+| Editing a ledger entry | append-only trigger, plus the least-privilege role |
+
+**Closed during this audit:**
+
+1. **Refunding something the supplier had already delivered.** `RefundOrder`
+   checked the payment status and nothing else, so refunding a delivered pulsa
+   meant paying the supplier *and* giving the money back — a direct loss with
+   nothing to stop it. Now refused, and refused while a delivery is still in
+   flight too, since an answer that has not arrived is not the same as a
+   failure.
+
+   Writing the test exposed a hole in that fix: I refused refunds on delivered
+   goods and pointed at a door that did not open — `DELIVERED` could not be
+   corrected at all, which would trap an operator holding a jamaah's money with
+   no lawful way to return it. Correcting a delivery is now permitted, requires
+   a reason, and records who decided. Somebody could flip a real delivery to
+   failed in order to refund it; the act is allowed but never anonymous.
+
+2. **A paid order owing a delivery that nothing recorded.** Marking an order
+   paid and opening its fulfilment are two writes, not one transaction. A
+   process dying between them left a paid order that *no dispatch path could
+   ever see*, because every one of them starts from the fulfilment row — the
+   jamaah had paid and no part of the system believed anything was owed. The
+   sweep now recovers these, set-based and keyed by the unique constraint so it
+   cannot race the normal path into a second row.
+
+**Known and accepted, not closed:**
+
+- Side effects after payment (commission, fulfilment) are not in the settling
+  transaction. Making them so would mean holding a database transaction across
+  an outbound call. Both are instead reconciled by sweeps, which is the same
+  trade the rest of the system makes.
+- A supplier that charges us and never answers, ever, stays NEEDS_REVIEW until
+  a person decides. That is deliberate: no automatic rule can tell that case
+  apart from one where delivery genuinely happened.
+
 #### Open — ordered
 
 Items 1, 3, 4 and 5 of the original list are done (see PR sections above).

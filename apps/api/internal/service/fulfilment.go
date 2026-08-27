@@ -303,13 +303,24 @@ func (s *FulfilmentService) logExchange(ctx context.Context, supplierID, orderID
 	}
 }
 
-// ResolveManually is a human closing a case the supplier never made readable.
+// ResolveManually is a human deciding what a fulfilment really was.
+//
+// Correcting a recorded delivery to failed is permitted, because otherwise
+// refusing to refund delivered goods would trap an operator holding a jamaah's
+// money with no lawful way to return it. It is never anonymous: a note is
+// required, and who decided is stored beside it.
 func (s *FulfilmentService) ResolveManually(ctx context.Context, orderID, status, userID, note string) error {
 	switch status {
 	case "DELIVERED", "FAILED":
 	default:
 		return connect.NewError(connect.CodeInvalidArgument,
 			errors.New("hanya dapat diselesaikan sebagai terkirim atau gagal"))
+	}
+	if strings.TrimSpace(note) == "" {
+		// The note is the whole accountability trail for a decision nothing
+		// outside this system confirms.
+		return connect.NewError(connect.CodeInvalidArgument,
+			errors.New("sertakan alasan: keputusan ini tidak dikonfirmasi oleh apa pun di luar sistem"))
 	}
 	if err := s.fulfilments.Resolve(ctx, orderID, status, userID, note); err != nil {
 		if errors.Is(err, apperror.ErrFailedPrecondition) {
