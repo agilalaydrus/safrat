@@ -2,10 +2,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   IconPencil,
+  IconCoin,
   IconPlus,
   IconShoppingCart,
   IconTrash,
 } from "@tabler/icons-react";
+import Link from "next/link";
 import { Product } from "@hajj-saas/proto-gen/hajj/v1/product_pb";
 import { productClient, seasonClient } from "@/lib/rpc";
 import ProductFormDialog from "./ProductFormDialog";
@@ -91,6 +93,10 @@ export default function ProductsDashboard() {
               </option>
             ))}
           </select>
+          <Link href="/dashboard/products/harga" style={ghostLink}>
+            <IconCoin size={18} />
+            Harga & Markup
+          </Link>
           <button
             style={emerald}
             onClick={() => {
@@ -373,3 +379,5 @@ const empty: React.CSSProperties = {
   border: "1px dashed var(--color-cream-400)",
   borderRadius: 12,
 };
+
+const ghostLink: React.CSSProperties = { minHeight: 44, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 16px", background: "transparent", color: "var(--color-warm-700)", display: "inline-flex", alignItems: "center", gap: 7, fontSize: 14, fontWeight: 600, textDecoration: "none" };

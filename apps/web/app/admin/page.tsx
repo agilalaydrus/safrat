@@ -170,6 +170,7 @@ function SupplierCostsTab() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [baseDrafts, setBaseDrafts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState("");
 
   const load = useCallback(() => {
@@ -199,15 +200,33 @@ function SupplierCostsTab() {
     }
   };
 
+  const saveBase = async (product: PlatformProduct) => {
+    const raw = (baseDrafts[product.id] ?? "").replace(/\D/g, "");
+    if (!raw) { setError("Masukkan harga dasar."); return; }
+    setSaving(product.id);
+    setError("");
+    try {
+      await platformClient.setProductBasePrice({ productId: product.id, basePriceIdr: BigInt(raw) });
+      setNotice(`Harga dasar ${product.name} disimpan.`);
+      setBaseDrafts((d) => ({ ...d, [product.id]: "" }));
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menyimpan harga dasar.");
+    } finally {
+      setSaving("");
+    }
+  };
+
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <p style={{ margin: 0, color: "var(--color-warm-500)", fontSize: 14 }}>
-        Produk tanpa harga modal dijual tanpa batas bawah — sistem tidak bisa menolak penjualan di bawah modal.
-        Harga yang terbaca langsung dari supplier tidak bisa ditimpa manual.
+        Harga modal adalah yang TawafiqHub bayar ke supplier. Harga dasar adalah yang
+        TawafiqHub tagih ke travel — travel menambahkan markup sendiri di atasnya dan
+        tidak bisa mengubah angka ini. Produk tanpa salah satu dari keduanya tidak bisa dijual.
       </p>
       <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}>
         <input type="checkbox" checked={includeCosted} onChange={(e) => setIncludeCosted(e.target.checked)} />
-        Tampilkan juga yang sudah punya harga modal
+        Tampilkan juga yang sudah lengkap
       </label>
 
       {notice && <p style={{ color: "var(--color-emerald-800)", margin: 0 }}>{notice}</p>}
@@ -215,12 +234,12 @@ function SupplierCostsTab() {
 
       {loading ? <p style={{ color: "var(--color-warm-500)" }}>Memuat...</p> : products.length === 0 ? (
         <p style={{ color: "var(--color-warm-500)" }}>
-          {includeCosted ? "Belum ada produk." : "Semua produk sudah punya harga modal."}
+          {includeCosted ? "Belum ada produk." : "Semua produk sudah punya harga modal dan harga dasar."}
         </p>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={table}>
-            <thead><tr>{["Produk", "Travel", "Harga Jual", "Harga Modal", ""].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
+            <thead><tr>{["Produk", "Travel", "Harga Modal", "Harga Dasar", ""].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
             <tbody>
               {products.map((product) => (
                 <tr key={product.id} style={tr}>
@@ -229,7 +248,6 @@ function SupplierCostsTab() {
                     <small style={{ display: "block", color: "var(--color-warm-400)" }}>{product.category}{product.seasonName ? ` · ${product.seasonName}` : ""}</small>
                   </td>
                   <td style={td}>{product.operatorName}</td>
-                  <td style={td}>{rupiah(product.priceIdr)}</td>
                   <td style={td}>
                     {product.supplierCostSource === "OBSERVED" ? (
                       <span>
@@ -247,11 +265,30 @@ function SupplierCostsTab() {
                     )}
                   </td>
                   <td style={td}>
-                    {product.supplierCostSource !== "OBSERVED" && (
-                      <button style={saveButton} disabled={saving === product.id} onClick={() => save(product)}>
-                        {saving === product.id ? "..." : "Simpan"}
-                      </button>
+                    <input
+                      inputMode="numeric"
+                      placeholder={product.basePriceSet ? String(product.basePriceIdr) : "belum diatur"}
+                      value={baseDrafts[product.id] ?? ""}
+                      onChange={(e) => setBaseDrafts((d) => ({ ...d, [product.id]: e.target.value }))}
+                      style={costInput}
+                    />
+                    {!product.basePriceSet && (
+                      <small style={{ display: "block", color: "#b45309", fontWeight: 700, fontSize: 12 }}>
+                        belum bisa dijual
+                      </small>
                     )}
+                  </td>
+                  <td style={td}>
+                    <div style={{ display: "grid", gap: 6 }}>
+                      {product.supplierCostSource !== "OBSERVED" && (
+                        <button style={saveButton} disabled={saving === product.id} onClick={() => save(product)}>
+                          {saving === product.id ? "..." : "Simpan modal"}
+                        </button>
+                      )}
+                      <button style={saveButton} disabled={saving === product.id} onClick={() => saveBase(product)}>
+                        {saving === product.id ? "..." : "Simpan dasar"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
