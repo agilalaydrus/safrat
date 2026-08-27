@@ -48,8 +48,18 @@ func (r *AgentRepository) UpdateKYC(ctx context.Context, operatorID, agentID str
 	if err != nil {
 		return nil, err
 	}
+	// Sealed before it reaches the database, so the plaintext exists only in
+	// this process's memory and never in a table, a dump or a replica.
+	sealedNIK, err := sealKYC(input.NIK)
+	if err != nil {
+		return nil, err
+	}
+	sealedNPWP, err := sealKYC(input.NPWP)
+	if err != nil {
+		return nil, err
+	}
 	row, err := r.queries.UpdateAgentKyc(ctx, db.UpdateAgentKycParams{
-		ID: agentUUID, OperatorID: opUUID, Nik: input.NIK, Npwp: input.NPWP, Address: input.Address,
+		ID: agentUUID, OperatorID: opUUID, Nik: sealedNIK, Npwp: sealedNPWP, Address: input.Address,
 		DateOfBirth: pgDate(input.DateOfBirth), PassportNumber: input.PassportNumber, PassportExpiryDate: pgDate(input.PassportExpiryDate),
 		BankName: input.BankName, BankAccountNumber: input.BankAccountNumber, BankAccountHolder: input.BankAccountHolder,
 		KycStatus: "PENDING_REVIEW", KycSource: kycSource,
@@ -616,7 +626,7 @@ func toAgent(agent db.Agent, pilgrimCount int32) *domain.Agent {
 		ID: uuid.UUID(agent.ID.Bytes).String(), OperatorID: uuid.UUID(agent.OperatorID.Bytes).String(), Name: agent.Name, Phone: agent.Phone, Email: agent.Email,
 		CommissionRate: agent.CommissionRate, Notes: agent.Notes, IsActive: agent.IsActive, PilgrimCount: pilgrimCount, ReferralCode: agent.ReferralCode, Tier: agent.Tier,
 		ReferredByAgentID: referredBy, CreatedAt: agent.CreatedAt.Time, UpdatedAt: agent.UpdatedAt.Time,
-		NIK: agent.Nik, NPWP: agent.Npwp, Address: agent.Address, DateOfBirth: datePtr(agent.DateOfBirth), PassportNumber: agent.PassportNumber,
+		NIK: openKYC(agent.Nik), NPWP: openKYC(agent.Npwp), Address: agent.Address, DateOfBirth: datePtr(agent.DateOfBirth), PassportNumber: agent.PassportNumber,
 		PassportExpiryDate: datePtr(agent.PassportExpiryDate), BankName: agent.BankName, BankAccountNumber: agent.BankAccountNumber, BankAccountHolder: agent.BankAccountHolder,
 		KYCStatus: agent.KycStatus, KYCSource: agent.KycSource, KYCVerifiedBy: agent.KycVerifiedBy, KYCVerifiedAt: timestamptzPtr(agent.KycVerifiedAt), KYCRejectionReason: agent.KycRejectionReason,
 	}

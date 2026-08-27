@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { IconReceipt, IconWifiOff, IconArrowBackUp, IconExternalLink, IconFileText } from "@tabler/icons-react";
 import TransactionReceipt from "@/components/pilgrim/TransactionReceipt";
+import { CustomerServiceButton } from "@/components/support/CustomerServiceButton";
 import { PilgrimTransaction } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_app_pb";
 import { pilgrimAppClient } from "@/lib/rpc";
 import { cachedFetch } from "@/lib/offline";
@@ -124,10 +125,19 @@ export default function PilgrimTransactionsPage() {
                 </button>
 
                 {transaction.status === "HELD" && (
-                  <p style={heldNote}>
-                    Pembayaran Anda sudah diterima, tetapi nominalnya belum cocok dengan tagihan.
-                    Petugas travel sedang memeriksanya — dana Anda aman.
-                  </p>
+                  <div style={heldNote}>
+                    <span>
+                      Pembayaran Anda sudah diterima, tetapi nominalnya belum cocok dengan tagihan.
+                      Petugas travel sedang memeriksanya — dana Anda aman.
+                    </span>
+                    {/* Reachable from the transaction itself, with the receipt
+                        number already in the message: somebody chasing a
+                        problem should not have to find and retype it. */}
+                    <CustomerServiceButton
+                      variant="inline"
+                      context={`transaksi ${transaction.receiptNumber} (${transaction.productName})`}
+                    />
+                  </div>
                 )}
 
                 {transaction.refundedIdr > 0n && (
@@ -148,6 +158,7 @@ export default function PilgrimTransactionsPage() {
         </ul>
       )}
       <TransactionReceipt transaction={receipt} onClose={() => setReceipt(null)} />
+      <CustomerServiceButton context="riwayat transaksi saya" />
     </main>
   );
 }
@@ -167,6 +178,6 @@ const badge: React.CSSProperties = { padding: "4px 9px", borderRadius: 99, fontS
 const amountRow: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" };
 const payLink: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, minHeight: 40, padding: "0 14px", borderRadius: 8, background: "var(--color-gold-500)", color: "#fff", fontWeight: 700, fontSize: 14, textDecoration: "none" };
 const receiptButton: React.CSSProperties = { justifySelf: "start", minHeight: 40, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 14px", background: "transparent", color: "var(--color-emerald-900)", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600 };
-const heldNote: React.CSSProperties = { margin: 0, padding: 12, background: "var(--color-gold-50)", borderRadius: 8, color: "#b45309", fontSize: 13 };
+const heldNote: React.CSSProperties = { display: "grid", gap: 10, justifyItems: "start", margin: 0, padding: 12, background: "var(--color-gold-50)", borderRadius: 8, color: "#b45309", fontSize: 13 };
 const refundNote: React.CSSProperties = { display: "flex", gap: 8, alignItems: "flex-start", padding: 12, background: "#fff1f2", borderRadius: 8, color: "var(--color-danger-600)", fontSize: 14 };
 const empty: React.CSSProperties = { display: "grid", placeItems: "center", gap: 8, padding: "48px 20px", border: "1px dashed var(--color-cream-400)", borderRadius: 12, textAlign: "center" };

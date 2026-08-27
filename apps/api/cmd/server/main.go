@@ -14,6 +14,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/config"
+	"github.com/hajj-saas/api/internal/crypto"
 	"github.com/hajj-saas/api/internal/events"
 	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/hajj-saas/api/internal/gen/hajj/v1/hajjv1connect"
@@ -123,6 +124,21 @@ func main() {
 		subscriptionRepository := repository.NewSubscriptionRepository(pool)
 		ledgerRepository := repository.NewLedgerRepository(pool)
 		refundRepository := repository.NewRefundRepository(pool)
+		// Installed before anything can write an identity. Without a key, KYC
+		// writes fail loudly rather than storing an identity number in the
+		// clear — which would look like success and stay invisible until a
+		// breach made it obvious.
+		kycSealer, sealerErr := crypto.NewSealer(strings.TrimSpace(os.Getenv("KYC_ENCRYPTION_KEY")))
+		if sealerErr != nil {
+			logger.Error("read KYC_ENCRYPTION_KEY", "error", sealerErr)
+			os.Exit(1)
+		}
+		if kycSealer == nil {
+			logger.Warn("KYC identity numbers cannot be stored",
+				"reason", "KYC_ENCRYPTION_KEY is not set",
+				"effect", "submissions will be refused rather than saved unencrypted")
+		}
+		repository.SetKYCSealer(kycSealer)
 		platformRepository := repository.NewPlatformRepository(pool)
 		supplierCostRepository := repository.NewSupplierCostRepository(pool)
 		supplierRepository := repository.NewSupplierRepository(pool)

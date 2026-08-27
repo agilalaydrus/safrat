@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/hajj-saas/api/internal/crypto"
 	"github.com/hajj-saas/api/internal/events"
 	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/hajj-saas/api/internal/notification"
@@ -62,6 +63,14 @@ func main() {
 	journeyRepository := repository.NewJourneyRepository(queries)
 	orderRepository := repository.NewOrderRepository(queries)
 	fulfilmentRepository := repository.NewFulfilmentRepository(pool)
+	// The worker migrates legacy identities, so it needs the same key.
+	kycSealer, sealerErr := crypto.NewSealer(strings.TrimSpace(os.Getenv("KYC_ENCRYPTION_KEY")))
+	if sealerErr != nil {
+		logger.Error("read KYC_ENCRYPTION_KEY", "error", sealerErr)
+		os.Exit(1)
+	}
+	repository.SetKYCSealer(kycSealer)
+	kycRepository := repository.NewKYCRepository(pool)
 	supplierRepository := repository.NewSupplierRepository(pool)
 	supplierCostRepository := repository.NewSupplierCostRepository(pool)
 	productRepository := repository.NewProductRepository(queries, pool)
@@ -93,6 +102,7 @@ func main() {
 		strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGIN")))
 	paymentHandler := worker.NewPaymentHandler(logger, orderRepository, orderService)
 	fulfilmentService := service.NewFulfilmentService(fulfilmentRepository, supplierRepository, supplierCostRepository, orderRepository)
+	kycHandler := worker.NewKYCHandler(logger, kycRepository)
 	fulfilmentHandler := worker.NewFulfilmentHandler(logger, fulfilmentRepository, supplierRepository, fulfilmentService)
 	objectStorage, storageErr := storage.New(context.Background(), storage.ConfigFromEnv())
 	if storageErr != nil {
@@ -170,6 +180,14 @@ func main() {
 		logger.Error("register fulfilment dispatch schedule", "error", err)
 		os.Exit(1)
 	}
+	// Hourly, and normally finds nothing: identity numbers are written
+	// encrypted from the start, so this only ever picks up rows that predate
+	// that. Scheduled rather than run once because "run it after deploying" is
+	// an instruction somebody eventually does not follow.
+	if _, err := scheduler.Register("@every 1h", worker.NewKYCMigrateTask()); err != nil {
+		logger.Error("register KYC migration schedule", "error", err)
+		os.Exit(1)
+	}
 	if storefrontAssetHandler != nil {
 		if _, err := scheduler.Register("@every 1h", worker.NewStorefrontAssetGCTask()); err != nil {
 			logger.Error("register storefront asset cleanup schedule", "error", err)
@@ -195,6 +213,7 @@ func main() {
 	mux.HandleFunc(worker.TaskFulfilmentSweep, fulfilmentHandler.HandleSweep)
 	mux.HandleFunc(worker.TaskFulfilmentDispatch, fulfilmentHandler.HandleDispatch)
 	mux.HandleFunc(queue.TaskDispatchOne, fulfilmentHandler.HandleDispatchOne)
+	mux.HandleFunc(worker.TaskKYCMigrate, kycHandler.HandleMigrate)
 	if storefrontAssetHandler != nil {
 		mux.HandleFunc(worker.TaskStorefrontAssetGC, storefrontAssetHandler.HandleGC)
 	}

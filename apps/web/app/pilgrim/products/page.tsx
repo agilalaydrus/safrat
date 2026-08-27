@@ -7,6 +7,7 @@ import { Product } from "@hajj-saas/proto-gen/hajj/v1/product_pb";
 import { pilgrimAppClient, orderClient } from "@/lib/rpc";
 import { cachedFetch } from "@/lib/offline";
 import { usePilgrimCode } from "@/lib/pilgrim-context";
+import { CustomerServiceButton } from "@/components/support/CustomerServiceButton";
 
 const money = (n: bigint) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(n));
 
@@ -103,6 +104,7 @@ export default function PilgrimProductsPage() {
           </article>
         ))}
       </div>
+      <CustomerServiceButton context="pembelian produk" />
     </main>
   );
 }

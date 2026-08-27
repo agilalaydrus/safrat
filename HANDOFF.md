@@ -1170,6 +1170,59 @@ Two were **not**, and were closed during the audit.
   a person decides. That is deliberate: no automatic rule can tell that case
   apart from one where delivery genuinely happened.
 
+#### Done — PR 22: KYC encrypted and made a record of its own (migrations 106)
+
+Owner asked for encryption at rest for KYC, then added that **the data must be
+independent with a clear relation to the account, so it can be produced and
+checked on request.** The second requirement changed the shape, for the better.
+
+**KYC is its own record now.** It used to be columns scattered across `agents`
+and `pilgrims`: an identity was a property of whichever role record happened to
+hold it, and "whose identity is this" had no single answer. `kyc_records` names
+the account (`user_id`) and the role record it was collected against, so it can
+be produced by following one relation rather than reconstructed by guessing
+which table the person turned up in. A person holding two — an agent who is
+also a registered jamaah — keeps both, since collapsing them would hide exactly
+the connection somebody asking is trying to see.
+
+**Encrypted before it reaches a row.** AES-256-GCM, random nonce per value, key
+from `KYC_ENCRYPTION_KEY`. The same identity number never produces the same
+ciphertext, so equal values reveal nothing — which rules out searching by them,
+and nothing does. GCM also authenticates: a tampered value fails to open rather
+than decrypting to something plausible, and a wrong key fails loudly rather
+than silently corrupting every record it touches.
+
+**Without a key, KYC writes are refused rather than stored in the clear.** A
+fallback to plaintext because a variable was missing is the exact failure this
+prevents, and it would look like success until a breach made it obvious. The
+rest of the application still starts and works.
+
+**Legacy plaintext is moved by a Go task, not a SQL backfill.** The key lives in
+the process, not the database, so SQL could only copy plaintext into the new
+table and leave it there "until something came along" — which is how
+unencrypted identity numbers survive for years. Each record is moved and its old
+column cleared in one transaction, so no row ever holds it twice or not at all.
+Scheduled hourly rather than run once, because "run this after deploying" is an
+instruction somebody eventually does not follow.
+
+**Operational warning, in `.env.example` too:** losing the key means losing
+every number encrypted with it — there is no recovery path, by design. It must
+be backed up *separately from the database backups*, or the two together defeat
+the purpose.
+
+Verified: what is submitted is not readable in the table, reads round-trip,
+lookup by account works, resubmitting clears a prior verification (a
+verification applies to what was checked, not to what replaced it), and the
+legacy move leaves nothing behind and does nothing on a second pass.
+
+#### Done — a customer service route
+
+`CustomerServiceButton` on the jamaah's transaction history and product pages,
+opening WhatsApp to 0812-8303-1003 with the receipt number already in the
+message. Placed where money moves rather than in a settings page: the moment
+somebody needs it is the moment a payment failed, and asking them to go looking
+then is asking them to give up.
+
 #### Open — ordered
 
 Items 1, 3, 4 and 5 of the original list are done (see PR sections above).
