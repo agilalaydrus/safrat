@@ -2335,15 +2335,32 @@ Refund/gagal/kedaluwarsa mengembalikan kuota, dalam satu statement yang
 sekaligus menghapus capnya — jadi idempoten di tiga jalur settlement dan sweep
 tanpa perlu koordinasi.
 
-### Yang perlu keputusanmu: retensi
+### Retensi: 3 hari (sudah diputuskan dan dikerjakan)
 
-`daily_digital_spend` tumbuh satu baris per akun per hari, **tanpa batas**.
-Ia tidak bisa dijangkau cascade: `buyer_id` polimorfik (jamaah atau agen),
-jadi tidak ada foreign key tunggal yang bisa menutupinya.
+Owner memutuskan 3 hari, dengan siklus backup dan shrink database menyusul.
 
-Baris yang lebih tua dari hari ini tidak lagi dipakai untuk penegakan, tapi
-berguna sebagai riwayat belanja. Berapa lama disimpan itu keputusanmu — kalau
-sudah diputuskan, purge-nya bisa masuk sweep worker yang sudah ada.
+Batasnya, disebut eksplisit karena "3 hari" ambigu: baris dihapus begitu
+tanggalnya lebih dari tiga hari di belakang hari ini — jadi hari ini plus tiga
+hari sebelumnya yang disimpan.
+
+**Penghapusnya bukan privilege, tapi fungsi `SECURITY DEFINER`.** Migrasi 115
+mencabut DELETE pada tabel ini dari role aplikasi karena menghapus satu baris
+mengembalikan kuota harian penuh — dan kebutuhan akan purge tidak membuat itu
+jadi kurang benar. Jadi `purge_daily_digital_spend(keep_days)` menyimpan cutoff
+di dalam dirinya: aplikasi bisa meminta baris kedaluwarsa dihapus dan tidak
+bisa menjangkau apa pun selain itu.
+
+- `keep_days` di-clamp minimal 1, jadi pemanggil yang meminta "jangan simpan
+  apa pun" tetap tidak bisa menghapus hari ini.
+- `search_path` dipatok — fungsi definer tanpa itu adalah cara menjalankan kode
+  sebagai pemiliknya.
+- Diuji sebagai role `safrat_app` terhadap database sungguhan: DELETE langsung
+  ditolak, panggilan fungsi berhasil, baris hari ini selamat dari purge dengan
+  `keep_days=0`.
+
+Task-nya berjalan **tiap jam**, bukan harian: job harian yang terlewat karena
+worker sedang restart menunggu sehari penuh, dan menjalankan ini terhadap nol
+baris tidak berbiaya.
 
 ### Database uji
 
