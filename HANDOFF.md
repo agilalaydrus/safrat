@@ -2427,3 +2427,66 @@ gagal diam-diam setiap run karena errornya dibuang.
   layar yang memanggilnya, jadi produk platform masih dibuat lewat SQL.
 - Produk digital per-travel yang lama **di-grandfather** (`NOT VALID`), bukan
   dihapus — order menunjuk ke sana. Migrasikan manual setelah ordernya lewat.
+
+---
+
+## Layar katalog platform + verifikasi browser (selesai)
+
+Katalog platform sekarang punya layarnya: tab **Katalog** di `/admin`. Sebelum
+ini RPC-nya jalan tapi tidak ada yang bisa menjangkaunya — produk platform hanya
+bisa dibuat lewat SQL.
+
+Daftarnya pakai RPC sendiri (`ListPlatformCatalogue`), bukan memfilter antrean
+harga modal lintas-tenant di klien. Yang kedua bekerja sampai katalognya
+melewati batas 500 baris, lalu diam-diam mulai menyembunyikan baris.
+
+### Yang hanya ditemukan browser
+
+1. **API harus dibangun ulang** — handler-nya ada di source, tidak ada di biner
+   yang berjalan, dan layarnya menampilkan `[unimplemented] HTTP 404`. Suite Go
+   yang hijau tidak mengatakan apa pun tentang apa yang sedang mendengarkan.
+2. **Asersi rupiah saya salah** — `Intl` menaruh spasi non-breaking setelah
+   simbol, jadi layar merender `Rp 10.500` dan tes mencari `Rp10.500`. UI-nya
+   benar, tesnya yang salah.
+3. **Fixture E2E `portal-screens`** masih membuat produk digital milik travel —
+   kelas yang sama dengan fixture Go yang sudah diperbaiki, tapi terlewat.
+
+### Tiga spec yang ternyata sudah rusak
+
+`storefront-cms` dan kedua spec audio gagal **sejak 2FA diwajibkan**
+(commit `bfbd0a9`). Ketiganya menggerakkan layar staf tapi tidak pernah diberi
+langkah pendaftaran 2FA, jadi setiap tes di dalamnya mendarat di halaman
+enrolment. Kerusakan diam itu menyembunyikan regresi nyata di tes upload CMS.
+
+Pasangan enrol/restore sekarang dibagi dari `fixture.ts`, karena ia **hanya
+bekerja sebagai pasangan**: akun yang sudah enrol tidak bisa login lagi (Better
+Auth menjawab tantangan TOTP, bukan sesi), jadi lupa memulihkannya membuat run
+berikutnya menyimpan storage state kosong.
+
+### Belum selesai: offline-pwa
+
+**Masih gagal, dan saya tidak memperbaikinya.** Yang sudah saya pastikan:
+
+- manifest precache berisi rute yang dicari tes (`/leader`, `/leader/check-in`, …)
+- setiap aset yang didaftarkannya menjawab 200
+- service worker-nya aktif
+
+Tapi cache-nya terbaca kosong. Itu kegagalan instalasi saat runtime yang butuh
+konsol browser untuk didiagnosis. Tidak satu pun pekerjaan di sini menyentuh
+service worker, jadi ini dilaporkan, bukan diklaim.
+
+### Menjalankan E2E
+
+Butuh **dua** server: dev di `:3131` (dipakai setup dan hampir semua proyek) dan
+build produksi di `:3141` untuk `offline-pwa` — Serwist dinonaktifkan di bawah
+Turbopack. Build-nya `output: standalone`, jadi `next start` **tidak** cocok:
+
+```
+node .next/standalone/apps/web/server.js   # PORT=3141
+```
+
+`public/` dan `.next/static` harus disalin ke dalam direktori standalone dulu.
+
+**Jangan `rm -rf .next` selagi dev server berjalan** — saya melakukannya dan
+mematikan server yang sedang dipakai setup, yang muncul sebagai
+"fixture sign-in failed (500)" dan terlihat seperti bug autentikasi.
