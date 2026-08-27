@@ -2233,3 +2233,58 @@ Konsekuensi yang harus dipertahankan siapa pun yang melanjutkan:
 `pilgrim_id` sudah saya ubah jadi `RESTRICT` — cascade-nya akan menghancurkan
 seluruh riwayat transaksi satu jamaah. Menghapus satu tenant utuh adalah
 keputusan berbeda dan butuh tujuan arsip dulu sebelum delete-nya bisa ditolak.
+
+---
+
+## Layar harga & markup (selesai)
+
+Sampai commit ini, harga berlapis hanya bisa diubah lewat SQL langsung. Sekarang
+dua level itu punya pemiliknya masing-masing, dan sengaja dipisah:
+
+- **Travel** — `/dashboard/products/harga`. Mengatur `operator_markup_idr` dan
+  `agent_markup_idr`. Melihat harga dasar tapi tidak bisa mengubahnya.
+- **Platform** — tab Produk di `/admin`. Mengatur `base_price_idr`, di sebelah
+  harga modal supplier. Scoped by product id saja, bukan per operator: ini harga
+  yang travel *bayar*, dan travel yang bisa mengubahnya bisa menjual di bawah
+  yang ditagihkan ke mereka.
+
+### Yang harus dipertahankan
+
+**Harga dihitung setiap kali dibaca, tidak pernah disimpan.** Harga tersimpan
+adalah salinan dari turunan; begitu level di bawahnya bergeser, dua angka
+berselisih dan tidak ada yang bisa bilang mana yang jadi hak pelanggan.
+
+**Kelayakan jual diputuskan dengan menjalankan gate checkout yang asli**
+(`pricePilgrimOrder` / `priceAgentOrder`), bukan dengan menyalin syaratnya ke
+layar. Layar yang punya pendapat sendiri akan menyimpang, dan penyimpangannya
+baru terlihat saat pelanggan sudah mencoba bayar.
+`TestPricingScreenAgreesWithCheckout` menjaganya di lima konfigurasi.
+
+**Respons `SetProductMarkup` membaca ulang dari database**, bukan menggemakan
+request. Menghitung dari yang baru dikirim akan menampilkan input pemakai
+sebagai hasil — termasuk saat harga dasarnya kosong dan produknya tetap tidak
+bisa dijual.
+
+### Dua hal yang ikut berubah
+
+Antrean celah platform sekarang memunculkan produk yang **kekurangan harga
+dasar**, bukan hanya yang kekurangan harga modal. Sebelumnya ia melaporkan
+"semua beres" sementara produk terdiam tak bisa dijual.
+
+Kolom "Harga Jual" lama dihapus dari tab admin. Dengan pembagian yang sudah
+dibalik, itu angka tersimpan yang tidak lagi jadi dasar harga siapa pun —
+membiarkannya berarti menampilkan harga yang tampak otoritatif padahal tidak
+ada pembeli yang membayarnya.
+
+### Artefak build
+
+`apps/api/server` (26 MB) dan `apps/web/tsconfig.tsbuildinfo` tidak lagi
+dilacak. **Keduanya tetap ada di riwayat** — binernya ada di setiap commit sejak
+commit pertama dan sudah ada di `origin`, jadi objeknya menetap. Mengeluarkannya
+berarti menulis ulang riwayat yang sudah dipublikasikan.
+
+### Belum dikerjakan
+
+Antrean berikutnya tidak berubah: PPOB menolak checkout tanpa routing aktif,
+batas Rp20 juta per akun per hari, lalu katalog produk digital pindah ke
+kepemilikan platform.

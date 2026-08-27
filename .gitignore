@@ -35,3 +35,10 @@ apps/web/e2e/.auth/
 # something to carry in the repository.
 apps/web/e2e/.screens/
 apps/web/e2e/tsconfig.tsbuildinfo
+
+# Compiled Go binary — build output, never a source artefact.
+apps/api/server
+
+# TypeScript incremental build state. Machine-specific and rewritten on every
+# build, so tracking it produces a conflict on every parallel change.
+*.tsbuildinfo
