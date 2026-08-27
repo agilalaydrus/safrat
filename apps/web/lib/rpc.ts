@@ -19,6 +19,7 @@ import { LostReportService } from "@hajj-saas/proto-gen/hajj/v1/lost_report_conn
 import { NotificationService } from "@hajj-saas/proto-gen/hajj/v1/notification_connect";
 import { OperatorService } from "@hajj-saas/proto-gen/hajj/v1/operator_connect";
 import { OrderService } from "@hajj-saas/proto-gen/hajj/v1/order_connect";
+import { PlatformService } from "@hajj-saas/proto-gen/hajj/v1/platform_connect";
 import { PilgrimAppService } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_app_connect";
 import { PilgrimService } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_connect";
 import { ProductService } from "@hajj-saas/proto-gen/hajj/v1/product_connect";
@@ -52,6 +53,8 @@ export const kloterClient = createClient(KloterService, transport);
 export const journeyClient = createClient(JourneyService, transport);
 export const identityClient = createClient(IdentityService, transport);
 export const orderClient = createClient(OrderService, transport);
+// TawafiqHub's own admin surface, above every operator — see /admin.
+export const platformClient = createClient(PlatformService, transport);
 export const broadcastClient = createClient(BroadcastService, transport);
 export const registrationClient = createClient(RegistrationService, transport);
 export const waitlistClient = createClient(WaitlistService, transport);

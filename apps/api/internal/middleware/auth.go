@@ -123,6 +123,19 @@ var sessionOnlyProcedures = map[string]bool{
 	// session's own pilgrim, and takes the pilgrim id from the session rather
 	// than the request.
 	"/hajj.v1.PilgrimAppService/ListMyTransactions": true,
+	// PlatformService — TawafiqHub's own admin surface. Session-only because a
+	// platform admin is a Better Auth user who need not belong to any operator;
+	// requiring org membership would force platform staff into somebody's
+	// tenant to do platform work.
+	//
+	// This grants *reachability*, not access. Every method except
+	// AmIPlatformAdmin calls requirePlatformAdmin, which checks the
+	// platform_admins table on each request. AmIPlatformAdmin answers only
+	// about the caller, so any signed-in user may ask.
+	"/hajj.v1.PlatformService/AmIPlatformAdmin":        true,
+	"/hajj.v1.PlatformService/ListOperators":           true,
+	"/hajj.v1.PlatformService/ListProductsNeedingCost": true,
+	"/hajj.v1.PlatformService/SetProductSupplierCost":  true,
 }
 
 // restrictedMemberProcedures lists RPCs a "restricted member" — an org

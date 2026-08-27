@@ -619,6 +619,53 @@ all of them, and inventing a floor would be worse than admitting there is none.
 supplier fulfilment path, which does not exist — see the digital catalogue note
 above. The manual side has no UI yet either.
 
+#### Done — PR 14: TawafiqHub platform admin panel (migration 099)
+
+Owner: *"harus ada 1 side lagi untuk ADMIN Tawafiqhub, agar ... setting yang
+bisa dari web-based, bisa dilakukan dari web tidak harus lewat terminal."*
+
+TawafiqHub had no identity in this system. Every user belongs to an operator,
+and operator staff are confined to their own tenant — correctly, but it left
+platform work with nowhere to happen except a terminal on the VPS.
+
+**Access is a row, not a flag.** `platform_admins` is keyed by Better Auth user
+id, with no self-service path to it. Granting is a deliberate INSERT by someone
+with database access — which is the point: the panel it unlocks is what removes
+the need for database access for everything else.
+
+Not a column on Better Auth's `"user"`: Better Auth owns and migrates that
+table, and platform access is the widest privilege here, so it should be
+something somebody has to add on purpose rather than a boolean any code path
+touching a user could flip.
+
+**The authorisation check is the security-critical part**, and it is deliberately
+visible at the top of each method rather than hidden in an interceptor. Nothing
+in `PlatformService` is tenant-scoped — that is what makes it the platform's
+view — so `requirePlatformAdmin` is the only thing between a signed-in operator
+user and every other tenant's data. It reads the table on every request: a
+revocation bites on the next call, which is worth far more than a cache.
+
+`AmIPlatformAdmin` is the exception, callable by any signed-in user, because it
+answers only about the caller — the web app needs it to decide whether to show
+the panel without first calling something it may not be allowed to call.
+
+Verified over real HTTP, through the real interceptor: no session →
+`unauthenticated`; a **genuine operator owner's session** → `permission_denied`;
+granted → works; revoked → refused again on the very next request.
+
+**`/admin` gives two things today:**
+
+- **Travel** — every tenant with plan, subscription status, pilgrim and product
+  counts, and the number of transactions sitting in `HELD`. That last one is
+  otherwise invisible unless an operator happens to look at their own orders.
+- **Harga Modal** — the manual side of PR 13, which had no UI. Products with no
+  supplier cost are listed first, since those sell with no price floor beneath
+  them. A cost observed from a supplier cannot be overwritten here, and the
+  panel says so rather than failing opaquely.
+
+**To grant the first admin** (there is no other way, by design):
+`INSERT INTO platform_admins (user_id, note) VALUES ('<better-auth-user-id>', 'founder');`
+
 #### Open — ordered
 
 1. **Duplicate orders.** `CreateOrder` has no idempotency key and `orders` has

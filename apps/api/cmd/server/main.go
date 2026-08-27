@@ -122,6 +122,8 @@ func main() {
 		subscriptionRepository := repository.NewSubscriptionRepository(pool)
 		ledgerRepository := repository.NewLedgerRepository(pool)
 		refundRepository := repository.NewRefundRepository(pool)
+		platformRepository := repository.NewPlatformRepository(pool)
+		supplierCostRepository := repository.NewSupplierCostRepository(pool)
 
 		// Gate for Caddy's on-demand TLS. Caddy asks before obtaining a
 		// certificate for a hostname it has never seen; answering 200 here is
@@ -230,7 +232,9 @@ func main() {
 		notificationHandler := handler.NewNotificationHandler(notificationService)
 		kloterHandler := handler.NewKloterHandler(kloterService)
 		identityHandler := handler.NewIdentityHandler(identityService)
+		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, auditRepository)
 		orderHandler := handler.NewOrderHandler(orderService)
+		platformHandler := handler.NewPlatformHandler(platformService)
 		broadcastHandler := handler.NewBroadcastHandler(broadcastService)
 		registrationHandler := handler.NewRegistrationHandler(registrationService)
 		waitlistHandler := handler.NewWaitlistHandler(waitlistService)
@@ -272,6 +276,7 @@ func main() {
 		kloterPath, kloterServiceHandler := hajjv1connect.NewKloterServiceHandler(kloterHandler, handlerOptions...)
 		identityPath, identityServiceHandler := hajjv1connect.NewIdentityServiceHandler(identityHandler, handlerOptions...)
 		orderPath, orderServiceHandler := hajjv1connect.NewOrderServiceHandler(orderHandler, handlerOptions...)
+		platformPath, platformServiceHandler := hajjv1connect.NewPlatformServiceHandler(platformHandler, handlerOptions...)
 		broadcastPath, broadcastServiceHandler := hajjv1connect.NewBroadcastServiceHandler(broadcastHandler, handlerOptions...)
 		registrationPath, registrationServiceHandler := hajjv1connect.NewRegistrationServiceHandler(registrationHandler, handlerOptions...)
 		waitlistPath, waitlistServiceHandler := hajjv1connect.NewWaitlistServiceHandler(waitlistHandler, handlerOptions...)
@@ -305,6 +310,7 @@ func main() {
 		mux.Handle(kloterPath, kloterServiceHandler)
 		mux.Handle(identityPath, identityServiceHandler)
 		mux.Handle(orderPath, orderServiceHandler)
+		mux.Handle(platformPath, platformServiceHandler)
 		mux.Handle(broadcastPath, broadcastServiceHandler)
 		mux.Handle(registrationPath, registrationServiceHandler)
 		mux.Handle(waitlistPath, waitlistServiceHandler)

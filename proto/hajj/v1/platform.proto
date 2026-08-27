@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// PlatformService is TawafiqHub's own administrative surface, above every
+// operator rather than inside one.
+//
+// It exists so platform work — supplier costs, looking across tenants — stops
+// needing a terminal on the VPS. Every method requires a platform admin, which
+// is a row in platform_admins granted deliberately at the database, not a role
+// any operator can reach. Operator staff, however senior in their own
+// organisation, get PermissionDenied here.
+//
+// Every method is unscoped by design: that is what makes this the platform's
+// view rather than a tenant's, and exactly why the authorisation check is the
+// most security-critical code in this service.
+service PlatformService {
+  // AmIPlatformAdmin lets the web app decide whether to show the panel at all,
+  // without having to call a method it may not be allowed to call. Reachable
+  // by any signed-in user; it answers about the caller and nobody else.
+  rpc AmIPlatformAdmin(AmIPlatformAdminRequest) returns (AmIPlatformAdminResponse);
+
+  // ListOperators is every tenant on the platform, with the figures that
+  // matter for running it.
+  rpc ListOperators(ListPlatformOperatorsRequest) returns (ListPlatformOperatorsResponse);
+
+  // ListProductsNeedingCost surfaces products with no supplier cost recorded.
+  // Those sell with no price floor beneath them, so this is the queue that
+  // makes the floor real rather than theoretical.
+  rpc ListProductsNeedingCost(ListProductsNeedingCostRequest) returns (ListProductsNeedingCostResponse);
+
+  // SetProductSupplierCost records a cost by hand. Refuses to overwrite a cost
+  // observed from a supplier's own response — what was actually charged
+  // outranks what somebody typed.
+  rpc SetProductSupplierCost(SetProductSupplierCostRequest) returns (SetProductSupplierCostResponse);
+}
+
+message AmIPlatformAdminRequest {}
+message AmIPlatformAdminResponse { bool is_platform_admin = 1; }
+
+message PlatformOperator {
+  string id = 1;
+  string name = 2;
+  string slug = 3;
+  string plan = 4;
+  string subscription_status = 5;
+  google.protobuf.Timestamp access_until = 6;
+  int32 pilgrim_count = 7;
+  int32 product_count = 8;
+  // Transactions sitting in HELD across this operator — money that arrived and
+  // is waiting on somebody's decision.
+  int32 held_order_count = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message ListPlatformOperatorsRequest {}
+message ListPlatformOperatorsResponse { repeated PlatformOperator operators = 1; }
+
+message PlatformProduct {
+  string id = 1;
+  string operator_id = 2;
+  string operator_name = 3;
+  string season_name = 4;
+  string name = 5;
+  string category = 6;
+  int64 price_idr = 7;
+  int64 supplier_cost_idr = 8;
+  // MANUAL, OBSERVED, or empty when nothing is known.
+  string supplier_cost_source = 9;
+  google.protobuf.Timestamp supplier_cost_updated_at = 10;
+}
+
+message ListProductsNeedingCostRequest {
+  // When false, only products with no cost at all are returned — the ones
+  // selling with no floor. When true, everything, for reviewing costs that are
+  // known but may be stale.
+  bool include_costed = 1;
+}
+message ListProductsNeedingCostResponse { repeated PlatformProduct products = 1; }
+
+message SetProductSupplierCostRequest {
+  string product_id = 1 [(buf.validate.field).string.uuid = true];
+  int64 supplier_cost_idr = 2 [(buf.validate.field).int64.gte = 0];
+}
+message SetProductSupplierCostResponse { PlatformProduct product = 1; }
