@@ -694,6 +694,92 @@ docker compose -f docker-compose.prod.yml exec postgres \
 
 ---
 
+## 12b. Cutting the app over to the least-privilege database role
+
+The application currently connects as the database superuser. That makes the
+append-only ledgers weaker than they look: a superuser can disable the triggers
+with one statement, or drop the tables. "Ledger entries cannot be edited" is
+only true of code that plays along.
+
+Migration `100` creates a `safrat_app` role that holds `SELECT, INSERT` on the
+four money tables and full DML everywhere else. Measured against this schema,
+as that role:
+
+| Attempt | Result |
+| --- | --- |
+| `UPDATE agent_commission_entries` | refused — no privilege |
+| `DELETE FROM pilgrim_balance_entries` | refused — no privilege |
+| `ALTER TABLE ... DISABLE TRIGGER ALL` | refused — not the owner |
+| `DROP TABLE` | refused — not the owner |
+| `ON DELETE CASCADE` from an operator | still works |
+
+That last row cuts both ways, and is why both controls are kept. Cascades keep
+working, so tenant teardown is unaffected — but it also means privileges alone
+would let ledger rows be removed indirectly by deleting a parent row. The
+append-only trigger stops that, and this role cannot switch it off. Neither
+control is sufficient on its own.
+
+**The cutover is manual, and separate from the deploy**, because it changes
+what the application authenticates as.
+
+1. **Give the role a password.** It is created `NOLOGIN` so no password ever
+   sits in a migration file or in git.
+   ```bash
+   docker compose -f docker-compose.prod.yml --env-file .env.prod exec postgres \
+     psql -U safrat -d safrat -c \
+     "ALTER ROLE safrat_app LOGIN PASSWORD 'PASTE_A_LONG_RANDOM_PASSWORD';"
+   ```
+
+2. **Check it can do the work before trusting it with the work.** Run this as
+   the new role; it should report `INSERT,SELECT` for all four money tables:
+   ```bash
+   docker compose -f docker-compose.prod.yml --env-file .env.prod exec postgres \
+     psql -U safrat -d safrat -Atc \
+     "SELECT table_name || ' -> ' || string_agg(privilege_type, ',' ORDER BY privilege_type)
+      FROM information_schema.table_privileges
+      WHERE grantee = 'safrat_app'
+        AND table_name IN ('agent_commission_entries','pilgrim_balance_entries',
+                           'order_refunds','supplier_cost_observations')
+      GROUP BY table_name ORDER BY table_name;"
+   ```
+
+3. **Point only the application at it.** In `.env.prod`, change `PGUSER`/
+   `PGPASSWORD` to the new role. **Leave goose and `npx auth migrate` running as
+   `safrat`** — migrations need to own and alter tables, which is exactly the
+   power the app is giving up. `deploy.yml` runs goose in its own container with
+   its own credentials, so check that step still uses the owner.
+
+4. **Restart and watch.** A missing grant surfaces as `permission denied for
+   table ...` in the API logs, not as silent misbehaviour.
+   ```bash
+   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps api worker
+   docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f --tail=100 api
+   ```
+
+**Rollback** is one line — point `PGUSER`/`PGPASSWORD` back at `safrat` and
+restart. Nothing about the schema changes, so there is nothing to undo.
+
+### Catching a money table that forgot its revoke
+
+New tables inherit full DML by default, deliberately: a forgotten grant would
+take the application down, while a forgotten revoke only weakens a guarantee.
+So the revoke has to be checked rather than assumed. This lists every table the
+app can still modify — anything money-shaped appearing here needs a `REVOKE
+UPDATE, DELETE` in the migration that created it:
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec postgres \
+  psql -U safrat -d safrat -Atc \
+  "SELECT DISTINCT table_name FROM information_schema.table_privileges
+   WHERE grantee = 'safrat_app' AND privilege_type IN ('UPDATE','DELETE')
+     AND (table_name LIKE '%ledger%' OR table_name LIKE '%entries%'
+          OR table_name LIKE '%payout%' OR table_name LIKE '%refund%'
+          OR table_name LIKE '%observation%')
+   ORDER BY table_name;"
+```
+
+Empty output is the healthy answer.
+
 ## 13. Security Checklist Before Go-Live
 
 Full hashing/encryption audit run 2026-08-16, covering password storage,

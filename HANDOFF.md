@@ -719,6 +719,84 @@ or jamaah should be required to enrol is still a decision — `AuthForm` is the
 single sign-in surface for every role, so requiring it there would put an
 authenticator app between a jamaah and their schedule.
 
+#### Owner's decisions, 2026-08-27 — read before touching any of the below
+
+These are rulings, not preferences. Several of them invalidate assumptions
+baked into code that already exists, so they are recorded verbatim in intent.
+
+1. **An agent buying on their own account earns no commission at all** — not to
+   themselves, and not to the agent above them. Reason given: agents already
+   buy at a special cost price from TawafiqHub, so a commission on top would be
+   paying twice. This *simplifies* the agent-as-buyer work: no referral lookup
+   on that path, commission is flatly zero.
+
+2. **Digital products are managed by TawafiqHub, but each travel sets its own
+   markup** on top of TawafiqHub's cost — separately for their agents and for
+   their jamaah. So price is layered: platform cost → travel markup → agent
+   price → jamaah price.
+
+   **The referral tree is up to 9 levels deep.** Sideways is unlimited.
+
+   *This is the big one.* Today `orders.agent_id` names a single referrer and
+   one commission entry is written. A 9-level tree means one sale produces a
+   *chain* of commission entries, and the current shape cannot express it. The
+   ledger itself copes — it is already append-only entries keyed per agent —
+   but attribution, the split calculation, and every "commission for this
+   order" read assume exactly one earner. Budget for this properly; it is not
+   an increment on PR 6.
+
+3. **Two-factor applies to travel staff and jamaah too**, not only platform
+   admins, because both will be transacting. Currently only platform access
+   requires it (PR 15). Note the consequence already flagged: `AuthForm` is the
+   single sign-in surface for every role, so this puts an authenticator app
+   between a jamaah and their schedule. Owner has decided that trade is worth
+   it.
+
+4. **The admin side needs a real management architecture**, not the two tabs it
+   has now: product management, price management, product routing, supplier
+   response and callback handling (accept, parse by regex, update status from
+   it), log management, user/account management, and transaction management
+   (monitoring and operations).
+
+5. **Receipts must be previewable by every user who transacted**, from their own
+   transaction history, and printable or saveable as PDF. Not operator-only.
+
+6. **Least-privilege database role** — done, see PR 16 below.
+
+7. **Browser rendering** — still not done. Nothing built in this run has been
+   looked at.
+
+#### Done — PR 16: least-privilege database role (migration 100)
+
+The app connected as the database superuser, which made the append-only
+guarantee weaker than it looked: a superuser can disable the triggers with one
+statement, or drop the tables. The rule held only for code that played along.
+
+`safrat_app` holds `SELECT, INSERT` on the four money tables
+(`agent_commission_entries`, `pilgrim_balance_entries`, `order_refunds`,
+`supplier_cost_observations`) and full DML everywhere else.
+
+**Measured against the real schema, not assumed.** As that role: `UPDATE` on a
+ledger refused; `DELETE` refused; `ALTER TABLE ... DISABLE TRIGGER` refused
+(not the owner); `DROP TABLE` refused; and **`ON DELETE CASCADE` from a parent
+still works**.
+
+That last result is the one worth understanding. Referential actions bypass
+privilege checks, so cascades keep working and tenant teardown is unaffected —
+but it also means privileges alone would allow ledger rows to be removed
+indirectly by deleting an operator. The append-only trigger stops that, and
+this role cannot switch it off. **The two controls cover each other's gap;
+neither is sufficient alone**, which is why both are kept.
+
+New tables inherit full DML by default, deliberately: a forgotten grant would
+take the application down, while a forgotten revoke only weakens a guarantee.
+DEPLOY.md §12b carries an audit query to catch money tables that forgot theirs.
+
+**Cutover is manual and not yet done.** The role is created `NOLOGIN` so no
+password is ever in git. Steps, verification and a one-line rollback are in
+DEPLOY.md §12b. Migrations must keep running as `safrat` — they need to own and
+alter tables, which is exactly the power the app is giving up.
+
 #### Open — ordered
 
 Items 1, 3, 4 and 5 of the original list are done (see PR sections above).
