@@ -449,8 +449,7 @@ Held orders surface as "Perlu Ditinjau" in the dashboard and "Sedang Diperiksa"
 on the jamaah's page, in amber rather than red — the money is not lost, and the
 jamaah is told so.
 
-**Not built yet:** there is no UI to *resolve* a hold (accept it, or refund it
-back). Today it needs a human with database access. That is the next piece.
+**Resolving a hold** landed in PR 12, below.
 
 #### Done — PR 9: stop trusting the webhook
 
@@ -552,6 +551,31 @@ The API contract changed with it: the old `double *_margin_pct` fields are
 `reserved` and replaced by `int32 *_margin_bps`. The dashboard form still works
 in whole percent, because that is how operators think, and converts at the
 boundary. Nothing else in the web app referenced margins at all.
+
+#### Done — PR 12: resolving a held transaction
+
+`HELD` was a dead end: only someone with database access could clear it.
+`ResolveHeldOrder` gives it two exits, from the dashboard's Tinjau action.
+
+- **Terima** — the operator attests the difference was settled another way
+  (cash at the counter, a top-up, or a shortfall they chose to waive). The
+  order becomes `PAID`, so the commission settles and becomes payable. Nothing
+  outside the system confirms that attestation, which is why it is always
+  audit-logged with who decided it and the exact discrepancy accepted.
+- **Tolak** — the order becomes `FAILED` and the commission recognised at
+  placement is reversed. The money goes back outside the system, like every
+  other refund here.
+
+Only a `HELD` order moves, enforced in the UPDATE itself, so a repeated click
+resolves nothing twice. `held_reason` is kept rather than cleared: why it was
+held is part of the record.
+
+`paid_amount_idr` and `held_reason` are now on the `Order` message, so the
+dialog can show the bill against what actually arrived and name the shortfall.
+
+Verified: accepting settles and makes the commission payable; rejecting closes
+it and returns the commission to zero; and a resolved transaction cannot be
+resolved a second time.
 
 #### Open — ordered
 

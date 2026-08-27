@@ -577,3 +577,87 @@ func TestPollingSettlesATransactionWhoseWebhookNeverArrivedIntegration(t *testin
 		}
 	}
 }
+
+// A held transaction must be resolvable from the application. Before this it
+// was a dead end that needed someone with database access.
+func TestResolvingAHeldTransactionIntegration(t *testing.T) {
+	ctx := context.Background()
+	ledger := func(f *referralFixture) *repository.LedgerRepository { return repository.NewLedgerRepository(f.pool) }
+
+	hold := func(t *testing.T, f *referralFixture) string {
+		t.Helper()
+		response, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
+			AppAccessCode: f.accessCode(t), ProductId: f.productID, Quantity: 1,
+			IdempotencyKey: uuid.NewString(),
+		})
+		if err != nil {
+			t.Fatalf("checkout: %v", err)
+		}
+		var invoiceID string
+		if err := f.pool.QueryRow(ctx, `SELECT xendit_invoice_id FROM orders WHERE id = $1`, response.Order.Id).Scan(&invoiceID); err != nil {
+			t.Fatalf("read invoice id: %v", err)
+		}
+		if err := f.orders.SettlePayment(ctx, invoiceID, referralPrice-50_000); err != nil {
+			t.Fatalf("settle short: %v", err)
+		}
+		return response.Order.Id
+	}
+
+	t.Run("accepting settles it and the commission becomes payable", func(t *testing.T) {
+		f := newReferralFixture(t)
+		orderID := hold(t, f)
+
+		order, err := f.orders.ResolveHeldOrder(ctx, f.orgID, "staff-1", &hajjv1.ResolveHeldOrderRequest{
+			OrderId: orderID, Resolution: hajjv1.HeldOrderResolution_HELD_ORDER_RESOLUTION_ACCEPT,
+			Note: "kekurangan dibayar tunai",
+		})
+		if err != nil {
+			t.Fatalf("accept: %v", err)
+		}
+		if order.Status != "PAID" {
+			t.Fatalf("status = %s after accepting, want PAID", order.Status)
+		}
+		summary, err := repository.NewAgentRepository(db.New(f.pool)).GetPayoutSummary(ctx, f.operatorID, f.referrer)
+		if err != nil {
+			t.Fatalf("summary: %v", err)
+		}
+		if summary.SettledCommissionIDR != 600_000 {
+			t.Fatalf("settled commission = %d after accepting, want 600000", summary.SettledCommissionIDR)
+		}
+	})
+
+	t.Run("rejecting closes it and takes the commission back", func(t *testing.T) {
+		f := newReferralFixture(t)
+		orderID := hold(t, f)
+
+		order, err := f.orders.ResolveHeldOrder(ctx, f.orgID, "staff-1", &hajjv1.ResolveHeldOrderRequest{
+			OrderId: orderID, Resolution: hajjv1.HeldOrderResolution_HELD_ORDER_RESOLUTION_REJECT,
+			Note: "dana dikembalikan",
+		})
+		if err != nil {
+			t.Fatalf("reject: %v", err)
+		}
+		if order.Status != "FAILED" {
+			t.Fatalf("status = %s after rejecting, want FAILED", order.Status)
+		}
+		if balance, err := ledger(f).CommissionBalance(ctx, f.referrer); err != nil || balance != 0 {
+			t.Fatalf("commission = %d (%v) after rejecting, want 0", balance, err)
+		}
+	})
+
+	t.Run("only a held transaction can be resolved, and only once", func(t *testing.T) {
+		f := newReferralFixture(t)
+		orderID := hold(t, f)
+
+		if _, err := f.orders.ResolveHeldOrder(ctx, f.orgID, "staff-1", &hajjv1.ResolveHeldOrderRequest{
+			OrderId: orderID, Resolution: hajjv1.HeldOrderResolution_HELD_ORDER_RESOLUTION_ACCEPT,
+		}); err != nil {
+			t.Fatalf("first resolve: %v", err)
+		}
+		if _, err := f.orders.ResolveHeldOrder(ctx, f.orgID, "staff-1", &hajjv1.ResolveHeldOrderRequest{
+			OrderId: orderID, Resolution: hajjv1.HeldOrderResolution_HELD_ORDER_RESOLUTION_REJECT,
+		}); err == nil {
+			t.Fatal("a resolved transaction was resolved a second time")
+		}
+	})
+}

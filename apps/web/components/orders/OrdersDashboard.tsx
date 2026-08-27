@@ -1,10 +1,11 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { IconArrowBackUp, IconCopy, IconPlus, IconShoppingCart } from "@tabler/icons-react";
+import { IconAlertTriangle, IconArrowBackUp, IconCopy, IconPlus, IconShoppingCart } from "@tabler/icons-react";
 import { Order } from "@hajj-saas/proto-gen/hajj/v1/order_pb";
 import { orderClient, seasonClient } from "@/lib/rpc";
 import CreateOrderDialog from "./CreateOrderDialog";
 import RefundOrderDialog from "./RefundOrderDialog";
+import ResolveHeldOrderDialog from "./ResolveHeldOrderDialog";
 
 const rupiah = (n: bigint) => `Rp${Number(n).toLocaleString("id-ID")}`;
 const STATUS_LABEL: Record<string, string> = { PENDING: "Menunggu Bayar", PAID: "Lunas", EXPIRED: "Kedaluwarsa", FAILED: "Gagal", CANCELLED: "Dibatalkan", REFUNDED: "Direfund", HELD: "Perlu Ditinjau" };
@@ -32,6 +33,7 @@ export default function OrdersDashboard() {
   const [open, setOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [refunding, setRefunding] = useState<Order | null>(null);
+  const [reviewing, setReviewing] = useState<Order | null>(null);
 
   const load = useCallback(async (id = seasonId) => {
     if (!id) return;
@@ -94,6 +96,7 @@ export default function OrdersDashboard() {
                   <td style={td}>
                     {o.status === "PENDING" && o.checkoutUrl && <button style={ghost} onClick={() => navigator.clipboard.writeText(o.checkoutUrl)}><IconCopy size={14} />Salin Link</button>}
                     {o.status === "PAID" && <button style={ghost} onClick={() => setRefunding(o)}><IconArrowBackUp size={14} />Refund</button>}
+                    {o.status === "HELD" && <button style={{ ...ghost, borderColor: "#b45309", color: "#b45309" }} onClick={() => setReviewing(o)}><IconAlertTriangle size={14} />Tinjau</button>}
                   </td>
                 </tr>
               ))}
@@ -115,6 +118,7 @@ export default function OrdersDashboard() {
           <button style={gold} onClick={() => setOpen(true)} disabled={!seasonId}>Buat Pesanan</button>
         </section>
       )}
+      <ResolveHeldOrderDialog order={reviewing} onClose={() => setReviewing(null)} onResolved={(message) => { setNotice(message); void load(); }} />
       <RefundOrderDialog order={refunding} onClose={() => setRefunding(null)} onRefunded={(message) => { setNotice(message); void load(); }} />
       <CreateOrderDialog open={open} seasonId={seasonId} onClose={() => setOpen(false)} onCreated={() => { setNotice("Pesanan berhasil dibuat."); void load(); }} />
     </main>

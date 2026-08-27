@@ -21,6 +21,8 @@ type Order struct {
 	Status             string
 	XenditInvoiceID    string
 	XenditInvoiceURL   string
+	PaidAmountIDR      *int64
+	HeldReason         string
 	PaidAt             *time.Time
 	CreatedAt          time.Time
 }

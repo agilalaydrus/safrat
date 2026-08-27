@@ -404,6 +404,10 @@ func orderMessage(o *domain.Order) *hajjv1.Order {
 		Quantity: o.Quantity, UnitPriceIdr: o.UnitPriceIDR, TotalPriceIdr: o.TotalPriceIDR,
 		PlatformAmountIdr: o.PlatformAmountIDR, OperatorAmountIdr: o.OperatorAmountIDR, AgentCommissionIdr: o.AgentCommissionIDR,
 		Status: o.Status, CheckoutUrl: o.XenditInvoiceURL, CreatedAt: timestamppb.New(o.CreatedAt),
+		HeldReason: o.HeldReason,
+	}
+	if o.PaidAmountIDR != nil {
+		result.PaidAmountIdr = *o.PaidAmountIDR
 	}
 	if o.PaidAt != nil {
 		result.PaidAt = timestamppb.New(*o.PaidAt)
@@ -724,4 +728,69 @@ func (s *OrderService) MarkStatusByInvoiceID(ctx context.Context, invoiceID, sta
 	}
 	s.reverseCommission(ctx, order, "Komisi ditarik: transaksi "+strings.ToLower(status))
 	return nil
+}
+
+// ResolveHeldOrder closes out a transaction whose payment did not match the
+// bill. Without it a hold is a dead end that needs database access to clear.
+//
+// Accepting is the operator attesting that the difference was settled some
+// other way — cash at the counter, a top-up transfer, or a shortfall they
+// chose to waive. Nothing outside this system confirms that, so it is always
+// audit-logged with who decided it and the exact discrepancy they accepted.
+//
+// Rejecting abandons the transaction and reverses the commission that was
+// recognised when the order was placed. The money itself goes back outside the
+// system, the same as every other refund here.
+func (s *OrderService) ResolveHeldOrder(ctx context.Context, orgID, userID string, req *hajjv1.ResolveHeldOrderRequest) (*hajjv1.Order, error) {
+	if req == nil || !isUUID(req.OrderId) {
+		return nil, serviceError("OrderService.ResolveHeldOrder", apperror.ErrValidation)
+	}
+	accept := req.Resolution == hajjv1.HeldOrderResolution_HELD_ORDER_RESOLUTION_ACCEPT
+	if !accept && req.Resolution != hajjv1.HeldOrderResolution_HELD_ORDER_RESOLUTION_REJECT {
+		return nil, serviceError("OrderService.ResolveHeldOrder", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("OrderService.ResolveHeldOrder", err)
+	}
+	// Read before resolving, so the discrepancy can be named in the audit
+	// entry — afterwards the held reason is history rather than current state.
+	before, err := s.orderRepository.Get(ctx, op.ID, req.OrderId)
+	if err != nil {
+		return nil, serviceError("OrderService.ResolveHeldOrder", err)
+	}
+	if before.Status != "HELD" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("hanya transaksi berstatus perlu ditinjau yang dapat diselesaikan"))
+	}
+
+	resolved, err := s.orderRepository.ResolveHeld(ctx, op.ID, req.OrderId, accept)
+	if err != nil {
+		return nil, serviceError("OrderService.ResolveHeldOrder", err)
+	}
+	resolved.PilgrimName = before.PilgrimName
+	resolved.ProductName = before.ProductName
+	resolved.AgentName = before.AgentName
+
+	if accept {
+		product, productErr := s.productRepository.GetByID(ctx, op.ID, resolved.ProductID)
+		if productErr == nil {
+			s.applyPaidSideEffects(ctx, product, resolved)
+		}
+	} else {
+		s.reverseCommission(ctx, resolved, "Komisi ditarik: transaksi ditolak setelah ditinjau")
+	}
+
+	decision := "diterima"
+	if !accept {
+		decision = "ditolak"
+	}
+	paid := int64(0)
+	if before.PaidAmountIDR != nil {
+		paid = *before.PaidAmountIDR
+	}
+	_ = s.auditRepository.Write(ctx, op.ID, userID, "held_order_resolved", "order", resolved.ID,
+		fmt.Sprintf("Transaksi tertahan %s — dibayar Rp%d dari tagihan Rp%d (%s)%s",
+			decision, paid, before.TotalPriceIDR, before.HeldReason, noteSuffix(req.Note)))
+	return orderMessage(resolved), nil
 }

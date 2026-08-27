@@ -196,8 +196,9 @@ func toOrder(o db.Order) *domain.Order {
 		PilgrimID: uuid.UUID(o.PilgrimID.Bytes).String(), ProductID: uuid.UUID(o.ProductID.Bytes).String(), AgentID: nullableUUIDString(o.AgentID),
 		Quantity: o.Quantity, UnitPriceIDR: o.UnitPriceIdr, TotalPriceIDR: o.TotalPriceIdr,
 		PlatformAmountIDR: o.PlatformAmountIdr, OperatorAmountIDR: o.OperatorAmountIdr, AgentCommissionIDR: o.AgentCommissionIdr,
-		Status: o.Status, XenditInvoiceID: o.XenditInvoiceID.String, XenditInvoiceURL: o.XenditInvoiceUrl.String,
-		PaidAt: timestamptzPtr(o.PaidAt), CreatedAt: o.CreatedAt.Time,
+		Status: o.Status, HeldReason: o.HeldReason, XenditInvoiceID: o.XenditInvoiceID.String, XenditInvoiceURL: o.XenditInvoiceUrl.String,
+		PaidAmountIDR: int8Ptr(o.PaidAmountIdr),
+		PaidAt:        timestamptzPtr(o.PaidAt), CreatedAt: o.CreatedAt.Time,
 	}
 }
 
@@ -206,7 +207,8 @@ func toOrderFromRow(o db.GetOrderRow) *domain.Order {
 		ID: o.ID, OperatorID: o.OperatorID, SeasonID: o.SeasonID, PilgrimID: o.PilgrimID, ProductID: o.ProductID, AgentID: o.AgentID,
 		Quantity: o.Quantity, UnitPriceIdr: o.UnitPriceIdr, TotalPriceIdr: o.TotalPriceIdr,
 		PlatformAmountIdr: o.PlatformAmountIdr, OperatorAmountIdr: o.OperatorAmountIdr, AgentCommissionIdr: o.AgentCommissionIdr,
-		Status: o.Status, XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
+		Status: o.Status, HeldReason: o.HeldReason, PaidAmountIdr: o.PaidAmountIdr,
+		XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
 	})
 	base.PilgrimName = o.PilgrimName
 	base.ProductName = o.ProductName
@@ -219,7 +221,8 @@ func toOrderFromListRow(o db.ListOrdersRow) *domain.Order {
 		ID: o.ID, OperatorID: o.OperatorID, SeasonID: o.SeasonID, PilgrimID: o.PilgrimID, ProductID: o.ProductID, AgentID: o.AgentID,
 		Quantity: o.Quantity, UnitPriceIdr: o.UnitPriceIdr, TotalPriceIdr: o.TotalPriceIdr,
 		PlatformAmountIdr: o.PlatformAmountIdr, OperatorAmountIdr: o.OperatorAmountIdr, AgentCommissionIdr: o.AgentCommissionIdr,
-		Status: o.Status, XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
+		Status: o.Status, HeldReason: o.HeldReason, PaidAmountIdr: o.PaidAmountIdr,
+		XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
 	})
 	base.PilgrimName = o.PilgrimName
 	base.ProductName = o.ProductName
@@ -312,4 +315,37 @@ func (r *OrderRepository) ListAwaitingSettlement(ctx context.Context, graceMinut
 		})
 	}
 	return result, nil
+}
+
+// ResolveHeld moves a held order to its final state. Only a HELD order moves,
+// so a repeated click resolves nothing a second time.
+func (r *OrderRepository) ResolveHeld(ctx context.Context, operatorID, orderID string, accept bool) (*domain.Order, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	orderUUID, err := pgUUID(orderID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	var order db.Order
+	if accept {
+		order, err = r.queries.ResolveHeldOrderToPaid(ctx, db.ResolveHeldOrderToPaidParams{ID: orderUUID, OperatorID: opUUID})
+	} else {
+		order, err = r.queries.ResolveHeldOrderToFailed(ctx, db.ResolveHeldOrderToFailedParams{ID: orderUUID, OperatorID: opUUID})
+	}
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toOrder(order), nil
+}
+
+// int8Ptr turns a nullable bigint into a pointer, so "no payment reported yet"
+// stays distinguishable from "zero was reported".
+func int8Ptr(value pgtype.Int8) *int64 {
+	if !value.Valid {
+		return nil
+	}
+	amount := value.Int64
+	return &amount
 }

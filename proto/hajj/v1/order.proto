@@ -42,6 +42,9 @@ service OrderService {
   // separation is what keeps the referral system intact while leaving anyone
   // free to transact.
   rpc CreateOrderForPilgrim(CreateOrderForPilgrimRequest) returns (CreateOrderResponse);
+  // ResolveHeldOrder closes out a transaction whose payment did not match the
+  // bill. Without it a held transaction is a dead end needing database access.
+  rpc ResolveHeldOrder(ResolveHeldOrderRequest) returns (Order);
 }
 
 message Order {
@@ -68,6 +71,10 @@ message Order {
   // Who placed the order, when it was not the jamaah themselves. Distinct from
   // agent_id, which is the referrer who earns the commission.
   string placed_by_agent_id = 20;
+  // What the gateway reported as actually paid, and why the transaction is
+  // held if it is. Both empty until a payment notification arrives.
+  int64 paid_amount_idr = 22;
+  string held_reason = 23;
 }
 
 message CreateOrderRequest {
@@ -117,6 +124,25 @@ message CreateOrderForPilgrimRequest {
   string product_id = 2 [(buf.validate.field).string.uuid = true];
   int32 quantity = 3 [(buf.validate.field).int32 = {gte: 1, lte: 20}];
   string idempotency_key = 4 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+}
+
+enum HeldOrderResolution {
+  HELD_ORDER_RESOLUTION_UNSPECIFIED = 0;
+  // The operator attests the difference was settled another way — cash handed
+  // over at the counter, a top-up transfer, or a shortfall they chose to
+  // waive. The transaction stands in full, so the commission stands too.
+  // There is no gateway confirmation behind this, which is why it is always
+  // audit-logged with who decided it and the discrepancy they accepted.
+  HELD_ORDER_RESOLUTION_ACCEPT = 1;
+  // The transaction is abandoned and the money returned outside the system.
+  // Commission recognised when the order was placed is reversed.
+  HELD_ORDER_RESOLUTION_REJECT = 2;
+}
+
+message ResolveHeldOrderRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  HeldOrderResolution resolution = 2 [(buf.validate.field).enum = {defined_only: true, in: [1, 2]}];
+  string note = 3 [(buf.validate.field).string.max_len = 500];
 }
 
 message ListOrdersRequest {

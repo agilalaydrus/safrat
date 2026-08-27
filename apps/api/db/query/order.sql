@@ -254,3 +254,19 @@ WHERE status = 'PENDING'
   AND created_at > NOW() - INTERVAL '7 days'
 ORDER BY created_at ASC
 LIMIT $2;
+
+-- name: ResolveHeldOrderToPaid :one
+-- The operator attests the discrepancy was settled another way. Only HELD
+-- moves, so a double-click cannot settle twice.
+UPDATE orders
+SET status = 'PAID', paid_at = NOW(), updated_at = NOW()
+WHERE id = $1 AND operator_id = $2 AND status = 'HELD'
+RETURNING *;
+
+-- name: ResolveHeldOrderToFailed :one
+-- The transaction is abandoned; the money goes back outside the system.
+-- held_reason is kept, not cleared: why it was held is part of the record.
+UPDATE orders
+SET status = 'FAILED', updated_at = NOW()
+WHERE id = $1 AND operator_id = $2 AND status = 'HELD'
+RETURNING *;
