@@ -2490,3 +2490,60 @@ node .next/standalone/apps/web/server.js   # PORT=3141
 **Jangan `rm -rf .next` selagi dev server berjalan** — saya melakukannya dan
 mematikan server yang sedang dipakai setup, yang muncul sebagai
 "fixture sign-in failed (500)" dan terlihat seperti bug autentikasi.
+
+---
+
+## Dua penutup: lockout Google, dan offline-pwa
+
+### Akun Google terkunci dari dashboard (diperbaiki)
+
+`agilalidrus89@gmail.com` hanya punya provider `google` — Better Auth tidak
+menulis baris `credential` untuk akun yang dibuat lewat Google.
+
+Rantainya: staf wajib 2FA sebelum dashboard terbuka → `/keamanan` meminta kata
+sandi akun → akun itu tidak pernah punya kata sandi → **tidak ada jalan maju**.
+Pemilik tidak bisa masuk ke panelnya sendiri.
+
+Yang membuatnya lebih sulit dikenali sebagai bug: teks di halaman itu
+menjanjikan kebalikannya — *"Login lewat Google tidak terpengaruh"*. Itu niat,
+bukan perilaku, dan menuliskannya membuat jalan buntu terbaca seperti salah
+paham pembaca.
+
+Sekarang halaman itu memeriksa jenis akun sebelum memutuskan apa yang diminta.
+Tanpa kata sandi, ia menawarkan mengirim tautan untuk membuatnya — alur reset
+Better Auth **membuat baris kredensial yang hilang**, jadi ia sekaligus jadi
+pembuatan pertama kali. Login Google tetap bekerja; ini menambah cara masuk,
+bukan menggantikan.
+
+Diuji di browser dengan menghapus baris kredensial fixture dan memulihkannya di
+`finally` — tanpa baris itu fixture tidak bisa login dan run berikutnya menyimpan
+storage state kosong.
+
+### offline-pwa (diperbaiki — bukan bug service worker)
+
+`e2e:pwa:api` keluar seketika dengan `BETTER_AUTH_SECRET is required`. Server Go
+membaca environment variable biasa dan tidak memuat `.env` sendiri; skripnya
+hanya menyetel `PORT` dan `CORS_ALLOWED_ORIGIN`. Sekarang ia mem-`source`
+`apps/api/.env` dulu.
+
+Yang menyamarkannya: **:8141 tetap menjawab** — proses server dari sesi lama
+masih terikat di port itu dengan origin berbeda. Jadi healthz 200, preflight
+403, dan spec-nya gagal dengan registrasi service worker kosong. Itu terlihat
+seperti masalah service worker dan sama sekali bukan.
+
+Cara membedakannya:
+
+```
+curl -X OPTIONS http://127.0.0.1:8141/hajj.v1.IdentityService/GetMyAccess \
+  -H 'Origin: http://127.0.0.1:3141'     # harus 204, bukan 403
+```
+
+**Seluruh suite browser sekarang hijau: 22 tes.**
+
+### Peringatan untuk yang melanjutkan
+
+Repo sudah punya skrip PWA yang benar (`e2e:pwa:build` dengan `distDir` sendiri,
+`e2e:pwa:serve`, `e2e:pwa:api`). **Pakai itu.** Saya berimprovisasi — membangun
+ke `.next` dan menyajikannya dengan `next start` — dan menabrak setiap masalah
+yang sudah dijelaskan README: dev server dan build produksi berbagi `.next`,
+`public/sw.js` ditimpa setiap build, dan API hanya menerima satu origin CORS.
