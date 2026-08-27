@@ -2356,3 +2356,74 @@ docker exec safrat-postgres-1 createdb -U safrat -T safrat safrat_limit_test
 
 Klon dari database dev, karena `goose` sendiri tidak bisa membuat tabel
 `"user"` — Better Auth yang memigrasikannya.
+
+---
+
+## Katalog digital pindah ke platform (selesai)
+
+Keputusan owner nomor 3.
+
+`products.operator_id IS NULL` berarti milik TawafiqHub. NULL, bukan baris
+operator boneka — operator palsu muncul di setiap hitungan, daftar, dan join
+yang menelusuri operators, dan satu filter yang terlupa akan menampilkannya ke
+pelanggan.
+
+### Aturan yang harus dipegang siapa pun yang melanjutkan
+
+**BACA MELEBAR, TULIS TIDAK PERNAH.**
+
+```
+baca untuk menjual   operator_id = $1 OR operator_id IS NULL
+tulis milik travel   operator_id = $1
+```
+
+Lupa melebarkan bacaan → produk platform tersembunyi. Terlihat, mengganggu,
+tidak berbahaya. Melebarkan tulisan → satu travel bisa mengedit katalog yang
+dijual semua travel lain. Hanya satu dari keduanya yang bisa dipulihkan.
+
+`ProductRepository` punya dua pintu yang sengaja dipisah: `GetByID` melebar
+(untuk membaca), `GetOwnedByID` ketat (untuk sebelum menulis). Satu query yang
+menjawab dua pertanyaan adalah cara yang salah dipakai.
+
+### Tiga cacat nyata yang ini munculkan
+
+Ditemukan tes, bukan penalaran:
+
+1. **Settlement** membaca produk order yang sudah dibayar lewat `GetByID`.
+   Kalau tetap ketat, jamaah membayar pulsa lalu fulfilment tidak menemukan
+   apa yang mereka beli.
+2. **Empat query** menyambung products ke operators dengan inner join, yang
+   menjatuhkan setiap produk platform diam-diam. Itu sebabnya order berbayar
+   tidak menemukan routing-nya sendiri.
+3. **Harga modal supplier**, manual maupun observed, di-scope `operator_id` —
+   jadi tidak pernah bisa tersimpan untuk produk platform, satu-satunya produk
+   yang punya supplier.
+
+### Musim
+
+Produk platform tidak punya musim, agen juga tidak. Tapi order punya: laporan
+operator di-scope per musim, dan order tanpa musim akan berhenti muncul di
+sana. Jadi jatuh ke musim aktif operator, dan ditolak dengan penjelasan kalau
+belum ada.
+
+### Cleanup fixture: urutannya menanggung beban
+
+`product_routes` menahan `suppliers`, `orders` menahan `products`, keduanya
+RESTRICT. Satu statement gagal me-rollback seluruh cleanup — meninggalkan
+semuanya, bukan sebagiannya. Urutan yang benar:
+
+```
+operators (cascade orders, pilgrims)
+  -> products (cascade routes, markups)
+    -> suppliers
+```
+
+Kebocoran supplier di `platform_http_test` sudah ada sejak tes itu ditulis dan
+gagal diam-diam setiap run karena errornya dibuang.
+
+### Belum dikerjakan
+
+- **UI admin untuk `SavePlatformProduct`** belum ada. RPC-nya jalan; belum ada
+  layar yang memanggilnya, jadi produk platform masih dibuat lewat SQL.
+- Produk digital per-travel yang lama **di-grandfather** (`NOT VALID`), bukan
+  dihapus — order menunjuk ke sana. Migrasikan manual setelah ordernya lewat.
