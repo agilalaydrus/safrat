@@ -89,6 +89,9 @@ func newReferralFixture(t *testing.T) *referralFixture {
 	exec(`INSERT INTO agents (id, operator_id, name) VALUES ($1,$2,'Agen Penjual')`, seller, operatorID)
 
 	exec(`INSERT INTO seasons (id, operator_id, name, type, start_date, end_date, capacity) VALUES ($1,$2,'Musim','UMRAH_REGULER',NOW(),NOW()+INTERVAL '30 days',10)`, seasonID, operatorID)
+	// Active, because an agent buying a platform product has no season of their
+	// own and the order falls to the operator's active one.
+	exec(`UPDATE seasons SET is_active = true WHERE id = $1`, seasonID)
 	exec(`INSERT INTO products (id, operator_id, season_id, name, price_idr, base_price_idr, agent_margin_bps)
 	      VALUES ($1,$2,$3,'Paket Uji',$4,$5,1500)`,
 		productID, operatorID, seasonID, referralPrice, referralBasePrice)
@@ -120,7 +123,7 @@ func newReferralFixture(t *testing.T) *referralFixture {
 		repository.NewOperatorRepository(queries), repository.NewPilgrimRepository(queries),
 		repository.NewProductRepository(queries, pool), repository.NewOrderRepository(queries, pool),
 		repository.NewAuditRepository(queries), repository.NewLedgerRepository(pool),
-		repository.NewRefundRepository(pool), repository.NewAgentRepository(queries),
+		repository.NewRefundRepository(pool), repository.NewAgentRepository(queries), repository.NewSeasonRepository(queries),
 		pool, payment.NewClientWithEndpoint("test-key", invoices.URL), "http://localhost:3000")
 
 	return &referralFixture{pool: pool, orders: orders, operatorID: operatorID, orgID: orgID,
@@ -270,9 +273,30 @@ func TestAgentSelfPurchaseUsesAgentPriceAndRemainsVisibleIntegration(t *testing.
 	if _, err := f.pool.Exec(ctx, `UPDATE agents SET linked_user_id = $1, phone = '0812000111' WHERE id = $2`, buyerUserID, f.seller); err != nil {
 		t.Fatalf("link buyer agent: %v", err)
 	}
-	if _, err := f.pool.Exec(ctx, `UPDATE products SET category = 'PPOB_CREDIT', type = '', code = $2 WHERE id = $1`, f.productID, "PPOB-"+f.productID[:8]); err != nil {
-		t.Fatalf("make digital product: %v", err)
+	// A digital product is platform-owned, so this cannot be the tenant product
+	// the rest of the fixture uses — it is a separate row belonging to nobody,
+	// with this travel's markup on top. That is the arrangement being tested:
+	// one catalogue entry, a price each travel builds for itself.
+	digitalID := uuid.NewString()
+	if _, err := f.pool.Exec(ctx, `INSERT INTO products (id, operator_id, season_id, name, category, price_idr, base_price_idr, code)
+	      VALUES ($1,NULL,NULL,'Pulsa Referral','PPOB_CREDIT',$2,$3,$4)`,
+		digitalID, referralPrice, referralBasePrice, "PPOB-"+digitalID[:8]); err != nil {
+		t.Fatalf("insert platform product: %v", err)
 	}
+	if _, err := f.pool.Exec(ctx, `INSERT INTO product_markups (product_id, operator_id, operator_markup_idr, agent_markup_idr)
+	      VALUES ($1,$2,$3,$4)`, digitalID, f.operatorID, referralOperatorMarkup, referralAgentMarkup); err != nil {
+		t.Fatalf("insert markup: %v", err)
+	}
+	// Registered here, but the fixture's operator cleanup runs after it (LIFO),
+	// so the orders referencing this product still exist. Deleting the route
+	// first and the product last-resort keeps the row from lingering; the
+	// operator cascade takes the orders on its own turn.
+	t.Cleanup(func() {
+		bg := context.Background()
+		_, _ = f.pool.Exec(bg, `DELETE FROM product_routes WHERE product_id = $1`, digitalID)
+		_, _ = f.pool.Exec(bg, `DELETE FROM orders WHERE product_id = $1`, digitalID)
+		_, _ = f.pool.Exec(bg, `DELETE FROM products WHERE id = $1`, digitalID)
+	})
 	// A digital product needs a live route, or checkout refuses it before
 	// price is ever considered — which is the correct behaviour and would make
 	// this test assert the wrong refusal.
@@ -282,7 +306,7 @@ func TestAgentSelfPurchaseUsesAgentPriceAndRemainsVisibleIntegration(t *testing.
 		t.Fatalf("insert supplier: %v", err)
 	}
 	if _, err := f.pool.Exec(ctx, `INSERT INTO product_routes (product_id, supplier_id, supplier_sku, is_active) VALUES ($1,$2,'SKU-UJI',true)`,
-		f.productID, supplierID); err != nil {
+		digitalID, supplierID); err != nil {
 		t.Fatalf("insert route: %v", err)
 	}
 	// Suppliers are global, not tenant-owned, so deleting the operator will not
@@ -302,7 +326,7 @@ func TestAgentSelfPurchaseUsesAgentPriceAndRemainsVisibleIntegration(t *testing.
 	}
 
 	response, err := f.orders.CreateOrderForSelf(ctx, f.orgID, buyerUserID, &hajjv1.CreateOrderForSelfRequest{
-		ProductId: f.productID, Quantity: 1, Destination: "0812999888", IdempotencyKey: uuid.NewString(),
+		ProductId: digitalID, Quantity: 1, Destination: "0812999888", IdempotencyKey: uuid.NewString(),
 	})
 	if err != nil {
 		t.Fatalf("self purchase: %v", err)

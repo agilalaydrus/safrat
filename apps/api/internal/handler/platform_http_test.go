@@ -335,7 +335,15 @@ func TestSupplierCatalogueOverHTTPIntegration(t *testing.T) {
 		t.Fatalf("save supplier: %v", err)
 	}
 	supplierID := saved.Msg.Supplier.Id
-	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), `DELETE FROM suppliers WHERE id = $1`, supplierID) })
+	// Routes and rules both hold the supplier with a foreign key, so deleting
+	// it alone fails — and because the error was discarded, it failed silently
+	// on every run since this test was written.
+	t.Cleanup(func() {
+		bg := context.Background()
+		_, _ = pool.Exec(bg, `DELETE FROM product_routes WHERE supplier_id = $1`, supplierID)
+		_, _ = pool.Exec(bg, `DELETE FROM supplier_response_rules WHERE supplier_id = $1`, supplierID)
+		_, _ = pool.Exec(bg, `DELETE FROM suppliers WHERE id = $1`, supplierID)
+	})
 
 	// Saving the same code again updates rather than creating a second one —
 	// renaming for display must not orphan a supplier's history.

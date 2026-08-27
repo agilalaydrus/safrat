@@ -59,8 +59,18 @@ func newFulfilmentFixture(t *testing.T) *fulfilmentFixture {
 	pilgrimID, productID := uuid.NewString(), uuid.NewString()
 	exec(`INSERT INTO pilgrims (id, season_id, operator_id, full_name, passport_number, nationality, date_of_birth, gender)
 	      VALUES ($1,$2,$3,'Jamaah Fulfil','P-FUL','ID','1990-01-01'::timestamptz,'MALE')`, pilgrimID, seasonID, operatorID)
-	exec(`INSERT INTO products (id, operator_id, season_id, name, category, price_idr) VALUES ($1,$2,$3,'Pulsa 10K','PPOB_CREDIT',11000)`,
-		productID, operatorID, seasonID)
+	// Platform-owned: digital products belong to TawafiqHub, not to the travel
+	// selling them, so operator_id and season_id are both NULL.
+	exec(`INSERT INTO products (id, operator_id, season_id, name, category, price_idr, base_price_idr, code)
+	      VALUES ($1,NULL,NULL,'Pulsa 10K','PPOB_CREDIT',11000,10000,$2)`,
+		productID, "PULSA-"+productID[:8])
+	exec(`INSERT INTO product_markups (product_id, operator_id, operator_markup_idr, agent_markup_idr)
+	      VALUES ($1,$2,1000,0)`, productID, operatorID)
+	// Registered last so it runs first — and that is exactly wrong for this,
+	// because orders reference the product with ON DELETE RESTRICT. The
+	// platform product is therefore removed inside the operator's own cleanup,
+	// after the cascade has taken the orders with it. Getting this backwards
+	// fails silently and leaves a row per run behind.
 
 	supplierID, token := uuid.NewString(), "cb-"+uuid.NewString()
 	exec(`INSERT INTO suppliers (id, name, code, status, callback_token) VALUES ($1,'Supplier Fulfil',$2,'ACTIVE',$3)`,
@@ -89,6 +99,14 @@ func newFulfilmentFixture(t *testing.T) *fulfilmentFixture {
 			}
 		}
 		if _, err := cleanup.Exec(context.Background(), `DELETE FROM operators WHERE id = $1`, operatorID); err != nil {
+			return
+		}
+		// After the operator, because orders reference the product with ON
+		// DELETE RESTRICT and the cascade has to take them first. Before the
+		// supplier, because the product's route holds it with RESTRICT too.
+		// One failed statement rolls the whole cleanup back, so the order is
+		// load-bearing rather than tidy.
+		if _, err := cleanup.Exec(context.Background(), `DELETE FROM products WHERE id = $1`, productID); err != nil {
 			return
 		}
 		if _, err := cleanup.Exec(context.Background(), `DELETE FROM suppliers WHERE id = $1`, supplierID); err != nil {
@@ -541,7 +559,7 @@ func TestRefundIsRefusedOnceDeliveredIntegration(t *testing.T) {
 		repository.NewOperatorRepository(queries), repository.NewPilgrimRepository(queries),
 		repository.NewProductRepository(queries, f.pool), repository.NewOrderRepository(queries, f.pool),
 		repository.NewAuditRepository(queries), repository.NewLedgerRepository(f.pool),
-		repository.NewRefundRepository(f.pool), repository.NewAgentRepository(queries),
+		repository.NewRefundRepository(f.pool), repository.NewAgentRepository(queries), repository.NewSeasonRepository(queries),
 		f.pool, nil, "http://localhost:3000")
 	orders.AttachFulfilment(f.service, f.fulfilments)
 

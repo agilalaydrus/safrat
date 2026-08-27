@@ -62,6 +62,7 @@ func main() {
 	subscriptionRepository := repository.NewSubscriptionRepository(pool)
 	journeyRepository := repository.NewJourneyRepository(queries)
 	orderRepository := repository.NewOrderRepository(queries, pool)
+	seasonRepository := repository.NewSeasonRepository(queries)
 	fulfilmentRepository := repository.NewFulfilmentRepository(pool)
 	// The worker migrates legacy identities, so it needs the same key.
 	kycSealer, sealerErr := crypto.NewSealer(strings.TrimSpace(os.Getenv("KYC_ENCRYPTION_KEY")))
@@ -98,7 +99,7 @@ func main() {
 	// is one definition of settlement and one place the amount is verified.
 	orderService := service.NewOrderService(operatorRepository, pilgrimRepository,
 		productRepository, orderRepository, auditRepository, ledgerRepository, refundRepository,
-		agentRepository, pool, payment.NewClient(strings.TrimSpace(os.Getenv("XENDIT_SECRET_KEY"))),
+		agentRepository, seasonRepository, pool, payment.NewClient(strings.TrimSpace(os.Getenv("XENDIT_SECRET_KEY"))),
 		strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGIN")))
 	paymentHandler := worker.NewPaymentHandler(logger, orderRepository, orderService)
 	fulfilmentService := service.NewFulfilmentService(fulfilmentRepository, supplierRepository, supplierCostRepository, orderRepository)

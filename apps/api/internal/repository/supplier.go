@@ -102,11 +102,11 @@ type ProductRoute struct {
 // is fulfilled by the operator, not bought from anybody.
 func (r *SupplierRepository) ListRoutes(ctx context.Context) ([]*ProductRoute, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT pr.id::text, p.id::text, p.name, o.name, p.category,
+		SELECT pr.id::text, p.id::text, p.name, COALESCE(o.name, 'TawafiqHub'), p.category,
 		       s.id::text, s.name, pr.supplier_sku, pr.is_active
 		FROM product_routes pr
 		JOIN products p ON p.id = pr.product_id
-		JOIN operators o ON o.id = p.operator_id
+		LEFT JOIN operators o ON o.id = p.operator_id
 		JOIN suppliers s ON s.id = pr.supplier_id
 		ORDER BY pr.is_active DESC, p.name ASC
 		LIMIT 500`)
@@ -344,11 +344,11 @@ func (r *SupplierRepository) RouteForOrder(ctx context.Context, orderID string) 
 	}
 	var route ProductRoute
 	err = r.pool.QueryRow(ctx, `
-		SELECT pr.id::text, p.id::text, p.name, o.name, p.category,
+		SELECT pr.id::text, p.id::text, p.name, COALESCE(o.name, 'TawafiqHub'), p.category,
 		       s.id::text, s.name, pr.supplier_sku, pr.is_active
 		FROM orders ord
 		JOIN products p ON p.id = ord.product_id
-		JOIN operators o ON o.id = p.operator_id
+		LEFT JOIN operators o ON o.id = p.operator_id
 		JOIN product_routes pr ON pr.product_id = p.id
 		JOIN suppliers s ON s.id = pr.supplier_id
 		WHERE ord.id = $1 AND pr.is_active AND s.status = 'ACTIVE'`, id).

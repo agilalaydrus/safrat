@@ -37,7 +37,12 @@ func (r *SupplierCostRepository) SetManualCost(ctx context.Context, operatorID, 
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE products
 		SET supplier_cost_idr = $3, supplier_cost_source = 'MANUAL', supplier_cost_updated_at = NOW()
-		WHERE id = $1 AND operator_id = $2 AND supplier_cost_source <> 'OBSERVED'`,
+		-- Scoped by product, plus "this operator's, or the platform's". Supplier
+		-- cost belongs to the product, and digital products are platform-owned:
+		-- an operator_id predicate alone never matches NULL, so the cost of
+		-- every product that actually has a supplier would silently fail to
+		-- store.
+		WHERE id = $1 AND (operator_id = $2 OR operator_id IS NULL) AND supplier_cost_source <> 'OBSERVED'`,
 		productUUID, opUUID, costIDR)
 	if err != nil {
 		return err
@@ -103,7 +108,9 @@ func (r *SupplierCostRepository) RecordObservation(ctx context.Context, operator
 	if _, err := tx.Exec(ctx, `
 		UPDATE products
 		SET supplier_cost_idr = $3, supplier_cost_source = 'OBSERVED', supplier_cost_updated_at = NOW()
-		WHERE id = $1 AND operator_id = $2`, productUUID, opUUID, costIDR); err != nil {
+		-- Same widening as SetManualCost. An observed cost is what the supplier
+		-- actually charged, and it is the platform's products that have one.
+		WHERE id = $1 AND (operator_id = $2 OR operator_id IS NULL)`, productUUID, opUUID, costIDR); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

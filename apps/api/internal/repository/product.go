@@ -3,6 +3,10 @@ package repository
 import (
 	"context"
 	"errors"
+	"strings"
+
+	"github.com/hajj-saas/api/internal/apperror"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/domain"
@@ -53,7 +57,37 @@ func (r *ProductRepository) Create(ctx context.Context, operatorID, seasonID, na
 	return r.loadExtras(ctx, result)
 }
 
+// GetByID is a read, so it reaches the platform catalogue as well as this
+// operator's own.
+//
+// This is not cosmetic. Settlement reads the product of a paid order through
+// here; if it could not see platform products, a jamaah would pay for pulsa
+// and the fulfilment would then fail to find what they bought — for exactly
+// the products this catalogue change exists to serve.
+//
+// Nothing that writes goes through here. Update and Delete carry their own
+// strict operator predicate, so a travel cannot reach a platform row by any
+// path that changes it.
 func (r *ProductRepository) GetByID(ctx context.Context, operatorID, productID string) (*domain.Product, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	productUUID, err := pgUUID(productID)
+	if err != nil {
+		return nil, err
+	}
+	product, err := r.queries.GetSellableProduct(ctx, db.GetSellableProductParams{ID: productUUID, OperatorID: opUUID})
+	if err != nil {
+		return nil, err
+	}
+	return r.loadExtras(ctx, toProduct(product))
+}
+
+// GetOwnedByID refuses a product this operator does not own. Used where the
+// caller is about to change something and a platform product must be out of
+// reach, rather than relying on a later UPDATE quietly matching no rows.
+func (r *ProductRepository) GetOwnedByID(ctx context.Context, operatorID, productID string) (*domain.Product, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -204,9 +238,12 @@ func optionalUUID(value string) (pgtype.UUID, error) {
 }
 
 func toProduct(product db.Product) *domain.Product {
-	return &domain.Product{ID: uuid.UUID(product.ID.Bytes).String(), OperatorID: uuid.UUID(product.OperatorID.Bytes).String(), SeasonID: uuid.UUID(product.SeasonID.Bytes).String(), Name: product.Name, Category: product.Category, Type: product.Type, PriceIDR: product.PriceIdr, DurationDays: product.DurationDays, Description: product.Description, Inclusions: product.Inclusions, IsActive: product.IsActive, CreatedAt: product.CreatedAt.Time, UpdatedAt: product.UpdatedAt.Time, Code: product.Code, NominalIDR: int8Ptr(product.NominalIdr),
+	// OperatorID and SeasonID are empty for a platform-owned product, not a
+	// zero UUID. A zero UUID reads like a real operator and would silently
+	// match nothing in every join it reached; empty is unmistakable.
+	return &domain.Product{ID: uuid.UUID(product.ID.Bytes).String(), OperatorID: nullableUUIDString(product.OperatorID), SeasonID: nullableUUIDString(product.SeasonID), Name: product.Name, Category: product.Category, Type: product.Type, PriceIDR: product.PriceIdr, DurationDays: product.DurationDays, Description: product.Description, Inclusions: product.Inclusions, IsActive: product.IsActive, CreatedAt: product.CreatedAt.Time, UpdatedAt: product.UpdatedAt.Time, Code: product.Code, NominalIDR: int8Ptr(product.NominalIdr),
 		SupplierCostIDR: int8Ptr(product.SupplierCostIdr), SupplierCostSource: product.SupplierCostSource,
-		BasePriceIDR: int8Ptr(product.BasePriceIdr),
+		BasePriceIDR:      int8Ptr(product.BasePriceIdr),
 		PlatformMarginBps: product.PlatformMarginBps, OperatorMarginBps: product.OperatorMarginBps, AgentMarginBps: product.AgentMarginBps, DefaultKloterID: nullableUUIDString(product.DefaultKloterID)}
 }
 
@@ -328,4 +365,52 @@ func toPriceLevels(product db.Product, operatorMarkup, agentMarkup pgtype.Int8, 
 		AgentMarkupIDR:    agentMarkup.Int64,
 		Configured:        configured,
 	}
+}
+
+// SavePlatformProduct creates or edits a product TawafiqHub supplies to every
+// travel. An empty productID creates.
+//
+// Both statements carry their own guard — insert leaves operator_id NULL,
+// update matches only rows where it already is — so neither can reach a
+// tenant's catalogue even if handed a tenant product's id.
+func (r *ProductRepository) SavePlatformProduct(ctx context.Context, productID string, item domain.Product) (*domain.Product, error) {
+	nominal := pgtype.Int8{}
+	if item.NominalIDR != nil && *item.NominalIDR > 0 {
+		nominal = pgtype.Int8{Int64: *item.NominalIDR, Valid: true}
+	}
+	base := int64(0)
+	if item.BasePriceIDR != nil {
+		base = *item.BasePriceIDR
+	}
+
+	if strings.TrimSpace(productID) == "" {
+		created, err := r.queries.CreatePlatformProduct(ctx, db.CreatePlatformProductParams{
+			Name: item.Name, Code: item.Code, Category: item.Category,
+			Description: item.Description, NominalIdr: nominal,
+			BasePriceIdr: pgtype.Int8{Int64: base, Valid: true}, IsActive: item.IsActive,
+		})
+		if err != nil {
+			return nil, databaseError(err)
+		}
+		return toProduct(created), nil
+	}
+
+	id, err := pgUUID(productID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	updated, err := r.queries.UpdatePlatformProduct(ctx, db.UpdatePlatformProductParams{
+		ID: id, Name: item.Name, Code: item.Code, Category: item.Category,
+		Description: item.Description, NominalIdr: nominal,
+		BasePriceIdr: pgtype.Int8{Int64: base, Valid: true}, IsActive: item.IsActive,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		// No row matched: either the id does not exist, or it belongs to a
+		// travel. Both are "not yours to edit" from here.
+		return nil, apperror.ErrNotFound
+	}
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toProduct(updated), nil
 }

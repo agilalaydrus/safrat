@@ -4,13 +4,27 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 RETURNING *;
 
 -- name: GetProduct :one
+-- Strict: this product belongs to this operator. Used wherever the caller is
+-- about to change something, so a platform product can never be reached by a
+-- tenant write.
 SELECT * FROM products
 WHERE id = $1 AND operator_id = $2;
 
--- name: ListProducts :many
+-- name: GetSellableProduct :one
+-- Widened: a travel sells its own catalogue plus the platform's. Separate from
+-- GetProduct rather than a flag on it, because "may I read this" and "may I
+-- change this" are different questions and a single query answering both is
+-- how the wrong one gets used.
 SELECT * FROM products
-WHERE operator_id = $1 AND season_id = $2
-ORDER BY created_at DESC;
+WHERE id = $1 AND (operator_id = $2 OR operator_id IS NULL);
+
+-- name: ListProducts :many
+-- The operator's catalogue: their own season's products, plus everything the
+-- platform supplies. Platform products carry no season — pulsa does not belong
+-- to Umrah 2026 — so they are matched on ownership alone.
+SELECT * FROM products
+WHERE (operator_id = $1 AND season_id = $2) OR operator_id IS NULL
+ORDER BY operator_id IS NULL, created_at DESC;
 
 -- name: UpdateProduct :one
 UPDATE products
@@ -75,7 +89,7 @@ LEFT JOIN product_markups m
   ON m.product_id = p.id AND m.operator_id = $2
 LEFT JOIN product_routes r ON r.product_id = p.id
 LEFT JOIN suppliers sup ON sup.id = r.supplier_id
-WHERE p.id = $1 AND p.operator_id = $2;
+WHERE p.id = $1 AND (p.operator_id = $2 OR p.operator_id IS NULL);
 
 -- name: UpsertProductMarkup :one
 INSERT INTO product_markups (product_id, operator_id, operator_markup_idr, agent_markup_idr)
@@ -96,8 +110,8 @@ FROM products p
 LEFT JOIN product_markups m ON m.product_id = p.id AND m.operator_id = $1
 LEFT JOIN product_routes r ON r.product_id = p.id
 LEFT JOIN suppliers sup ON sup.id = r.supplier_id
-WHERE p.operator_id = $1 AND p.season_id = $2
-ORDER BY p.created_at DESC;
+WHERE (p.operator_id = $1 AND p.season_id = $2) OR p.operator_id IS NULL
+ORDER BY p.operator_id IS NULL, p.created_at DESC;
 
 -- name: SetProductBasePrice :one
 -- The base is TawafiqHub's number, not the travel's, so this is deliberately
@@ -106,4 +120,32 @@ ORDER BY p.created_at DESC;
 UPDATE products
 SET base_price_idr = $2, updated_at = NOW()
 WHERE id = $1
+RETURNING *;
+
+-- name: CreatePlatformProduct :one
+-- operator_id and season_id are left NULL: this belongs to TawafiqHub, not to
+-- any travel or season. The ownership CHECK requires both to be NULL together,
+-- so a half-owned row cannot be created here by accident.
+INSERT INTO products (
+  operator_id, season_id, name, code, category, type, description,
+  nominal_idr, base_price_idr, price_idr, is_active
+) VALUES (
+  NULL, NULL, sqlc.arg(name), sqlc.arg(code), sqlc.arg(category), '',
+  sqlc.arg(description), sqlc.narg(nominal_idr), sqlc.arg(base_price_idr),
+  -- price_idr is the legacy sell price, kept in step with the base so nothing
+  -- reading the old column sees zero. Nothing prices from it any more.
+  sqlc.arg(base_price_idr), sqlc.arg(is_active)
+)
+RETURNING *;
+
+-- name: UpdatePlatformProduct :one
+-- The operator_id IS NULL predicate is the guard: this statement can only ever
+-- touch the platform catalogue, so a product id belonging to a travel cannot
+-- be edited through the admin panel by mistake.
+UPDATE products
+SET name = sqlc.arg(name), code = sqlc.arg(code), category = sqlc.arg(category),
+    description = sqlc.arg(description), nominal_idr = sqlc.narg(nominal_idr),
+    base_price_idr = sqlc.arg(base_price_idr), price_idr = sqlc.arg(base_price_idr),
+    is_active = sqlc.arg(is_active), updated_at = NOW()
+WHERE id = sqlc.arg(id) AND operator_id IS NULL
 RETURNING *;

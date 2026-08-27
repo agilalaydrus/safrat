@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"connectrpc.com/connect"
 	"github.com/hajj-saas/api/internal/apperror"
+	"github.com/hajj-saas/api/internal/domain"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/repository"
@@ -197,6 +199,63 @@ func (s *PlatformService) SetProductBasePrice(ctx context.Context, req *hajjv1.S
 	_ = s.auditRepository.Write(ctx, product.OperatorID, userID, "base_price_set", "product", product.ID,
 		formatBasePriceNote(product.BasePriceIDR, req.BasePriceIdr))
 	return &hajjv1.SetProductBasePriceResponse{Product: platformProductMessage(updated)}, nil
+}
+
+// SavePlatformProduct creates or edits a product TawafiqHub supplies to every
+// travel.
+//
+// Restricted to the digital categories on purpose. Travel packages and
+// equipment are the operator's own business — the platform has no supplier
+// relationship behind them and no business owning rows a travel should be
+// editing itself.
+func (s *PlatformService) SavePlatformProduct(ctx context.Context, req *hajjv1.SavePlatformProductRequest) (*hajjv1.SavePlatformProductResponse, error) {
+	userID, err := s.requirePlatformAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req == nil || strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.Code) == "" {
+		return nil, serviceError("PlatformService.SavePlatformProduct", apperror.ErrValidation)
+	}
+	if !domain.RoutingRequired(req.Category) {
+		return nil, connect.NewError(connect.CodeInvalidArgument,
+			errors.New("hanya produk digital yang dikelola platform; paket dan perlengkapan dibuat oleh travel sendiri"))
+	}
+	if strings.TrimSpace(req.ProductId) != "" && !isUUID(req.ProductId) {
+		return nil, serviceError("PlatformService.SavePlatformProduct", apperror.ErrValidation)
+	}
+
+	nominal := req.NominalIdr
+	base := req.BasePriceIdr
+	saved, err := s.productRepository.SavePlatformProduct(ctx, req.ProductId, domain.Product{
+		Name:        strings.TrimSpace(req.Name),
+		Code:        strings.ToUpper(strings.TrimSpace(req.Code)),
+		Category:    req.Category,
+		Description: strings.TrimSpace(req.Description),
+		NominalIDR:  &nominal,
+		// Always set, including zero. A platform product with no base cannot be
+		// sold at all, and leaving it unset here would create exactly the gap
+		// the pricing screen then complains about.
+		BasePriceIDR: &base,
+		IsActive:     req.IsActive,
+	})
+	if err != nil {
+		if errors.Is(err, apperror.ErrAlreadyExists) {
+			return nil, connect.NewError(connect.CodeAlreadyExists,
+				errors.New("kode produk sudah dipakai di katalog platform"))
+		}
+		return nil, serviceError("PlatformService.SavePlatformProduct", err)
+	}
+
+	// Audited with no operator, because this belongs to no tenant. That is the
+	// case migration 108 opened audit_logs up for.
+	_ = s.auditRepository.Write(ctx, "", userID, "platform_product_saved", "product", saved.ID,
+		fmt.Sprintf("%s (%s) harga dasar %s", saved.Name, saved.Code, rupiah(base)))
+
+	product, err := s.platformRepository.GetProduct(ctx, saved.ID)
+	if err != nil {
+		return nil, serviceError("PlatformService.SavePlatformProduct", err)
+	}
+	return &hajjv1.SavePlatformProductResponse{Product: platformProductMessage(product)}, nil
 }
 
 func formatBasePriceNote(previous *int64, next int64) string {

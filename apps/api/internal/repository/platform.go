@@ -127,11 +127,11 @@ type PlatformProduct struct {
 // the ones selling with no price floor beneath them.
 func (r *PlatformRepository) ListProducts(ctx context.Context, includeCosted bool) ([]*PlatformProduct, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT p.id::text, p.operator_id::text, o.name, COALESCE(s.name, ''), p.name, p.category,
+		SELECT p.id::text, COALESCE(p.operator_id::text, ''), COALESCE(o.name, 'TawafiqHub'), COALESCE(s.name, ''), p.name, p.category,
 		       p.price_idr, p.supplier_cost_idr, p.supplier_cost_source, p.supplier_cost_updated_at,
 		       p.base_price_idr
 		FROM products p
-		JOIN operators o ON o.id = p.operator_id
+		LEFT JOIN operators o ON o.id = p.operator_id
 		LEFT JOIN seasons s ON s.id = p.season_id
 		-- A product with no base price is as unsellable as one with no cost, so
 		-- the queue that exists to find gaps has to surface both or it quietly
@@ -165,11 +165,11 @@ func (r *PlatformRepository) GetProduct(ctx context.Context, productID string) (
 	}
 	var product PlatformProduct
 	err = r.pool.QueryRow(ctx, `
-		SELECT p.id::text, p.operator_id::text, o.name, COALESCE(s.name, ''), p.name, p.category,
+		SELECT p.id::text, COALESCE(p.operator_id::text, ''), COALESCE(o.name, 'TawafiqHub'), COALESCE(s.name, ''), p.name, p.category,
 		       p.price_idr, p.supplier_cost_idr, p.supplier_cost_source, p.supplier_cost_updated_at,
 		       p.base_price_idr
 		FROM products p
-		JOIN operators o ON o.id = p.operator_id
+		LEFT JOIN operators o ON o.id = p.operator_id
 		LEFT JOIN seasons s ON s.id = p.season_id
 		WHERE p.id = $1`, id).
 		Scan(&product.ID, &product.OperatorID, &product.OperatorName, &product.SeasonName,

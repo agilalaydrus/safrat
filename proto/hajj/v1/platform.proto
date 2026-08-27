@@ -45,6 +45,12 @@ service PlatformService {
   // ProductService.
   rpc SetProductBasePrice(SetProductBasePriceRequest) returns (SetProductBasePriceResponse);
 
+  // SavePlatformProduct creates or edits a product TawafiqHub supplies to
+  // every travel. These belong to no tenant and no season, and a travel can
+  // only set its own markup on top — which is why creating one lives here and
+  // not on ProductService.
+  rpc SavePlatformProduct(SavePlatformProductRequest) returns (SavePlatformProductResponse);
+
   // Supplier catalogue. Digital products are supplied by the platform, so all
   // of this is platform-owned — a travel neither sets nor sees it.
   rpc ListSuppliers(ListSuppliersRequest) returns (ListSuppliersResponse);
@@ -158,6 +164,26 @@ message SetProductBasePriceRequest {
   int64 base_price_idr = 2 [(buf.validate.field).int64.gte = 0];
 }
 message SetProductBasePriceResponse { PlatformProduct product = 1; }
+
+message SavePlatformProductRequest {
+  // Empty creates; a uuid edits. One RPC rather than two because the fields
+  // are identical and a split would let the two drift.
+  string product_id = 1;
+  string name = 2 [(buf.validate.field).string = {min_len: 1, max_len: 160}];
+  // What a person quotes: PULSA-TSEL-10K, not a uuid. Unique across the
+  // platform catalogue.
+  string code = 3 [(buf.validate.field).string = {min_len: 1, max_len: 60}];
+  string category = 4 [(buf.validate.field).string = {min_len: 1, max_len: 40}];
+  // Face value the customer receives — 10.000 of pulsa. Zero means the product
+  // has none, which is why it is not the same field as the price.
+  int64 nominal_idr = 5 [(buf.validate.field).int64.gte = 0];
+  // What TawafiqHub charges the travel. Every travel's price is built up from
+  // this.
+  int64 base_price_idr = 6 [(buf.validate.field).int64.gte = 0];
+  string description = 7 [(buf.validate.field).string.max_len = 2000];
+  bool is_active = 8;
+}
+message SavePlatformProductResponse { PlatformProduct product = 1; }
 
 message PlatformSupplier {
   string id = 1;

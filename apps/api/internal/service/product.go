@@ -82,6 +82,15 @@ func (s *ProductService) Create(ctx context.Context, orgID string, req *hajjv1.C
 	if err != nil {
 		return nil, serviceError("ProductService.Create", err)
 	}
+	// Digital products are supplied by TawafiqHub — only the platform holds the
+	// supplier routes and credentials. A travel creating its own PPOB row would
+	// be selling something nothing can deliver, and the checkout gate would
+	// refuse it only once a customer tried to buy. Refused here with an
+	// explanation instead of letting the database raise a constraint error.
+	if domain.RoutingRequired(req.Category) {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("produk digital dikelola oleh TawafiqHub dan tidak dibuat sendiri oleh travel; yang Anda atur adalah markup-nya"))
+	}
 	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
 	if err != nil {
 		return nil, serviceError("ProductService.Create", err)
@@ -124,6 +133,25 @@ func (s *ProductService) List(ctx context.Context, orgID string, req *hajjv1.Lis
 	}
 	return result, nil
 }
+// refuseIfPlatformOwned turns an attempted tenant write on a platform product
+// into an explanation.
+//
+// The strict operator predicate on the UPDATE already makes the write
+// impossible — this exists so the caller is told why rather than receiving a
+// bare not-found, which reads as "this product does not exist" when in fact it
+// exists and belongs to somebody else.
+func (s *ProductService) refuseIfPlatformOwned(ctx context.Context, operatorID, productID, method string) error {
+	product, err := s.productRepository.GetByID(ctx, operatorID, productID)
+	if err != nil {
+		return serviceError(method, err)
+	}
+	if product.IsPlatformOwned() {
+		return connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("produk ini dikelola TawafiqHub; travel hanya dapat mengatur markup-nya"))
+	}
+	return nil
+}
+
 func (s *ProductService) Update(ctx context.Context, orgID string, req *hajjv1.UpdateProductRequest) (*hajjv1.Product, error) {
 	if req == nil || strings.TrimSpace(req.Name) == "" || !validateProductTypeAndCategory(req.Category, req.Type) {
 		return nil, serviceError("ProductService.Update", apperror.ErrValidation)
@@ -139,6 +167,9 @@ func (s *ProductService) Update(ctx context.Context, orgID string, req *hajjv1.U
 	if err != nil {
 		return nil, serviceError("ProductService.Update", err)
 	}
+	if err := s.refuseIfPlatformOwned(ctx, op.ID, req.ProductId, "ProductService.Update"); err != nil {
+		return nil, err
+	}
 	product, err := s.productRepository.Update(ctx, op.ID, req.ProductId, req.Name, productCode(req.Code, req.Name), req.Category, req.Type, req.Description, req.PriceIdr, optionalAmount(req.NominalIdr), req.DurationDays, req.Inclusions, req.IsActive, platformMargin, operatorMargin, agentMargin, itineraryFromProto(req.ItineraryDays), req.HotelIds, req.DefaultKloterId)
 	if err != nil {
 		return nil, serviceError("ProductService.Update", err)
@@ -152,6 +183,9 @@ func (s *ProductService) Delete(ctx context.Context, orgID string, req *hajjv1.D
 	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
 	if err != nil {
 		return nil, serviceError("ProductService.Delete", err)
+	}
+	if err := s.refuseIfPlatformOwned(ctx, op.ID, req.ProductId, "ProductService.Delete"); err != nil {
+		return nil, err
 	}
 	if err := s.productRepository.Delete(ctx, op.ID, req.ProductId); err != nil {
 		return nil, serviceError("ProductService.Delete", err)

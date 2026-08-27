@@ -221,7 +221,7 @@ func refundOrder(t *testing.T, pool *pgxpool.Pool, fixture *httpFixture) {
 		repository.NewOperatorRepository(queries), repository.NewPilgrimRepository(queries),
 		repository.NewProductRepository(queries, pool), repository.NewOrderRepository(queries, pool),
 		repository.NewAuditRepository(queries), repository.NewLedgerRepository(pool),
-		repository.NewRefundRepository(pool), repository.NewAgentRepository(queries), pool, nil, "http://localhost:3000")
+		repository.NewRefundRepository(pool), repository.NewAgentRepository(queries), repository.NewSeasonRepository(queries), pool, nil, "http://localhost:3000")
 	var orgID string
 	if err := pool.QueryRow(context.Background(), `SELECT better_auth_org_id FROM operators WHERE id = $1`, fixture.operatorID).Scan(&orgID); err != nil {
 		t.Fatalf("read org: %v", err)

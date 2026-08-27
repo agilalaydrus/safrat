@@ -80,12 +80,22 @@ func newLimitFixture(t *testing.T) *limitFixture {
 		if _, err := cleanup.Exec(bg, `DELETE FROM operators WHERE id = $1`, operatorID); err != nil {
 			return
 		}
+		// Order matters and is easy to get backwards. The product's route holds
+		// the supplier with ON DELETE RESTRICT, so the product has to go first
+		// or the supplier delete fails — and one failed statement rolls the
+		// whole cleanup back, leaving everything behind rather than some of it.
+		//
+		// operators (cascades orders and pilgrims)
+		//   -> products (cascades routes and markups)
+		//     -> suppliers
+		if _, err := cleanup.Exec(bg, `DELETE FROM products WHERE id = $1`, productID); err != nil {
+			return
+		}
 		if _, err := cleanup.Exec(bg, `DELETE FROM suppliers WHERE id = $1`, supplierID); err != nil {
 			return
 		}
-		// daily_digital_spend has no foreign key to reach it by: buyer_id is
-		// polymorphic (a pilgrim or an agent), so no single FK can cover it and
-		// deleting the operator leaves these behind.
+		// daily_digital_spend cannot be reached by cascade: buyer_id is
+		// polymorphic (a pilgrim or an agent), so it carries no foreign key.
 		if _, err := cleanup.Exec(bg, `DELETE FROM daily_digital_spend WHERE buyer_id = $1`, pilgrimID); err != nil {
 			return
 		}
@@ -93,9 +103,10 @@ func newLimitFixture(t *testing.T) *limitFixture {
 	})
 
 	exec(`INSERT INTO seasons (id, operator_id, name, type, start_date, end_date, capacity) VALUES ($1,$2,'Musim','UMRAH_REGULER',NOW(),NOW()+INTERVAL '30 days',10)`, seasonID, operatorID)
-	exec(`INSERT INTO products (id, operator_id, season_id, name, category, price_idr, base_price_idr, nominal_idr)
-	      VALUES ($1,$2,$3,'Pulsa Uji','PPOB_CREDIT',$4,$5,$6)`,
-		productID, operatorID, seasonID, limitTestPrice, limitTestPrice-1_000_000, limitTestPrice)
+	// Platform-owned, like every digital product now is.
+	exec(`INSERT INTO products (id, operator_id, season_id, name, category, price_idr, base_price_idr, nominal_idr, code)
+	      VALUES ($1,NULL,NULL,'Pulsa Uji','PPOB_CREDIT',$2,$3,$4,$5)`,
+		productID, limitTestPrice, limitTestPrice-1_000_000, limitTestPrice, "LIM-"+productID[:8])
 	exec(`INSERT INTO product_markups (product_id, operator_id, operator_markup_idr, agent_markup_idr)
 	      VALUES ($1,$2,1000000,0)`, productID, operatorID)
 	// Routing, or the checkout gate refuses before the limit is ever reached
@@ -123,7 +134,7 @@ func newLimitFixture(t *testing.T) *limitFixture {
 		repository.NewOperatorRepository(queries), repository.NewPilgrimRepository(queries),
 		repository.NewProductRepository(queries, pool), repository.NewOrderRepository(queries, pool),
 		repository.NewAuditRepository(queries), repository.NewLedgerRepository(pool),
-		repository.NewRefundRepository(pool), repository.NewAgentRepository(queries),
+		repository.NewRefundRepository(pool), repository.NewAgentRepository(queries), repository.NewSeasonRepository(queries),
 		pool, payment.NewClientWithEndpoint("test-key", invoices.URL), "http://localhost:3000")
 
 	var code string

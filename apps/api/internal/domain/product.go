@@ -121,6 +121,13 @@ func (r RouteReadiness) Refusal() string {
 	return ""
 }
 
+// IsPlatformOwned reports a product supplied by TawafiqHub rather than by the
+// travel selling it. Those carry no operator and no season, and no tenant may
+// edit one.
+func (p *Product) IsPlatformOwned() bool {
+	return p != nil && p.OperatorID == ""
+}
+
 // RoutingRequired reports whether a category is delivered by calling a
 // supplier. Equipment is excluded on purpose: it also creates a fulfilment,
 // but one a person completes by hand, so it has no route to be missing.

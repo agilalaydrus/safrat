@@ -28,6 +28,7 @@ type OrderService struct {
 	xenditClient         *payment.Client
 	ledgerRepository     *repository.LedgerRepository
 	agentRepository      *repository.AgentRepository
+	seasonRepository     *repository.SeasonRepository
 	fulfilmentService    *FulfilmentService
 	fulfilmentRepository *repository.FulfilmentRepository
 	refundRepository     *repository.RefundRepository
@@ -38,8 +39,8 @@ type OrderService struct {
 	appBaseURL string
 }
 
-func NewOrderService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, orders *repository.OrderRepository, audit *repository.AuditRepository, ledger *repository.LedgerRepository, refunds *repository.RefundRepository, agents *repository.AgentRepository, db *pgxpool.Pool, xendit *payment.Client, appBaseURL string) *OrderService {
-	return &OrderService{operatorRepository: operators, pilgrimRepository: pilgrims, productRepository: products, orderRepository: orders, auditRepository: audit, ledgerRepository: ledger, refundRepository: refunds, agentRepository: agents, db: db, xenditClient: xendit, appBaseURL: appBaseURL}
+func NewOrderService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, orders *repository.OrderRepository, audit *repository.AuditRepository, ledger *repository.LedgerRepository, refunds *repository.RefundRepository, agents *repository.AgentRepository, seasons *repository.SeasonRepository, db *pgxpool.Pool, xendit *payment.Client, appBaseURL string) *OrderService {
+	return &OrderService{operatorRepository: operators, pilgrimRepository: pilgrims, productRepository: products, orderRepository: orders, auditRepository: audit, ledgerRepository: ledger, refundRepository: refunds, agentRepository: agents, seasonRepository: seasons, db: db, xenditClient: xendit, appBaseURL: appBaseURL}
 }
 
 // ensurePriceCoversSupplierCost refuses a sale whose platform base is below
@@ -914,6 +915,20 @@ func (s *OrderService) CreateOrderForSelf(ctx context.Context, orgID, userID str
 	if err != nil {
 		return nil, err
 	}
+	// A platform-owned product carries no season — pulsa does not belong to
+	// Umrah 2026 — but an order does: the operator's reports are scoped by
+	// season, and a seasonless order would simply stop appearing in them. The
+	// buyer is an agent, who has no season of their own, so the operator's
+	// active one is where this purchase belongs.
+	seasonID := product.SeasonID
+	if seasonID == "" {
+		seasonID, err = s.seasonRepository.GetActiveSeasonID(ctx, op.ID)
+		if err != nil {
+			return nil, connect.NewError(connect.CodeFailedPrecondition,
+				errors.New("travel ini belum punya musim aktif; buat musim sebelum agen dapat bertransaksi"))
+		}
+	}
+
 	destination, err := digitalDestination(product, req.Destination, agent.Phone)
 	if err != nil {
 		return nil, err
@@ -923,7 +938,7 @@ func (s *OrderService) CreateOrderForSelf(ctx context.Context, orgID, userID str
 	}
 
 	order, created, err := s.orderRepository.Create(ctx, repository.CreateOrderParams{
-		OperatorID: op.ID, SeasonID: product.SeasonID, BuyerAgentID: agent.ID,
+		OperatorID: op.ID, SeasonID: seasonID, BuyerAgentID: agent.ID,
 		BuyerKind: string(BuyerAgent), ProductID: product.ID, PlacedByAgentID: agent.ID,
 		Quantity: req.Quantity, UnitPriceIDR: price.UnitPriceIDR,
 		BasePriceIDR: price.BasePriceIDR, OperatorMarkupIDR: price.OperatorMarkupIDR,
