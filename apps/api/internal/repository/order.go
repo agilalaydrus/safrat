@@ -120,8 +120,14 @@ func (r *OrderRepository) SetXenditInvoice(ctx context.Context, orderID, invoice
 // by invoice id (not order id, which Xendit's payload doesn't carry back
 // directly) and only transitions PENDING -> PAID, so a duplicate/replayed
 // webhook delivery is a harmless no-op (pgx.ErrNoRows), not a double-count.
-func (r *OrderRepository) MarkPaidByInvoiceID(ctx context.Context, invoiceID string) (*domain.Order, error) {
-	order, err := r.queries.MarkOrderPaidByInvoiceID(ctx, pgtype.Text{String: invoiceID, Valid: true})
+//
+// paidAmountIDR is stored with the settlement, so a settled order carries the
+// amount that was actually received rather than only the amount that was owed.
+func (r *OrderRepository) MarkPaidByInvoiceID(ctx context.Context, invoiceID string, paidAmountIDR int64) (*domain.Order, error) {
+	order, err := r.queries.MarkOrderPaidByInvoiceID(ctx, db.MarkOrderPaidByInvoiceIDParams{
+		XenditInvoiceID: pgtype.Text{String: invoiceID, Valid: true},
+		PaidAmountIdr:   pgtype.Int8{Int64: paidAmountIDR, Valid: true},
+	})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -258,4 +264,27 @@ func (r *OrderRepository) PilgrimTransactionTotals(ctx context.Context, pilgrimI
 		return 0, 0, err
 	}
 	return totals.TotalPaidIdr, totals.TotalRefundedIdr, nil
+}
+
+// GetByInvoiceID finds an order by the gateway's invoice id, for validating a
+// webhook before acting on it.
+func (r *OrderRepository) GetByInvoiceID(ctx context.Context, invoiceID string) (*domain.Order, error) {
+	order, err := r.queries.GetOrderByInvoiceID(ctx, pgtype.Text{String: invoiceID, Valid: true})
+	if err != nil {
+		return nil, err
+	}
+	return toOrder(order), nil
+}
+
+// HoldByInvoiceID parks an order whose payment did not match what was owed.
+func (r *OrderRepository) HoldByInvoiceID(ctx context.Context, invoiceID string, paidAmountIDR int64, reason string) (*domain.Order, error) {
+	order, err := r.queries.HoldOrderByInvoiceID(ctx, db.HoldOrderByInvoiceIDParams{
+		XenditInvoiceID: pgtype.Text{String: invoiceID, Valid: true},
+		PaidAmountIdr:   pgtype.Int8{Int64: paidAmountIDR, Valid: true},
+		HeldReason:      reason,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toOrder(order), nil
 }

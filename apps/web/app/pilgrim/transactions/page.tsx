@@ -17,6 +17,9 @@ const STATUS: Record<string, { label: string; style: React.CSSProperties }> = {
   EXPIRED: { label: "Kedaluwarsa", style: { background: "var(--color-cream-200)", color: "var(--color-warm-500)" } },
   FAILED: { label: "Gagal", style: { background: "#ffe4e6", color: "var(--color-danger-600)" } },
   CANCELLED: { label: "Dibatalkan", style: { background: "var(--color-cream-200)", color: "var(--color-warm-500)" } },
+  // The jamaah paid, but the amount did not match the bill. Saying so plainly
+  // beats a status that looks like failure — their money is not lost.
+  HELD: { label: "Sedang Diperiksa", style: { background: "var(--color-gold-50)", color: "#b45309" } },
 };
 
 export default function PilgrimTransactionsPage() {
@@ -111,6 +114,13 @@ export default function PilgrimTransactionsPage() {
                   )}
                 </div>
 
+                {transaction.status === "HELD" && (
+                  <p style={heldNote}>
+                    Pembayaran Anda sudah diterima, tetapi nominalnya belum cocok dengan tagihan.
+                    Petugas travel sedang memeriksanya — dana Anda aman.
+                  </p>
+                )}
+
                 {transaction.refundedIdr > 0n && (
                   <div style={refundNote}>
                     <IconArrowBackUp size={16} />
@@ -146,5 +156,6 @@ const cardHead: React.CSSProperties = { display: "flex", justifyContent: "space-
 const badge: React.CSSProperties = { padding: "4px 9px", borderRadius: 99, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" };
 const amountRow: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" };
 const payLink: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, minHeight: 40, padding: "0 14px", borderRadius: 8, background: "var(--color-gold-500)", color: "#fff", fontWeight: 700, fontSize: 14, textDecoration: "none" };
+const heldNote: React.CSSProperties = { margin: 0, padding: 12, background: "var(--color-gold-50)", borderRadius: 8, color: "#b45309", fontSize: 13 };
 const refundNote: React.CSSProperties = { display: "flex", gap: 8, alignItems: "flex-start", padding: 12, background: "#fff1f2", borderRadius: 8, color: "var(--color-danger-600)", fontSize: 14 };
 const empty: React.CSSProperties = { display: "grid", placeItems: "center", gap: 8, padding: "48px 20px", border: "1px dashed var(--color-cream-400)", borderRadius: 12, textAlign: "center" };

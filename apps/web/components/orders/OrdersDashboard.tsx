@@ -7,7 +7,7 @@ import CreateOrderDialog from "./CreateOrderDialog";
 import RefundOrderDialog from "./RefundOrderDialog";
 
 const rupiah = (n: bigint) => `Rp${Number(n).toLocaleString("id-ID")}`;
-const STATUS_LABEL: Record<string, string> = { PENDING: "Menunggu Bayar", PAID: "Lunas", EXPIRED: "Kedaluwarsa", FAILED: "Gagal", CANCELLED: "Dibatalkan", REFUNDED: "Direfund" };
+const STATUS_LABEL: Record<string, string> = { PENDING: "Menunggu Bayar", PAID: "Lunas", EXPIRED: "Kedaluwarsa", FAILED: "Gagal", CANCELLED: "Dibatalkan", REFUNDED: "Direfund", HELD: "Perlu Ditinjau" };
 const STATUS_STYLE: Record<string, React.CSSProperties> = {
   PENDING: { background: "var(--color-gold-50)", color: "var(--color-gold-800)" },
   PAID: { background: "var(--color-emerald-50)", color: "var(--color-emerald-900)" },
@@ -15,6 +15,9 @@ const STATUS_STYLE: Record<string, React.CSSProperties> = {
   FAILED: { background: "#ffe4e6", color: "var(--color-danger-600)" },
   CANCELLED: { background: "var(--color-cream-200)", color: "var(--color-warm-500)" },
   REFUNDED: { background: "#ffe4e6", color: "var(--color-danger-600)" },
+  // Amber, not red: money arrived and is waiting on a decision, which is a
+  // different thing from a transaction that failed.
+  HELD: { background: "var(--color-gold-50)", color: "#b45309" },
 };
 
 const pageSize = 20;

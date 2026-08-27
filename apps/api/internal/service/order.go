@@ -241,19 +241,55 @@ func (s *OrderService) applyPaidSideEffects(ctx context.Context, product *domain
 	}
 }
 
-// MarkPaidByInvoiceID is called from the Xendit webhook handler (a plain
-// net/http handler, not a Connect RPC — see handler/xendit_webhook.go) —
-// wraps the repository call so the same paid-order cascade above also
-// fires for self-checkout / manual-XENDIT_LINK orders, not just the
-// CASH/BANK_TRANSFER path in CreateManualOrder.
-func (s *OrderService) MarkPaidByInvoiceID(ctx context.Context, invoiceID string) error {
-	order, err := s.orderRepository.MarkPaidByInvoiceID(ctx, invoiceID)
+// SettlePayment applies a gateway payment notification to an order.
+//
+// The amount is checked before anything settles. Commission counts only when
+// what was paid matches what was owed (owner's rule), and until now the
+// webhook took the gateway's word that *something* was paid — revenue,
+// commission and the jamaah's payment history all followed from that.
+//
+// A mismatch is held rather than rejected. Money did arrive: rejecting would
+// strand a real payment, and settling would accept an amount nobody agreed to.
+// A held transaction still counts as pending — it neither failed nor was
+// refunded — but it cannot settle, so nothing can be paid out on it until a
+// human resolves it.
+//
+// Only PENDING orders move, so a redelivered notification is a harmless no-op.
+func (s *OrderService) SettlePayment(ctx context.Context, invoiceID string, paidAmountIDR int64) error {
+	order, err := s.orderRepository.GetByInvoiceID(ctx, invoiceID)
 	if err != nil {
 		return err
 	}
-	product, err := s.productRepository.GetByID(ctx, order.OperatorID, order.ProductID)
+	if order.Status != "PENDING" {
+		// Already settled, held, or closed. Nothing to do, and re-applying
+		// would be exactly the double-count the guard exists to prevent.
+		return nil
+	}
+
+	if paidAmountIDR != order.TotalPriceIDR {
+		reason := fmt.Sprintf("Nominal dibayar Rp%d tidak sama dengan tagihan Rp%d", paidAmountIDR, order.TotalPriceIDR)
+		if paidAmountIDR <= 0 {
+			// The gateway told us nothing usable. That is a configuration
+			// fault rather than a suspicious payer, and it must not be read as
+			// a matching amount.
+			reason = fmt.Sprintf("Nominal pembayaran tidak dilaporkan gateway; tagihan Rp%d belum dapat diverifikasi", order.TotalPriceIDR)
+		}
+		held, holdErr := s.orderRepository.HoldByInvoiceID(ctx, invoiceID, paidAmountIDR, reason)
+		if holdErr != nil {
+			return holdErr
+		}
+		_ = s.auditRepository.Write(ctx, order.OperatorID, "", "order_payment_held", "order", held.ID, reason)
+		sentry.CaptureException(fmt.Errorf("OrderService.SettlePayment: %s (order %s)", reason, held.ID))
+		return nil
+	}
+
+	paid, err := s.orderRepository.MarkPaidByInvoiceID(ctx, invoiceID, paidAmountIDR)
+	if err != nil {
+		return err
+	}
+	product, err := s.productRepository.GetByID(ctx, paid.OperatorID, paid.ProductID)
 	if err == nil {
-		s.applyPaidSideEffects(ctx, product, order)
+		s.applyPaidSideEffects(ctx, product, paid)
 	}
 	return nil
 }

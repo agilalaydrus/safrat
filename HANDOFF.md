@@ -410,6 +410,48 @@ and is unused for money) therefore never pays anyone. Supporting a non-jamaah
 buyer is a schema change touching every order query — **needs the owner's
 go-ahead before starting.**
 
+#### Done — PR 8: payment amount validation and the held state (migration 096)
+
+Owner's rule: *"komisi tetap terhitung asalkan dia bayar ke server dengan harga
+yg sesuai."* Backlog items 3 (amount validation) and part of 4 (suspect
+handling).
+
+**The webhook settled on the gateway's word that *something* was paid**, never
+checking the amount. Revenue, commission and the jamaah's payment history all
+followed from that word. `OrderService.SettlePayment` now compares the reported
+amount against the order total before anything settles.
+
+**A mismatch is held, not rejected.** `HELD` is a new order status: money did
+arrive, so rejecting would strand a real payment, and settling would accept an
+amount nobody agreed to. A held transaction still counts as pending — it
+neither failed nor was refunded — so the commission stays recognised, but it
+cannot settle and therefore cannot be paid out. `net_paid_idr` is zero for it,
+so it is not revenue either.
+
+`orders.paid_amount_idr` keeps what the gateway reported, on settled orders as
+well as held ones: a settled order now carries the evidence the check was made,
+not just the claim.
+
+**An unreported amount is treated as unverifiable, not as a match.** If a
+delivery carries neither `paid_amount` nor `amount`, the order is held with a
+reason that names it as a gateway/configuration fault rather than a suspicious
+payer. This is the safe direction, but note it would hold *every* payment if
+Xendit's field names ever changed — the held reason is written to be obvious
+about that.
+
+Verified: a payment one rupiah short is held with its reason and evidence,
+commission stays counted but unpayable and net revenue is zero; a redelivered
+notification with the *correct* amount does not rescue a held order; an
+unreported amount is held; and a matching payment still settles and records
+what was received.
+
+Held orders surface as "Perlu Ditinjau" in the dashboard and "Sedang Diperiksa"
+on the jamaah's page, in amber rather than red — the money is not lost, and the
+jamaah is told so.
+
+**Not built yet:** there is no UI to *resolve* a hold (accept it, or refund it
+back). Today it needs a human with database access. That is the next piece.
+
 #### Open — ordered
 
 1. **Duplicate orders.** `CreateOrder` has no idempotency key and `orders` has

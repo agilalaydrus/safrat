@@ -19,6 +19,22 @@ import (
 type xenditWebhookPayload struct {
 	ID     string `json:"id"`
 	Status string `json:"status"`
+	// Xendit reports both: amount is what the invoice asked for, paid_amount
+	// what actually arrived. paid_amount is the one that matters — an invoice
+	// can be paid for less — and amount is the fallback for deliveries that
+	// omit it.
+	Amount     int64 `json:"amount"`
+	PaidAmount int64 `json:"paid_amount"`
+}
+
+// settledAmount is what the payer actually handed over, as best the gateway
+// reports it. Zero means the delivery told us nothing usable, which the
+// settlement path treats as unverifiable rather than as a match.
+func (p xenditWebhookPayload) settledAmount() int64 {
+	if p.PaidAmount > 0 {
+		return p.PaidAmount
+	}
+	return p.Amount
 }
 
 // NewXenditWebhookHandler is a plain net/http handler, not a Connect RPC —
@@ -51,10 +67,11 @@ func NewXenditWebhookHandler(logger *slog.Logger, orders *repository.OrderReposi
 		switch payload.Status {
 		case "PAID":
 			// Goes through OrderService, not the repository directly, so the
+			// amount is verified against what was owed and the
 			// TRAVEL_PACKAGE auto-kloter-assign cascade fires here too (see
-			// OrderService.applyPaidSideEffects) — not just on the manual
+			// OrderService.SettlePayment) — not just on the manual
 			// CASH/BANK_TRANSFER path.
-			err = orderService.MarkPaidByInvoiceID(ctx, payload.ID)
+			err = orderService.SettlePayment(ctx, payload.ID, payload.settledAmount())
 		case "EXPIRED":
 			// Through the service, like PAID: commission was recognised when
 			// the order was created, so a transaction that will never complete

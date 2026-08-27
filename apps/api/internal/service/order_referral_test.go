@@ -292,15 +292,12 @@ func TestPendingCommissionIsRecognisedButNotPayableIntegration(t *testing.T) {
 
 	// Settling the transaction moves it from pending to payable, without a
 	// second entry: the ledger did not change, only the transaction behind it.
-	if err := f.orders.MarkPaidByInvoiceID(ctx, response.Order.Id); err != nil {
-		// The stub returns a generated invoice id, so settle by the stored one.
-		var invoiceID string
-		if err := f.pool.QueryRow(ctx, `SELECT xendit_invoice_id FROM orders WHERE id = $1`, response.Order.Id).Scan(&invoiceID); err != nil {
-			t.Fatalf("read invoice id: %v", err)
-		}
-		if err := f.orders.MarkPaidByInvoiceID(ctx, invoiceID); err != nil {
-			t.Fatalf("settle: %v", err)
-		}
+	var invoiceID string
+	if err := f.pool.QueryRow(ctx, `SELECT xendit_invoice_id FROM orders WHERE id = $1`, response.Order.Id).Scan(&invoiceID); err != nil {
+		t.Fatalf("read invoice id: %v", err)
+	}
+	if err := f.orders.SettlePayment(ctx, invoiceID, referralPrice); err != nil {
+		t.Fatalf("settle: %v", err)
 	}
 	summary, err = agents.GetPayoutSummary(ctx, f.operatorID, f.referrer)
 	if err != nil {
@@ -358,5 +355,144 @@ func TestFailedTransactionReversesRecognisedCommissionIntegration(t *testing.T) 
 	}
 	if entries != 2 {
 		t.Fatalf("%d ledger entries, want 2 — the earning and its reversal", entries)
+	}
+}
+
+// Commission counts only when the amount paid matches the price. Until this
+// check existed the webhook settled on the gateway's word that *something* was
+// paid, and revenue, commission and the jamaah's history all followed from it.
+func TestUnderpaymentIsHeldRatherThanSettledIntegration(t *testing.T) {
+	f := newReferralFixture(t)
+	ctx := context.Background()
+	agents := repository.NewAgentRepository(db.New(f.pool))
+
+	response, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
+		AppAccessCode: f.accessCode(t), ProductId: f.productID, Quantity: 1,
+		IdempotencyKey: uuid.NewString(),
+	})
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+	var invoiceID string
+	if err := f.pool.QueryRow(ctx, `SELECT xendit_invoice_id FROM orders WHERE id = $1`, response.Order.Id).Scan(&invoiceID); err != nil {
+		t.Fatalf("read invoice id: %v", err)
+	}
+
+	// Paid, but a rupiah short of the price.
+	if err := f.orders.SettlePayment(ctx, invoiceID, referralPrice-1); err != nil {
+		t.Fatalf("settle: %v", err)
+	}
+
+	var status, reason string
+	var paidAmount *int64
+	if err := f.pool.QueryRow(ctx, `SELECT status, held_reason, paid_amount_idr FROM orders WHERE id = $1`,
+		response.Order.Id).Scan(&status, &reason, &paidAmount); err != nil {
+		t.Fatalf("read order: %v", err)
+	}
+	if status != "HELD" {
+		t.Fatalf("order status = %s after underpayment, want HELD", status)
+	}
+	if reason == "" {
+		t.Fatal("a held order carries no reason")
+	}
+	// The evidence is kept: what arrived, not just what was owed.
+	if paidAmount == nil || *paidAmount != referralPrice-1 {
+		t.Fatalf("recorded paid amount = %v, want %d", paidAmount, referralPrice-1)
+	}
+
+	summary, err := agents.GetPayoutSummary(ctx, f.operatorID, f.referrer)
+	if err != nil {
+		t.Fatalf("summary: %v", err)
+	}
+	// Still counted — it neither failed nor was refunded — but not payable.
+	if summary.TotalCommissionIDR != 600_000 || summary.PendingCommissionIDR != 600_000 {
+		t.Fatalf("total=%d pending=%d, want 600000 each — a held transaction still counts",
+			summary.TotalCommissionIDR, summary.PendingCommissionIDR)
+	}
+	if summary.SettledCommissionIDR != 0 || summary.OutstandingIDR != 0 {
+		t.Fatalf("settled=%d outstanding=%d, want 0 — an unverified payment must not become payable",
+			summary.SettledCommissionIDR, summary.OutstandingIDR)
+	}
+
+	// It is not revenue either.
+	var netPaid int64
+	if err := f.pool.QueryRow(ctx, `SELECT net_paid_idr FROM order_payments WHERE order_id = $1`, response.Order.Id).Scan(&netPaid); err != nil {
+		t.Fatalf("read net paid: %v", err)
+	}
+	if netPaid != 0 {
+		t.Fatalf("net paid = %d for a held order, want 0", netPaid)
+	}
+
+	// A redelivered notification must not settle it either.
+	if err := f.orders.SettlePayment(ctx, invoiceID, referralPrice); err != nil {
+		t.Fatalf("redelivery: %v", err)
+	}
+	if err := f.pool.QueryRow(ctx, `SELECT status FROM orders WHERE id = $1`, response.Order.Id).Scan(&status); err != nil {
+		t.Fatalf("read status: %v", err)
+	}
+	if status != "HELD" {
+		t.Fatalf("a held order was settled by a later notification (status=%s)", status)
+	}
+}
+
+// A gateway delivery that reports no amount cannot be treated as a match.
+func TestUnreportedAmountIsHeldIntegration(t *testing.T) {
+	f := newReferralFixture(t)
+	ctx := context.Background()
+
+	response, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
+		AppAccessCode: f.accessCode(t), ProductId: f.productID, Quantity: 1,
+		IdempotencyKey: uuid.NewString(),
+	})
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+	var invoiceID string
+	if err := f.pool.QueryRow(ctx, `SELECT xendit_invoice_id FROM orders WHERE id = $1`, response.Order.Id).Scan(&invoiceID); err != nil {
+		t.Fatalf("read invoice id: %v", err)
+	}
+	if err := f.orders.SettlePayment(ctx, invoiceID, 0); err != nil {
+		t.Fatalf("settle: %v", err)
+	}
+	var status string
+	if err := f.pool.QueryRow(ctx, `SELECT status FROM orders WHERE id = $1`, response.Order.Id).Scan(&status); err != nil {
+		t.Fatalf("read status: %v", err)
+	}
+	if status != "HELD" {
+		t.Fatalf("status = %s with no reported amount, want HELD", status)
+	}
+}
+
+// The matching case must still work, or the check would be a very effective
+// way of never taking any money at all.
+func TestMatchingPaymentSettlesIntegration(t *testing.T) {
+	f := newReferralFixture(t)
+	ctx := context.Background()
+
+	response, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
+		AppAccessCode: f.accessCode(t), ProductId: f.productID, Quantity: 1,
+		IdempotencyKey: uuid.NewString(),
+	})
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+	var invoiceID string
+	if err := f.pool.QueryRow(ctx, `SELECT xendit_invoice_id FROM orders WHERE id = $1`, response.Order.Id).Scan(&invoiceID); err != nil {
+		t.Fatalf("read invoice id: %v", err)
+	}
+	if err := f.orders.SettlePayment(ctx, invoiceID, referralPrice); err != nil {
+		t.Fatalf("settle: %v", err)
+	}
+	var status string
+	var paidAmount *int64
+	if err := f.pool.QueryRow(ctx, `SELECT status, paid_amount_idr FROM orders WHERE id = $1`,
+		response.Order.Id).Scan(&status, &paidAmount); err != nil {
+		t.Fatalf("read order: %v", err)
+	}
+	if status != "PAID" {
+		t.Fatalf("status = %s for a matching payment, want PAID", status)
+	}
+	if paidAmount == nil || *paidAmount != referralPrice {
+		t.Fatalf("recorded paid amount = %v, want %d — a settled order should carry the evidence", paidAmount, referralPrice)
 	}
 }

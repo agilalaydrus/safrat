@@ -24,9 +24,24 @@ UPDATE orders
 SET xendit_invoice_id = $2, xendit_invoice_url = $3, updated_at = NOW()
 WHERE id = $1;
 
+-- name: GetOrderByInvoiceID :one
+SELECT * FROM orders WHERE xendit_invoice_id = $1;
+
 -- name: MarkOrderPaidByInvoiceID :one
+-- Records the amount the gateway reported alongside the settlement, so a
+-- settled order carries the evidence that the amount was checked, not just the
+-- claim that it was.
 UPDATE orders
-SET status = 'PAID', paid_at = NOW(), updated_at = NOW()
+SET status = 'PAID', paid_at = NOW(), paid_amount_idr = $2, updated_at = NOW()
+WHERE xendit_invoice_id = $1 AND status = 'PENDING'
+RETURNING *;
+
+-- name: HoldOrderByInvoiceID :one
+-- Money arrived, but not the amount that was owed. Neither settled nor
+-- rejected: rejecting would strand a real payment, and settling would accept
+-- an amount nobody agreed to.
+UPDATE orders
+SET status = 'HELD', paid_amount_idr = $2, held_reason = $3, updated_at = NOW()
 WHERE xendit_invoice_id = $1 AND status = 'PENDING'
 RETURNING *;
 
