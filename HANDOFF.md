@@ -843,6 +843,62 @@ ran it, not something to carry in the repository.
 agent portal's Rekap Transaksi tab. Those need pilgrim, leader and agent
 fixtures respectively; the operator storage state cannot reach them.
 
+#### In progress — PR 18: supplier routing, the foundation of the admin architecture
+
+Owner asked for a real management architecture on the admin side: products,
+prices, product routing, supplier response and callback handling (accept, parse
+by regex, update status from it), logs, users, and transactions. Routing is the
+piece everything else hangs off, so it went first.
+
+**Schema (migration 101), all platform-owned — no `operator_id` anywhere.** A
+travel does not get to point a product at a different supplier, or see another
+travel's routing.
+
+- `suppliers` — name, stable `code` used in logs so renaming for display never
+  orphans history, and `credential_env_var` naming *where* the worker reads
+  credentials from. **Credentials are never stored in the row**: a database dump
+  carries no secrets, and rotating a key touches no data.
+- `product_routes` — one route per product, enforced by a unique constraint. Two
+  active routes would make "which supplier did this sale go to" unanswerable
+  after the fact.
+- `supplier_response_rules` — ordered patterns, editable from the panel.
+- `supplier_request_logs` — every exchange, append-only, with the parsed fields
+  stored *alongside* the raw body rather than instead of it, so a rule that
+  turns out to be wrong can be re-read against what actually arrived. Also
+  revoked from the app role's UPDATE/DELETE, like the money tables.
+
+**Why parsing is data and not code.** Suppliers in this market answer in JSON,
+form bodies, or plain SMS-style text, and change shape without warning.
+Hard-coding a parser per supplier means a deploy every time one shifts a field.
+A regex can only read, so a bad rule produces a wrong status — never arbitrary
+execution inside the worker.
+
+**`internal/supplier` reads a response into an outcome.** Rules apply in
+priority order, first match decides, and named capture groups lift out the
+supplier's reference and what they charged. Tested against the shapes that
+actually occur: JSON, the same JSON a month later with quoting dropped, and
+plain text.
+
+Three decisions in there worth keeping:
+
+- **`UNMATCHED` is its own outcome, not a failure.** A response nobody taught
+  the system to read is a gap in the rules. Folding it into FAILED would refund
+  transactions the supplier may well have delivered.
+- **A rule that does not compile is skipped, not fatal.** One bad pattern must
+  not stop a later correct one from recognising a delivered transaction.
+- **An unstated cost stays nil, never zero**, and an amount that cannot be read
+  confidently is refused rather than guessed. A cost misread by a factor of a
+  hundred would set a price floor that either blocks every sale or protects
+  nothing.
+
+Rules are validated when **saved**, so a bad pattern is refused in the panel
+rather than discovered over live transactions at three in the morning.
+
+**Still to build on this foundation:** the admin RPCs and screens for suppliers,
+routes and rules; the callback endpoint that feeds responses through the reader;
+the fulfilment worker that calls suppliers and records
+`supplier_cost_observations`; and the logs and transaction-monitoring views.
+
 #### Open — ordered
 
 Items 1, 3, 4 and 5 of the original list are done (see PR sections above).
