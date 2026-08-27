@@ -59,7 +59,7 @@ func TestPilgrimTransactionHistoryRequiresBothSessionAndOwnCodeIntegration(t *te
 		repository.NewPilgrimRepository(queries), repository.NewProductRepository(queries, pool),
 		repository.NewAuditRepository(queries), identity, repository.NewBroadcastRepository(queries),
 		repository.NewJourneyRepository(queries), repository.NewRitualRepository(queries),
-		repository.NewNotificationRepository(queries), repository.NewOrderRepository(queries),
+		repository.NewNotificationRepository(queries), repository.NewOrderRepository(queries, pool),
 		repository.NewLedgerRepository(pool))
 
 	path, serviceHandler := hajjv1connect.NewPilgrimAppServiceHandler(
@@ -219,7 +219,7 @@ func refundOrder(t *testing.T, pool *pgxpool.Pool, fixture *httpFixture) {
 	queries := db.New(pool)
 	orders := service.NewOrderService(
 		repository.NewOperatorRepository(queries), repository.NewPilgrimRepository(queries),
-		repository.NewProductRepository(queries, pool), repository.NewOrderRepository(queries),
+		repository.NewProductRepository(queries, pool), repository.NewOrderRepository(queries, pool),
 		repository.NewAuditRepository(queries), repository.NewLedgerRepository(pool),
 		repository.NewRefundRepository(pool), repository.NewAgentRepository(queries), pool, nil, "http://localhost:3000")
 	var orgID string

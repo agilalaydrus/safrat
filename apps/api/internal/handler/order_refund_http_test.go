@@ -44,7 +44,7 @@ func TestRefundOrderOverHTTPIntegration(t *testing.T) {
 	ledger := repository.NewLedgerRepository(pool)
 	orderService := service.NewOrderService(
 		repository.NewOperatorRepository(queries), repository.NewPilgrimRepository(queries),
-		repository.NewProductRepository(queries, pool), repository.NewOrderRepository(queries),
+		repository.NewProductRepository(queries, pool), repository.NewOrderRepository(queries, pool),
 		repository.NewAuditRepository(queries), ledger, repository.NewRefundRepository(pool), repository.NewAgentRepository(queries),
 		pool, nil, "http://localhost:3000")
 

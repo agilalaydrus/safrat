@@ -27,6 +27,11 @@ func serviceError(method string, err error) error {
 		return connect.NewError(connect.CodeAlreadyExists, err)
 	case errors.Is(err, apperror.ErrValidation):
 		return connect.NewError(connect.CodeInvalidArgument, err)
+	case errors.Is(err, apperror.ErrDailyLimitExceeded):
+		// ResourceExhausted rather than FailedPrecondition: nothing about the
+		// request is wrong and retrying it tomorrow will work. The distinction
+		// matters to callers deciding whether to offer a retry.
+		return connect.NewError(connect.CodeResourceExhausted, err)
 	case errors.Is(err, apperror.ErrFailedPrecondition):
 		return connect.NewError(connect.CodeFailedPrecondition, err)
 	case errors.Is(err, apperror.ErrConflict):

@@ -108,7 +108,7 @@ func newFulfilmentFixture(t *testing.T) *fulfilmentFixture {
 	queries := db.New(pool)
 	fulfilments := repository.NewFulfilmentRepository(pool)
 	service := NewFulfilmentService(fulfilments, repository.NewSupplierRepository(pool),
-		repository.NewSupplierCostRepository(pool), repository.NewOrderRepository(queries))
+		repository.NewSupplierCostRepository(pool), repository.NewOrderRepository(queries, pool))
 
 	return &fulfilmentFixture{pool: pool, service: service, fulfilments: fulfilments,
 		operatorID: operatorID, orderID: orderID, productID: productID, supplierID: supplierID, token: token}
@@ -539,7 +539,7 @@ func TestRefundIsRefusedOnceDeliveredIntegration(t *testing.T) {
 	queries := db.New(f.pool)
 	orders := NewOrderService(
 		repository.NewOperatorRepository(queries), repository.NewPilgrimRepository(queries),
-		repository.NewProductRepository(queries, f.pool), repository.NewOrderRepository(queries),
+		repository.NewProductRepository(queries, f.pool), repository.NewOrderRepository(queries, f.pool),
 		repository.NewAuditRepository(queries), repository.NewLedgerRepository(f.pool),
 		repository.NewRefundRepository(f.pool), repository.NewAgentRepository(queries),
 		f.pool, nil, "http://localhost:3000")

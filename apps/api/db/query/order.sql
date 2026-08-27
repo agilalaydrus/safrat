@@ -7,7 +7,7 @@ INSERT INTO orders (
   unit_price_idr, total_price_idr, platform_amount_idr, operator_amount_idr,
   agent_commission_idr, idempotency_key, placed_by_agent_id, buyer_agent_id,
   buyer_kind, base_price_idr, operator_markup_idr, agent_markup_idr,
-  destination
+  destination, digital_spend_counted_on
 ) VALUES (
   sqlc.arg(operator_id), sqlc.arg(season_id), sqlc.narg(pilgrim_id),
   sqlc.arg(product_id), NULLIF(sqlc.arg(agent_id)::text, '')::uuid,
@@ -17,7 +17,8 @@ INSERT INTO orders (
   NULLIF(sqlc.arg(placed_by_agent_id)::text, '')::uuid,
   sqlc.narg(buyer_agent_id), sqlc.arg(buyer_kind),
   sqlc.arg(base_price_idr), sqlc.arg(operator_markup_idr),
-  sqlc.arg(agent_markup_idr), sqlc.arg(destination)
+  sqlc.arg(agent_markup_idr), sqlc.arg(destination),
+  sqlc.narg(digital_spend_counted_on)
 )
 ON CONFLICT (operator_id, idempotency_key) WHERE idempotency_key <> '' DO NOTHING
 RETURNING *;
@@ -337,3 +338,52 @@ RETURNING *;
 -- the supplier's own token and has no operator in hand — the operator is what
 -- it is looking up. Every other order read is tenant-scoped and must stay so.
 SELECT * FROM orders WHERE id = $1;
+
+-- name: ConsumeDailyDigitalSpend :exec
+-- Increments the day's total in place. The row's CHECK is evaluated against
+-- the incremented value under the lock the UPDATE already holds, so two
+-- concurrent purchases serialise and the second is refused by the database.
+-- Reading a total and then deciding would let both through.
+INSERT INTO daily_digital_spend (buyer_kind, buyer_id, spend_date, total_idr)
+VALUES (sqlc.arg(buyer_kind), sqlc.arg(buyer_id), sqlc.arg(spend_date), sqlc.arg(amount_idr))
+ON CONFLICT (buyer_kind, buyer_id, spend_date)
+DO UPDATE SET total_idr = daily_digital_spend.total_idr + EXCLUDED.total_idr;
+
+-- name: ReleaseOrderDigitalSpend :exec
+-- Gives an order's headroom back when it stops holding value, and un-stamps it
+-- in the same statement.
+--
+-- One statement on purpose. Clearing the stamp and decrementing the total as
+-- two round trips can leave an order un-stamped with its total still consumed
+-- if anything fails between them, and that headroom is then unreachable for
+-- the rest of the day.
+--
+-- Idempotent by construction: the stamp is the guard. A second call finds no
+-- prior row, so the decrement matches nothing and the release cannot fire
+-- twice across the three settlement paths and the sweep.
+--
+-- GREATEST guards the floor. A release larger than the day holds would
+-- otherwise hit the non-negative constraint and strand itself.
+WITH prior AS (
+  SELECT COALESCE(pilgrim_id, buyer_agent_id) AS buyer_id,
+         buyer_kind,
+         digital_spend_counted_on AS spend_date,
+         total_price_idr
+  FROM orders o
+  WHERE o.id = sqlc.arg(order_id) AND o.digital_spend_counted_on IS NOT NULL
+  FOR UPDATE
+), cleared AS (
+  UPDATE orders u SET digital_spend_counted_on = NULL
+  WHERE u.id = sqlc.arg(order_id) AND u.digital_spend_counted_on IS NOT NULL
+)
+UPDATE daily_digital_spend d
+SET total_idr = GREATEST(0, d.total_idr - prior.total_price_idr)
+FROM prior
+WHERE d.buyer_kind = prior.buyer_kind
+  AND d.buyer_id = prior.buyer_id
+  AND d.spend_date = prior.spend_date;
+
+-- name: GetDailyDigitalSpend :one
+SELECT total_idr, limit_idr FROM daily_digital_spend
+WHERE buyer_kind = sqlc.arg(buyer_kind) AND buyer_id = sqlc.arg(buyer_id)
+  AND spend_date = sqlc.arg(spend_date);

@@ -99,7 +99,7 @@ func main() {
 		auditRepository := repository.NewAuditRepository(queries)
 		kloterRepository := repository.NewKloterRepository(queries)
 		identityRepository := repository.NewIdentityRepository(queries, agentRepository)
-		orderRepository := repository.NewOrderRepository(queries)
+		orderRepository := repository.NewOrderRepository(queries, pool)
 		broadcastRepository := repository.NewBroadcastRepository(queries)
 		registrationRepository := repository.NewRegistrationRepository(queries)
 		waitlistRepository := repository.NewWaitlistRepository(queries)

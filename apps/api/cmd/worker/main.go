@@ -61,7 +61,7 @@ func main() {
 	storefrontAssetRepository := repository.NewStorefrontAssetRepository(pool)
 	subscriptionRepository := repository.NewSubscriptionRepository(pool)
 	journeyRepository := repository.NewJourneyRepository(queries)
-	orderRepository := repository.NewOrderRepository(queries)
+	orderRepository := repository.NewOrderRepository(queries, pool)
 	fulfilmentRepository := repository.NewFulfilmentRepository(pool)
 	// The worker migrates legacy identities, so it needs the same key.
 	kycSealer, sealerErr := crypto.NewSealer(strings.TrimSpace(os.Getenv("KYC_ENCRYPTION_KEY")))

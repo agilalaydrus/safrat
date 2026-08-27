@@ -101,7 +101,7 @@ func newRefundFixture(t *testing.T) *refundFixture {
 	queries := db.New(pool)
 	service := NewOrderService(
 		repository.NewOperatorRepository(queries), repository.NewPilgrimRepository(queries),
-		repository.NewProductRepository(queries, pool), repository.NewOrderRepository(queries),
+		repository.NewProductRepository(queries, pool), repository.NewOrderRepository(queries, pool),
 		repository.NewAuditRepository(queries), ledger, repository.NewRefundRepository(pool), repository.NewAgentRepository(queries),
 		pool, nil, "http://localhost:3000")
 

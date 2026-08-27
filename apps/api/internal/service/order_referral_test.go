@@ -54,6 +54,8 @@ func newReferralFixture(t *testing.T) *referralFixture {
 	t.Cleanup(pool.Close)
 
 	operatorID, orgID := uuid.NewString(), "referral-"+uuid.NewString()
+	referrer, seller := uuid.NewString(), uuid.NewString()
+	seasonID, productID, pilgrimID := uuid.NewString(), uuid.NewString(), uuid.NewString()
 	exec := func(query string, args ...any) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, query, args...); err != nil {
@@ -74,14 +76,18 @@ func newReferralFixture(t *testing.T) *referralFixture {
 		if _, err := cleanup.Exec(context.Background(), `DELETE FROM operators WHERE id = $1`, operatorID); err != nil {
 			return
 		}
+		// daily_digital_spend cannot be reached by cascade: buyer_id is
+		// polymorphic (pilgrim or agent), so it carries no foreign key.
+		if _, err := cleanup.Exec(context.Background(),
+			`DELETE FROM daily_digital_spend WHERE buyer_id IN ($1,$2,$3)`, pilgrimID, referrer, seller); err != nil {
+			return
+		}
 		_ = cleanup.Commit(context.Background())
 	})
 
-	referrer, seller := uuid.NewString(), uuid.NewString()
 	exec(`INSERT INTO agents (id, operator_id, name) VALUES ($1,$2,'Agen Pereferral')`, referrer, operatorID)
 	exec(`INSERT INTO agents (id, operator_id, name) VALUES ($1,$2,'Agen Penjual')`, seller, operatorID)
 
-	seasonID, productID, pilgrimID := uuid.NewString(), uuid.NewString(), uuid.NewString()
 	exec(`INSERT INTO seasons (id, operator_id, name, type, start_date, end_date, capacity) VALUES ($1,$2,'Musim','UMRAH_REGULER',NOW(),NOW()+INTERVAL '30 days',10)`, seasonID, operatorID)
 	exec(`INSERT INTO products (id, operator_id, season_id, name, price_idr, base_price_idr, agent_margin_bps)
 	      VALUES ($1,$2,$3,'Paket Uji',$4,$5,1500)`,
@@ -112,7 +118,7 @@ func newReferralFixture(t *testing.T) *referralFixture {
 	queries := db.New(pool)
 	orders := NewOrderService(
 		repository.NewOperatorRepository(queries), repository.NewPilgrimRepository(queries),
-		repository.NewProductRepository(queries, pool), repository.NewOrderRepository(queries),
+		repository.NewProductRepository(queries, pool), repository.NewOrderRepository(queries, pool),
 		repository.NewAuditRepository(queries), repository.NewLedgerRepository(pool),
 		repository.NewRefundRepository(pool), repository.NewAgentRepository(queries),
 		pool, payment.NewClientWithEndpoint("test-key", invoices.URL), "http://localhost:3000")
@@ -267,6 +273,25 @@ func TestAgentSelfPurchaseUsesAgentPriceAndRemainsVisibleIntegration(t *testing.
 	if _, err := f.pool.Exec(ctx, `UPDATE products SET category = 'PPOB_CREDIT', type = '', code = $2 WHERE id = $1`, f.productID, "PPOB-"+f.productID[:8]); err != nil {
 		t.Fatalf("make digital product: %v", err)
 	}
+	// A digital product needs a live route, or checkout refuses it before
+	// price is ever considered — which is the correct behaviour and would make
+	// this test assert the wrong refusal.
+	supplierID := uuid.NewString()
+	if _, err := f.pool.Exec(ctx, `INSERT INTO suppliers (id, name, code, base_url, status) VALUES ($1,'Supplier Uji',$2,'https://stub.invalid','ACTIVE')`,
+		supplierID, "SUP-"+supplierID[:8]); err != nil {
+		t.Fatalf("insert supplier: %v", err)
+	}
+	if _, err := f.pool.Exec(ctx, `INSERT INTO product_routes (product_id, supplier_id, supplier_sku, is_active) VALUES ($1,$2,'SKU-UJI',true)`,
+		f.productID, supplierID); err != nil {
+		t.Fatalf("insert route: %v", err)
+	}
+	// Suppliers are global, not tenant-owned, so deleting the operator will not
+	// take this with it.
+	t.Cleanup(func() {
+		bg := context.Background()
+		_, _ = f.pool.Exec(bg, `DELETE FROM product_routes WHERE supplier_id = $1`, supplierID)
+		_, _ = f.pool.Exec(bg, `DELETE FROM suppliers WHERE id = $1`, supplierID)
+	})
 
 	catalogue, err := f.orders.ListMyPurchaseCatalogue(ctx, f.orgID, &hajjv1.ListMyPurchaseCatalogueRequest{SeasonId: f.seasonID})
 	if err != nil {
@@ -641,7 +666,7 @@ func TestMatchingPaymentSettlesIntegration(t *testing.T) {
 func TestPollingSettlesATransactionWhoseWebhookNeverArrivedIntegration(t *testing.T) {
 	f := newReferralFixture(t)
 	ctx := context.Background()
-	orders := repository.NewOrderRepository(db.New(f.pool))
+	orders := repository.NewOrderRepository(db.New(f.pool), f.pool)
 
 	response, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
 		AppAccessCode: f.accessCode(t), ProductId: f.productID, Quantity: 1,
@@ -799,7 +824,7 @@ func TestResolvingAHeldTransactionIntegration(t *testing.T) {
 func TestGatewayChecksBackOffAsAnOrderAgesIntegration(t *testing.T) {
 	f := newReferralFixture(t)
 	ctx := context.Background()
-	orders := repository.NewOrderRepository(db.New(f.pool))
+	orders := repository.NewOrderRepository(db.New(f.pool), f.pool)
 
 	response, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
 		AppAccessCode: f.accessCode(t), ProductId: f.productID, Quantity: 1,

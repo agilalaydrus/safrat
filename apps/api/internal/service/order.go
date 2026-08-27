@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/getsentry/sentry-go"
@@ -110,6 +111,50 @@ func priceAgentOrder(product *domain.Product, levels domain.PriceLevels, route d
 	return price, nil
 }
 
+// describeLimitRefusal turns the bare limit error into one a person can act
+// on: the cap, and what is left today.
+//
+// "Transaksi ditolak" alone sends a jamaah to customer service to ask a
+// question the system already knows the answer to. If the lookup itself fails
+// the original refusal still stands — a limit that cannot be described is
+// still a limit, and swallowing it would let the purchase through.
+func (s *OrderService) describeLimitRefusal(ctx context.Context, err error, buyerKind, buyerID string) error {
+	if !errors.Is(err, apperror.ErrDailyLimitExceeded) {
+		return err
+	}
+	spend, lookupErr := s.orderRepository.DailyDigitalSpend(ctx, buyerKind, buyerID, jakartaToday())
+	if lookupErr != nil {
+		return err
+	}
+	remaining := spend.LimitIDR - spend.TotalIDR
+	if remaining < 0 {
+		remaining = 0
+	}
+	return fmt.Errorf("%w: batas transaksi produk digital %s per hari; terpakai %s, sisa %s hari ini",
+		apperror.ErrDailyLimitExceeded, rupiah(spend.LimitIDR), rupiah(spend.TotalIDR), rupiah(remaining))
+}
+
+// jakartaLocation is resolved once. A daily limit that rolled over on UTC
+// would reset at 07:00 local time — an evening purchase and the next
+// morning's counting against different days, a single afternoon spanning two,
+// and nobody able to predict when their limit comes back.
+var jakartaLocation = func() *time.Location {
+	loc, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		// Fixed offset rather than falling back to UTC. WIB has never observed
+		// daylight saving, so +07:00 is exactly right; UTC would silently move
+		// every buyer's reset time by seven hours.
+		return time.FixedZone("WIB", 7*60*60)
+	}
+	return loc
+}()
+
+// jakartaToday is the calendar day the daily limit counts against.
+func jakartaToday() time.Time {
+	now := time.Now().In(jakartaLocation)
+	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, jakartaLocation)
+}
+
 // digitalDestination freezes the provider target on the order. A mutable
 // profile phone is only a default; dispatch must never look it up later.
 func digitalDestination(product *domain.Product, supplied, fallback string) (string, error) {
@@ -175,9 +220,10 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *hajjv1.CreateOrderR
 		TotalPriceIDR: price.TotalPriceIDR, PlatformAmountIDR: price.PlatformAmountIDR,
 		OperatorAmountIDR: price.OperatorAmountIDR, AgentCommissionIDR: price.AgentCommissionIDR,
 		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey), Destination: destination,
+		CountsTowardDailyLimit: domain.RoutingRequired(product.Category), SpendDate: jakartaToday(),
 	})
 	if err != nil {
-		return nil, serviceError("OrderService.CreateOrder", err)
+		return nil, serviceError("OrderService.CreateOrder", s.describeLimitRefusal(ctx, err, string(BuyerPilgrim), info.ID))
 	}
 	// A replay of the same key: the order already exists and already has its
 	// invoice. Creating a second invoice here is exactly the double charge the
@@ -261,9 +307,10 @@ func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req 
 		TotalPriceIDR: price.TotalPriceIDR, PlatformAmountIDR: price.PlatformAmountIDR,
 		OperatorAmountIDR: price.OperatorAmountIDR, AgentCommissionIDR: price.AgentCommissionIDR,
 		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey), Destination: destination,
+		CountsTowardDailyLimit: domain.RoutingRequired(product.Category), SpendDate: jakartaToday(),
 	})
 	if err != nil {
-		return nil, serviceError("OrderService.CreateManualOrder", err)
+		return nil, serviceError("OrderService.CreateManualOrder", s.describeLimitRefusal(ctx, err, string(BuyerPilgrim), pilgrim.ID))
 	}
 	order.ProductName = product.Name
 	order.PilgrimName = pilgrim.FullName
@@ -633,6 +680,11 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 		return nil, serviceError("OrderService.RefundOrder", err)
 	}
 
+	// A refunded order no longer holds value, so its share of the buyer's daily
+	// limit goes back. After the commit for the same reason as the audit: the
+	// money is already returned, and a counter must not be able to undo that.
+	s.releaseDailyLimit(ctx, order.ID)
+
 	// Audited after the commit: the refund is the fact, and failing to write
 	// the log must not roll back money that has already been returned.
 	_ = s.auditRepository.Write(ctx, op.ID, userID, "order_refunded", "order", order.ID,
@@ -758,9 +810,10 @@ func (s *OrderService) CreateOrderForPilgrim(ctx context.Context, orgID, userID 
 		TotalPriceIDR: price.TotalPriceIDR, PlatformAmountIDR: price.PlatformAmountIDR,
 		OperatorAmountIDR: price.OperatorAmountIDR, AgentCommissionIDR: price.AgentCommissionIDR,
 		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey), Destination: destination,
+		CountsTowardDailyLimit: domain.RoutingRequired(product.Category), SpendDate: jakartaToday(),
 	})
 	if err != nil {
-		return nil, serviceError("OrderService.CreateOrderForPilgrim", err)
+		return nil, serviceError("OrderService.CreateOrderForPilgrim", s.describeLimitRefusal(ctx, err, string(BuyerPilgrim), pilgrim.ID))
 	}
 	order.ProductName = product.Name
 	order.PilgrimName = pilgrim.FullName
@@ -877,10 +930,11 @@ func (s *OrderService) CreateOrderForSelf(ctx context.Context, orgID, userID str
 		AgentMarkupIDR: price.AgentMarkupIDR, TotalPriceIDR: price.TotalPriceIDR,
 		PlatformAmountIDR: price.PlatformAmountIDR, OperatorAmountIDR: price.OperatorAmountIDR,
 		AgentCommissionIDR: 0, IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
-		Destination: destination,
+		Destination:            destination,
+		CountsTowardDailyLimit: domain.RoutingRequired(product.Category), SpendDate: jakartaToday(),
 	})
 	if err != nil {
-		return nil, serviceError("OrderService.CreateOrderForSelf", err)
+		return nil, serviceError("OrderService.CreateOrderForSelf", s.describeLimitRefusal(ctx, err, string(BuyerAgent), agent.ID))
 	}
 	order.ProductName = product.Name
 	order.BuyerName = agent.Name
@@ -989,7 +1043,26 @@ func (s *OrderService) MarkStatusByInvoiceID(ctx context.Context, invoiceID, sta
 		return err
 	}
 	s.reverseCommission(ctx, order, "Komisi ditarik: transaksi "+strings.ToLower(status))
+	s.releaseDailyLimit(ctx, order.ID)
 	return nil
+}
+
+// releaseDailyLimit gives back the headroom an order consumed once it stops
+// holding value.
+//
+// Safe to call for any order and safe to call twice: the stamp on the order is
+// the guard, and the release clears it in the same statement. That is why this
+// can sit on every terminal path — three settlement routes and the
+// reconciliation sweep — without any of them coordinating over who does it.
+//
+// Failure is logged, never returned. The order has already moved to a status
+// it will not leave; refusing to finish that because a counter could not be
+// decremented would leave the transaction in a worse state than the stale
+// headroom does, and the headroom resets at midnight regardless.
+func (s *OrderService) releaseDailyLimit(ctx context.Context, orderID string) {
+	if err := s.orderRepository.ReleaseDigitalSpend(ctx, orderID); err != nil {
+		sentry.CaptureException(fmt.Errorf("OrderService.releaseDailyLimit: %w", err))
+	}
 }
 
 // ResolveHeldOrder closes out a transaction whose payment did not match the
@@ -1041,6 +1114,7 @@ func (s *OrderService) ResolveHeldOrder(ctx context.Context, orgID, userID strin
 		}
 	} else {
 		s.reverseCommission(ctx, resolved, "Komisi ditarik: transaksi ditolak setelah ditinjau")
+		s.releaseDailyLimit(ctx, resolved.ID)
 	}
 
 	decision := "diterima"

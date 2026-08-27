@@ -4,19 +4,30 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type OrderRepository struct{ queries *db.Queries }
+type OrderRepository struct {
+	queries *db.Queries
+	// pool is needed because creating an order and consuming the buyer's daily
+	// limit have to be one transaction. Consuming first and inserting second
+	// leaks headroom whenever the insert turns out to be a replay; inserting
+	// first and consuming second creates an order the limit should have
+	// refused.
+	pool *pgxpool.Pool
+}
 
-func NewOrderRepository(queries *db.Queries) *OrderRepository {
-	return &OrderRepository{queries: queries}
+func NewOrderRepository(queries *db.Queries, pool *pgxpool.Pool) *OrderRepository {
+	return &OrderRepository{queries: queries, pool: pool}
 }
 
 // Create records the order with every price level and settlement amount
@@ -49,6 +60,16 @@ type CreateOrderParams struct {
 	AgentCommissionIDR int64
 	IdempotencyKey     string
 	Destination        string
+
+	// CountsTowardDailyLimit is true only for the digital categories the cap
+	// applies to. Decided by the service, because "which products are digital"
+	// is a business rule and the repository should not hold a second copy of
+	// it that can drift.
+	CountsTowardDailyLimit bool
+	// SpendDate is the buyer's calendar day in Asia/Jakarta. Passed in rather
+	// than computed here so the whole system agrees on when a day starts, and
+	// so a test can pin it.
+	SpendDate time.Time
 }
 
 // Create records an order, or returns the one already recorded under the same
@@ -75,7 +96,24 @@ func (r *OrderRepository) Create(ctx context.Context, params CreateOrderParams) 
 	if err != nil {
 		return nil, false, err
 	}
-	order, err := r.queries.CreateOrder(ctx, db.CreateOrderParams{
+	// Digital purchases consume the buyer's daily limit, and that has to happen
+	// in the same transaction as the insert. Anything else has a window: consume
+	// first and a replayed idempotency key leaks headroom that never comes back
+	// until midnight; insert first and an order exists that the limit should
+	// have refused.
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	qtx := r.queries.WithTx(tx)
+
+	var spendStamp pgtype.Date
+	if params.CountsTowardDailyLimit {
+		spendStamp = pgtype.Date{Time: params.SpendDate, Valid: true}
+	}
+
+	order, err := qtx.CreateOrder(ctx, db.CreateOrderParams{
 		OperatorID: opUUID, SeasonID: seasonUUID, PilgrimID: pilgrimUUID, ProductID: productUUID,
 		AgentID: params.AgentID, Quantity: params.Quantity, UnitPriceIdr: params.UnitPriceIDR,
 		TotalPriceIdr: params.TotalPriceIDR, PlatformAmountIdr: params.PlatformAmountIDR,
@@ -83,24 +121,83 @@ func (r *OrderRepository) Create(ctx context.Context, params CreateOrderParams) 
 		IdempotencyKey: params.IdempotencyKey, PlacedByAgentID: params.PlacedByAgentID,
 		BuyerAgentID: buyerAgentUUID, BuyerKind: params.BuyerKind,
 		BasePriceIdr: params.BasePriceIDR, OperatorMarkupIdr: params.OperatorMarkupIDR,
-		AgentMarkupIdr: params.AgentMarkupIDR,
-		Destination:    strings.TrimSpace(params.Destination),
+		AgentMarkupIdr:        params.AgentMarkupIDR,
+		Destination:           strings.TrimSpace(params.Destination),
+		DigitalSpendCountedOn: spendStamp,
 	})
 	if err == nil {
+		// Only a genuinely new order spends. A replay reaches the branch below
+		// and never gets here, which is what keeps a retried checkout from
+		// consuming the limit twice.
+		if params.CountsTowardDailyLimit {
+			if err := qtx.ConsumeDailyDigitalSpend(ctx, db.ConsumeDailyDigitalSpendParams{
+				BuyerKind: params.BuyerKind,
+				BuyerID:   buyerIdentity(pilgrimUUID, buyerAgentUUID),
+				SpendDate: spendStamp,
+				AmountIdr: params.TotalPriceIDR,
+			}); err != nil {
+				if isCheckViolation(err, "daily_digital_spend_within_limit") {
+					return nil, false, apperror.ErrDailyLimitExceeded
+				}
+				return nil, false, err
+			}
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return nil, false, err
+		}
 		return toOrder(order), true, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, false, err
 	}
 	// No row came back: this key already made an order. That order is what the
-	// caller is asking for.
-	existing, err := r.queries.GetOrderByIdempotencyKey(ctx, db.GetOrderByIdempotencyKeyParams{
+	// caller is asking for, and it already spent its share of the limit.
+	existing, err := qtx.GetOrderByIdempotencyKey(ctx, db.GetOrderByIdempotencyKeyParams{
 		OperatorID: opUUID, IdempotencyKey: params.IdempotencyKey,
 	})
 	if err != nil {
 		return nil, false, err
 	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, false, err
+	}
 	return toOrderFromRow(db.GetOrderRow(existing)), false, nil
+}
+
+// buyerIdentity picks whichever buyer column is set. The CHECK on orders
+// guarantees exactly one is, so this cannot silently return a zero UUID for a
+// valid order.
+// isCheckViolation reports a specific CHECK constraint failing, which is how
+// the daily limit refuses. Named rather than matched on message text, so a
+// different constraint failing is never mistaken for the limit.
+func isCheckViolation(err error, constraint string) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	return pgErr.Code == "23514" && pgErr.ConstraintName == constraint
+}
+
+func buyerIdentity(pilgrim, agent pgtype.UUID) pgtype.UUID {
+	if pilgrim.Valid {
+		return pilgrim
+	}
+	return agent
+}
+
+// ReleaseDigitalSpend gives an order's daily headroom back when it stops
+// holding value — refunded, failed, expired or cancelled.
+//
+// Safe to call for any order: one that never counted carries no stamp, and the
+// statement matches nothing. That matters because it is reached from three
+// settlement paths and a reconciliation sweep, and coordinating "who releases"
+// between them would be one more thing to get wrong.
+func (r *OrderRepository) ReleaseDigitalSpend(ctx context.Context, orderID string) error {
+	id, err := pgUUID(orderID)
+	if err != nil {
+		return err
+	}
+	return r.queries.ReleaseOrderDigitalSpend(ctx, id)
 }
 
 // MarkPaidManually is the admin cash/bank-transfer counterpart to
@@ -465,3 +562,35 @@ func (r *OrderRepository) MarkGatewayChecked(ctx context.Context, orderIDs []str
 	}
 	return r.queries.MarkOrdersGatewayChecked(ctx, ids)
 }
+
+// DailySpend is what an account has spent on digital products today and the
+// cap in force for them.
+type DailySpend struct {
+	TotalIDR int64
+	LimitIDR int64
+}
+
+// DailyDigitalSpend reads a buyer's day. A buyer who has bought nothing has no
+// row, which is not an error — it is a day with the full limit still on it.
+func (r *OrderRepository) DailyDigitalSpend(ctx context.Context, buyerKind, buyerID string, day time.Time) (DailySpend, error) {
+	id, err := pgUUID(buyerID)
+	if err != nil {
+		return DailySpend{}, err
+	}
+	row, err := r.queries.GetDailyDigitalSpend(ctx, db.GetDailyDigitalSpendParams{
+		BuyerKind: buyerKind, BuyerID: id,
+		SpendDate: pgtype.Date{Time: day, Valid: true},
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DailySpend{TotalIDR: 0, LimitIDR: defaultDailyDigitalLimitIDR}, nil
+	}
+	if err != nil {
+		return DailySpend{}, err
+	}
+	return DailySpend{TotalIDR: row.TotalIdr, LimitIDR: row.LimitIdr}, nil
+}
+
+// defaultDailyDigitalLimitIDR mirrors the column default. Only used to
+// describe a day that has no row yet; enforcement always comes from the row's
+// own limit_idr, so a per-account override is never overridden by this.
+const defaultDailyDigitalLimitIDR = 20_000_000
