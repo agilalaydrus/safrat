@@ -39,6 +39,12 @@ service PlatformService {
   // outranks what somebody typed.
   rpc SetProductSupplierCost(SetProductSupplierCostRequest) returns (SetProductSupplierCostResponse);
 
+  // SetProductBasePrice sets what TawafiqHub charges the travel for a product.
+  // Platform-only and scoped by product id alone: an operator must not be able
+  // to move the price they are charged, which is why it lives here and not on
+  // ProductService.
+  rpc SetProductBasePrice(SetProductBasePriceRequest) returns (SetProductBasePriceResponse);
+
   // Supplier catalogue. Digital products are supplied by the platform, so all
   // of this is platform-owned — a travel neither sets nor sees it.
   rpc ListSuppliers(ListSuppliersRequest) returns (ListSuppliersResponse);
@@ -125,6 +131,12 @@ message PlatformProduct {
   // MANUAL, OBSERVED, or empty when nothing is known.
   string supplier_cost_source = 9;
   google.protobuf.Timestamp supplier_cost_updated_at = 10;
+
+  // What TawafiqHub charges the travel. base_price_set distinguishes an unset
+  // base from a zero one; a product with no base cannot be sold at all, so the
+  // two must not look alike on this screen.
+  int64 base_price_idr = 11;
+  bool base_price_set = 12;
 }
 
 message ListProductsNeedingCostRequest {
@@ -140,6 +152,12 @@ message SetProductSupplierCostRequest {
   int64 supplier_cost_idr = 2 [(buf.validate.field).int64.gte = 0];
 }
 message SetProductSupplierCostResponse { PlatformProduct product = 1; }
+
+message SetProductBasePriceRequest {
+  string product_id = 1 [(buf.validate.field).string.uuid = true];
+  int64 base_price_idr = 2 [(buf.validate.field).int64.gte = 0];
+}
+message SetProductBasePriceResponse { PlatformProduct product = 1; }
 
 message PlatformSupplier {
   string id = 1;

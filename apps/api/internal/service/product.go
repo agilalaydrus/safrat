@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
@@ -227,4 +229,124 @@ func optionalAmount(amount int64) *int64 {
 		return nil
 	}
 	return &amount
+}
+
+// ListPricing shows what each kind of buyer pays for every product in a
+// season, and why.
+//
+// Prices are computed here on every read rather than stored. A stored price is
+// a copy of a derivation, and it goes stale the moment any level beneath it
+// moves — the platform raising a base, or the operator saving a markup. Then
+// two numbers disagree and nothing can say which one a customer is owed.
+func (s *ProductService) ListPricing(ctx context.Context, orgID string, req *hajjv1.ListProductPricingRequest) (*hajjv1.ListProductPricingResponse, error) {
+	if req == nil || strings.TrimSpace(req.SeasonId) == "" {
+		return nil, serviceError("ProductService.ListPricing", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("ProductService.ListPricing", err)
+	}
+
+	products, levels, err := s.productRepository.ListPricing(ctx, op.ID, req.SeasonId)
+	if err != nil {
+		return nil, serviceError("ProductService.ListPricing", err)
+	}
+
+	out := make([]*hajjv1.ProductPricing, 0, len(products))
+	for i, product := range products {
+		out = append(out, pricingMessage(product, levels[i]))
+	}
+	return &hajjv1.ListProductPricingResponse{Pricing: out}, nil
+}
+
+// SetMarkup saves this travel's markups for one product.
+//
+// Scoped through the operator resolved from the session, never from the
+// request, so an operator cannot price another tenant's product by sending its
+// id. Repository writes are an upsert, so two staff saving at once cannot
+// leave the product carrying two markups.
+func (s *ProductService) SetMarkup(ctx context.Context, orgID string, req *hajjv1.SetProductMarkupRequest) (*hajjv1.SetProductMarkupResponse, error) {
+	if req == nil || strings.TrimSpace(req.ProductId) == "" ||
+		req.OperatorMarkupIdr < 0 || req.AgentMarkupIdr < 0 {
+		return nil, serviceError("ProductService.SetMarkup", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("ProductService.SetMarkup", err)
+	}
+
+	// Read first so a product belonging to another operator is a not-found
+	// rather than a silent no-op write. The upsert is scoped by operator id
+	// too, so nothing could be written across tenants either way — but a
+	// caller must be told, not left believing a save happened.
+	if _, _, err := s.productRepository.Pricing(ctx, op.ID, req.ProductId); err != nil {
+		return nil, serviceError("ProductService.SetMarkup", err)
+	}
+
+	if err := s.productRepository.SetMarkup(ctx, op.ID, req.ProductId, req.OperatorMarkupIdr, req.AgentMarkupIdr); err != nil {
+		return nil, serviceError("ProductService.SetMarkup", err)
+	}
+
+	// Re-read rather than echoing the request back. The response carries
+	// computed prices, and computing them from what was just sent would show
+	// the caller their own input dressed as a result — including when the base
+	// is unset and the product still cannot be sold.
+	product, levels, err := s.productRepository.Pricing(ctx, op.ID, req.ProductId)
+	if err != nil {
+		return nil, serviceError("ProductService.SetMarkup", err)
+	}
+	return &hajjv1.SetProductMarkupResponse{Pricing: pricingMessage(product, levels)}, nil
+}
+
+// pricingMessage builds one row of the pricing screen.
+//
+// Sellability is decided by running the real pricing gate, not by re-listing
+// its conditions here. If the screen judged sellability on its own terms it
+// would drift from checkout, and the failure mode is the worst kind: a product
+// the screen calls ready that refuses at the moment a customer tries to pay.
+func pricingMessage(product *domain.Product, levels domain.PriceLevels) *hajjv1.ProductPricing {
+	msg := &hajjv1.ProductPricing{
+		ProductId:         product.ID,
+		ProductName:       product.Name,
+		Code:              product.Code,
+		Category:          product.Category,
+		OperatorMarkupIdr: levels.OperatorMarkupIDR,
+		AgentMarkupIdr:    levels.AgentMarkupIDR,
+		MarkupConfigured:  levels.Configured,
+		BasePriceSet:      levels.BasePriceIDR != nil,
+	}
+	if levels.BasePriceIDR != nil {
+		msg.BasePriceIdr = *levels.BasePriceIDR
+	}
+
+	// Quantity one: this is a unit price list. Every level scales linearly, so
+	// a unit price is the whole truth here.
+	pilgrimPrice, pilgrimErr := pricePilgrimOrder(product, levels, 1, "")
+	agentPrice, agentErr := priceAgentOrder(product, levels, 1)
+
+	if pilgrimErr != nil {
+		msg.UnsellableReason = refusalText(pilgrimErr)
+		return msg
+	}
+	if agentErr != nil {
+		msg.UnsellableReason = refusalText(agentErr)
+		return msg
+	}
+
+	msg.PilgrimPriceIdr = pilgrimPrice.TotalPriceIDR
+	msg.AgentPriceIdr = agentPrice.TotalPriceIDR
+	msg.Sellable = true
+	return msg
+}
+
+// refusalText unwraps a Connect error down to the message a person should
+// read. The pricing gate returns failed preconditions carrying text written
+// for exactly this purpose; anything else would be an internal fault and must
+// not be shown verbatim.
+func refusalText(err error) string {
+	var connectErr *connect.Error
+	if errors.As(err, &connectErr) && connectErr.Code() == connect.CodeFailedPrecondition {
+		return connectErr.Message()
+	}
+	return "produk belum siap dijual"
 }

@@ -3,6 +3,8 @@ package handler
 import (
 	"context"
 
+	"buf.build/go/protovalidate"
+
 	"connectrpc.com/connect"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/middleware"
@@ -44,6 +46,28 @@ func (h *ProductHandler) UpdateProduct(ctx context.Context, req *connect.Request
 }
 func (h *ProductHandler) DeleteProduct(ctx context.Context, req *connect.Request[hajjv1.DeleteProductRequest]) (*connect.Response[hajjv1.DeleteProductResponse], error) {
 	result, err := h.productService.Delete(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *ProductHandler) ListProductPricing(ctx context.Context, req *connect.Request[hajjv1.ListProductPricingRequest]) (*connect.Response[hajjv1.ListProductPricingResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.productService.ListPricing(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *ProductHandler) SetProductMarkup(ctx context.Context, req *connect.Request[hajjv1.SetProductMarkupRequest]) (*connect.Response[hajjv1.SetProductMarkupResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.productService.SetMarkup(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
 	if err != nil {
 		return nil, connectError(err)
 	}

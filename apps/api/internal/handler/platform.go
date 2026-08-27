@@ -224,3 +224,14 @@ func (h *PlatformHandler) SetKycStatus(ctx context.Context, req *connect.Request
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) SetProductBasePrice(ctx context.Context, req *connect.Request[hajjv1.SetProductBasePriceRequest]) (*connect.Response[hajjv1.SetProductBasePriceResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.SetProductBasePrice(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

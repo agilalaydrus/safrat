@@ -13,6 +13,18 @@ service ProductService {
   rpc ListProducts(ListProductsRequest) returns (ListProductsResponse);
   rpc UpdateProduct(UpdateProductRequest) returns (Product);
   rpc DeleteProduct(DeleteProductRequest) returns (DeleteProductResponse);
+
+  // ListProductPricing shows what each kind of buyer actually pays, built up
+  // from the platform's base. Prices are computed on read and never stored:
+  // a stored price is a copy that goes stale the moment any level beneath it
+  // moves, and the two would then disagree with nobody able to say which is
+  // authoritative.
+  rpc ListProductPricing(ListProductPricingRequest) returns (ListProductPricingResponse);
+
+  // SetProductMarkup sets this travel's markups for one product. The base is
+  // deliberately not settable here — it is what TawafiqHub charges the travel,
+  // and a travel that could edit it could sell below the platform's cost.
+  rpc SetProductMarkup(SetProductMarkupRequest) returns (SetProductMarkupResponse);
 }
 
 // `category` is a plain string, not an enum, matching the rest of this
@@ -122,3 +134,57 @@ message UpdateProductRequest {
 
 message DeleteProductRequest { string product_id = 1 [(buf.validate.field).string.min_len = 1]; }
 message DeleteProductResponse {}
+
+// ProductPricing is one product's price broken into the levels that make it,
+// plus what each buyer pays. Sending both the parts and the totals is
+// deliberate: the screen must be able to show why a price is what it is, and
+// recomputing the sum in TypeScript would be a second implementation of the
+// rule that decides what people are charged.
+message ProductPricing {
+  string product_id = 1;
+  string product_name = 2;
+  string code = 3;
+  string category = 4;
+
+  // The platform's base. base_price_set separates "not configured" from a
+  // genuine zero — the first is a gap that blocks selling, the second would
+  // mean free.
+  int64 base_price_idr = 5;
+  bool base_price_set = 6;
+
+  int64 operator_markup_idr = 7;
+  int64 agent_markup_idr = 8;
+
+  // False when this travel has never saved markups for the product. Zero
+  // markups and absent markups price identically, so the screen has to be able
+  // to tell them apart and so does the sale.
+  bool markup_configured = 9;
+
+  // base + operator markup. What an agent pays buying on their own account,
+  // which is why such a purchase earns no commission: the agent level is not
+  // in it.
+  int64 agent_price_idr = 10;
+
+  // base + operator markup + agent markup. What a jamaah pays, whether or not
+  // an agent referred them — a referred jamaah must never be quoted more than
+  // a walk-in.
+  int64 pilgrim_price_idr = 11;
+
+  // True when the product cannot currently be sold, with reason carrying the
+  // explanation. Computed here rather than inferred on the client, so the
+  // screen and the checkout refuse for identical reasons.
+  bool sellable = 12;
+  string unsellable_reason = 13;
+}
+
+message ListProductPricingRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message ListProductPricingResponse { repeated ProductPricing pricing = 1; }
+
+message SetProductMarkupRequest {
+  string product_id = 1 [(buf.validate.field).string.uuid = true];
+  int64 operator_markup_idr = 2 [(buf.validate.field).int64.gte = 0];
+  int64 agent_markup_idr = 3 [(buf.validate.field).int64.gte = 0];
+}
+message SetProductMarkupResponse { ProductPricing pricing = 1; }

@@ -41,7 +41,7 @@ func TestPlatformPanelIsClosedToOperatorStaffIntegration(t *testing.T) {
 
 	queries := db.New(pool)
 	platform := service.NewPlatformService(
-		repository.NewPlatformRepository(pool), repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool), repository.NewKYCRepository(pool),
+		repository.NewPlatformRepository(pool), repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool), repository.NewProductRepository(queries, pool), repository.NewKYCRepository(pool),
 		repository.NewAuditRepository(queries))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
@@ -155,7 +155,7 @@ func TestPlatformCostSettingRespectsObservedCostsIntegration(t *testing.T) {
 
 	queries := db.New(pool)
 	costs := repository.NewSupplierCostRepository(pool)
-	platform := service.NewPlatformService(repository.NewPlatformRepository(pool), costs, repository.NewSupplierRepository(pool), repository.NewKYCRepository(pool), repository.NewAuditRepository(queries))
+	platform := service.NewPlatformService(repository.NewPlatformRepository(pool), costs, repository.NewSupplierRepository(pool), repository.NewProductRepository(queries, pool), repository.NewKYCRepository(pool), repository.NewAuditRepository(queries))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
@@ -223,7 +223,7 @@ func TestPlatformAccessRequiresTwoFactorIntegration(t *testing.T) {
 
 	queries := db.New(pool)
 	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
-		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool), repository.NewKYCRepository(pool), repository.NewAuditRepository(queries))
+		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool), repository.NewProductRepository(queries, pool), repository.NewKYCRepository(pool), repository.NewAuditRepository(queries))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
@@ -306,7 +306,7 @@ func TestSupplierCatalogueOverHTTPIntegration(t *testing.T) {
 
 	queries := db.New(pool)
 	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
-		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool), repository.NewKYCRepository(pool),
+		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool), repository.NewProductRepository(queries, pool), repository.NewKYCRepository(pool),
 		repository.NewAuditRepository(queries))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
@@ -481,7 +481,7 @@ func TestPlatformAccountManagementIntegration(t *testing.T) {
 	queries := db.New(pool)
 	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
 		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool),
-		repository.NewKYCRepository(pool), repository.NewAuditRepository(queries))
+		repository.NewProductRepository(queries, pool), repository.NewKYCRepository(pool), repository.NewAuditRepository(queries))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
@@ -624,7 +624,7 @@ func TestReadingAnIdentityIsAuditedIntegration(t *testing.T) {
 
 	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
 		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool),
-		kyc, repository.NewAuditRepository(queries))
+		repository.NewProductRepository(queries, pool), kyc, repository.NewAuditRepository(queries))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,

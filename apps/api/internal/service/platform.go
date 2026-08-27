@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"connectrpc.com/connect"
 	"github.com/hajj-saas/api/internal/apperror"
@@ -23,12 +24,13 @@ type PlatformService struct {
 	platformRepository     *repository.PlatformRepository
 	supplierCostRepository *repository.SupplierCostRepository
 	supplierRepository     *repository.SupplierRepository
+	productRepository      *repository.ProductRepository
 	kycRepository          *repository.KYCRepository
 	auditRepository        *repository.AuditRepository
 }
 
-func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, kyc *repository.KYCRepository, audit *repository.AuditRepository) *PlatformService {
-	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, supplierRepository: suppliers, kycRepository: kyc, auditRepository: audit}
+func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, products *repository.ProductRepository, kyc *repository.KYCRepository, audit *repository.AuditRepository) *PlatformService {
+	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, supplierRepository: suppliers, productRepository: products, kycRepository: kyc, auditRepository: audit}
 }
 
 // requirePlatformAdmin is the only thing standing between a signed-in operator
@@ -154,6 +156,56 @@ func (s *PlatformService) SetProductSupplierCost(ctx context.Context, req *hajjv
 	return &hajjv1.SetProductSupplierCostResponse{Product: platformProductMessage(updated)}, nil
 }
 
+// SetProductBasePrice sets what TawafiqHub charges a travel for a product.
+//
+// Platform-only, and scoped by product id alone rather than by operator: this
+// is the price the operator pays, and an operator able to edit it could price
+// below what the platform is charging them. That is why it lives on this
+// service and not on ProductService.
+func (s *PlatformService) SetProductBasePrice(ctx context.Context, req *hajjv1.SetProductBasePriceRequest) (*hajjv1.SetProductBasePriceResponse, error) {
+	userID, err := s.requirePlatformAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req == nil || !isUUID(req.ProductId) || req.BasePriceIdr < 0 {
+		return nil, serviceError("PlatformService.SetProductBasePrice", apperror.ErrValidation)
+	}
+	product, err := s.platformRepository.GetProduct(ctx, req.ProductId)
+	if err != nil {
+		return nil, serviceError("PlatformService.SetProductBasePrice", err)
+	}
+
+	// The base must cover what the supplier charges, or every sale of this
+	// product loses money at the platform level regardless of what any travel
+	// adds on top. Refused here as well as at checkout, because a base saved
+	// below cost would otherwise sit looking valid until the first sale.
+	if product.SupplierCostIDR != nil && req.BasePriceIdr < *product.SupplierCostIDR {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Errorf("harga dasar %s di bawah harga modal supplier %s", rupiah(req.BasePriceIdr), rupiah(*product.SupplierCostIDR)))
+	}
+
+	if err := s.productRepository.SetBasePrice(ctx, req.ProductId, req.BasePriceIdr); err != nil {
+		return nil, serviceError("PlatformService.SetProductBasePrice", err)
+	}
+	updated, err := s.platformRepository.GetProduct(ctx, req.ProductId)
+	if err != nil {
+		return nil, serviceError("PlatformService.SetProductBasePrice", err)
+	}
+
+	// Audited against the operator who pays it, so the travel can see their own
+	// cost move rather than finding out from an invoice.
+	_ = s.auditRepository.Write(ctx, product.OperatorID, userID, "base_price_set", "product", product.ID,
+		formatBasePriceNote(product.BasePriceIDR, req.BasePriceIdr))
+	return &hajjv1.SetProductBasePriceResponse{Product: platformProductMessage(updated)}, nil
+}
+
+func formatBasePriceNote(previous *int64, next int64) string {
+	if previous == nil {
+		return fmt.Sprintf("harga dasar ditetapkan %s", rupiah(next))
+	}
+	return fmt.Sprintf("harga dasar %s -> %s", rupiah(*previous), rupiah(next))
+}
+
 func formatSupplierCostNote(previous *int64, next int64) string {
 	if previous == nil {
 		return "Harga modal supplier ditetapkan " + rupiah(next)
@@ -172,6 +224,10 @@ func platformProductMessage(product *repository.PlatformProduct) *hajjv1.Platfor
 	}
 	if product.SupplierCostUpdatedAt != nil {
 		message.SupplierCostUpdatedAt = timestamppb.New(*product.SupplierCostUpdatedAt)
+	}
+	if product.BasePriceIDR != nil {
+		message.BasePriceIdr = *product.BasePriceIDR
+		message.BasePriceSet = true
 	}
 	return message
 }

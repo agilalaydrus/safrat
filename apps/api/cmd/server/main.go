@@ -286,7 +286,7 @@ func main() {
 				"reason", "REDIS_URL is not set")
 		}
 		orderService.AttachFulfilment(fulfilmentService, fulfilmentRepository)
-		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, repository.NewKYCRepository(pool), auditRepository)
+		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, productRepository, repository.NewKYCRepository(pool), auditRepository)
 		orderHandler := handler.NewOrderHandler(orderService)
 		platformHandler := handler.NewPlatformHandler(platformService)
 		broadcastHandler := handler.NewBroadcastHandler(broadcastService)
