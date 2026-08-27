@@ -839,9 +839,7 @@ test in this repo.
 Screenshots land in `e2e/.screens/` and are gitignored — evidence for whoever
 ran it, not something to carry in the repository.
 
-**Still unrendered:** `/pilgrim/transactions`, `/leader/transactions` and the
-agent portal's Rekap Transaksi tab. Those need pilgrim, leader and agent
-fixtures respectively; the operator storage state cannot reach them.
+**All rendered now** — see PR 25.
 
 #### Done — PR 18: supplier routing and its management surface
 
@@ -1352,6 +1350,29 @@ Harga Modal, Supplier, Akun, Identitas.
 Search on the account list is deliberate rather than open paging — a platform
 panel that will happily page through every account in every tenant is a data
 export waiting for a curious employee.
+
+#### Done — PR 25: every screen has now been opened in a browser
+
+The standing gap is closed. `e2e/portal-screens.spec.ts` covers the three
+surfaces the money-screens spec could not reach, because each needs a different
+identity: a jamaah, a Muttawwif, and an agent.
+
+The Muttawwif screen is worth calling out, because it is the visible proof of a
+fix made days earlier. The commission ledger shows **both** the earning
+(+Rp450.000) and its reversal (−Rp450.000), with the balance at zero — a
+balance the list now *explains* rather than contradicts. Before the wallet was
+moved off PAID orders, a refunded order's earning simply vanished from the list
+while the balance dropped, and an agent had no way to tell what had happened.
+
+The fixture makes the staff account additionally an agent who leads a group.
+Both portals resolve identity from the signed-in user, so one account reaches
+both, and an owner is never treated as a restricted member — so this widens
+nothing.
+
+Screens covered end to end now: orders dashboard and both its dialogs,
+two-factor enrolment, all three states of the platform panel, its six tabs,
+the jamaah's history and receipt, the customer service route, the Muttawwif
+ledger, and the agent recap.
 
 #### Open — ordered
 
