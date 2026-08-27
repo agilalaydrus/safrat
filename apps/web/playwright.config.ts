@@ -37,6 +37,15 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], storageState: "./e2e/.auth/operator.json" },
     },
     {
+      // The jamaah-facing history, which needs the pilgrim identity rather
+      // than operator staff — RequireAccess bounces a staff account from the
+      // pilgrim app.
+      name: "portal-screens",
+      dependencies: ["setup"],
+      testMatch: /portal-screens\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], storageState: "./e2e/.auth/pilgrim.json" },
+    },
+    {
       // The money screens had never been opened in a browser — see the spec's
       // header. Operator storage state, since every one of them is reached
       // from a signed-in staff account.

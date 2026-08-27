@@ -1272,6 +1272,41 @@ A single character turns up in random base64 often enough to fail on its own.
 Short values are now round-tripped without that check, and the property that
 actually matters is asserted against the decoded bytes instead.
 
+#### Queued — restyle to the Cashplus.id taste (owner, 2026-08-27)
+
+> *"Saya ingin taste UI Dashboard-side, users-side, admin-side nya mirip
+> Cashplus.id, yang seperti file UI1.png s/d UI6.png."* Owner explicitly placed
+> this **after** the current work queue.
+
+References are `UI1.png`–`UI6.png` in the repository root. From actually
+looking at UI1 rather than guessing at the name:
+
+- **White sidebar**, not the dark emerald one we have. Nav items carry a
+  rounded-square icon tile, and are grouped under plain section headings
+  (Agents, History, Recap) rather than running as one list.
+- **Vivid blue as the primary accent**, on a near-white ground. Our palette is
+  emerald and gold on cream — this is a different language, not a tint change.
+- **Stat cards with coloured icon tiles** — green for success, amber for
+  pending, red for failed — which maps almost directly onto states we already
+  have and currently render as text badges.
+- **Breadcrumbs** above the page title. We have none.
+- Pill-shaped primary buttons, soft card borders, generous whitespace.
+
+**Worth deciding before starting**, because they change the size of the job:
+
+1. Is this a re-skin (tokens, cards, sidebar) or a re-layout (breadcrumbs,
+   grouped nav, dashboard charts)? UI1 implies both.
+2. Does the jamaah PWA follow? It is a phone-first surface with a bottom tab
+   bar and no sidebar, so "the same taste" means something different there.
+3. Our palette is used in the storefront the jamaah sees, which is a travel
+   brand's public face. Changing the dashboard need not change that, and
+   probably should not.
+
+The existing design has one property worth preserving deliberately: **money
+states are colour-coded consistently** — amber for anything held or waiting,
+red for refunded or failed, emerald for settled. Cashplus uses the same three
+for the same meanings, so this survives the restyle if it is done on purpose.
+
 #### Open — ordered
 
 Items 1, 3, 4 and 5 of the original list are done (see PR sections above).
