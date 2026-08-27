@@ -517,11 +517,13 @@ rather than being polled forever.
 `.env.example`, `DEPLOY.md` and `docker-compose.prod.yml`, and edge blocks are
 in place in both `deploy/nginx/safrat.conf` and `deploy/caddy/Caddyfile`.
 
-**The addresses are deliberately left as placeholders, commented out.** I could
-not verify Xendit's current egress ranges, and a wrong list at the edge blocks
-every payment notification where the application-level guard cannot soften it.
-Read them from the Xendit dashboard, paste into all three places, `nginx -t`,
-then reload. Until then the application guard runs open and warns at startup,
+**The addresses are deliberately left as placeholders, commented out.**
+Checked against Xendit's documentation on 2026-08-27: **they do not publish
+their webhook egress ranges at all** — the list has to be requested from Xendit
+support. (Their dashboard's "IP Allowlist" is a different feature: it restricts
+inbound API calls from you to them.) A wrong list at the edge blocks every
+payment notification where the application-level guard cannot soften it. Once
+support supplies the ranges, paste into all three places, `nginx -t`, reload. Until then the application guard runs open and warns at startup,
 which is the safe direction — and the poller settles anything a blocked or
 dropped delivery would have missed.
 

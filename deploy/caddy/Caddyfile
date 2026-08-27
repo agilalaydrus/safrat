@@ -62,10 +62,11 @@ api.tawafiqhub.id {
 	# A stale entry costs a delivery, not a payment: the API settles from
 	# Xendit's own API rather than from the delivery, and the poller picks up
 	# anything that never arrived within a couple of minutes.
-	# Commented out until the ranges are read from Xendit's dashboard. A wrong
-	# list blocks every payment notification at the edge, and guessing at it
-	# would be worse than not having it — the API's own guard and the poller
-	# are both still in place.
+	# Commented out until Xendit's support gives you the ranges — they are not
+	# published anywhere in their docs (confirmed 2026-08-27), so this needs a
+	# support request rather than a search. A wrong list blocks every payment
+	# notification at the edge, and guessing would be worse than not having it:
+	# the API's own guard and the poller are both still in place.
 	#
 	# @webhook_from_gateway {
 	# 	path /webhooks/xendit
