@@ -52,8 +52,8 @@ func TestPlatformPanelIsClosedToOperatorStaffIntegration(t *testing.T) {
 	t.Cleanup(server.Close)
 	client := hajjv1connect.NewPlatformServiceClient(server.Client(), server.URL)
 
-	authorised := func(token string) *connect.Request[hajjv1.ListPlatformOperatorsRequest] {
-		request := connect.NewRequest(&hajjv1.ListPlatformOperatorsRequest{})
+	authorised := func(token string) *connect.Request[hajjv1.ListOperatorsRequest] {
+		request := connect.NewRequest(&hajjv1.ListOperatorsRequest{})
 		if token != "" {
 			request.Header().Set("Authorization", "Bearer "+token)
 		}

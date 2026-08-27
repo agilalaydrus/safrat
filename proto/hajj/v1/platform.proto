@@ -27,7 +27,7 @@ service PlatformService {
 
   // ListOperators is every tenant on the platform, with the figures that
   // matter for running it.
-  rpc ListOperators(ListPlatformOperatorsRequest) returns (ListPlatformOperatorsResponse);
+  rpc ListOperators(ListOperatorsRequest) returns (ListOperatorsResponse);
 
   // ListProductsNeedingCost surfaces products with no supplier cost recorded.
   // Those sell with no price floor beneath them, so this is the queue that
@@ -58,8 +58,8 @@ message PlatformOperator {
   google.protobuf.Timestamp created_at = 10;
 }
 
-message ListPlatformOperatorsRequest {}
-message ListPlatformOperatorsResponse { repeated PlatformOperator operators = 1; }
+message ListOperatorsRequest {}
+message ListOperatorsResponse { repeated PlatformOperator operators = 1; }
 
 message PlatformProduct {
   string id = 1;

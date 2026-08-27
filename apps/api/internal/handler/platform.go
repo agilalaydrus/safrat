@@ -23,7 +23,7 @@ func (h *PlatformHandler) AmIPlatformAdmin(ctx context.Context, _ *connect.Reque
 	return connect.NewResponse(result), nil
 }
 
-func (h *PlatformHandler) ListOperators(ctx context.Context, _ *connect.Request[hajjv1.ListPlatformOperatorsRequest]) (*connect.Response[hajjv1.ListPlatformOperatorsResponse], error) {
+func (h *PlatformHandler) ListOperators(ctx context.Context, _ *connect.Request[hajjv1.ListOperatorsRequest]) (*connect.Response[hajjv1.ListOperatorsResponse], error) {
 	result, err := h.platformService.ListOperators(ctx)
 	if err != nil {
 		return nil, connectError(err)

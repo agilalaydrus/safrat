@@ -67,7 +67,7 @@ func (s *PlatformService) AmIPlatformAdmin(ctx context.Context) (*hajjv1.AmIPlat
 	return &hajjv1.AmIPlatformAdminResponse{IsPlatformAdmin: admin}, nil
 }
 
-func (s *PlatformService) ListOperators(ctx context.Context) (*hajjv1.ListPlatformOperatorsResponse, error) {
+func (s *PlatformService) ListOperators(ctx context.Context) (*hajjv1.ListOperatorsResponse, error) {
 	if _, err := s.requirePlatformAdmin(ctx); err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func (s *PlatformService) ListOperators(ctx context.Context) (*hajjv1.ListPlatfo
 	if err != nil {
 		return nil, serviceError("PlatformService.ListOperators", err)
 	}
-	result := &hajjv1.ListPlatformOperatorsResponse{Operators: make([]*hajjv1.PlatformOperator, 0, len(operators))}
+	result := &hajjv1.ListOperatorsResponse{Operators: make([]*hajjv1.PlatformOperator, 0, len(operators))}
 	for _, operator := range operators {
 		message := &hajjv1.PlatformOperator{
 			Id: operator.ID, Name: operator.Name, Slug: operator.Slug,
