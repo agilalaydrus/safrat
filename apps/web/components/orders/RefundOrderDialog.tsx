@@ -65,7 +65,7 @@ export default function RefundOrderDialog({ order, onClose, onRefunded }: Props)
         </header>
 
         <dl style={summary}>
-          <div><dt style={dt}>Jamaah</dt><dd style={dd}>{order.pilgrimName}</dd></div>
+          <div><dt style={dt}>Pembeli</dt><dd style={dd}>{order.buyerName || order.pilgrimName}</dd></div>
           <div><dt style={dt}>Produk</dt><dd style={dd}>{order.productName}</dd></div>
           <div><dt style={dt}>Nominal Dikembalikan</dt><dd style={{ ...dd, fontWeight: 700 }}>{rupiah(order.totalPriceIdr)}</dd></div>
         </dl>

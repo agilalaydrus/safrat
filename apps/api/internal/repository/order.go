@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/apperror"
@@ -47,6 +48,7 @@ type CreateOrderParams struct {
 	OperatorAmountIDR  int64
 	AgentCommissionIDR int64
 	IdempotencyKey     string
+	Destination        string
 }
 
 // Create records an order, or returns the one already recorded under the same
@@ -82,6 +84,7 @@ func (r *OrderRepository) Create(ctx context.Context, params CreateOrderParams) 
 		BuyerAgentID: buyerAgentUUID, BuyerKind: params.BuyerKind,
 		BasePriceIdr: params.BasePriceIDR, OperatorMarkupIdr: params.OperatorMarkupIDR,
 		AgentMarkupIdr: params.AgentMarkupIDR,
+		Destination:    strings.TrimSpace(params.Destination),
 	})
 	if err == nil {
 		return toOrder(order), true, nil
@@ -210,7 +213,7 @@ func toOrder(o db.Order) *domain.Order {
 		BasePriceIDR: o.BasePriceIdr, OperatorMarkupIDR: o.OperatorMarkupIdr, AgentMarkupIDR: o.AgentMarkupIdr,
 		TotalPriceIDR:     o.TotalPriceIdr,
 		PlatformAmountIDR: o.PlatformAmountIdr, OperatorAmountIDR: o.OperatorAmountIdr, AgentCommissionIDR: o.AgentCommissionIdr,
-		Status: o.Status, HeldReason: o.HeldReason, ReceiptNumber: o.ReceiptNumber, XenditInvoiceID: o.XenditInvoiceID.String, XenditInvoiceURL: o.XenditInvoiceUrl.String,
+		Status: o.Status, HeldReason: o.HeldReason, ReceiptNumber: o.ReceiptNumber, Destination: o.Destination, XenditInvoiceID: o.XenditInvoiceID.String, XenditInvoiceURL: o.XenditInvoiceUrl.String,
 		PaidAmountIDR: int8Ptr(o.PaidAmountIdr),
 		PaidAt:        timestamptzPtr(o.PaidAt), CreatedAt: o.CreatedAt.Time,
 	}
@@ -224,9 +227,10 @@ func toOrderFromRow(o db.GetOrderRow) *domain.Order {
 		BasePriceIdr: o.BasePriceIdr, OperatorMarkupIdr: o.OperatorMarkupIdr, AgentMarkupIdr: o.AgentMarkupIdr,
 		PlatformAmountIdr: o.PlatformAmountIdr, OperatorAmountIdr: o.OperatorAmountIdr, AgentCommissionIdr: o.AgentCommissionIdr,
 		Status: o.Status, HeldReason: o.HeldReason, PaidAmountIdr: o.PaidAmountIdr, ReceiptNumber: o.ReceiptNumber,
-		XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
+		Destination: o.Destination, XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
 	})
 	base.PilgrimName = o.PilgrimName
+	base.BuyerName = o.BuyerName
 	base.ProductName = o.ProductName
 	base.AgentName = o.AgentName.String
 	return base
@@ -240,12 +244,63 @@ func toOrderFromListRow(o db.ListOrdersRow) *domain.Order {
 		BasePriceIdr: o.BasePriceIdr, OperatorMarkupIdr: o.OperatorMarkupIdr, AgentMarkupIdr: o.AgentMarkupIdr,
 		PlatformAmountIdr: o.PlatformAmountIdr, OperatorAmountIdr: o.OperatorAmountIdr, AgentCommissionIdr: o.AgentCommissionIdr,
 		Status: o.Status, HeldReason: o.HeldReason, PaidAmountIdr: o.PaidAmountIdr, ReceiptNumber: o.ReceiptNumber,
-		XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
+		Destination: o.Destination, XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
 	})
 	base.PilgrimName = o.PilgrimName
+	base.BuyerName = o.BuyerName
 	base.ProductName = o.ProductName
 	base.AgentName = o.AgentName.String
 	return base
+}
+
+// ListForBuyerAgent is the signed-in agent/Muttawwif buyer's own purchase
+// history. It is intentionally distinct from their referral recap: the latter
+// explains commission, while these are transactions they personally paid for.
+func (r *OrderRepository) ListForBuyerAgent(ctx context.Context, operatorID, seasonID, agentID string, limit, offset int32) ([]*domain.Order, int64, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, 0, err
+	}
+	seasonUUID, err := pgUUID(seasonID)
+	if err != nil {
+		return nil, 0, err
+	}
+	agentUUID, err := pgUUID(agentID)
+	if err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.queries.ListOrdersForBuyerAgent(ctx, db.ListOrdersForBuyerAgentParams{
+		OperatorID: opUUID, SeasonID: seasonUUID, BuyerAgentID: agentUUID,
+		Limit: limit, Offset: offset,
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	result := make([]*domain.Order, 0, len(rows))
+	for _, row := range rows {
+		base := toOrder(db.Order{
+			ID: row.ID, OperatorID: row.OperatorID, SeasonID: row.SeasonID, PilgrimID: row.PilgrimID,
+			BuyerAgentID: row.BuyerAgentID, BuyerKind: row.BuyerKind, ProductID: row.ProductID, AgentID: row.AgentID,
+			Quantity: row.Quantity, UnitPriceIdr: row.UnitPriceIdr, TotalPriceIdr: row.TotalPriceIdr,
+			BasePriceIdr: row.BasePriceIdr, OperatorMarkupIdr: row.OperatorMarkupIdr, AgentMarkupIdr: row.AgentMarkupIdr,
+			PlatformAmountIdr: row.PlatformAmountIdr, OperatorAmountIdr: row.OperatorAmountIdr,
+			AgentCommissionIdr: row.AgentCommissionIdr, Status: row.Status, HeldReason: row.HeldReason,
+			PaidAmountIdr: row.PaidAmountIdr, ReceiptNumber: row.ReceiptNumber, Destination: row.Destination,
+			XenditInvoiceID: row.XenditInvoiceID, XenditInvoiceUrl: row.XenditInvoiceUrl,
+			PaidAt: row.PaidAt, CreatedAt: row.CreatedAt,
+		})
+		base.BuyerName = row.BuyerName
+		base.ProductName = row.ProductName
+		base.AgentName = row.AgentName.String
+		result = append(result, base)
+	}
+	count, err := r.queries.CountOrdersForBuyerAgent(ctx, db.CountOrdersForBuyerAgentParams{
+		OperatorID: opUUID, SeasonID: seasonUUID, BuyerAgentID: agentUUID,
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return result, count, nil
 }
 
 // ListTransactionsForPilgrim returns a jamaah's own order history, refunds

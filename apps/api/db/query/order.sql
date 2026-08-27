@@ -6,7 +6,8 @@ INSERT INTO orders (
   operator_id, season_id, pilgrim_id, product_id, agent_id, quantity,
   unit_price_idr, total_price_idr, platform_amount_idr, operator_amount_idr,
   agent_commission_idr, idempotency_key, placed_by_agent_id, buyer_agent_id,
-  buyer_kind, base_price_idr, operator_markup_idr, agent_markup_idr
+  buyer_kind, base_price_idr, operator_markup_idr, agent_markup_idr,
+  destination
 ) VALUES (
   sqlc.arg(operator_id), sqlc.arg(season_id), sqlc.narg(pilgrim_id),
   sqlc.arg(product_id), NULLIF(sqlc.arg(agent_id)::text, '')::uuid,
@@ -16,15 +17,18 @@ INSERT INTO orders (
   NULLIF(sqlc.arg(placed_by_agent_id)::text, '')::uuid,
   sqlc.narg(buyer_agent_id), sqlc.arg(buyer_kind),
   sqlc.arg(base_price_idr), sqlc.arg(operator_markup_idr),
-  sqlc.arg(agent_markup_idr)
+  sqlc.arg(agent_markup_idr), sqlc.arg(destination)
 )
 ON CONFLICT (operator_id, idempotency_key) WHERE idempotency_key <> '' DO NOTHING
 RETURNING *;
 
 -- name: GetOrderByIdempotencyKey :one
-SELECT o.*, p.full_name AS pilgrim_name, pr.name AS product_name, a.name AS agent_name
+SELECT o.*, COALESCE(p.full_name, '') AS pilgrim_name,
+       COALESCE(p.full_name, buyer.name, '') AS buyer_name,
+       pr.name AS product_name, a.name AS agent_name
 FROM orders o
-JOIN pilgrims p ON p.id = o.pilgrim_id
+LEFT JOIN pilgrims p ON p.id = o.pilgrim_id
+LEFT JOIN agents buyer ON buyer.id = o.buyer_agent_id
 JOIN products pr ON pr.id = o.product_id
 LEFT JOIN agents a ON a.id = o.agent_id
 WHERE o.operator_id = $1 AND o.idempotency_key = $2;
@@ -70,22 +74,43 @@ WHERE xendit_invoice_id = $1 AND status = 'PENDING'
 RETURNING *;
 
 -- name: GetOrder :one
-SELECT o.*, p.full_name AS pilgrim_name, pr.name AS product_name, a.name AS agent_name
+SELECT o.*, COALESCE(p.full_name, '') AS pilgrim_name,
+       COALESCE(p.full_name, buyer.name, '') AS buyer_name,
+       pr.name AS product_name, a.name AS agent_name
 FROM orders o
-JOIN pilgrims p ON p.id = o.pilgrim_id
+LEFT JOIN pilgrims p ON p.id = o.pilgrim_id
+LEFT JOIN agents buyer ON buyer.id = o.buyer_agent_id
 JOIN products pr ON pr.id = o.product_id
 LEFT JOIN agents a ON a.id = o.agent_id
 WHERE o.id = $1 AND o.operator_id = $2;
 
 -- name: ListOrders :many
-SELECT o.*, p.full_name AS pilgrim_name, pr.name AS product_name, a.name AS agent_name
+SELECT o.*, COALESCE(p.full_name, '') AS pilgrim_name,
+       COALESCE(p.full_name, buyer.name, '') AS buyer_name,
+       pr.name AS product_name, a.name AS agent_name
 FROM orders o
-JOIN pilgrims p ON p.id = o.pilgrim_id
+LEFT JOIN pilgrims p ON p.id = o.pilgrim_id
+LEFT JOIN agents buyer ON buyer.id = o.buyer_agent_id
 JOIN products pr ON pr.id = o.product_id
 LEFT JOIN agents a ON a.id = o.agent_id
 WHERE o.operator_id = $1 AND o.season_id = $2
 ORDER BY o.created_at DESC
 LIMIT $3 OFFSET $4;
+
+-- name: ListOrdersForBuyerAgent :many
+SELECT o.*, ''::text AS pilgrim_name, buyer.name AS buyer_name,
+       pr.name AS product_name, a.name AS agent_name
+FROM orders o
+JOIN agents buyer ON buyer.id = o.buyer_agent_id
+JOIN products pr ON pr.id = o.product_id
+LEFT JOIN agents a ON a.id = o.agent_id
+WHERE o.operator_id = $1 AND o.season_id = $2 AND o.buyer_agent_id = $3
+ORDER BY o.created_at DESC
+LIMIT $4 OFFSET $5;
+
+-- name: CountOrdersForBuyerAgent :one
+SELECT COUNT(*) FROM orders
+WHERE operator_id = $1 AND season_id = $2 AND buyer_agent_id = $3;
 
 -- name: CountOrdersBySeason :one
 SELECT COUNT(*) FROM orders WHERE operator_id = $1 AND season_id = $2;
@@ -182,7 +207,7 @@ SELECT
   ), 0)::bigint AS commission_idr,
   MAX(op.created_at)::timestamptz AS last_transaction_at
 FROM pilgrims p
-JOIN order_payments op ON op.pilgrim_id = p.id AND op.agent_id = $2
+LEFT JOIN order_payments op ON op.pilgrim_id = p.id AND op.agent_id = $2
 WHERE p.operator_id = $1
 GROUP BY p.id, p.full_name
 ORDER BY MAX(op.created_at) DESC;

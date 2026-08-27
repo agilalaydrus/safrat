@@ -249,6 +249,103 @@ func TestSellingToAnotherAgentsReferralCreditsTheReferrerIntegration(t *testing.
 	}
 }
 
+// An agent/Muttawwif is a buyer in their own right. Their price stops at the
+// operator markup, no referral earns from it, and every read path must retain
+// the order even though pilgrim_id is NULL.
+func TestAgentSelfPurchaseUsesAgentPriceAndRemainsVisibleIntegration(t *testing.T) {
+	f := newReferralFixture(t)
+	ctx := context.Background()
+	buyerUserID := "buyer-" + uuid.NewString()
+	if _, err := f.pool.Exec(ctx, `INSERT INTO "user" (id, name, email, "emailVerified") VALUES ($1,'Agen Pembeli',$2,true)`,
+		buyerUserID, buyerUserID+"@example.test"); err != nil {
+		t.Fatalf("insert buyer user: %v", err)
+	}
+	t.Cleanup(func() { _, _ = f.pool.Exec(context.Background(), `DELETE FROM "user" WHERE id = $1`, buyerUserID) })
+	if _, err := f.pool.Exec(ctx, `UPDATE agents SET linked_user_id = $1, phone = '0812000111' WHERE id = $2`, buyerUserID, f.seller); err != nil {
+		t.Fatalf("link buyer agent: %v", err)
+	}
+	if _, err := f.pool.Exec(ctx, `UPDATE products SET category = 'PPOB_CREDIT', type = '', code = $2 WHERE id = $1`, f.productID, "PPOB-"+f.productID[:8]); err != nil {
+		t.Fatalf("make digital product: %v", err)
+	}
+
+	catalogue, err := f.orders.ListMyPurchaseCatalogue(ctx, f.orgID, &hajjv1.ListMyPurchaseCatalogueRequest{SeasonId: f.seasonID})
+	if err != nil {
+		t.Fatalf("catalogue: %v", err)
+	}
+	if len(catalogue.Products) != 1 || catalogue.Products[0].UnitPriceIdr != referralBasePrice+referralOperatorMarkup {
+		t.Fatalf("catalogue = %+v, want one product at agent price", catalogue.Products)
+	}
+
+	response, err := f.orders.CreateOrderForSelf(ctx, f.orgID, buyerUserID, &hajjv1.CreateOrderForSelfRequest{
+		ProductId: f.productID, Quantity: 1, Destination: "0812999888", IdempotencyKey: uuid.NewString(),
+	})
+	if err != nil {
+		t.Fatalf("self purchase: %v", err)
+	}
+	wantTotal := referralBasePrice + referralOperatorMarkup
+	if response.Order.BuyerKind != "AGENT" || response.Order.BuyerAgentId != f.seller || response.Order.BuyerName != "Agen Penjual" {
+		t.Fatalf("buyer = kind %q id %q name %q", response.Order.BuyerKind, response.Order.BuyerAgentId, response.Order.BuyerName)
+	}
+	if response.Order.TotalPriceIdr != wantTotal || response.Order.AgentMarkupIdr != 0 || response.Order.AgentCommissionIdr != 0 {
+		t.Fatalf("price total=%d agent_markup=%d commission=%d, want %d/0/0",
+			response.Order.TotalPriceIdr, response.Order.AgentMarkupIdr, response.Order.AgentCommissionIdr, wantTotal)
+	}
+	if response.Order.Destination != "0812999888" || response.CheckoutUrl == "" {
+		t.Fatalf("destination=%q checkout=%q", response.Order.Destination, response.CheckoutUrl)
+	}
+
+	var pilgrimID *string
+	var buyerAgentID, buyerKind, destination string
+	var agentID *string
+	if err := f.pool.QueryRow(ctx, `SELECT pilgrim_id::text, buyer_agent_id::text, buyer_kind, agent_id::text, destination FROM orders WHERE id = $1`, response.Order.Id).
+		Scan(&pilgrimID, &buyerAgentID, &buyerKind, &agentID, &destination); err != nil {
+		t.Fatalf("read self order: %v", err)
+	}
+	if pilgrimID != nil || buyerAgentID != f.seller || buyerKind != "AGENT" || agentID != nil || destination != "0812999888" {
+		t.Fatalf("stored buyer pilgrim=%v agent=%s kind=%s referrer=%v destination=%s", pilgrimID, buyerAgentID, buyerKind, agentID, destination)
+	}
+
+	history, err := f.orders.ListMyOrders(ctx, f.orgID, buyerUserID, &hajjv1.ListMyOrdersRequest{SeasonId: f.seasonID, Limit: 20})
+	if err != nil {
+		t.Fatalf("my orders: %v", err)
+	}
+	if history.TotalCount != 1 || len(history.Orders) != 1 || history.Orders[0].Id != response.Order.Id {
+		t.Fatalf("history count=%d rows=%d", history.TotalCount, len(history.Orders))
+	}
+	listed, err := f.orders.ListOrders(ctx, f.orgID, &hajjv1.ListOrdersRequest{SeasonId: f.seasonID, Limit: 20})
+	if err != nil || len(listed.Orders) != 1 || listed.Orders[0].BuyerName == "" {
+		t.Fatalf("operator list lost agent order: rows=%d err=%v", len(listed.GetOrders()), err)
+	}
+	if balance, err := repository.NewLedgerRepository(f.pool).CommissionBalance(ctx, f.seller); err != nil || balance != 0 {
+		t.Fatalf("buyer commission balance=%d (%v), want 0", balance, err)
+	}
+	platformTransactions, err := repository.NewPlatformRepository(f.pool).ListTransactions(ctx, false, 100)
+	if err != nil {
+		t.Fatalf("platform transactions: %v", err)
+	}
+	found := false
+	for _, transaction := range platformTransactions {
+		if transaction.OrderID == response.Order.Id {
+			found = transaction.PilgrimName == "Agen Penjual"
+		}
+	}
+	if !found {
+		t.Fatal("platform transaction list lost the agent-bought order or its buyer name")
+	}
+
+	var invoiceID string
+	if err := f.pool.QueryRow(ctx, `SELECT xendit_invoice_id FROM orders WHERE id = $1`, response.Order.Id).Scan(&invoiceID); err != nil {
+		t.Fatalf("invoice id: %v", err)
+	}
+	if err := f.orders.SettlePayment(ctx, invoiceID, wantTotal); err != nil {
+		t.Fatalf("settle self purchase: %v", err)
+	}
+	summary, err := repository.NewCashFlowRepository(db.New(f.pool)).GetSummary(ctx, f.operatorID, f.seasonID)
+	if err != nil || summary.TotalCollectedIDR != wantTotal {
+		t.Fatalf("cashflow collected=%d (%v), want %d", summary.TotalCollectedIDR, err, wantTotal)
+	}
+}
+
 // A double-tapped checkout used to make two orders and two invoices, either of
 // which the jamaah could pay.
 func TestManualOrderIsIdempotentUnderConcurrencyIntegration(t *testing.T) {

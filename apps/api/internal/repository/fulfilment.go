@@ -196,12 +196,13 @@ func (r *FulfilmentRepository) ListNeedingAttention(ctx context.Context, stuckAf
 	rows, err := r.pool.Query(ctx, `
 		SELECT f.id::text, f.order_id::text, f.operator_id::text,
 		       COALESCE(f.supplier_id::text, ''), COALESCE(s.name, ''),
-		       p.name, pil.full_name, f.status, f.supplier_reference, f.attempts,
+		       p.name, COALESCE(pil.full_name, buyer.name, ''), f.status, f.supplier_reference, f.attempts,
 		       f.last_error, f.resolution_note, f.sent_at, f.delivered_at, f.created_at
 		FROM order_fulfilments f
 		JOIN orders o ON o.id = f.order_id
 		JOIN products p ON p.id = o.product_id
-		JOIN pilgrims pil ON pil.id = o.pilgrim_id
+		LEFT JOIN pilgrims pil ON pil.id = o.pilgrim_id
+		LEFT JOIN agents buyer ON buyer.id = o.buyer_agent_id
 		LEFT JOIN suppliers s ON s.id = f.supplier_id
 		WHERE f.status = 'NEEDS_REVIEW'
 		   OR (f.status = 'SENT' AND f.sent_at < NOW() - make_interval(secs => $1::int))

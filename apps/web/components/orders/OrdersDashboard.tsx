@@ -83,11 +83,11 @@ export default function OrdersDashboard() {
       ) : orders.length ? (
         <div style={{ overflowX: "auto" }}>
           <table style={table}>
-            <thead><tr>{["Jamaah", "Produk", "Jumlah", "Total", "Status", "Dibuat", ""].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
+            <thead><tr>{["Pembeli", "Produk", "Jumlah", "Total", "Status", "Dibuat", ""].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
             <tbody>
               {orders.map((o) => (
                 <tr key={o.id} style={tr}>
-                  <td style={td}>{o.pilgrimName}</td>
+                  <td style={td}>{o.buyerName || o.pilgrimName}<small style={{ display: "block", color: "var(--color-warm-400)" }}>{o.buyerKind === "AGENT" ? "Agen / Muttawwif" : "Jamaah"}</small></td>
                   <td style={td}>{o.productName}</td>
                   <td style={td}>{o.quantity}</td>
                   <td style={td}>{rupiah(o.totalPriceIdr)}</td>
@@ -95,7 +95,7 @@ export default function OrdersDashboard() {
                   <td style={td}>{o.createdAt?.toDate().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}</td>
                   <td style={td}>
                     {o.status === "PENDING" && o.checkoutUrl && <button style={ghost} onClick={() => navigator.clipboard.writeText(o.checkoutUrl)}><IconCopy size={14} />Salin Link</button>}
-                    {o.status === "PAID" && <button style={ghost} onClick={() => setRefunding(o)}><IconArrowBackUp size={14} />Refund</button>}
+                    {o.status === "PAID" && o.buyerKind !== "AGENT" && <button style={ghost} onClick={() => setRefunding(o)}><IconArrowBackUp size={14} />Refund</button>}
                     {o.status === "HELD" && <button style={{ ...ghost, borderColor: "#b45309", color: "#b45309" }} onClick={() => setReviewing(o)}><IconAlertTriangle size={14} />Tinjau</button>}
                   </td>
                 </tr>

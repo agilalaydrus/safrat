@@ -10,6 +10,7 @@ type Order struct {
 	PilgrimName        string
 	BuyerAgentID       string
 	BuyerKind          string
+	BuyerName          string
 	ProductID          string
 	ProductName        string
 	AgentID            string
@@ -29,6 +30,7 @@ type Order struct {
 	PaidAmountIDR      *int64
 	HeldReason         string
 	ReceiptNumber      string
+	Destination        string
 	PaidAt             *time.Time
 	CreatedAt          time.Time
 }

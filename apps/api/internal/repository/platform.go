@@ -207,7 +207,8 @@ func (r *PlatformRepository) ListTransactions(ctx context.Context, needsAttentio
 		limit = 100
 	}
 	rows, err := r.pool.Query(ctx, `
-		SELECT o.id::text, o.receipt_number, op.name, p.full_name, pr.name, pr.category,
+		SELECT o.id::text, o.receipt_number, op.name,
+		       COALESCE(p.full_name, buyer.name, ''), pr.name, pr.category,
 		       o.total_price_idr, o.paid_amount_idr, COALESCE(pay.net_paid_idr, 0),
 		       o.status, o.held_reason,
 		       COALESCE(f.status, ''), COALESCE(s.name, ''),
@@ -215,7 +216,8 @@ func (r *PlatformRepository) ListTransactions(ctx context.Context, needsAttentio
 		       o.created_at, o.paid_at
 		FROM orders o
 		JOIN operators op ON op.id = o.operator_id
-		JOIN pilgrims p ON p.id = o.pilgrim_id
+		LEFT JOIN pilgrims p ON p.id = o.pilgrim_id
+		LEFT JOIN agents buyer ON buyer.id = o.buyer_agent_id
 		JOIN products pr ON pr.id = o.product_id
 		LEFT JOIN order_payments pay ON pay.order_id = o.id
 		LEFT JOIN order_fulfilments f ON f.order_id = o.id

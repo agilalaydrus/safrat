@@ -22,8 +22,9 @@ DELETE FROM vendor_payments WHERE id = $1 AND operator_id = $2;
 -- refunds), not a cached running-balance column.
 SELECT COALESCE(SUM(o.net_paid_idr), 0)::bigint AS total_collected_idr
 FROM order_payments o
-JOIN pilgrims p ON p.id = o.pilgrim_id
-WHERE o.operator_id = $1 AND o.season_id = $2 AND p.status = 'ACTIVE';
+LEFT JOIN pilgrims p ON p.id = o.pilgrim_id
+WHERE o.operator_id = $1 AND o.season_id = $2
+  AND (o.pilgrim_id IS NULL OR p.status = 'ACTIVE');
 
 -- name: GetVendorCommitmentSummary :one
 SELECT

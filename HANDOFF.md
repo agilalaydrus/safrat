@@ -403,12 +403,10 @@ a buyer; commission flows to the master referral above the buyer. Nothing in
 the data assumed otherwise — `placed_by_agent_id` records who entered the
 transaction, never who earns from it — but the language is corrected throughout.
 
-**Still open from this:** an agent or muttawwif buying *for themselves* is not
-possible. `orders.pilgrim_id` is `NOT NULL`, so the buyer must be a jamaah, and
-the agent-to-agent referral chain (`agents.referred_by_agent_id`, which exists
-and is unused for money) therefore never pays anyone. Supporting a non-jamaah
-buyer is a schema change touching every order query — **needs the owner's
-go-ahead before starting.**
+**This is now complete:** migration 110 introduced the agent buyer and the
+production lane was completed with migration 112; see "agent self-purchase"
+below. The later owner ruling superseded the old referral assumption: an agent
+buying for themselves earns no commission, including for the agent above them.
 
 #### Done — PR 8: payment amount validation and the held state (migration 096)
 
@@ -1421,40 +1419,49 @@ the VPS beside the database backups** — whoever takes that machine would
 otherwise get the data and the key that opens it in one go, which is the exact
 outcome encrypting it was meant to prevent.
 
+#### Done — agent/Muttawwif self-purchase (migration 112)
+
+The schema foundation from migrations 110–111 now has a complete production
+lane rather than an unused buyer column:
+
+- `ListMyPurchaseCatalogue`, `CreateOrderForSelf`, and `ListMyOrders` are
+  session-derived RPCs available to restricted agent/Muttawwif accounts. The
+  client never supplies an agent id.
+- The quote is the agent price: platform base + operator markup. Agent markup,
+  referrer and commission are all zero, with the existing database constraints
+  enforcing the money rule beneath the service.
+- The provider destination is frozen on `orders.destination` at checkout and
+  supplier dispatch now reads it from the transaction. It no longer looks up a
+  mutable pilgrim phone at send time. Existing digital orders were backfilled.
+- Order, cashflow, platform-admin and fulfilment reads use buyer-safe joins, so
+  an order with `pilgrim_id = NULL` remains visible everywhere. The operator
+  dashboard labels the row as Agent/Muttawwif and does not offer the
+  pilgrim-balance refund action for it.
+- `/agent` has a "Beli Produk" tab with the correctly quoted digital catalogue,
+  destination input, Xendit checkout, retry-stable idempotency key and the
+  buyer's own pending/paid history.
+
+Verified on isolated PostgreSQL through migration 112: catalogue price,
+nullable pilgrim/exact buyer, frozen destination, zero agent markup and
+commission, operator list, platform transaction list, agent history, and paid
+cashflow total. The pre-existing referral tests still pass alongside it.
+
 #### Open — ordered
 
 Items 1, 3, 4 and 5 of the original list are done (see PR sections above).
 What remains, in the order I would take it:
 
-1. **Agents and Muttawwif cannot buy for themselves.** Owner confirmed this is
-   needed: *"banyak jamaah yang mau nya cuma bayar cash aja, gamau beli dari
-   apps."* `orders.pilgrim_id` is `NOT NULL`, so the buyer must be a jamaah, and
-   the agent-to-agent referral chain (`agents.referred_by_agent_id`, which
-   exists and has never paid anyone) stays dead.
-
-   **Blast radius, already mapped:** make `pilgrim_id` nullable, add a buyer
-   agent column and a CHECK that exactly one is set. Then four queries that
-   `JOIN pilgrims` *inner* have to become LEFT JOIN — `GetOrder`, `ListOrders`,
-   `GetSeasonPaidTotal` (cashflow.sql), and `ListReferredCustomerRecapForAgent`.
-   Miss one and an agent's own orders **vanish silently** from the dashboard
-   rather than failing loudly, which is why this wants a fresh session rather
-   than the tail of a long one.
-
-   Open question for the owner: when an agent buys for themselves, does the
-   commission go to the agent above them in `referred_by_agent_id`?
-
-2. **Digital product catalogue belongs to the platform, not to each operator.**
+1. **Digital product catalogue belongs to the platform, not to each operator.**
    Owner: *"clients travel umroh semuanya bukan penjual untuk product digital,
    yang punya jalur API ke supplier, dll hanya pihak tawafiqhub."* Today
    `products` are per-operator, so each travel invents its own
    `ROAMING_DATA`/`PPOB_CREDIT` rows and prices, and the platform has no
    catalogue at all. The foundation is now in place — supplier cost with a
    price floor, and an admin panel to manage it — but the ownership change
-   itself has not started. **Discuss before building: this moves who owns the
-   data.**
+   itself has not started.
 
-3. **Fulfilment exists for nothing but travel packages.** `applyPaidSideEffects`
-   only handles `TRAVEL_PACKAGE` (auto-kloter).
+2. **Complete digital fulfilment and compensation.** Fulfilment records and
+   supplier transport exist, but the remaining safety gates below still apply.
    - `EQUIPMENT` (physical): no delivery status, address, tracking or handover
      proof. Safe only while handover is manual and in person.
    - `ROAMING_DATA` (digital): no voucher or eSIM issued or stored.
@@ -1466,30 +1473,30 @@ What remains, in the order I would take it:
    charge → call supplier → supplier fails → refund. Idempotency is critical on
    the fulfilment side too, or one payment becomes two top-ups.
 
-4. **Per-transaction receipts.** `/dashboard/pilgrims/[id]/invoice` is
+3. **Per-transaction receipts.** `/dashboard/pilgrims/[id]/invoice` is
    per-pilgrim and operator-only. Missing: a receipt per transaction with a
    referenceable number, and any way for the **paying account** to see or print
    its own proof. Owner asked for this explicitly.
 
-5. **Fraud and attempt limits.** The held state exists now, and a held
+4. **Fraud and attempt limits.** The held state exists now, and a held
    transaction is excluded from revenue and from payable commission. Still
    missing: attempt limits, and any signal beyond an amount mismatch that would
    put a transaction into it.
 
-6. **Database role without UPDATE/DELETE on the ledgers.** The application
+5. **Database role without UPDATE/DELETE on the ledgers.** The application
    currently connects as a superuser, which can disable the append-only
    triggers outright — so today's "cannot be manipulated" guarantee is weaker
    than the triggers suggest. Operational work on the VPS, not code.
 
-7. **`XENDIT_WEBHOOK_ALLOWED_IPS`** — needs a support request to Xendit, who do
+6. **`XENDIT_WEBHOOK_ALLOWED_IPS`** — needs a support request to Xendit, who do
    not publish the ranges. Config blocks are ready in nginx and Caddy.
 
-8. **Nothing has been rendered in a browser.** Every page built in this run —
-   jamaah/muttawwif/agent transaction history, the refund dialog, the held-order
-   review dialog, `/admin` — passes typecheck and lint and has never been
-   looked at. Playwright exists in `apps/web/e2e/`.
+7. **Browser rendering review.** Earlier jamaah/Muttawwif/agent transaction
+   pages, the refund and held-order dialogs, `/admin`, and the new agent
+   purchase tab pass static checks but still need a visual pass. Playwright
+   exists in `apps/web/e2e/`.
 
-9. **Caddy cutover** — still manual, still unstarted (`deploy/caddy/README.md`).
+8. **Caddy cutover** — still manual, still unstarted (`deploy/caddy/README.md`).
 
 #### Standing rule for all of the above
 
@@ -2133,7 +2140,7 @@ least-privilege user, real browser. Prefer that over a convenient approximation.
 
 ---
 
-## Lanjutan: harga berlapis + pembeli agen (belum selesai)
+## Lanjutan: harga berlapis + pembeli agen
 
 Berhenti di tengah karena limit. Yang ada di `main` **build bersih, vet bersih,
 tes hijau** — tidak ada yang setengah jadi di dalam pohon. Yang kurang adalah
@@ -2187,10 +2194,8 @@ Konsekuensi yang harus dipertahankan siapa pun yang melanjutkan:
 
 ### Yang belum — urutan yang saya sarankan
 
-1. **Jalur beli untuk agen belum ada** — proto, handler, UI. Skema dan
-   repository sudah menerima `buyer_agent_id`, tetapi belum ada jalur produksi
-   yang mengirimnya. Buyer agen harus memakai `BuyerAgent`, tidak mengisi
-   `pilgrim_id`, tidak membawa markup agen, dan tidak menghasilkan komisi.
+1. **Jalur beli untuk agen sudah selesai** — proto, handler, buyer-safe reads,
+   destination yang dibekukan, integration test, dan tab UI `/agent` sudah ada.
 2. **Layar markup untuk travel** dan **layar harga dasar untuk admin** belum
    ada. Perhatikan: harga dasar sengaja *tidak* lewat `UpdateProduct`, supaya
    travel tidak bisa menggeser harga yang mereka bayar.

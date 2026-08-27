@@ -41,14 +41,15 @@ func (r *RefundRepository) LockOrderForRefund(ctx context.Context, tx pgx.Tx, op
 	var order domain.RefundableOrder
 	var agentID *string
 	err = tx.QueryRow(ctx, `
-		SELECT o.id::text, o.pilgrim_id::text, o.agent_id::text, o.total_price_idr,
+		SELECT o.id::text, COALESCE(o.pilgrim_id::text, ''), o.buyer_kind,
+		       o.agent_id::text, o.total_price_idr,
 		       o.agent_commission_idr, o.status,
 		       COALESCE((SELECT SUM(amount_idr) FROM order_refunds WHERE order_id = o.id), 0)::bigint,
 		       COALESCE((SELECT SUM(commission_reversed_idr) FROM order_refunds WHERE order_id = o.id), 0)::bigint
 		FROM orders o
 		WHERE o.id = $1 AND o.operator_id = $2
 		FOR UPDATE OF o`, ordID, opID).
-		Scan(&order.ID, &order.PilgrimID, &agentID, &order.TotalPriceIDR,
+		Scan(&order.ID, &order.PilgrimID, &order.BuyerKind, &agentID, &order.TotalPriceIDR,
 			&order.AgentCommissionIDR, &order.Status, &order.RefundedIDR, &order.CommissionReversed)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.ErrNotFound

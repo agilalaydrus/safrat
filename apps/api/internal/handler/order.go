@@ -93,6 +93,39 @@ func (h *OrderHandler) CreateOrderForPilgrim(ctx context.Context, req *connect.R
 	return connect.NewResponse(result), nil
 }
 
+func (h *OrderHandler) ListMyPurchaseCatalogue(ctx context.Context, req *connect.Request[hajjv1.ListMyPurchaseCatalogueRequest]) (*connect.Response[hajjv1.ListMyPurchaseCatalogueResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.orderService.ListMyPurchaseCatalogue(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *OrderHandler) CreateOrderForSelf(ctx context.Context, req *connect.Request[hajjv1.CreateOrderForSelfRequest]) (*connect.Response[hajjv1.CreateOrderResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.orderService.CreateOrderForSelf(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *OrderHandler) ListMyOrders(ctx context.Context, req *connect.Request[hajjv1.ListMyOrdersRequest]) (*connect.Response[hajjv1.ListOrdersResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.orderService.ListMyOrders(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *OrderHandler) ResolveHeldOrder(ctx context.Context, req *connect.Request[hajjv1.ResolveHeldOrderRequest]) (*connect.Response[hajjv1.Order], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

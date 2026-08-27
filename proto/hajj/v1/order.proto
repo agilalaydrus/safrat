@@ -42,6 +42,18 @@ service OrderService {
   // separation is what keeps the referral system intact while leaving anyone
   // free to transact.
   rpc CreateOrderForPilgrim(CreateOrderForPilgrimRequest) returns (CreateOrderResponse);
+  // Lists the products this signed-in agent/Muttawwif may buy, quoted at the
+  // agent price (platform base + operator markup). Unconfigured products are
+  // omitted rather than shown at a misleading legacy price.
+  rpc ListMyPurchaseCatalogue(ListMyPurchaseCatalogueRequest) returns (ListMyPurchaseCatalogueResponse);
+  // Creates a purchase for the signed-in agent/Muttawwif's own account. The
+  // buyer identity is always derived from the session; no agent id is accepted
+  // from the caller. Self-purchases never earn referral commission.
+  rpc CreateOrderForSelf(CreateOrderForSelfRequest) returns (CreateOrderResponse);
+  // The signed-in buyer's own order history, including pending and failed
+  // attempts. This is separate from the referral recap: buying and earning
+  // commission are deliberately different ledgers.
+  rpc ListMyOrders(ListMyOrdersRequest) returns (ListOrdersResponse);
   // ResolveHeldOrder closes out a transaction whose payment did not match the
   // bill. Without it a held transaction is a dead end needing database access.
   rpc ResolveHeldOrder(ResolveHeldOrderRequest) returns (Order);
@@ -76,6 +88,16 @@ message Order {
   int64 paid_amount_idr = 22;
   string held_reason = 23;
   string receipt_number = 24;
+  string buyer_agent_id = 25;
+  // PILGRIM | AGENT
+  string buyer_kind = 26;
+  string buyer_name = 27;
+  int64 base_price_idr = 28;
+  int64 operator_markup_idr = 29;
+  int64 agent_markup_idr = 30;
+  // The phone/account number supplied to the provider. Frozen on the
+  // transaction so later profile edits cannot rewrite what was purchased.
+  string destination = 31;
 }
 
 message CreateOrderRequest {
@@ -125,6 +147,38 @@ message CreateOrderForPilgrimRequest {
   string product_id = 2 [(buf.validate.field).string.uuid = true];
   int32 quantity = 3 [(buf.validate.field).int32 = {gte: 1, lte: 20}];
   string idempotency_key = 4 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+}
+
+message PurchaseCatalogueProduct {
+  string id = 1;
+  string season_id = 2;
+  string name = 3;
+  string category = 4;
+  string description = 5;
+  string code = 6;
+  int64 nominal_idr = 7;
+  int64 unit_price_idr = 8;
+}
+
+message ListMyPurchaseCatalogueRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message ListMyPurchaseCatalogueResponse {
+  repeated PurchaseCatalogueProduct products = 1;
+}
+
+message CreateOrderForSelfRequest {
+  string product_id = 1 [(buf.validate.field).string.uuid = true];
+  int32 quantity = 2 [(buf.validate.field).int32 = {gte: 1, lte: 20}];
+  string destination = 3 [(buf.validate.field).string = {min_len: 3, max_len: 100}];
+  string idempotency_key = 4 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+}
+
+message ListMyOrdersRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+  int32 limit = 2;
+  int32 offset = 3;
 }
 
 enum HeldOrderResolution {

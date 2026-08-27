@@ -422,10 +422,9 @@ func (r *SupplierRepository) ListPendingDispatch(ctx context.Context, limit int3
 	}
 	rows, err := r.pool.Query(ctx, `
 		SELECT f.order_id::text, f.operator_id::text, f.supplier_id::text,
-		       pr.supplier_sku, o.total_price_idr, COALESCE(p.phone, '')
+		       pr.supplier_sku, o.total_price_idr, o.destination
 		FROM order_fulfilments f
 		JOIN orders o ON o.id = f.order_id
-		JOIN pilgrims p ON p.id = o.pilgrim_id
 		JOIN product_routes pr ON pr.product_id = o.product_id AND pr.is_active
 		JOIN suppliers s ON s.id = f.supplier_id AND s.status = 'ACTIVE'
 		WHERE f.status = 'PENDING'
@@ -457,10 +456,9 @@ func (r *SupplierRepository) PendingDispatchFor(ctx context.Context, orderID str
 	var item PendingDispatch
 	err = r.pool.QueryRow(ctx, `
 		SELECT f.order_id::text, f.operator_id::text, f.supplier_id::text,
-		       pr.supplier_sku, o.total_price_idr, COALESCE(p.phone, '')
+		       pr.supplier_sku, o.total_price_idr, o.destination
 		FROM order_fulfilments f
 		JOIN orders o ON o.id = f.order_id
-		JOIN pilgrims p ON p.id = o.pilgrim_id
 		JOIN product_routes pr ON pr.product_id = o.product_id AND pr.is_active
 		JOIN suppliers s ON s.id = f.supplier_id AND s.status = 'ACTIVE'
 		WHERE f.order_id = $1 AND f.status = 'PENDING'`, id).

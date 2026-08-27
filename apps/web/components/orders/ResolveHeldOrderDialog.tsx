@@ -51,7 +51,7 @@ export default function ResolveHeldOrderDialog({ order, onClose, onResolved }: P
         </p>
 
         <dl style={summary}>
-          <div><dt style={dt}>Jamaah</dt><dd style={dd}>{order.pilgrimName}</dd></div>
+          <div><dt style={dt}>Pembeli</dt><dd style={dd}>{order.buyerName || order.pilgrimName}</dd></div>
           <div><dt style={dt}>Produk</dt><dd style={dd}>{order.productName}</dd></div>
           <div><dt style={dt}>Tagihan</dt><dd style={dd}>{rupiah(order.totalPriceIdr)}</dd></div>
           <div><dt style={dt}>Dibayar</dt><dd style={dd}>{rupiah(order.paidAmountIdr)}</dd></div>

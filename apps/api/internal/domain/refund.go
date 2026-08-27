@@ -22,6 +22,7 @@ type OrderRefund struct {
 type RefundableOrder struct {
 	ID                 string
 	PilgrimID          string
+	BuyerKind          string
 	AgentID            string
 	TotalPriceIDR      int64
 	AgentCommissionIDR int64

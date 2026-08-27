@@ -216,7 +216,10 @@ var restrictedMemberProcedures = map[string]bool{
 	// Deliberately NOT CreateManualOrder, whose CASH/BANK_TRANSFER paths mark
 	// an order PAID on the caller's word alone, nor RefundOrder, which moves
 	// money back out.
-	"/hajj.v1.OrderService/CreateOrderForPilgrim": true,
+	"/hajj.v1.OrderService/CreateOrderForPilgrim":   true,
+	"/hajj.v1.OrderService/ListMyPurchaseCatalogue": true,
+	"/hajj.v1.OrderService/CreateOrderForSelf":      true,
+	"/hajj.v1.OrderService/ListMyOrders":            true,
 	// KYC self-service — same "resolve own agent from identity" scoping as
 	// GetMyWallet. Works for a Muttawwif too (EnsureAgentForLeader).
 	"/hajj.v1.AgentService/SubmitMyAgentKyc":     true,

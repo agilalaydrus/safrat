@@ -79,6 +79,34 @@ func pricePilgrimOrder(product *domain.Product, levels domain.PriceLevels, quant
 	return price, nil
 }
 
+func priceAgentOrder(product *domain.Product, levels domain.PriceLevels, quantity int32) (Price, error) {
+	price, err := ComputePrice(levels, quantity, BuyerAgent, "")
+	if err != nil {
+		return Price{}, connect.NewError(connect.CodeFailedPrecondition, err)
+	}
+	if err := ensurePriceCoversSupplierCost(product, price); err != nil {
+		return Price{}, err
+	}
+	return price, nil
+}
+
+// digitalDestination freezes the provider target on the order. A mutable
+// profile phone is only a default; dispatch must never look it up later.
+func digitalDestination(product *domain.Product, supplied, fallback string) (string, error) {
+	if product == nil || (product.Category != "ROAMING_DATA" && product.Category != "PPOB_CREDIT") {
+		return "", nil
+	}
+	destination := strings.TrimSpace(supplied)
+	if destination == "" {
+		destination = strings.TrimSpace(fallback)
+	}
+	if len(destination) < 3 || len(destination) > 100 {
+		return "", connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("nomor tujuan produk digital belum lengkap"))
+	}
+	return destination, nil
+}
+
 // CreateOrder runs through the public (app_access_code) lane, same as the
 // rest of PilgrimAppService — a pilgrim checks out from their own device,
 // no Better Auth session. Builds the price from the platform base and this
@@ -104,6 +132,10 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *hajjv1.CreateOrderR
 	if err != nil {
 		return nil, err
 	}
+	destination, err := digitalDestination(product, "", info.Phone)
+	if err != nil {
+		return nil, err
+	}
 	// Checked before creating the order row, not after — an order nobody
 	// can ever pay for (Xendit unconfigured) shouldn't exist at all, not
 	// sit forever as PENDING.
@@ -122,7 +154,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *hajjv1.CreateOrderR
 		BasePriceIDR: price.BasePriceIDR, OperatorMarkupIDR: price.OperatorMarkupIDR, AgentMarkupIDR: price.AgentMarkupIDR,
 		TotalPriceIDR: price.TotalPriceIDR, PlatformAmountIDR: price.PlatformAmountIDR,
 		OperatorAmountIDR: price.OperatorAmountIDR, AgentCommissionIDR: price.AgentCommissionIDR,
-		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey), Destination: destination,
 	})
 	if err != nil {
 		return nil, serviceError("OrderService.CreateOrder", err)
@@ -191,6 +223,10 @@ func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req 
 	if err != nil {
 		return nil, err
 	}
+	destination, err := digitalDestination(product, "", pilgrim.Phone)
+	if err != nil {
+		return nil, err
+	}
 	if method == "XENDIT_LINK" && !s.xenditClient.Configured() {
 		return nil, serviceError("OrderService.CreateManualOrder", fmt.Errorf("%w: %w", apperror.ErrFailedPrecondition, payment.ErrNotConfigured))
 	}
@@ -204,7 +240,7 @@ func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req 
 		BasePriceIDR: price.BasePriceIDR, OperatorMarkupIDR: price.OperatorMarkupIDR, AgentMarkupIDR: price.AgentMarkupIDR,
 		TotalPriceIDR: price.TotalPriceIDR, PlatformAmountIDR: price.PlatformAmountIDR,
 		OperatorAmountIDR: price.OperatorAmountIDR, AgentCommissionIDR: price.AgentCommissionIDR,
-		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey), Destination: destination,
 	})
 	if err != nil {
 		return nil, serviceError("OrderService.CreateManualOrder", err)
@@ -263,7 +299,7 @@ func (s *OrderService) applyPaidSideEffects(ctx context.Context, product *domain
 	if s.fulfilmentService != nil && product != nil && product.Category != "TRAVEL_PACKAGE" {
 		s.fulfilmentService.Open(ctx, order.ID, order.OperatorID)
 	}
-	if product == nil || product.Category != "TRAVEL_PACKAGE" || product.DefaultKloterID == "" {
+	if product == nil || product.Category != "TRAVEL_PACKAGE" || product.DefaultKloterID == "" || order.PilgrimID == "" {
 		return
 	}
 	if err := s.pilgrimRepository.AssignKloterIfUnset(ctx, order.OperatorID, order.PilgrimID, product.DefaultKloterID); err != nil {
@@ -430,6 +466,9 @@ func orderMessage(o *domain.Order) *hajjv1.Order {
 		PlatformAmountIdr: o.PlatformAmountIDR, OperatorAmountIdr: o.OperatorAmountIDR, AgentCommissionIdr: o.AgentCommissionIDR,
 		Status: o.Status, CheckoutUrl: o.XenditInvoiceURL, CreatedAt: timestamppb.New(o.CreatedAt),
 		HeldReason: o.HeldReason, ReceiptNumber: o.ReceiptNumber,
+		BuyerAgentId: o.BuyerAgentID, BuyerKind: o.BuyerKind, BuyerName: o.BuyerName,
+		BasePriceIdr: o.BasePriceIDR, OperatorMarkupIdr: o.OperatorMarkupIDR,
+		AgentMarkupIdr: o.AgentMarkupIDR, Destination: o.Destination,
 	}
 	if o.PaidAmountIDR != nil {
 		result.PaidAmountIdr = *o.PaidAmountIDR
@@ -496,6 +535,10 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 	if order.Status != "PAID" {
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
 			errors.New("hanya pesanan berstatus LUNAS yang dapat direfund"))
+	}
+	if order.BuyerKind == string(BuyerAgent) {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("refund saldo untuk pembeli agen belum tersedia; kembalikan dana melalui jalur pembayaran dan jangan catat ke saldo jamaah"))
 	}
 
 	// Refunding something the supplier already delivered is a straight loss:
@@ -677,6 +720,10 @@ func (s *OrderService) CreateOrderForPilgrim(ctx context.Context, orgID, userID 
 	if err != nil {
 		return nil, err
 	}
+	destination, err := digitalDestination(product, "", pilgrim.Phone)
+	if err != nil {
+		return nil, err
+	}
 	// Checked before the order exists, for the same reason as CreateOrder: an
 	// order nobody can pay for should never have been created.
 	if !s.xenditClient.Configured() {
@@ -690,7 +737,7 @@ func (s *OrderService) CreateOrderForPilgrim(ctx context.Context, orgID, userID 
 		BasePriceIDR: price.BasePriceIDR, OperatorMarkupIDR: price.OperatorMarkupIDR, AgentMarkupIDR: price.AgentMarkupIDR,
 		TotalPriceIDR: price.TotalPriceIDR, PlatformAmountIDR: price.PlatformAmountIDR,
 		OperatorAmountIDR: price.OperatorAmountIDR, AgentCommissionIDR: price.AgentCommissionIDR,
-		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey), Destination: destination,
 	})
 	if err != nil {
 		return nil, serviceError("OrderService.CreateOrderForPilgrim", err)
@@ -722,6 +769,148 @@ func (s *OrderService) CreateOrderForPilgrim(ctx context.Context, orgID, userID 
 		fmt.Sprintf("%s x%d — %s untuk %s oleh agen %s",
 			product.Name, req.Quantity, rupiah(price.TotalPriceIDR), pilgrim.FullName, agent.Name))
 	return &hajjv1.CreateOrderResponse{Order: orderMessage(order), CheckoutUrl: invoice.InvoiceURL}, nil
+}
+
+// ListMyPurchaseCatalogue quotes active digital products at the agent price.
+// Travel packages and physical goods stay out until their buyer-specific
+// fulfilment flows exist; letting an agent pay for an undeliverable item would
+// turn a catalogue gap into real money owed.
+func (s *OrderService) ListMyPurchaseCatalogue(ctx context.Context, orgID string, req *hajjv1.ListMyPurchaseCatalogueRequest) (*hajjv1.ListMyPurchaseCatalogueResponse, error) {
+	if req == nil || !isUUID(req.SeasonId) {
+		return nil, serviceError("OrderService.ListMyPurchaseCatalogue", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("OrderService.ListMyPurchaseCatalogue", err)
+	}
+	products, levels, err := s.productRepository.ListPricing(ctx, op.ID, req.SeasonId)
+	if err != nil {
+		return nil, serviceError("OrderService.ListMyPurchaseCatalogue", err)
+	}
+	result := &hajjv1.ListMyPurchaseCatalogueResponse{Products: make([]*hajjv1.PurchaseCatalogueProduct, 0, len(products))}
+	for i, product := range products {
+		if !product.IsActive || (product.Category != "ROAMING_DATA" && product.Category != "PPOB_CREDIT") {
+			continue
+		}
+		price, priceErr := priceAgentOrder(product, levels[i], 1)
+		if priceErr != nil {
+			continue
+		}
+		item := &hajjv1.PurchaseCatalogueProduct{
+			Id: product.ID, SeasonId: product.SeasonID, Name: product.Name,
+			Category: product.Category, Description: product.Description,
+			Code: product.Code, UnitPriceIdr: price.UnitPriceIDR,
+		}
+		if product.NominalIDR != nil {
+			item.NominalIdr = *product.NominalIDR
+		}
+		result.Products = append(result.Products, item)
+	}
+	return result, nil
+}
+
+// CreateOrderForSelf charges the signed-in agent/Muttawwif at the agent price.
+// No referral is looked up and no commission is recorded: the agent markup is
+// not collected on this price, so paying any commission would create money
+// that the buyer never paid.
+func (s *OrderService) CreateOrderForSelf(ctx context.Context, orgID, userID string, req *hajjv1.CreateOrderForSelfRequest) (*hajjv1.CreateOrderResponse, error) {
+	if req == nil || !isUUID(req.ProductId) || req.Quantity < 1 || req.Quantity > 20 ||
+		strings.TrimSpace(req.IdempotencyKey) == "" {
+		return nil, serviceError("OrderService.CreateOrderForSelf", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("OrderService.CreateOrderForSelf", err)
+	}
+	agent, err := s.agentRepository.GetByLinkedUser(ctx, op.ID, userID)
+	if err != nil {
+		return nil, serviceError("OrderService.CreateOrderForSelf", err)
+	}
+	product, levels, err := s.productRepository.Pricing(ctx, op.ID, req.ProductId)
+	if err != nil {
+		return nil, serviceError("OrderService.CreateOrderForSelf", apperror.ErrNotFound)
+	}
+	if !product.IsActive || (product.Category != "ROAMING_DATA" && product.Category != "PPOB_CREDIT") {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("produk ini belum tersedia untuk pembelian mandiri agen"))
+	}
+	price, err := priceAgentOrder(product, levels, req.Quantity)
+	if err != nil {
+		return nil, err
+	}
+	destination, err := digitalDestination(product, req.Destination, agent.Phone)
+	if err != nil {
+		return nil, err
+	}
+	if !s.xenditClient.Configured() {
+		return nil, serviceError("OrderService.CreateOrderForSelf", fmt.Errorf("%w: %w", apperror.ErrFailedPrecondition, payment.ErrNotConfigured))
+	}
+
+	order, created, err := s.orderRepository.Create(ctx, repository.CreateOrderParams{
+		OperatorID: op.ID, SeasonID: product.SeasonID, BuyerAgentID: agent.ID,
+		BuyerKind: string(BuyerAgent), ProductID: product.ID, PlacedByAgentID: agent.ID,
+		Quantity: req.Quantity, UnitPriceIDR: price.UnitPriceIDR,
+		BasePriceIDR: price.BasePriceIDR, OperatorMarkupIDR: price.OperatorMarkupIDR,
+		AgentMarkupIDR: price.AgentMarkupIDR, TotalPriceIDR: price.TotalPriceIDR,
+		PlatformAmountIDR: price.PlatformAmountIDR, OperatorAmountIDR: price.OperatorAmountIDR,
+		AgentCommissionIDR: 0, IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+		Destination: destination,
+	})
+	if err != nil {
+		return nil, serviceError("OrderService.CreateOrderForSelf", err)
+	}
+	order.ProductName = product.Name
+	order.BuyerName = agent.Name
+	if !created {
+		return &hajjv1.CreateOrderResponse{Order: orderMessage(order), CheckoutUrl: order.XenditInvoiceURL}, nil
+	}
+
+	invoice, err := s.xenditClient.CreateInvoice(ctx, payment.CreateInvoiceRequest{
+		ExternalID: order.ID, Amount: price.TotalPriceIDR,
+		Description:        fmt.Sprintf("%s — %s", product.Name, agent.Name),
+		SuccessRedirectURL: s.appBaseURL + "/agent?order=success",
+		FailureRedirectURL: s.appBaseURL + "/agent?order=failed",
+	})
+	if err != nil {
+		return nil, serviceError("OrderService.CreateOrderForSelf", fmt.Errorf("create xendit invoice: %w", err))
+	}
+	if err := s.orderRepository.SetXenditInvoice(ctx, order.ID, invoice.ID, invoice.InvoiceURL); err != nil {
+		return nil, serviceError("OrderService.CreateOrderForSelf", err)
+	}
+	order.XenditInvoiceID = invoice.ID
+	order.XenditInvoiceURL = invoice.InvoiceURL
+	_ = s.auditRepository.Write(ctx, op.ID, userID, "agent_self_order_created", "order", order.ID,
+		fmt.Sprintf("%s x%d — %s ke %s oleh %s", product.Name, req.Quantity, rupiah(price.TotalPriceIDR), destination, agent.Name))
+	return &hajjv1.CreateOrderResponse{Order: orderMessage(order), CheckoutUrl: invoice.InvoiceURL}, nil
+}
+
+func (s *OrderService) ListMyOrders(ctx context.Context, orgID, userID string, req *hajjv1.ListMyOrdersRequest) (*hajjv1.ListOrdersResponse, error) {
+	if req == nil || !isUUID(req.SeasonId) {
+		return nil, serviceError("OrderService.ListMyOrders", apperror.ErrValidation)
+	}
+	if req.Limit <= 0 || req.Limit > 100 {
+		req.Limit = 20
+	}
+	if req.Offset < 0 {
+		req.Offset = 0
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("OrderService.ListMyOrders", err)
+	}
+	agent, err := s.agentRepository.GetByLinkedUser(ctx, op.ID, userID)
+	if err != nil {
+		return nil, serviceError("OrderService.ListMyOrders", err)
+	}
+	orders, count, err := s.orderRepository.ListForBuyerAgent(ctx, op.ID, req.SeasonId, agent.ID, req.Limit, req.Offset)
+	if err != nil {
+		return nil, serviceError("OrderService.ListMyOrders", err)
+	}
+	result := &hajjv1.ListOrdersResponse{Orders: make([]*hajjv1.Order, 0, len(orders)), TotalCount: count}
+	for _, order := range orders {
+		result.Orders = append(result.Orders, orderMessage(order))
+	}
+	return result, nil
 }
 
 // recordCommission recognises an order's commission the moment the order

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { IconWallet, IconUsers, IconLink, IconClock, IconMapPin, IconShieldCheck, IconReceipt } from "@tabler/icons-react";
+import { IconWallet, IconUsers, IconLink, IconClock, IconMapPin, IconShieldCheck, IconReceipt, IconShoppingCart } from "@tabler/icons-react";
 import AgentWalletTab from "@/components/agent/AgentWalletTab";
 import AgentJamaahTab from "@/components/agent/AgentJamaahTab";
 import AgentReferralTab from "@/components/agent/AgentReferralTab";
@@ -9,6 +9,7 @@ import AgentPayoutTab from "@/components/agent/AgentPayoutTab";
 import AgentTransactionRecapTab from "@/components/agent/AgentTransactionRecapTab";
 import AgentTripTab from "@/components/agent/AgentTripTab";
 import AgentKycSelfSection from "@/components/agents/AgentKycSelfSection";
+import AgentPurchaseTab from "@/components/agent/AgentPurchaseTab";
 import { authClient } from "@/lib/auth-client";
 import { staffScheduleClient } from "@/lib/rpc";
 
@@ -16,6 +17,7 @@ const BASE_TABS = [
   { id: "wallet", label: "Dompet Komisi", icon: IconWallet },
   { id: "jamaah", label: "Jamaah Saya", icon: IconUsers },
   { id: "transactions", label: "Rekap Transaksi", icon: IconReceipt },
+  { id: "purchase", label: "Beli Produk", icon: IconShoppingCart },
   { id: "referral", label: "Link Referral", icon: IconLink },
   { id: "payout", label: "Pencairan", icon: IconClock },
   { id: "kyc", label: "KYC", icon: IconShieldCheck },
@@ -50,6 +52,7 @@ export default function AgentPortalPage() {
       {tab === "wallet" && <AgentWalletTab />}
       {tab === "jamaah" && <AgentJamaahTab />}
       {tab === "transactions" && <AgentTransactionRecapTab />}
+      {tab === "purchase" && <AgentPurchaseTab />}
       {tab === "referral" && <AgentReferralTab />}
       {tab === "payout" && <AgentPayoutTab />}
       {tab === "trip" && <AgentTripTab />}
