@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { IconBuildingStore, IconCurrencyDollar, IconShieldLock, IconAlertTriangle, IconTruckDelivery, IconReceipt2 } from "@tabler/icons-react";
+import { IconBuildingStore, IconCurrencyDollar, IconShieldLock, IconAlertTriangle, IconTruckDelivery, IconReceipt2, IconUsers, IconId } from "@tabler/icons-react";
 import { PlatformOperator, PlatformProduct } from "@hajj-saas/proto-gen/hajj/v1/platform_pb";
 import { platformClient } from "@/lib/rpc";
 import SupplierTab from "@/components/admin/SupplierTab";
 import TransactionsTab from "@/components/admin/TransactionsTab";
+import AccountsTab from "@/components/admin/AccountsTab";
+import IdentityTab from "@/components/admin/IdentityTab";
 
 const rupiah = (n: bigint) => `Rp${Number(n).toLocaleString("id-ID")}`;
 
@@ -19,7 +21,7 @@ export default function PlatformAdminPage() {
   // actually happened.
   const [access, setAccess] = useState<"checking" | "granted" | "enrol" | "denied" | "error">("checking");
   const [failure, setFailure] = useState("");
-  const [tab, setTab] = useState<"transactions" | "operators" | "costs" | "suppliers">("transactions");
+  const [tab, setTab] = useState<"transactions" | "operators" | "costs" | "suppliers" | "accounts" | "identity">("transactions");
 
   useEffect(() => {
     platformClient.amIPlatformAdmin({})
@@ -90,7 +92,7 @@ export default function PlatformAdminPage() {
       <div className="gold-divider" />
 
       <div style={tabBar}>
-        {([["transactions", "Transaksi", IconReceipt2], ["operators", "Travel", IconBuildingStore], ["costs", "Harga Modal", IconCurrencyDollar], ["suppliers", "Supplier", IconTruckDelivery]] as const).map(([id, label, Icon]) => (
+        {([["transactions", "Transaksi", IconReceipt2], ["operators", "Travel", IconBuildingStore], ["costs", "Harga Modal", IconCurrencyDollar], ["suppliers", "Supplier", IconTruckDelivery], ["accounts", "Akun", IconUsers], ["identity", "Identitas", IconId]] as const).map(([id, label, Icon]) => (
           <button key={id} onClick={() => setTab(id)} style={tab === id ? tabActive : tabInactive}>
             <Icon size={17} />{label}
           </button>
@@ -101,6 +103,8 @@ export default function PlatformAdminPage() {
       {tab === "operators" && <OperatorsTab />}
       {tab === "costs" && <SupplierCostsTab />}
       {tab === "suppliers" && <SupplierTab />}
+      {tab === "accounts" && <AccountsTab />}
+      {tab === "identity" && <IdentityTab />}
     </main>
   );
 }

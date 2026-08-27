@@ -1346,6 +1346,9 @@ is now reported rather than discarded.
 - Rejecting requires a reason: a rejection nobody can act on gets resubmitted
   unchanged.
 
+**The panel now has six tabs**, all rendered in a browser: Transaksi, Travel,
+Harga Modal, Supplier, Akun, Identitas.
+
 Search on the account list is deliberate rather than open paging — a platform
 panel that will happily page through every account in every tenant is a data
 export waiting for a curious employee.

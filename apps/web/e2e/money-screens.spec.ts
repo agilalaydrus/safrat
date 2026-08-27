@@ -165,6 +165,19 @@ test.describe("money screens render", () => {
     await expect(page.getByText(/tanpa harga modal dijual tanpa batas bawah/i)).toBeVisible();
     await capture(page, "08-admin-supplier-costs");
 
+    // Accounts: the tab that removed the last need for a SQL client.
+    await page.getByRole("button", { name: /^Akun$/ }).click();
+    await expect(page.getByPlaceholder(/Cari nama atau email/i)).toBeVisible();
+    await page.getByPlaceholder(/Cari nama atau email/i).fill("safrat.local");
+    await page.getByRole("button", { name: /^Cari$/ }).click();
+    await expect(page.getByText(/2FA/).first()).toBeVisible();
+    await capture(page, "12-admin-accounts");
+
+    // Identity: the list must never carry the numbers themselves.
+    await page.getByRole("button", { name: /^Identitas$/ }).click();
+    await expect(page.getByText(/tidak ditampilkan di daftar ini/i)).toBeVisible();
+    await capture(page, "13-admin-identity");
+
     // Leave the fixture as found: platform access is not something to leave
     // switched on in a shared local database.
     await query("DELETE FROM platform_admins WHERE user_id = $1", [session.userId]);
