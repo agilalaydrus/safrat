@@ -303,3 +303,54 @@ func TestReplayedCheckoutSpendsOnceIntegration(t *testing.T) {
 		t.Fatalf("terpakai %d, mau %d — pengulangan terhitung dua kali", spent, limitTestPrice)
 	}
 }
+
+// Retention is three days (owner's decision). The property that matters is not
+// the number but the floor: whatever is asked for, today's row survives —
+// deleting it would hand the account a fresh Rp20 juta.
+func TestPurgeKeepsTodayWhateverIsAskedForIntegration(t *testing.T) {
+	f := newLimitFixture(t)
+	ctx := context.Background()
+
+	// Two rows for buyers this fixture already cleans up: one for today, one
+	// well past any retention window.
+	seed := func(daysAgo int, amount int64) {
+		if _, err := f.pool.Exec(ctx,
+			`INSERT INTO daily_digital_spend (buyer_kind, buyer_id, spend_date, total_idr)
+			 VALUES ('PILGRIM', $1, (NOW() AT TIME ZONE 'Asia/Jakarta')::date - $2::int, $3)
+			 ON CONFLICT (buyer_kind, buyer_id, spend_date) DO NOTHING`,
+			f.pilgrimID, daysAgo, amount); err != nil {
+			t.Fatalf("seed %d hari lalu: %v", daysAgo, err)
+		}
+	}
+	seed(0, 1_000)
+	seed(30, 2_000)
+
+	orders := repository.NewOrderRepository(db.New(f.pool), f.pool)
+
+	// Zero would mean "keep nothing" if it were taken at face value.
+	if _, err := orders.PurgeExpiredDailySpend(ctx, 0); err != nil {
+		t.Fatalf("purge: %v", err)
+	}
+
+	var today int
+	if err := f.pool.QueryRow(ctx,
+		`SELECT count(*) FROM daily_digital_spend
+		 WHERE buyer_id = $1 AND spend_date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date`,
+		f.pilgrimID).Scan(&today); err != nil {
+		t.Fatalf("read today: %v", err)
+	}
+	if today != 1 {
+		t.Fatal("purge menghapus baris hari ini — batas harian jadi kosong kembali")
+	}
+
+	var stale int
+	if err := f.pool.QueryRow(ctx,
+		`SELECT count(*) FROM daily_digital_spend
+		 WHERE buyer_id = $1 AND spend_date < (NOW() AT TIME ZONE 'Asia/Jakarta')::date - 3`,
+		f.pilgrimID).Scan(&stale); err != nil {
+		t.Fatalf("read stale: %v", err)
+	}
+	if stale != 0 {
+		t.Fatalf("%d baris kedaluwarsa tersisa", stale)
+	}
+}

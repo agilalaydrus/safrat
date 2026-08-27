@@ -387,3 +387,9 @@ WHERE d.buyer_kind = prior.buyer_kind
 SELECT total_idr, limit_idr FROM daily_digital_spend
 WHERE buyer_kind = sqlc.arg(buyer_kind) AND buyer_id = sqlc.arg(buyer_id)
   AND spend_date = sqlc.arg(spend_date);
+
+-- name: PurgeDailyDigitalSpend :one
+-- Runs the definer function rather than deleting directly: the application
+-- role deliberately holds no DELETE on daily_digital_spend, because removing a
+-- row hands an account its whole daily limit back.
+SELECT purge_daily_digital_spend(sqlc.arg(keep_days)::int) AS removed;

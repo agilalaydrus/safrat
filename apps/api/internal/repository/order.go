@@ -594,3 +594,13 @@ func (r *OrderRepository) DailyDigitalSpend(ctx context.Context, buyerKind, buye
 // describe a day that has no row yet; enforcement always comes from the row's
 // own limit_idr, so a per-account override is never overridden by this.
 const defaultDailyDigitalLimitIDR = 20_000_000
+
+// PurgeExpiredDailySpend removes spend rows past their retention window.
+//
+// Calls the definer function instead of issuing a DELETE, because the
+// application role has no DELETE on this table and should not: a deleted row
+// is a returned daily limit. The cutoff lives inside the function, so the most
+// this call can do is expire rows that were already expired.
+func (r *OrderRepository) PurgeExpiredDailySpend(ctx context.Context, keepDays int32) (int32, error) {
+	return r.queries.PurgeDailyDigitalSpend(ctx, keepDays)
+}

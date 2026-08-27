@@ -103,6 +103,7 @@ func main() {
 		strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGIN")))
 	paymentHandler := worker.NewPaymentHandler(logger, orderRepository, orderService)
 	fulfilmentService := service.NewFulfilmentService(fulfilmentRepository, supplierRepository, supplierCostRepository, orderRepository)
+	dailySpendHandler := worker.NewDailySpendHandler(logger, orderRepository)
 	kycHandler := worker.NewKYCHandler(logger, kycRepository)
 	fulfilmentHandler := worker.NewFulfilmentHandler(logger, fulfilmentRepository, supplierRepository, fulfilmentService)
 	objectStorage, storageErr := storage.New(context.Background(), storage.ConfigFromEnv())
@@ -189,6 +190,13 @@ func main() {
 		logger.Error("register KYC migration schedule", "error", err)
 		os.Exit(1)
 	}
+	// Hourly rather than daily. A daily job that misses its window because the
+	// worker was restarting waits a whole day for the next one, and the purge
+	// is cheap enough that running it against nothing costs nothing.
+	if _, err := scheduler.Register("@every 1h", worker.NewDailySpendPurgeTask()); err != nil {
+		logger.Error("register daily spend purge schedule", "error", err)
+		os.Exit(1)
+	}
 	if storefrontAssetHandler != nil {
 		if _, err := scheduler.Register("@every 1h", worker.NewStorefrontAssetGCTask()); err != nil {
 			logger.Error("register storefront asset cleanup schedule", "error", err)
@@ -215,6 +223,7 @@ func main() {
 	mux.HandleFunc(worker.TaskFulfilmentDispatch, fulfilmentHandler.HandleDispatch)
 	mux.HandleFunc(queue.TaskDispatchOne, fulfilmentHandler.HandleDispatchOne)
 	mux.HandleFunc(worker.TaskKYCMigrate, kycHandler.HandleMigrate)
+	mux.HandleFunc(worker.TaskDailySpendPurge, dailySpendHandler.HandlePurge)
 	if storefrontAssetHandler != nil {
 		mux.HandleFunc(worker.TaskStorefrontAssetGC, storefrontAssetHandler.HandleGC)
 	}
