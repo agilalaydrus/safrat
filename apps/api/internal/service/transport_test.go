@@ -54,7 +54,21 @@ func newTransportHarness(t *testing.T) *transportHarness {
 	queries := db.New(pool)
 	transportRepo := repository.NewTransportRepository(queries, pool)
 	t.Cleanup(func() {
-		_, _ = pool.Exec(context.Background(), `DELETE FROM operators WHERE id=$1`, operatorID)
+		// seat_assignments.operator_id has no ON DELETE CASCADE, unlike every
+		// other operator_id FK in the schema, so it has to go first — the seed
+		// file does the same for the same reason.
+		//
+		// This was silently failing: the error was discarded, so every run that
+		// assigned a seat left its whole operator behind. Eighty-four of them
+		// had piled up locally, which is how it was noticed at all — they
+		// filled the platform admin panel.
+		ctx := context.Background()
+		if _, err := pool.Exec(ctx, `DELETE FROM seat_assignments WHERE operator_id=$1`, operatorID); err != nil {
+			t.Logf("cleanup seat assignments: %v", err)
+		}
+		if _, err := pool.Exec(ctx, `DELETE FROM operators WHERE id=$1`, operatorID); err != nil {
+			t.Logf("cleanup operator: %v", err)
+		}
 		pool.Close()
 	})
 	return &transportHarness{ctx: middleware.ContextWithIdentity(ctx, userID, orgID), pool: pool, queries: queries, service: NewTransportService(repository.NewOperatorRepository(queries), transportRepo, repository.NewAuditRepository(queries)), orgID: orgID, userID: userID, operator: operatorID, seasonID: seasonID}

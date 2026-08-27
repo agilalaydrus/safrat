@@ -64,7 +64,11 @@ type PlatformOperator struct {
 	CreatedAt          time.Time
 }
 
-func (r *PlatformRepository) ListOperators(ctx context.Context) ([]*PlatformOperator, error) {
+// ListOperators returns tenants, most urgent first, up to limit.
+func (r *PlatformRepository) ListOperators(ctx context.Context, limit int32) ([]*PlatformOperator, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
 	rows, err := r.pool.Query(ctx, `
 		SELECT o.id::text, o.name, COALESCE(o.slug, ''),
 		       COALESCE(s.plan::text, ''), COALESCE(s.status::text, ''), s.access_until,
@@ -75,7 +79,15 @@ func (r *PlatformRepository) ListOperators(ctx context.Context) ([]*PlatformOper
 		LEFT JOIN (SELECT operator_id, COUNT(*) AS count FROM pilgrims WHERE is_substituted = false GROUP BY operator_id) p ON p.operator_id = o.id
 		LEFT JOIN (SELECT operator_id, COUNT(*) AS count FROM products GROUP BY operator_id) pr ON pr.operator_id = o.id
 		LEFT JOIN (SELECT operator_id, COUNT(*) AS count FROM orders WHERE status = 'HELD' GROUP BY operator_id) h ON h.operator_id = o.id
-		ORDER BY o.created_at DESC`)
+		-- Held transactions first: money has arrived and is waiting on somebody,
+		-- which is the only thing on this screen that is actually urgent.
+		-- Newest next, so a tenant that just signed up is easy to find.
+		ORDER BY COALESCE(h.count, 0) DESC, o.created_at DESC
+		-- Bounded. Without a limit this page rendered every operator in the
+		-- database on one screen — several hundred of them in a local database
+		-- full of test rows, and unusable for a platform with real tenants.
+		-- Raise it alongside a search box, not on its own.
+		LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
 	}

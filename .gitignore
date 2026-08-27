@@ -30,4 +30,7 @@ Safrat New Updates.md
 apps/web/playwright-report/
 apps/web/test-results/
 apps/web/e2e/.auth/
+# Screenshots from the rendering spec — evidence for whoever ran it, not
+# something to carry in the repository.
+apps/web/e2e/.screens/
 apps/web/e2e/tsconfig.tsbuildinfo

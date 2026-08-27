@@ -143,6 +143,13 @@ function OperatorsTab() {
         </tbody>
       </table>
       {operators.length === 0 && <p style={{ color: "var(--color-warm-500)" }}>Belum ada travel terdaftar.</p>}
+      {/* The list is bounded server-side. Saying so beats letting an admin
+          assume a tenant does not exist because it fell off the end. */}
+      {operators.length >= 100 && (
+        <p style={{ color: "var(--color-warm-500)", fontSize: 13, marginTop: 12 }}>
+          Menampilkan 100 travel pertama — yang punya transaksi perlu ditinjau didahulukan.
+        </p>
+      )}
     </div>
   );
 }

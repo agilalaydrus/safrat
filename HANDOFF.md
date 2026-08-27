@@ -768,8 +768,7 @@ baked into code that already exists, so they are recorded verbatim in intent.
 
 6. **Least-privilege database role** — done, see PR 16 below.
 
-7. **Browser rendering** — still not done. Nothing built in this run has been
-   looked at.
+7. **Browser rendering** — done, see PR 17 below.
 
 #### Done — PR 16: least-privilege database role (migration 100)
 
@@ -801,6 +800,48 @@ DEPLOY.md §12b carries an audit query to catch money tables that forgot theirs.
 password is ever in git. Steps, verification and a one-line rollback are in
 DEPLOY.md §12b. Migrations must keep running as `safrat` — they need to own and
 alter tables, which is exactly the power the app is giving up.
+
+#### Done — PR 17: the money screens, opened in a browser at last
+
+`e2e/money-screens.spec.ts` renders the orders dashboard, both of its dialogs,
+two-factor enrolment and all three states of the platform panel, writing a
+screenshot of each. Assertions are shallow on purpose — the point was to look
+at them, and the things that go wrong here are invisible to every other kind of
+test in this repo.
+
+**Three defects, none of which any existing test could have caught:**
+
+1. **Money formatted without separators in every string Go builds.** A held
+   transaction read *"Nominal dibayar Rp4200000 tidak sama dengan tagihan
+   Rp4500000"* on a screen where everything else said `Rp4.500.000`. These
+   strings are read by people — audit entries, hold reasons, errors shown
+   straight to an operator. A `rupiah()` helper now formats them, applied to all
+   eleven call sites, with the negative case (`-Rp1.000`, sign outside the
+   currency) covered since reversals are stored negative.
+
+2. **The platform operator list had no limit.** It rendered every tenant in the
+   database on one page — several hundred rows locally, and unusable for a
+   platform with real tenants. Now bounded at 100 and ordered by held
+   transactions first, so what actually needs attention is at the top rather
+   than buried by creation date. The UI says when the list is truncated, since
+   an admin should not conclude a tenant is missing because it fell off the end.
+
+3. **The transport test harness had been leaking operators since forever.**
+   `seat_assignments.operator_id` has no `ON DELETE CASCADE` — a known quirk,
+   documented in CLAUDE.md and worked around in the seed file — and the
+   harness's cleanup discarded the resulting error. Every run that assigned a
+   seat left its whole operator behind: 84 operators and 315 pilgrims had piled
+   up. Not caused by the ledger triggers, which is what I checked first. The
+   cleanup now removes seat assignments first and logs anything that still
+   fails; the accumulated rows were verified to hold no orders and no money
+   entries before being cleared.
+
+Screenshots land in `e2e/.screens/` and are gitignored — evidence for whoever
+ran it, not something to carry in the repository.
+
+**Still unrendered:** `/pilgrim/transactions`, `/leader/transactions` and the
+agent portal's Rekap Transaksi tab. Those need pilgrim, leader and agent
+fixtures respectively; the operator storage state cannot reach them.
 
 #### Open — ordered
 

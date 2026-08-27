@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"connectrpc.com/connect"
 	"github.com/hajj-saas/api/internal/apperror"
@@ -87,7 +86,7 @@ func (s *PlatformService) ListOperators(ctx context.Context) (*hajjv1.ListOperat
 	if _, err := s.requirePlatformAdmin(ctx); err != nil {
 		return nil, err
 	}
-	operators, err := s.platformRepository.ListOperators(ctx)
+	operators, err := s.platformRepository.ListOperators(ctx, 100)
 	if err != nil {
 		return nil, serviceError("PlatformService.ListOperators", err)
 	}
@@ -155,9 +154,9 @@ func (s *PlatformService) SetProductSupplierCost(ctx context.Context, req *hajjv
 
 func formatSupplierCostNote(previous *int64, next int64) string {
 	if previous == nil {
-		return fmt.Sprintf("Harga modal supplier ditetapkan Rp%d", next)
+		return "Harga modal supplier ditetapkan " + rupiah(next)
 	}
-	return fmt.Sprintf("Harga modal supplier diubah dari Rp%d ke Rp%d", *previous, next)
+	return "Harga modal supplier diubah dari " + rupiah(*previous) + " ke " + rupiah(next)
 }
 
 func platformProductMessage(product *repository.PlatformProduct) *hajjv1.PlatformProduct {

@@ -137,7 +137,7 @@ func (s *AgentService) RecordPayout(ctx context.Context, orgID, userID string, r
 			return nil, serviceError("AgentService.RecordPayout", err)
 		}
 	}
-	_ = s.auditRepository.Write(ctx, op.ID, userID, "agent_payout_recorded", "agent", req.AgentId, fmt.Sprintf("Rp%d via %s", req.AmountIdr, method))
+	_ = s.auditRepository.Write(ctx, op.ID, userID, "agent_payout_recorded", "agent", req.AgentId, fmt.Sprintf("%s via %s", rupiah(req.AmountIdr), method))
 	updated, err := s.agentRepository.GetPayoutSummary(ctx, op.ID, req.AgentId)
 	if err != nil {
 		return nil, serviceError("AgentService.RecordPayout", err)
@@ -257,7 +257,7 @@ func (s *AgentService) RequestPayout(ctx context.Context, orgID, userID string, 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, serviceError("AgentService.RequestPayout", err)
 	}
-	_ = s.auditRepository.Write(ctx, op.ID, userID, "agent_payout_requested", "agent", agent.ID, fmt.Sprintf("Rp%d", req.AmountIdr))
+	_ = s.auditRepository.Write(ctx, op.ID, userID, "agent_payout_requested", "agent", agent.ID, rupiah(req.AmountIdr))
 	return payoutRequestMessage(request, agent.Name), nil
 }
 

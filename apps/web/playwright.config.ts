@@ -37,6 +37,15 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], storageState: "./e2e/.auth/operator.json" },
     },
     {
+      // The money screens had never been opened in a browser — see the spec's
+      // header. Operator storage state, since every one of them is reached
+      // from a signed-in staff account.
+      name: "money-screens",
+      dependencies: ["setup"],
+      testMatch: /money-screens\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], storageState: "./e2e/.auth/operator.json" },
+    },
+    {
       // Autoplay is a browser policy. The permitted branch is real (Chromium
       // launches with the policy disabled); the blocked branch injects the
       // rejection, because headless Chromium will not enforce it.

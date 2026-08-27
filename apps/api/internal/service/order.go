@@ -59,7 +59,7 @@ func ensurePriceCoversSupplierCost(product *domain.Product, quantity int32) erro
 	total := product.PriceIDR * int64(quantity)
 	if total < cost {
 		return connect.NewError(connect.CodeFailedPrecondition,
-			fmt.Errorf("harga jual Rp%d di bawah harga modal supplier Rp%d; perbarui harga produk sebelum menjual", total, cost))
+			fmt.Errorf("harga jual %s di bawah harga modal supplier %s; perbarui harga produk sebelum menjual", rupiah(total), rupiah(cost)))
 	}
 	return nil
 }
@@ -261,7 +261,7 @@ func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req 
 		s.applyPaidSideEffects(ctx, product, paid)
 	}
 	_ = s.auditRepository.Write(ctx, op.ID, userID, "manual_order_created", "order", order.ID,
-		fmt.Sprintf("%s x%d — Rp%d via %s%s", product.Name, req.Quantity, split.TotalPrice, method, noteSuffix(req.Note)))
+		fmt.Sprintf("%s x%d — %s via %s%s", product.Name, req.Quantity, rupiah(split.TotalPrice), method, noteSuffix(req.Note)))
 	return &hajjv1.CreateOrderResponse{Order: orderMessage(order), CheckoutUrl: checkoutURL}, nil
 }
 
@@ -336,12 +336,12 @@ func (s *OrderService) SettlePayment(ctx context.Context, invoiceID string, paid
 	}
 
 	if paidAmountIDR != order.TotalPriceIDR {
-		reason := fmt.Sprintf("Nominal dibayar Rp%d tidak sama dengan tagihan Rp%d", paidAmountIDR, order.TotalPriceIDR)
+		reason := fmt.Sprintf("Nominal dibayar %s tidak sama dengan tagihan %s", rupiah(paidAmountIDR), rupiah(order.TotalPriceIDR))
 		if paidAmountIDR <= 0 {
 			// The gateway told us nothing usable. That is a configuration
 			// fault rather than a suspicious payer, and it must not be read as
 			// a matching amount.
-			reason = fmt.Sprintf("Nominal pembayaran tidak dilaporkan gateway; tagihan Rp%d belum dapat diverifikasi", order.TotalPriceIDR)
+			reason = fmt.Sprintf("Nominal pembayaran tidak dilaporkan gateway; tagihan %s belum dapat diverifikasi", rupiah(order.TotalPriceIDR))
 		}
 		held, holdErr := s.orderRepository.HoldByInvoiceID(ctx, invoiceID, paidAmountIDR, reason)
 		if holdErr != nil {
@@ -559,8 +559,8 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 	// Audited after the commit: the refund is the fact, and failing to write
 	// the log must not roll back money that has already been returned.
 	_ = s.auditRepository.Write(ctx, op.ID, userID, "order_refunded", "order", order.ID,
-		fmt.Sprintf("Refund penuh Rp%d, komisi ditarik Rp%d%s",
-			refundAmount, commissionReversal, noteSuffix(refund.Reason)))
+		fmt.Sprintf("Refund penuh %s, komisi ditarik %s%s",
+			rupiah(refundAmount), rupiah(commissionReversal), noteSuffix(refund.Reason)))
 
 	return s.refundResponse(ctx, op.ID, order.ID, refund, true)
 }
@@ -703,8 +703,8 @@ func (s *OrderService) CreateOrderForPilgrim(ctx context.Context, orgID, userID 
 	order.XenditInvoiceURL = invoice.InvoiceURL
 
 	_ = s.auditRepository.Write(ctx, op.ID, userID, "agent_order_created", "order", order.ID,
-		fmt.Sprintf("%s x%d — Rp%d untuk %s oleh agen %s",
-			product.Name, req.Quantity, split.TotalPrice, pilgrim.FullName, agent.Name))
+		fmt.Sprintf("%s x%d — %s untuk %s oleh agen %s",
+			product.Name, req.Quantity, rupiah(split.TotalPrice), pilgrim.FullName, agent.Name))
 	return &hajjv1.CreateOrderResponse{Order: orderMessage(order), CheckoutUrl: invoice.InvoiceURL}, nil
 }
 
@@ -824,7 +824,7 @@ func (s *OrderService) ResolveHeldOrder(ctx context.Context, orgID, userID strin
 		paid = *before.PaidAmountIDR
 	}
 	_ = s.auditRepository.Write(ctx, op.ID, userID, "held_order_resolved", "order", resolved.ID,
-		fmt.Sprintf("Transaksi tertahan %s — dibayar Rp%d dari tagihan Rp%d (%s)%s",
-			decision, paid, before.TotalPriceIDR, before.HeldReason, noteSuffix(req.Note)))
+		fmt.Sprintf("Transaksi tertahan %s — dibayar %s dari tagihan %s (%s)%s",
+			decision, rupiah(paid), rupiah(before.TotalPriceIDR), before.HeldReason, noteSuffix(req.Note)))
 	return orderMessage(resolved), nil
 }
