@@ -73,3 +73,50 @@ func TestComputeSplitPaysNoCommissionWithoutAReferral(t *testing.T) {
 		t.Fatalf("commission = %d for a blank agent id, want 0", split.AgentCommission)
 	}
 }
+
+// A price below what the product costs to supply is a loss on every sale, and
+// nothing recorded the cost before this, so nothing could tell.
+func TestPriceMustCoverSupplierCost(t *testing.T) {
+	cost := int64(90_000)
+
+	t.Run("a price above cost sells", func(t *testing.T) {
+		product := &domain.Product{PriceIDR: 100_000, SupplierCostIDR: &cost}
+		if err := ensurePriceCoversSupplierCost(product, 1); err != nil {
+			t.Fatalf("a profitable sale was refused: %v", err)
+		}
+	})
+
+	t.Run("selling exactly at cost is allowed", func(t *testing.T) {
+		product := &domain.Product{PriceIDR: 90_000, SupplierCostIDR: &cost}
+		if err := ensurePriceCoversSupplierCost(product, 1); err != nil {
+			t.Fatalf("break-even was refused: %v", err)
+		}
+	})
+
+	t.Run("a price below cost is refused", func(t *testing.T) {
+		product := &domain.Product{PriceIDR: 89_999, SupplierCostIDR: &cost}
+		if err := ensurePriceCoversSupplierCost(product, 1); err == nil {
+			t.Fatal("a sale one rupiah below cost was allowed")
+		}
+	})
+
+	t.Run("quantity is applied to both sides", func(t *testing.T) {
+		product := &domain.Product{PriceIDR: 89_999, SupplierCostIDR: &cost}
+		if err := ensurePriceCoversSupplierCost(product, 10); err == nil {
+			t.Fatal("ten sales below cost were allowed")
+		}
+		product.PriceIDR = 90_000
+		if err := ensurePriceCoversSupplierCost(product, 10); err != nil {
+			t.Fatalf("ten break-even sales were refused: %v", err)
+		}
+	})
+
+	t.Run("a product with no known cost is sold without the check", func(t *testing.T) {
+		// The honest position: refusing would block every product nobody has
+		// costed, and inventing a floor would be worse than admitting there is
+		// none.
+		if err := ensurePriceCoversSupplierCost(&domain.Product{PriceIDR: 1}, 1); err != nil {
+			t.Fatalf("an uncosted product was refused: %v", err)
+		}
+	})
+}

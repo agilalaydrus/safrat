@@ -203,5 +203,6 @@ func optionalUUID(value string) (pgtype.UUID, error) {
 }
 
 func toProduct(product db.Product) *domain.Product {
-	return &domain.Product{ID: uuid.UUID(product.ID.Bytes).String(), OperatorID: uuid.UUID(product.OperatorID.Bytes).String(), SeasonID: uuid.UUID(product.SeasonID.Bytes).String(), Name: product.Name, Category: product.Category, Type: product.Type, PriceIDR: product.PriceIdr, DurationDays: product.DurationDays, Description: product.Description, Inclusions: product.Inclusions, IsActive: product.IsActive, CreatedAt: product.CreatedAt.Time, UpdatedAt: product.UpdatedAt.Time, PlatformMarginBps: product.PlatformMarginBps, OperatorMarginBps: product.OperatorMarginBps, AgentMarginBps: product.AgentMarginBps, DefaultKloterID: nullableUUIDString(product.DefaultKloterID)}
+	return &domain.Product{ID: uuid.UUID(product.ID.Bytes).String(), OperatorID: uuid.UUID(product.OperatorID.Bytes).String(), SeasonID: uuid.UUID(product.SeasonID.Bytes).String(), Name: product.Name, Category: product.Category, Type: product.Type, PriceIDR: product.PriceIdr, DurationDays: product.DurationDays, Description: product.Description, Inclusions: product.Inclusions, IsActive: product.IsActive, CreatedAt: product.CreatedAt.Time, UpdatedAt: product.UpdatedAt.Time, SupplierCostIDR: int8Ptr(product.SupplierCostIdr), SupplierCostSource: product.SupplierCostSource,
+		PlatformMarginBps: product.PlatformMarginBps, OperatorMarginBps: product.OperatorMarginBps, AgentMarginBps: product.AgentMarginBps, DefaultKloterID: nullableUUIDString(product.DefaultKloterID)}
 }

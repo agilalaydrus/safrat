@@ -39,6 +39,31 @@ func NewOrderService(operators *repository.OperatorRepository, pilgrims *reposit
 	return &OrderService{operatorRepository: operators, pilgrimRepository: pilgrims, productRepository: products, orderRepository: orders, auditRepository: audit, ledgerRepository: ledger, refundRepository: refunds, agentRepository: agents, db: db, xenditClient: xendit, appBaseURL: appBaseURL}
 }
 
+// ensurePriceCoversSupplierCost refuses a sale priced below what the product
+// costs to supply.
+//
+// Checked at the moment of sale, not only when the price was set: an observed
+// supplier cost moves on its own — the supplier raises their rate and the next
+// fulfilment records it — so a price that was fine last week can be underwater
+// today with nobody having touched it.
+//
+// A product with no known cost is sold without this check. That is the honest
+// position: refusing would block every product nobody has costed, which today
+// is all of them, and pretending a floor exists where none does would be
+// worse than admitting there is none.
+func ensurePriceCoversSupplierCost(product *domain.Product, quantity int32) error {
+	if product == nil || product.SupplierCostIDR == nil {
+		return nil
+	}
+	cost := *product.SupplierCostIDR * int64(quantity)
+	total := product.PriceIDR * int64(quantity)
+	if total < cost {
+		return connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Errorf("harga jual Rp%d di bawah harga modal supplier Rp%d; perbarui harga produk sebelum menjual", total, cost))
+	}
+	return nil
+}
+
 // orderSplit is how one transaction's money divides.
 type orderSplit struct {
 	TotalPrice      int64
@@ -93,6 +118,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *hajjv1.CreateOrderR
 	}
 	if !product.IsActive {
 		return nil, serviceError("OrderService.CreateOrder", apperror.ErrFailedPrecondition)
+	}
+	if err := ensurePriceCoversSupplierCost(product, req.Quantity); err != nil {
+		return nil, err
 	}
 	// Checked before creating the order row, not after — an order nobody
 	// can ever pay for (Xendit unconfigured) shouldn't exist at all, not
@@ -176,6 +204,9 @@ func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req 
 	}
 	if !product.IsActive {
 		return nil, serviceError("OrderService.CreateManualOrder", apperror.ErrFailedPrecondition)
+	}
+	if err := ensurePriceCoversSupplierCost(product, req.Quantity); err != nil {
+		return nil, err
 	}
 	if method == "XENDIT_LINK" && !s.xenditClient.Configured() {
 		return nil, serviceError("OrderService.CreateManualOrder", fmt.Errorf("%w: %w", apperror.ErrFailedPrecondition, payment.ErrNotConfigured))
@@ -627,6 +658,9 @@ func (s *OrderService) CreateOrderForPilgrim(ctx context.Context, orgID, userID 
 	}
 	if !product.IsActive {
 		return nil, serviceError("OrderService.CreateOrderForPilgrim", apperror.ErrFailedPrecondition)
+	}
+	if err := ensurePriceCoversSupplierCost(product, req.Quantity); err != nil {
+		return nil, err
 	}
 	// Checked before the order exists, for the same reason as CreateOrder: an
 	// order nobody can pay for should never have been created.

@@ -577,6 +577,48 @@ Verified: accepting settles and makes the commission payable; rejecting closes
 it and returns the commission to zero; and a resolved transaction cannot be
 resolved a second time.
 
+#### Done — PR 13: supplier cost and the price floor (migration 098)
+
+Owner: *"harus selalu ada validasi harga modal dari supplier ... baik itu
+nantinya di isi manual di pengaturan routing product, atau ... otomatis selalu
+terupdate jika transaksi pernah terjadi pertama kali."*
+
+Nothing recorded what a product costs to supply, so nothing could tell that a
+price was below it. Selling at a loss looked exactly like selling at a profit,
+and the margin split came out of a number with no floor underneath it.
+
+**Two ways to know the cost, because they carry different weight.**
+`supplier_cost_source` records which:
+
+- `MANUAL` — entered by hand in the product's settings.
+- `OBSERVED` — read back from the supplier's own response when a fulfilment
+  actually happens, and refreshed on every later one, so a supplier raising
+  their rate is noticed rather than silently absorbed.
+
+**An observed cost cannot be overwritten by a manual one.** What a supplier
+actually charged outranks what somebody typed, and letting a stale manual entry
+replace it would defeat the point of observing costs at all.
+
+`supplier_cost_observations` keeps the history behind the current figure —
+append-only, like every other money record here — so a cost that moves can be
+seen moving. One observation per order, so a retried fulfilment reports the
+same purchase rather than inventing a second one. The observation and the
+promotion happen in one transaction: a product whose cost disagreed with its
+own latest observation would be worse than one with no cost, because it would
+look authoritative.
+
+**The floor is checked at the moment of sale**, on all three order lanes — not
+only when the price was set. An observed cost moves on its own, so a price that
+was fine last week can be underwater today with nobody having touched it.
+
+**A product with no known cost sells without the check.** That is the honest
+position: refusing would block every product nobody has costed, which today is
+all of them, and inventing a floor would be worse than admitting there is none.
+
+**Not wired yet:** nothing calls `RecordObservation`. It gets called from the
+supplier fulfilment path, which does not exist — see the digital catalogue note
+above. The manual side has no UI yet either.
+
 #### Open — ordered
 
 1. **Duplicate orders.** `CreateOrder` has no idempotency key and `orders` has
