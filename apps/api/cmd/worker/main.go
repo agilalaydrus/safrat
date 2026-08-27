@@ -10,6 +10,7 @@ import (
 	"github.com/hajj-saas/api/internal/events"
 	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/hajj-saas/api/internal/notification"
+	"github.com/hajj-saas/api/internal/payment"
 	"github.com/hajj-saas/api/internal/repository"
 	"github.com/hajj-saas/api/internal/service"
 	"github.com/hajj-saas/api/internal/storage"
@@ -58,6 +59,10 @@ func main() {
 	storefrontAssetRepository := repository.NewStorefrontAssetRepository(pool)
 	subscriptionRepository := repository.NewSubscriptionRepository(pool)
 	journeyRepository := repository.NewJourneyRepository(queries)
+	orderRepository := repository.NewOrderRepository(queries)
+	productRepository := repository.NewProductRepository(queries, pool)
+	ledgerRepository := repository.NewLedgerRepository(pool)
+	refundRepository := repository.NewRefundRepository(pool)
 	agentService := service.NewAgentService(operatorRepository, agentRepository, auditRepository, pool)
 	journeyService := service.NewJourneyService(operatorRepository, journeyRepository, auditRepository)
 	tierHandler := worker.NewTierHandler(logger, operatorRepository, agentService)
@@ -75,7 +80,14 @@ func main() {
 	cashFlowHandler := worker.NewCashFlowHandler(logger, queries)
 	outboxHandler := worker.NewOutboxHandler(logger, outboxRepository, firebasePusher, journeyService, eventBus)
 	subscriptionHandler := worker.NewSubscriptionHandler(logger, subscriptionRepository)
-	commissionHandler := worker.NewCommissionHandler(logger, repository.NewLedgerRepository(pool))
+	commissionHandler := worker.NewCommissionHandler(logger, ledgerRepository)
+	// The poller settles through the same service the webhook does, so there
+	// is one definition of settlement and one place the amount is verified.
+	orderService := service.NewOrderService(operatorRepository, pilgrimRepository,
+		productRepository, orderRepository, auditRepository, ledgerRepository, refundRepository,
+		agentRepository, pool, payment.NewClient(strings.TrimSpace(os.Getenv("XENDIT_SECRET_KEY"))),
+		strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGIN")))
+	paymentHandler := worker.NewPaymentHandler(logger, orderRepository, orderService)
 	objectStorage, storageErr := storage.New(context.Background(), storage.ConfigFromEnv())
 	if storageErr != nil {
 		logger.Error("init storefront object storage", "error", storageErr)
@@ -131,6 +143,13 @@ func main() {
 		logger.Error("register commission reconciliation schedule", "error", err)
 		os.Exit(1)
 	}
+	// Every 2 minutes. A dropped webhook means a jamaah has paid and nobody
+	// knows; the cost of checking is one outbound call per order that has been
+	// waiting more than the grace period, and usually there are none.
+	if _, err := scheduler.Register("@every 2m", worker.NewPaymentPollTask()); err != nil {
+		logger.Error("register payment poll schedule", "error", err)
+		os.Exit(1)
+	}
 	if storefrontAssetHandler != nil {
 		if _, err := scheduler.Register("@every 1h", worker.NewStorefrontAssetGCTask()); err != nil {
 			logger.Error("register storefront asset cleanup schedule", "error", err)
@@ -152,6 +171,7 @@ func main() {
 	mux.HandleFunc(worker.TaskCascadeDispatch, outboxHandler.HandleDispatch)
 	mux.HandleFunc(worker.TaskSubscriptionSweep, subscriptionHandler.HandleSweep)
 	mux.HandleFunc(worker.TaskCommissionReconcile, commissionHandler.HandleReconcile)
+	mux.HandleFunc(worker.TaskPaymentPoll, paymentHandler.HandlePoll)
 	if storefrontAssetHandler != nil {
 		mux.HandleFunc(worker.TaskStorefrontAssetGC, storefrontAssetHandler.HandleGC)
 	}

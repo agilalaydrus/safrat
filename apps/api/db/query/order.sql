@@ -236,3 +236,21 @@ UPDATE agent_payout_requests
 SET status = 'REJECTED', resolution_note = $4, resolved_at = NOW(), resolved_by_user_id = $3
 WHERE id = $1 AND operator_id = $2 AND status = 'PENDING'
 RETURNING *;
+
+-- name: ListOrdersAwaitingSettlement :many
+-- Orders still waiting on the gateway, for the poller that makes a dropped
+-- webhook survivable.
+--
+-- Only orders old enough that a webhook would already have arrived, so the
+-- poller does not race the notification for every single checkout. Bounded on
+-- the far side too: an invoice Xendit never resolved in a week is not going to
+-- resolve now, and polling it forever would grow without limit.
+SELECT id, xendit_invoice_id
+FROM orders
+WHERE status = 'PENDING'
+  AND xendit_invoice_id IS NOT NULL
+  AND xendit_invoice_id <> ''
+  AND created_at < NOW() - make_interval(mins => $1::int)
+  AND created_at > NOW() - INTERVAL '7 days'
+ORDER BY created_at ASC
+LIMIT $2;

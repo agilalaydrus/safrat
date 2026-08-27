@@ -54,6 +54,32 @@ api.tawafiqhub.id {
 		respond 404
 	}
 
+	# The payment webhook is the one path here a third party is meant to call,
+	# so it is the one worth narrowing. Mirrors the nginx allowlist and
+	# XENDIT_WEBHOOK_ALLOWED_IPS; keep all three in step with Xendit's
+	# published ranges, which do change.
+	#
+	# A stale entry costs a delivery, not a payment: the API settles from
+	# Xendit's own API rather than from the delivery, and the poller picks up
+	# anything that never arrived within a couple of minutes.
+	# Commented out until the ranges are read from Xendit's dashboard. A wrong
+	# list blocks every payment notification at the edge, and guessing at it
+	# would be worse than not having it — the API's own guard and the poller
+	# are both still in place.
+	#
+	# @webhook_from_gateway {
+	# 	path /webhooks/xendit
+	# 	remote_ip <xendit-range-1> <xendit-range-2>
+	# }
+	# handle @webhook_from_gateway {
+	# 	reverse_proxy 127.0.0.1:9100 {
+	# 		import proxy_headers
+	# 	}
+	# }
+	# handle /webhooks/xendit {
+	# 	respond 403
+	# }
+
 	handle {
 		reverse_proxy 127.0.0.1:9100 {
 			import proxy_headers

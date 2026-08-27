@@ -288,3 +288,28 @@ func (r *OrderRepository) HoldByInvoiceID(ctx context.Context, invoiceID string,
 	}
 	return toOrder(order), nil
 }
+
+// AwaitingSettlement is one transaction still waiting on the gateway.
+type AwaitingSettlement struct {
+	OrderID   string
+	InvoiceID string
+}
+
+// ListAwaitingSettlement returns orders that have been pending long enough
+// that a webhook should already have arrived.
+func (r *OrderRepository) ListAwaitingSettlement(ctx context.Context, graceMinutes int32, limit int32) ([]AwaitingSettlement, error) {
+	rows, err := r.queries.ListOrdersAwaitingSettlement(ctx, db.ListOrdersAwaitingSettlementParams{
+		Column1: graceMinutes, Limit: limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]AwaitingSettlement, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, AwaitingSettlement{
+			OrderID:   uuid.UUID(row.ID.Bytes).String(),
+			InvoiceID: row.XenditInvoiceID.String,
+		})
+	}
+	return result, nil
+}

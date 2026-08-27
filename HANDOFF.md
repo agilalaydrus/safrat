@@ -496,6 +496,36 @@ the gateway quietly changes its egress ranges — worse than a wider surface
 sitting behind two stronger controls. The warning is there so it cannot become
 invisible. **`XENDIT_WEBHOOK_ALLOWED_IPS` still needs setting on the VPS.**
 
+#### Done — PR 10: settlement poller and webhook source allowlist
+
+**The poller closes the last hole in the payment path.** `worker/payment.go`
+sweeps every 2 minutes for orders that have been `PENDING` past a 5-minute
+grace period with an invoice id, and settles them through
+`OrderService.SettleFromGateway` — the same path the webhook uses, so there is
+one definition of settlement and one place the amount is verified.
+
+A dropped delivery is no longer permanent. Before this, a jamaah could pay and
+the order would sit `PENDING` forever with nobody told.
+
+The grace period exists so the poller does not race a notification that is
+usually seconds away, and the sweep is bounded on both sides: batched at 100,
+and it stops looking at invoices older than 7 days, which Xendit will never
+resolve anyway. Verified: a fresh order is left alone, one aged past the grace
+period is picked up and settles, and a settled order drops out of the queue
+rather than being polled forever.
+
+**Source allowlist.** `XENDIT_WEBHOOK_ALLOWED_IPS` is plumbed through
+`.env.example`, `DEPLOY.md` and `docker-compose.prod.yml`, and edge blocks are
+in place in both `deploy/nginx/safrat.conf` and `deploy/caddy/Caddyfile`.
+
+**The addresses are deliberately left as placeholders, commented out.** I could
+not verify Xendit's current egress ranges, and a wrong list at the edge blocks
+every payment notification where the application-level guard cannot soften it.
+Read them from the Xendit dashboard, paste into all three places, `nginx -t`,
+then reload. Until then the application guard runs open and warns at startup,
+which is the safe direction — and the poller settles anything a blocked or
+dropped delivery would have missed.
+
 #### Open — ordered
 
 1. **Duplicate orders.** `CreateOrder` has no idempotency key and `orders` has

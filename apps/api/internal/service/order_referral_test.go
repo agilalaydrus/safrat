@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -86,6 +88,14 @@ func newReferralFixture(t *testing.T) *referralFixture {
 	// path fail silently and the assertions below pass on an empty result.
 	invoices := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet {
+			// A fetch: report the invoice as paid in full, which is what the
+			// settlement path asks the gateway rather than the caller.
+			id := strings.TrimPrefix(r.URL.Path, "/")
+			_, _ = w.Write([]byte(`{"id":"` + id + `","status":"PAID","amount":` +
+				strconv.FormatInt(referralPrice, 10) + `,"paid_amount":` + strconv.FormatInt(referralPrice, 10) + `}`))
+			return
+		}
 		_, _ = w.Write([]byte(`{"id":"inv-` + uuid.NewString() + `","invoice_url":"https://stub.invalid/pay"}`))
 	}))
 	t.Cleanup(invoices.Close)
@@ -494,5 +504,76 @@ func TestMatchingPaymentSettlesIntegration(t *testing.T) {
 	}
 	if paidAmount == nil || *paidAmount != referralPrice {
 		t.Fatalf("recorded paid amount = %v, want %d — a settled order should carry the evidence", paidAmount, referralPrice)
+	}
+}
+
+// A dropped webhook delivery used to be permanent: the jamaah had paid, the
+// order sat PENDING forever, and nobody was told. This is the path that makes
+// it survivable — the same settlement the webhook uses, reached without one.
+func TestPollingSettlesATransactionWhoseWebhookNeverArrivedIntegration(t *testing.T) {
+	f := newReferralFixture(t)
+	ctx := context.Background()
+	orders := repository.NewOrderRepository(db.New(f.pool))
+
+	response, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
+		AppAccessCode: f.accessCode(t), ProductId: f.productID, Quantity: 1,
+		IdempotencyKey: uuid.NewString(),
+	})
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+
+	// No webhook arrives at all. Fresh orders are left alone, so the poller
+	// does not race a delivery that is probably seconds away.
+	waiting, err := orders.ListAwaitingSettlement(ctx, 5, 100)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	for _, entry := range waiting {
+		if entry.OrderID == response.Order.Id {
+			t.Fatal("a just-created order was picked up before the grace period")
+		}
+	}
+
+	// Age it past the grace period.
+	if _, err := f.pool.Exec(ctx, `UPDATE orders SET created_at = NOW() - INTERVAL '30 minutes' WHERE id = $1`, response.Order.Id); err != nil {
+		t.Fatalf("age order: %v", err)
+	}
+	waiting, err = orders.ListAwaitingSettlement(ctx, 5, 100)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	var found string
+	for _, entry := range waiting {
+		if entry.OrderID == response.Order.Id {
+			found = entry.InvoiceID
+		}
+	}
+	if found == "" {
+		t.Fatal("an order waiting past the grace period was not picked up")
+	}
+
+	// Settling through the poller's path reaches the same place the webhook
+	// would have.
+	if err := f.orders.SettleFromGateway(ctx, found); err != nil {
+		t.Fatalf("settle: %v", err)
+	}
+	var status string
+	if err := f.pool.QueryRow(ctx, `SELECT status FROM orders WHERE id = $1`, response.Order.Id).Scan(&status); err != nil {
+		t.Fatalf("read status: %v", err)
+	}
+	if status != "PAID" {
+		t.Fatalf("status = %s after polling a paid invoice, want PAID", status)
+	}
+
+	// And it drops out of the queue, so it is not polled forever.
+	waiting, err = orders.ListAwaitingSettlement(ctx, 5, 100)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	for _, entry := range waiting {
+		if entry.OrderID == response.Order.Id {
+			t.Fatal("a settled order is still being polled")
+		}
 	}
 }
