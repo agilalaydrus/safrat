@@ -194,6 +194,13 @@ func (s *PlatformService) TestResponseRules(ctx context.Context, req *hajjv1.Tes
 		result.CostIdr = *reading.CostIDR
 		result.CostReported = true
 	}
+	// Surfaced rather than swallowed: a rule that cannot be applied is coverage
+	// missing, and the tester is where somebody is already looking.
+	for _, skipped := range reading.SkippedRules {
+		result.SkippedRules = append(result.SkippedRules, &hajjv1.SkippedResponseRule{
+			RuleId: skipped.RuleID, Reason: skipped.Reason,
+		})
+	}
 	return result, nil
 }
 

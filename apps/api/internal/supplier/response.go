@@ -44,6 +44,12 @@ type Rule struct {
 	CostGroup      string
 }
 
+// SkippedRule is a rule that could not be used, and why.
+type SkippedRule struct {
+	RuleID string
+	Reason string
+}
+
 // Reading is what a response was understood to mean.
 type Reading struct {
 	Outcome Outcome
@@ -55,6 +61,11 @@ type Reading struct {
 	// not — which is different from zero, and must stay different, or an
 	// unstated cost would look like a free product.
 	CostIDR *int64
+	// SkippedRules lists rules that could not be applied. Usually empty:
+	// patterns are validated when saved, so anything here means a rule reached
+	// the database another way, or validation has since tightened. Either way
+	// it is coverage quietly missing, and the caller is expected to surface it.
+	SkippedRules []SkippedRule
 }
 
 var errNoGroup = errors.New("capture group not present in the pattern")
@@ -108,17 +119,24 @@ func containsGroup(names []string, want string) bool {
 // never depends on the order rows came back in. A rule that fails to compile is
 // skipped rather than aborting the read: one bad pattern must not stop a later,
 // correct one from recognising a delivered transaction.
+//
+// A skipped rule is reported, not swallowed. Silently losing coverage is how a
+// supplier drifts into producing nothing but UNMATCHED without anyone noticing
+// that the rules stopped working rather than the supplier changing.
 func Read(rules []Rule, response string) Reading {
+	var reading Reading
 	for _, rule := range rules {
 		compiled, err := Compile(rule)
 		if err != nil {
+			reading.SkippedRules = append(reading.SkippedRules, SkippedRule{RuleID: rule.ID, Reason: err.Error()})
 			continue
 		}
 		match := compiled.FindStringSubmatch(response)
 		if match == nil {
 			continue
 		}
-		reading := Reading{Outcome: rule.Outcome, RuleID: rule.ID}
+		reading.Outcome = rule.Outcome
+		reading.RuleID = rule.ID
 		names := compiled.SubexpNames()
 		if rule.ReferenceGroup != "" {
 			reading.Reference = capture(match, names, rule.ReferenceGroup)
@@ -130,7 +148,8 @@ func Read(rules []Rule, response string) Reading {
 		}
 		return reading
 	}
-	return Reading{Outcome: OutcomeUnmatched}
+	reading.Outcome = OutcomeUnmatched
+	return reading
 }
 
 func capture(match []string, names []string, want string) string {

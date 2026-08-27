@@ -166,3 +166,34 @@ func TestParseAmount(t *testing.T) {
 		}
 	}
 }
+
+// Skipping a broken rule keeps the supplier working, but it must not be
+// silent: coverage quietly disappearing is how a supplier drifts into
+// producing nothing but UNMATCHED with nobody realising the rules stopped
+// working rather than the supplier changing shape.
+func TestReadReportsRulesItHadToSkip(t *testing.T) {
+	broken := append([]Rule{
+		{ID: "broken-pattern", Priority: 1, Pattern: `(unclosed`, Outcome: OutcomeFailed},
+		{ID: "missing-group", Priority: 2, Pattern: `never-matches`, Outcome: OutcomeSuccess, ReferenceGroup: "absent"},
+	}, rules()...)
+
+	reading := Read(broken, `{"status":"SUCCESS","trx_id":"TRX-7","price":"1.000"}`)
+
+	if reading.Outcome != OutcomeSuccess {
+		t.Fatalf("outcome = %s — broken rules shadowed a working one", reading.Outcome)
+	}
+	if len(reading.SkippedRules) != 2 {
+		t.Fatalf("%d skipped rules reported, want 2", len(reading.SkippedRules))
+	}
+	for _, skipped := range reading.SkippedRules {
+		if skipped.RuleID == "" || skipped.Reason == "" {
+			t.Fatalf("a skipped rule was reported without an id or a reason: %+v", skipped)
+		}
+	}
+
+	// And nothing is reported when every rule is usable, so the signal stays
+	// worth paying attention to.
+	if clean := Read(rules(), "GAGAL: saldo tidak cukup"); len(clean.SkippedRules) != 0 {
+		t.Fatalf("%d rules reported as skipped when all are valid", len(clean.SkippedRules))
+	}
+}

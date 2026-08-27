@@ -884,8 +884,13 @@ Three decisions in there worth keeping:
 - **`UNMATCHED` is its own outcome, not a failure.** A response nobody taught
   the system to read is a gap in the rules. Folding it into FAILED would refund
   transactions the supplier may well have delivered.
-- **A rule that does not compile is skipped, not fatal.** One bad pattern must
-  not stop a later correct one from recognising a delivered transaction.
+- **A rule that does not compile is skipped, not fatal** — but the skip is
+  *reported*, not swallowed. One bad pattern must not stop a later correct one
+  from recognising a delivered transaction; equally, coverage quietly
+  disappearing is how a supplier drifts into producing nothing but UNMATCHED
+  with nobody realising the rules stopped working rather than the supplier
+  changing shape. `Reading.SkippedRules` carries them, and the rule tester
+  shows them.
 - **An unstated cost stays nil, never zero**, and an amount that cannot be read
   confidently is refused rather than guessed. A cost misread by a factor of a
   hundred would set a price floor that either blocks every sale or protects
@@ -920,6 +925,26 @@ along with an operator owner being refused the whole catalogue.
 does not); the callback endpoint feeding responses through the reader; the
 fulfilment worker that calls suppliers and records
 `supplier_cost_observations`; and transaction monitoring.
+
+#### Open — the residue of the three parsing decisions
+
+The owner asked whether those three choices leave gaps. Two of them do, and one
+is now closed:
+
+- **Closed: a skipped rule is no longer silent.** `Read` reports what it could
+  not apply and why, and the tester surfaces it.
+- **Open: an UNMATCHED transaction hangs with nothing watching it.** Refusing to
+  treat an unreadable response as failure is right — refunding a transaction the
+  supplier may well have delivered is worse and irreversible — but the
+  consequence is that it waits for a human. There is an index and a filtered log
+  view, and **no alert of any kind**. If nobody opens the panel, a jamaah's
+  transaction waits forever. This needs a sweep with a threshold and a
+  notification, in the same shape as the SOS escalation worker.
+- **Not a gap: an unstated supplier cost stays nil.** Storing zero would set a
+  floor of Rp0 that passes everything, *and* mark the cost `OBSERVED`, which
+  cannot be overwritten manually — a false zero that locks itself in. Nil puts
+  the product in the panel's "no cost recorded" queue instead, where it is
+  visible and fixable.
 
 #### Open — ordered
 

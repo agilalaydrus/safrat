@@ -226,6 +226,17 @@ message TestResponseRulesResponse {
   // False when the response carries no cost. Distinct from a cost of zero,
   // which would look like a free product.
   bool cost_reported = 5;
+  // Rules that could not be applied, with the reason. Normally empty — patterns
+  // are validated when saved. Anything here is coverage quietly missing, which
+  // is how a supplier drifts into producing nothing but UNMATCHED without
+  // anyone realising the rules stopped working rather than the supplier
+  // changing shape.
+  repeated SkippedResponseRule skipped_rules = 6;
+}
+
+message SkippedResponseRule {
+  string rule_id = 1;
+  string reason = 2;
 }
 
 message SupplierLogEntry {
