@@ -2335,13 +2335,20 @@ Refund/gagal/kedaluwarsa mengembalikan kuota, dalam satu statement yang
 sekaligus menghapus capnya — jadi idempoten di tiga jalur settlement dan sweep
 tanpa perlu koordinasi.
 
-### Retensi: 3 hari (sudah diputuskan dan dikerjakan)
+### Retensi: 30 hari (sudah diputuskan dan dikerjakan)
 
-Owner memutuskan 3 hari, dengan siklus backup dan shrink database menyusul.
+Owner memutuskan **satu bulan** (revisi dari 3 hari, yang terlalu pendek —
+sengketa tagihan minggu lalu tidak punya apa pun untuk direkonsiliasi). Siklus
+backup dan shrink database menyusul.
 
-Batasnya, disebut eksplisit karena "3 hari" ambigu: baris dihapus begitu
-tanggalnya lebih dari tiga hari di belakang hari ini — jadi hari ini plus tiga
-hari sebelumnya yang disimpan.
+Batasnya, disebut eksplisit karena "sebulan" ambigu: baris dihapus begitu
+tanggalnya lebih dari 30 hari di belakang hari ini — baris tepat di hari ke-30
+masih disimpan, hari ke-31 hilang.
+
+Angkanya hidup di `domain.DailySpendRetentionDays`, **dan** sebagai default di
+dalam `purge_daily_digital_spend` (migrasi 117). Keduanya harus bergerak
+bersama: panggilan manual saat insiden memakai default database, bukan konstanta
+Go.
 
 **Penghapusnya bukan privilege, tapi fungsi `SECURITY DEFINER`.** Migrasi 115
 mencabut DELETE pada tabel ini dari role aplikasi karena menghapus satu baris

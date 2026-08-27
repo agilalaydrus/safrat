@@ -134,3 +134,12 @@ func (p *Product) IsPlatformOwned() bool {
 func RoutingRequired(category string) bool {
 	return category == "ROAMING_DATA" || category == "PPOB_CREDIT"
 }
+
+// DailySpendRetentionDays is how long a daily-limit counter is kept once its
+// day has passed (owner's decision: one month).
+//
+// A business rule rather than a worker setting, so the job that enforces it and
+// the tests that check it read the same number. It must stay in step with the
+// default inside purge_daily_digital_spend (migration 117): a manual call
+// during an incident uses the database's default, not this one.
+const DailySpendRetentionDays = 30

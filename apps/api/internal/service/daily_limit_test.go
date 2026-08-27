@@ -12,6 +12,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
+	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/payment"
@@ -304,9 +305,14 @@ func TestReplayedCheckoutSpendsOnceIntegration(t *testing.T) {
 	}
 }
 
-// Retention is three days (owner's decision). The property that matters is not
-// the number but the floor: whatever is asked for, today's row survives —
-// deleting it would hand the account a fresh Rp20 juta.
+// Retention is one month (owner's decision). Two properties are worth holding
+// here, and only one of them is the number.
+//
+// The floor: whatever is asked for, today's row survives — deleting it would
+// hand the account a fresh Rp20 juta.
+//
+// The boundary: a row one day past the window goes, a row on the window stays.
+// Off-by-one here is invisible until somebody needs the day that was dropped.
 func TestPurgeKeepsTodayWhateverIsAskedForIntegration(t *testing.T) {
 	f := newLimitFixture(t)
 	ctx := context.Background()
@@ -323,9 +329,23 @@ func TestPurgeKeepsTodayWhateverIsAskedForIntegration(t *testing.T) {
 		}
 	}
 	seed(0, 1_000)
-	seed(30, 2_000)
+	seed(domain.DailySpendRetentionDays, 2_000)
+	seed(domain.DailySpendRetentionDays+1, 3_000)
 
 	orders := repository.NewOrderRepository(db.New(f.pool), f.pool)
+
+	if _, err := orders.PurgeExpiredDailySpend(ctx, domain.DailySpendRetentionDays); err != nil {
+		t.Fatalf("purge: %v", err)
+	}
+
+	onBoundary := f.spendRowsAt(t, domain.DailySpendRetentionDays)
+	pastBoundary := f.spendRowsAt(t, domain.DailySpendRetentionDays+1)
+	if onBoundary != 1 {
+		t.Fatalf("baris tepat di batas %d hari ikut terhapus", domain.DailySpendRetentionDays)
+	}
+	if pastBoundary != 0 {
+		t.Fatalf("baris %d hari lalu tidak terhapus", domain.DailySpendRetentionDays+1)
+	}
 
 	// Zero would mean "keep nothing" if it were taken at face value.
 	if _, err := orders.PurgeExpiredDailySpend(ctx, 0); err != nil {
@@ -346,11 +366,24 @@ func TestPurgeKeepsTodayWhateverIsAskedForIntegration(t *testing.T) {
 	var stale int
 	if err := f.pool.QueryRow(ctx,
 		`SELECT count(*) FROM daily_digital_spend
-		 WHERE buyer_id = $1 AND spend_date < (NOW() AT TIME ZONE 'Asia/Jakarta')::date - 3`,
+		 WHERE buyer_id = $1 AND spend_date < (NOW() AT TIME ZONE 'Asia/Jakarta')::date`,
 		f.pilgrimID).Scan(&stale); err != nil {
 		t.Fatalf("read stale: %v", err)
 	}
 	if stale != 0 {
-		t.Fatalf("%d baris kedaluwarsa tersisa", stale)
+		t.Fatalf("%d baris kedaluwarsa tersisa setelah purge minimal", stale)
 	}
+}
+
+// spendRowsAt counts this fixture's rows for a given number of days ago.
+func (f *limitFixture) spendRowsAt(t *testing.T, daysAgo int) int {
+	t.Helper()
+	var count int
+	if err := f.pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM daily_digital_spend
+		 WHERE buyer_id = $1 AND spend_date = (NOW() AT TIME ZONE 'Asia/Jakarta')::date - $2::int`,
+		f.pilgrimID, daysAgo).Scan(&count); err != nil {
+		t.Fatalf("read %d hari lalu: %v", daysAgo, err)
+	}
+	return count
 }
