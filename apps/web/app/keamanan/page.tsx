@@ -17,8 +17,54 @@ export default function SecurityPage() {
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
   const [copied, setCopied] = useState(false);
+  // null while unknown, so the password step is never shown to an account that
+  // turns out not to have one.
+  const [hasPassword, setHasPassword] = useState<boolean | null>(null);
+  const [resetSent, setResetSent] = useState(false);
 
   const enabled = Boolean((session?.user as { twoFactorEnabled?: boolean } | undefined)?.twoFactorEnabled);
+
+  // An account created through Google has no password at all — Better Auth
+  // writes no `credential` row for it. Enrolment needs one, so asking for a
+  // password the account has never had is a dead end, and it was one: the
+  // gate sent staff here, this page asked for a password, and there was no way
+  // forward from that screen.
+  useEffect(() => {
+    if (!session?.user) return;
+    let cancelled = false;
+    authClient
+      .listAccounts()
+      .then(({ data }) => {
+        if (cancelled) return;
+        setHasPassword(Boolean(data?.some((account) => account.providerId === "credential")));
+      })
+      // Assume a password rather than block: a failed lookup should degrade to
+      // the normal flow, where a wrong guess is a visible error the person can
+      // act on, not a screen that refuses to proceed.
+      .catch(() => { if (!cancelled) setHasPassword(true); });
+    return () => { cancelled = true; };
+  }, [session?.user]);
+
+  // The way out for a Google-only account: the reset flow creates the missing
+  // credential record, so it doubles as "set a password for the first time".
+  const sendPasswordSetup = async () => {
+    const email = session?.user?.email;
+    if (!email) return;
+    setBusy(true);
+    setError("");
+    try {
+      const { error: failed } = await authClient.requestPasswordReset({
+        email,
+        redirectTo: "/keamanan",
+      });
+      if (failed) { setError(failed.message ?? "Gagal mengirim tautan."); return; }
+      setResetSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mengirim tautan.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => { setError(""); }, [password, code]);
 
@@ -99,11 +145,36 @@ export default function SecurityPage() {
       <h1 style={title}>Verifikasi Dua Langkah</h1>
       <p style={{ ...muted, margin: "0 0 20px", maxWidth: 560 }}>
         Menambahkan kode dari aplikasi authenticator (Google Authenticator, Authy, atau sejenisnya)
-        pada setiap login dengan email dan kata sandi. Login lewat Google tidak terpengaruh —
-        akun Google sudah membawa faktor keduanya sendiri.
+        pada setiap login. Berlaku juga untuk akun yang masuk lewat Google — akun tersebut perlu
+        membuat kata sandi lebih dulu, karena kode authenticator terikat pada kata sandi akun.
       </p>
 
-      {!totpUri ? (
+      {hasPassword === false ? (
+        <section style={card}>
+          <p style={{ display: "flex", gap: 8, alignItems: "center", margin: 0, fontWeight: 700 }}>
+            <IconShieldLock size={20} />Langkah 1 — buat kata sandi akun
+          </p>
+          <p style={{ ...muted, margin: 0 }}>
+            Akun ini masuk lewat Google dan belum punya kata sandi, jadi belum ada yang bisa
+            dikonfirmasi di sini. Kami kirimkan tautan ke <strong>{session?.user?.email}</strong>{" "}
+            untuk membuatnya. Setelah itu kembali ke halaman ini untuk memasang authenticator.
+          </p>
+          <p style={{ ...muted, margin: 0 }}>
+            Login lewat Google tetap bisa dipakai seperti biasa — kata sandi ini menambah cara
+            masuk, bukan menggantikannya.
+          </p>
+          {error && <p style={errorText}>{error}</p>}
+          {resetSent ? (
+            <p style={{ margin: 0, fontWeight: 700, color: "var(--color-emerald-900)" }}>
+              Tautan sudah dikirim. Periksa email Anda, termasuk folder spam.
+            </p>
+          ) : (
+            <button onClick={sendPasswordSetup} disabled={busy} style={primary}>
+              {busy ? "Mengirim…" : "Kirim tautan buat kata sandi"}
+            </button>
+          )}
+        </section>
+      ) : !totpUri ? (
         <section style={card}>
           <p style={{ display: "flex", gap: 8, alignItems: "center", margin: 0, fontWeight: 700 }}>
             <IconShieldLock size={20} />Langkah 1 — konfirmasi kata sandi

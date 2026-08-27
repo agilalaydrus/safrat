@@ -127,6 +127,42 @@ test.describe("money screens render", () => {
     await capture(page, "04-two-factor-enrolment");
   });
 
+  // A Google account has no password: Better Auth writes no `credential` row
+  // for it. The enrolment page asked for one anyway, so staff who signed up
+  // with Google were sent to a screen with no way forward — locked out of the
+  // dashboard entirely, since the gate refuses to open until enrolment is done.
+  test("an account with no password is offered a way to create one", async ({ page }) => {
+    const [credential] = await query<{ id: string; accountId: string; password: string }>(
+      `SELECT a.id, a."accountId", a.password FROM account a
+       JOIN "user" u ON u.id = a."userId"
+       WHERE u.email = $1 AND a."providerId" = 'credential'`, [fixture.email]);
+    if (!credential) throw new Error("fixture has no credential account — did setup run?");
+
+    // Restored below whatever happens: without a credential row the fixture
+    // cannot sign in again, and the next run's setup would save an empty
+    // storage state.
+    try {
+      await query(`DELETE FROM account WHERE id = $1`, [credential.id]);
+      // The describe block enrols the fixture before every test so the
+      // dashboard opens; this one is about the enrolment screen itself, so
+      // that has to be undone deliberately.
+      await unenrolFixtureStaff();
+
+      await page.goto("/keamanan");
+      await expect(page.getByText(/Langkah 1 — buat kata sandi akun/i)).toBeVisible();
+      // The dead end was a password field on an account that has none.
+      await expect(page.getByLabel(/Kata sandi akun/i)).toHaveCount(0);
+      await expect(page.getByRole("button", { name: /Kirim tautan buat kata sandi/i })).toBeVisible();
+      await capture(page, "16-keamanan-no-password");
+    } finally {
+      await query(
+        `INSERT INTO account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt")
+         SELECT $1, $2, 'credential', u.id, $3, NOW(), NOW() FROM "user" u WHERE u.email = $4
+         ON CONFLICT (id) DO NOTHING`,
+        [credential.id, credential.accountId, credential.password, fixture.email]);
+    }
+  });
+
   test("staff without a second factor are sent to enrol before the dashboard opens", async ({ page }) => {
     await query(`UPDATE "user" SET "twoFactorEnabled" = false WHERE email = $1`, [fixture.email]);
     await page.goto("/dashboard/orders");
