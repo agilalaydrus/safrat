@@ -19,6 +19,7 @@ apps/web/public/swe-worker-*.js.map
 
 # Local-only clutter — never committed, never deployed
 tawafiqhub-landing-page/
+tawafiqhub-subdomain/
 .pnpm-store/
 .claude/
 UI*.png
