@@ -255,6 +255,39 @@ func (s *OrderService) applyPaidSideEffects(ctx context.Context, product *domain
 // human resolves it.
 //
 // Only PENDING orders move, so a redelivered notification is a harmless no-op.
+// SettleFromGateway settles an order by asking Xendit what actually happened,
+// rather than believing what arrived at the webhook endpoint.
+//
+// A delivery is a claim made by whoever could reach that URL. The callback
+// token is a static shared secret riding on every request, so it proves rather
+// less than it appears to; the outbound API call is authenticated with a key
+// that never leaves this server. So the delivery is demoted to a hint — "look
+// at this invoice" — and everything that follows comes from Xendit's answer.
+//
+// The same path serves a poller, which is what makes a dropped delivery
+// survivable instead of leaving an order PENDING forever.
+func (s *OrderService) SettleFromGateway(ctx context.Context, invoiceID string) error {
+	invoice, err := s.xenditClient.FetchInvoice(ctx, invoiceID)
+	if err != nil {
+		return err
+	}
+	switch invoice.Status {
+	case "PAID", "SETTLED":
+		paid := invoice.PaidAmount
+		if paid <= 0 {
+			paid = invoice.Amount
+		}
+		return s.SettlePayment(ctx, invoiceID, paid)
+	case "EXPIRED":
+		return s.MarkStatusByInvoiceID(ctx, invoiceID, "EXPIRED")
+	default:
+		// Still pending as far as Xendit is concerned, whatever the delivery
+		// said. Nothing to do, and doing something would mean acting on the
+		// claim we just decided not to trust.
+		return nil
+	}
+}
+
 func (s *OrderService) SettlePayment(ctx context.Context, invoiceID string, paidAmountIDR int64) error {
 	order, err := s.orderRepository.GetByInvoiceID(ctx, invoiceID)
 	if err != nil {

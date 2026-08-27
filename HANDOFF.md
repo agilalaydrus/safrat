@@ -452,6 +452,50 @@ jamaah is told so.
 **Not built yet:** there is no UI to *resolve* a hold (accept it, or refund it
 back). Today it needs a human with database access. That is the next piece.
 
+#### Done — PR 9: stop trusting the webhook
+
+Owner: *"transaksi jangan pakai Webhook"*, plus the three webhook protections.
+
+The gateway cannot be told to stop sending deliveries — Xendit only notifies
+that way. What changed is that a delivery is no longer believed.
+
+**Settlement now comes from Xendit's own API.** A delivery is demoted to a
+hint — "look at this invoice" — and `OrderService.SettleFromGateway` fetches
+the invoice over an authenticated outbound TLS call, then settles from that
+answer. The delivery's `status` is not acted on, and its amount fields were
+removed from the payload struct entirely so nothing can start using them again.
+
+Why this matters more than the token: the callback token is a *static* shared
+secret that rides on every delivery and sits in an env file. The outbound API
+key never leaves the server. A forged delivery now buys an attacker one
+pointless API call.
+
+It also makes a dropped delivery survivable rather than silently fatal: the
+same path is what a poller will call. **The poller itself is not built yet** —
+today a missed delivery still leaves an order PENDING forever.
+
+`FAILED` is the one exception, applied directly: Xendit keeps no failed invoice
+to fetch, and that path only closes an order and reverses commission — the
+direction that cannot pay anyone.
+
+**On the three protections asked for:**
+
+1. *Signature validation* — already present, and worth being precise about:
+   Xendit's Invoice callbacks use a static `x-callback-token`, not a per-payload
+   HMAC signature (that is Midtrans's `signature_key`). It is compared in
+   constant time.
+2. *Webhook idempotency* — already present: only `PENDING` orders move, so a
+   redelivery is a no-op rather than a second settlement.
+3. *IP allowlisting* — this one was genuinely missing. `WebhookSourceGuard`
+   (`XENDIT_WEBHOOK_ALLOWED_IPS`, IPs or CIDRs) now refuses a delivery from an
+   unexpected address before its body is read or its token compared.
+
+**An empty allowlist permits everything, and warns loudly at startup.** Failing
+closed would stop every payment settling the moment the variable is missing or
+the gateway quietly changes its egress ranges — worse than a wider surface
+sitting behind two stronger controls. The warning is there so it cannot become
+invisible. **`XENDIT_WEBHOOK_ALLOWED_IPS` still needs setting on the VPS.**
+
 #### Open — ordered
 
 1. **Duplicate orders.** `CreateOrder` has no idempotency key and `orders` has

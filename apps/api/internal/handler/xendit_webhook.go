@@ -19,29 +19,24 @@ import (
 type xenditWebhookPayload struct {
 	ID     string `json:"id"`
 	Status string `json:"status"`
-	// Xendit reports both: amount is what the invoice asked for, paid_amount
-	// what actually arrived. paid_amount is the one that matters — an invoice
-	// can be paid for less — and amount is the fallback for deliveries that
-	// omit it.
-	Amount     int64 `json:"amount"`
-	PaidAmount int64 `json:"paid_amount"`
 }
 
-// settledAmount is what the payer actually handed over, as best the gateway
-// reports it. Zero means the delivery told us nothing usable, which the
-// settlement path treats as unverifiable rather than as a match.
-func (p xenditWebhookPayload) settledAmount() int64 {
-	if p.PaidAmount > 0 {
-		return p.PaidAmount
-	}
-	return p.Amount
-}
+// Amounts are deliberately absent. The delivery is not trusted to say how much
+// was paid — that comes from Xendit's own API in SettleFromGateway — so
+// parsing it here would only invite somebody to use it.
 
 // NewXenditWebhookHandler is a plain net/http handler, not a Connect RPC —
 // Xendit calls back over a normal webhook POST, it doesn't speak Connect.
 // Registered directly on the mux in main.go.
-func NewXenditWebhookHandler(logger *slog.Logger, orders *repository.OrderRepository, orderService *service.OrderService, subscriptions *repository.SubscriptionRepository, webhookToken string) http.HandlerFunc {
+func NewXenditWebhookHandler(logger *slog.Logger, orders *repository.OrderRepository, orderService *service.OrderService, subscriptions *repository.SubscriptionRepository, webhookToken string, source *WebhookSourceGuard) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// Source first, so a delivery from an unexpected address is refused
+		// before its body is read or its token compared at all.
+		if !source.Allows(r) {
+			logger.Warn("xendit webhook: rejected delivery from unexpected source", "address", clientAddress(r))
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
 		if !payment.VerifyWebhookToken(webhookToken, r.Header.Get("X-CALLBACK-TOKEN")) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
@@ -64,24 +59,18 @@ func NewXenditWebhookHandler(logger *slog.Logger, orders *repository.OrderReposi
 		}
 
 		var err error
-		switch payload.Status {
-		case "PAID":
-			// Goes through OrderService, not the repository directly, so the
-			// amount is verified against what was owed and the
-			// TRAVEL_PACKAGE auto-kloter-assign cascade fires here too (see
-			// OrderService.SettlePayment) — not just on the manual
-			// CASH/BANK_TRANSFER path.
-			err = orderService.SettlePayment(ctx, payload.ID, payload.settledAmount())
-		case "EXPIRED":
-			// Through the service, like PAID: commission was recognised when
-			// the order was created, so a transaction that will never complete
-			// has to give it back.
-			err = orderService.MarkStatusByInvoiceID(ctx, payload.ID, "EXPIRED")
-		case "FAILED":
+		// The delivery's own status field is deliberately not acted on. It is
+		// a claim by whoever reached this URL; SettleFromGateway asks Xendit
+		// what actually happened and settles from that answer. The only thing
+		// taken from the payload is which invoice to go and look at.
+		//
+		// FAILED is the exception: Xendit does not keep a "failed" invoice to
+		// fetch, so it is applied directly. It only ever closes an order and
+		// reverses commission — the direction that cannot pay anyone.
+		if payload.Status == "FAILED" {
 			err = orderService.MarkStatusByInvoiceID(ctx, payload.ID, "FAILED")
-		default:
-			// Unrecognized/no-op status (e.g. "PENDING" echoed back) — 200 so
-			// Xendit doesn't retry a delivery there's nothing to do with.
+		} else {
+			err = orderService.SettleFromGateway(ctx, payload.ID)
 		}
 		if err != nil {
 			// Not found / already transitioned (e.g. a replayed delivery

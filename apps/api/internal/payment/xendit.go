@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 )
 
 // ErrNotConfigured is returned instead of silently no-op'ing, unlike the
@@ -118,4 +119,62 @@ func VerifyWebhookToken(configuredToken, headerToken string) bool {
 		return false
 	}
 	return subtle.ConstantTimeCompare([]byte(configuredToken), []byte(headerToken)) == 1
+}
+
+// InvoiceStatus is what Xendit itself says about an invoice, as opposed to
+// what a webhook delivery claims.
+type InvoiceStatus struct {
+	ID         string
+	ExternalID string
+	Status     string
+	Amount     int64
+	PaidAmount int64
+}
+
+// FetchInvoice asks Xendit directly for an invoice's current state.
+//
+// A webhook delivery is a claim made by whoever could reach the endpoint. Even
+// with a valid callback token — a static shared secret that travels on every
+// delivery and lives in an env file — the safe move is to treat the delivery
+// as nothing more than "go and check now", then settle from Xendit's own
+// answer over an authenticated outbound TLS connection nobody else can forge.
+//
+// It also makes a missed delivery survivable: whatever polls this will find
+// the payment eventually, where a dropped webhook leaves an order PENDING
+// forever with nobody aware of it.
+func (c *Client) FetchInvoice(ctx context.Context, invoiceID string) (*InvoiceStatus, error) {
+	if !c.Configured() {
+		return nil, ErrNotConfigured
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, c.invoicesURL+"/"+url.PathEscape(invoiceID), nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(c.secretKey+":")))
+	response, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = response.Body.Close() }()
+	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, fmt.Errorf("xendit: fetch invoice %s: status %d: %s", invoiceID, response.StatusCode, string(body))
+	}
+	var payload struct {
+		ID         string `json:"id"`
+		ExternalID string `json:"external_id"`
+		Status     string `json:"status"`
+		Amount     int64  `json:"amount"`
+		PaidAmount int64  `json:"paid_amount"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, fmt.Errorf("xendit: decode invoice %s: %w", invoiceID, err)
+	}
+	return &InvoiceStatus{
+		ID: payload.ID, ExternalID: payload.ExternalID, Status: payload.Status,
+		Amount: payload.Amount, PaidAmount: payload.PaidAmount,
+	}, nil
 }
