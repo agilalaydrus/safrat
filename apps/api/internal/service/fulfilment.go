@@ -31,6 +31,22 @@ type FulfilmentService struct {
 	// timeouts are applied to the request context rather than to this client,
 	// which is why it carries none of its own.
 	http *http.Client
+	// queue is the fast path: a jamaah buying pulsa expects it in seconds, and
+	// waiting for a periodic sweep would not meet that. Nil is valid — without
+	// Redis every fulfilment simply waits for the sweep, which is slower but
+	// never wrong.
+	queue FulfilmentQueue
+}
+
+// FulfilmentQueue hands one order to the worker for immediate sending.
+type FulfilmentQueue interface {
+	EnqueueDispatch(ctx context.Context, orderID string) error
+}
+
+// AttachQueue enables immediate dispatch. Without it the service still works,
+// just at sweep latency.
+func (s *FulfilmentService) AttachQueue(queue FulfilmentQueue) {
+	s.queue = queue
 }
 
 func NewFulfilmentService(fulfilments *repository.FulfilmentRepository, suppliers *repository.SupplierRepository,
@@ -168,6 +184,16 @@ func (s *FulfilmentService) Open(ctx context.Context, orderID, operatorID string
 	if err != nil {
 		sentry.CaptureException(fmt.Errorf("FulfilmentService.Open: %w", err))
 		return
+	}
+	if created && supplierID != "" && s.queue != nil {
+		// Sent now, not at the next sweep. A failure here is survivable and
+		// deliberately not treated as a reason to fail anything: the payment
+		// has settled, the row already records that a delivery is owed, and the
+		// sweep will find it. Losing a payment because Redis blinked would be
+		// far worse than pulsa arriving a minute late.
+		if err := s.queue.EnqueueDispatch(ctx, orderID); err != nil {
+			sentry.CaptureException(fmt.Errorf("FulfilmentService.Open: enqueue dispatch: %w", err))
+		}
 	}
 	if created && supplierID == "" {
 		// Nothing can be sent, so somebody has to decide what happens. Saying

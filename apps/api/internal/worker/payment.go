@@ -50,13 +50,20 @@ func (h *PaymentHandler) HandlePoll(ctx context.Context, _ *asynq.Task) error {
 	if err != nil {
 		return err
 	}
+	checked := make([]string, 0, len(waiting))
 	for _, order := range waiting {
 		// One failure must not stop the sweep: the next order may be a
 		// payment that has been sitting unsettled for hours.
 		if err := h.service.SettleFromGateway(ctx, order.InvoiceID); err != nil {
 			h.logger.Error("poll settlement", "order_id", order.OrderID, "invoice_id", order.InvoiceID, "error", err)
-			continue
 		}
+		// Marked either way. An order that could not be reached must still go
+		// to the back of the queue, or one unreachable invoice would be
+		// retried on every pass while everything behind it waits.
+		checked = append(checked, order.OrderID)
+	}
+	if err := h.orders.MarkGatewayChecked(ctx, checked); err != nil {
+		h.logger.Error("record gateway checks", "error", err)
 	}
 	if len(waiting) > 0 {
 		h.logger.Info("polled pending transactions", "count", len(waiting), "task", TaskPaymentPoll)

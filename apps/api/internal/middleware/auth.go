@@ -147,6 +147,7 @@ var sessionOnlyProcedures = map[string]bool{
 	"/hajj.v1.PlatformService/SetResponseRuleActive": true,
 	"/hajj.v1.PlatformService/TestResponseRules":     true,
 	"/hajj.v1.PlatformService/ListSupplierLogs":      true,
+	"/hajj.v1.PlatformService/ListTransactions":      true,
 }
 
 // restrictedMemberProcedures lists RPCs a "restricted member" — an org

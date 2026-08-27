@@ -368,3 +368,27 @@ func (r *OrderRepository) GetAny(ctx context.Context, orderID string) (*domain.O
 	}
 	return toOrder(order), nil
 }
+
+// MarkGatewayChecked records that these orders were asked about, whatever the
+// answer was — including none.
+//
+// An order the gateway could not be reached about must still take its turn at
+// the back of the queue, or one unreachable invoice would monopolise every
+// sweep and starve the rest.
+func (r *OrderRepository) MarkGatewayChecked(ctx context.Context, orderIDs []string) error {
+	if len(orderIDs) == 0 {
+		return nil
+	}
+	ids := make([]pgtype.UUID, 0, len(orderIDs))
+	for _, orderID := range orderIDs {
+		parsed, err := pgUUID(orderID)
+		if err != nil {
+			continue
+		}
+		ids = append(ids, parsed)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	return r.queries.MarkOrdersGatewayChecked(ctx, ids)
+}

@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -415,5 +417,115 @@ func TestDispatchRefusesAnInternalSupplierAddressIntegration(t *testing.T) {
 	}
 	if !strings.Contains(reason, "jaringan internal") {
 		t.Fatalf("reason = %q, want it to name the internal address", reason)
+	}
+}
+
+// recordingQueue stands in for the real one so the test can see whether the
+// fast path fired, without needing Redis.
+type recordingQueue struct {
+	mu       sync.Mutex
+	enqueued []string
+	fail     error
+}
+
+func (q *recordingQueue) EnqueueDispatch(_ context.Context, orderID string) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.fail != nil {
+		return q.fail
+	}
+	q.enqueued = append(q.enqueued, orderID)
+	return nil
+}
+
+// A digital product has to go out in seconds, not at the next sweep. Opening a
+// fulfilment therefore hands it straight to the worker.
+func TestOpeningAFulfilmentSendsItImmediatelyIntegration(t *testing.T) {
+	f := newFulfilmentFixture(t)
+	ctx := context.Background()
+	sender := &recordingQueue{}
+	f.service.AttachQueue(sender)
+
+	f.service.Open(ctx, f.orderID, f.operatorID)
+
+	if len(sender.enqueued) != 1 || sender.enqueued[0] != f.orderID {
+		t.Fatalf("enqueued %v, want exactly this order — otherwise it waits for the sweep", sender.enqueued)
+	}
+}
+
+// A queue that is briefly unreachable must never cost the payment. The money
+// has settled and the fulfilment row already records the debt; the sweep is
+// underneath for exactly this.
+func TestAFailedEnqueueStillLeavesTheFulfilmentRecordedIntegration(t *testing.T) {
+	f := newFulfilmentFixture(t)
+	ctx := context.Background()
+	f.service.AttachQueue(&recordingQueue{fail: errors.New("redis unreachable")})
+
+	f.service.Open(ctx, f.orderID, f.operatorID)
+
+	status, _ := f.status(t)
+	if status != "PENDING" {
+		t.Fatalf("status = %s after a failed enqueue, want PENDING so the sweep picks it up", status)
+	}
+	// And the sweep does find it.
+	pending, err := repository.NewSupplierRepository(f.pool).ListPendingDispatch(ctx, 50)
+	if err != nil {
+		t.Fatalf("list pending: %v", err)
+	}
+	var found bool
+	for _, item := range pending {
+		if item.OrderID == f.orderID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("an order whose enqueue failed is invisible to the sweep")
+	}
+}
+
+// The fast path and the sweep can reach the same order. Whichever arrives
+// second must find nothing to do rather than sending twice.
+func TestFastPathAndSweepCannotBothSendIntegration(t *testing.T) {
+	f := newFulfilmentFixture(t)
+	ctx := context.Background()
+
+	var calls int32
+	terminal := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&calls, 1)
+		_, _ = w.Write([]byte(`{"status":"OK","sn":"SN-RACE","harga":9.000}`))
+	}))
+	t.Cleanup(terminal.Close)
+	if _, err := f.pool.Exec(ctx, `
+		UPDATE suppliers SET protocol = 'HTTP_GET', base_url = $2, request_template = 'ref={{reference}}'
+		WHERE id = $1`, f.supplierID, terminal.URL); err != nil {
+		t.Fatalf("configure supplier: %v", err)
+	}
+	f.service.Open(ctx, f.orderID, f.operatorID)
+
+	suppliers := repository.NewSupplierRepository(f.pool)
+	pending, err := suppliers.PendingDispatchFor(ctx, f.orderID)
+	if err != nil {
+		t.Fatalf("resolve pending: %v", err)
+	}
+
+	// Both paths, at once.
+	const racers = 5
+	var wg sync.WaitGroup
+	for i := 0; i < racers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := f.service.Dispatch(ctx, pending); err != nil {
+				t.Errorf("dispatch: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Fatalf("the supplier was called %d times from %d concurrent dispatches, want 1", got, racers)
+	}
+	if status, _ := f.status(t); status != "DELIVERED" {
+		t.Fatalf("status = %s, want DELIVERED", status)
 	}
 }

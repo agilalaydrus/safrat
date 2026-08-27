@@ -61,6 +61,12 @@ service PlatformService {
 
   // What suppliers actually said.
   rpc ListSupplierLogs(ListSupplierLogsRequest) returns (ListSupplierLogsResponse);
+
+  // Every transaction across every tenant, paid or not. A transaction exists
+  // in this system from the moment it is created, not from the moment it is
+  // paid — an abandoned checkout is still a record, and one that never
+  // appeared anywhere would be a gap nobody could investigate.
+  rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
 }
 
 message AmIPlatformAdminRequest {}
@@ -263,3 +269,37 @@ message ListSupplierLogsRequest {
   int32 limit = 2;
 }
 message ListSupplierLogsResponse { repeated SupplierLogEntry logs = 1; }
+
+message PlatformTransaction {
+  string order_id = 1;
+  string receipt_number = 2;
+  string operator_name = 3;
+  string pilgrim_name = 4;
+  string product_name = 5;
+  string category = 6;
+  int64 amount_idr = 7;
+  // What the gateway reported as paid. Zero when nothing has been reported
+  // yet, which is different from a payment of zero.
+  int64 paid_amount_idr = 8;
+  // What the operator still holds — nothing for an unpaid or refunded one.
+  int64 net_paid_idr = 9;
+  // PENDING | PAID | HELD | REFUNDED | EXPIRED | FAILED | CANCELLED
+  string status = 10;
+  string held_reason = 11;
+  // The other half of the story: PENDING | SENT | DELIVERED | FAILED |
+  // NEEDS_REVIEW, or empty for a product nobody supplies.
+  string fulfilment_status = 12;
+  string supplier_name = 13;
+  string supplier_reference = 14;
+  string fulfilment_error = 15;
+  google.protobuf.Timestamp created_at = 16;
+  google.protobuf.Timestamp paid_at = 17;
+}
+
+message ListTransactionsRequest {
+  // Narrows to what is actually costing somebody: a payment that did not match
+  // its bill, or something paid for that never arrived.
+  bool needs_attention = 1;
+  int32 limit = 2;
+}
+message ListTransactionsResponse { repeated PlatformTransaction transactions = 1; }

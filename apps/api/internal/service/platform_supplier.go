@@ -250,3 +250,42 @@ func (s *PlatformService) auditPlatform(ctx context.Context, userID, action, ent
 
 // platformAuditOperatorID is the nil UUID, reserved for platform-level actions.
 const platformAuditOperatorID = "00000000-0000-0000-0000-000000000000"
+
+// ListTransactions is every transaction across every tenant, paid or not.
+//
+// A transaction exists in this system from the moment it is created, not from
+// the moment it is paid: an abandoned checkout is still a record, and one that
+// appeared nowhere would be a gap nobody could investigate afterwards.
+func (s *PlatformService) ListTransactions(ctx context.Context, req *hajjv1.ListTransactionsRequest) (*hajjv1.ListTransactionsResponse, error) {
+	if _, err := s.requirePlatformAdmin(ctx); err != nil {
+		return nil, err
+	}
+	needsAttention := req != nil && req.NeedsAttention
+	limit := int32(100)
+	if req != nil && req.Limit > 0 {
+		limit = req.Limit
+	}
+	transactions, err := s.platformRepository.ListTransactions(ctx, needsAttention, limit)
+	if err != nil {
+		return nil, serviceError("PlatformService.ListTransactions", err)
+	}
+	result := &hajjv1.ListTransactionsResponse{Transactions: make([]*hajjv1.PlatformTransaction, 0, len(transactions))}
+	for _, item := range transactions {
+		message := &hajjv1.PlatformTransaction{
+			OrderId: item.OrderID, ReceiptNumber: item.ReceiptNumber, OperatorName: item.OperatorName,
+			PilgrimName: item.PilgrimName, ProductName: item.ProductName, Category: item.Category,
+			AmountIdr: item.AmountIDR, NetPaidIdr: item.NetPaidIDR, Status: item.Status,
+			HeldReason: item.HeldReason, FulfilmentStatus: item.FulfilmentStatus,
+			SupplierName: item.SupplierName, SupplierReference: item.SupplierReference,
+			FulfilmentError: item.FulfilmentError, CreatedAt: timestamppb.New(item.CreatedAt),
+		}
+		if item.PaidAmountIDR != nil {
+			message.PaidAmountIdr = *item.PaidAmountIDR
+		}
+		if item.PaidAt != nil {
+			message.PaidAt = timestamppb.New(*item.PaidAt)
+		}
+		result.Transactions = append(result.Transactions, message)
+	}
+	return result, nil
+}

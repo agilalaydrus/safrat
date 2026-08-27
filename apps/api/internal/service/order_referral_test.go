@@ -661,3 +661,86 @@ func TestResolvingAHeldTransactionIntegration(t *testing.T) {
 		}
 	})
 }
+
+// The payment window is a day, because scanning a QRIS code or carrying a
+// virtual account number to a bank is not instant. Without a backoff the
+// poller would ask the gateway about every abandoned checkout every two
+// minutes for that whole day — and exhausting the gateway's rate limit would
+// stop settlement for everybody, a worse loss than the dropped webhook the
+// poller exists to catch.
+func TestGatewayChecksBackOffAsAnOrderAgesIntegration(t *testing.T) {
+	f := newReferralFixture(t)
+	ctx := context.Background()
+	orders := repository.NewOrderRepository(db.New(f.pool))
+
+	response, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
+		AppAccessCode: f.accessCode(t), ProductId: f.productID, Quantity: 1,
+		IdempotencyKey: uuid.NewString(),
+	})
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+	orderID := response.Order.Id
+
+	queued := func() bool {
+		t.Helper()
+		waiting, err := orders.ListAwaitingSettlement(ctx, 5, 100)
+		if err != nil {
+			t.Fatalf("list: %v", err)
+		}
+		for _, item := range waiting {
+			if item.OrderID == orderID {
+				return true
+			}
+		}
+		return false
+	}
+	age := func(interval string) {
+		t.Helper()
+		if _, err := f.pool.Exec(ctx,
+			`UPDATE orders SET created_at = NOW() - $2::interval WHERE id = $1`, orderID, interval); err != nil {
+			t.Fatalf("age order: %v", err)
+		}
+	}
+
+	// Fresh: past the grace period, never checked, so it is due.
+	age("10 minutes")
+	if !queued() {
+		t.Fatal("a never-checked order is not queued")
+	}
+
+	// Just checked: not due again yet.
+	if err := orders.MarkGatewayChecked(ctx, []string{orderID}); err != nil {
+		t.Fatalf("mark checked: %v", err)
+	}
+	if queued() {
+		t.Fatal("an order checked a moment ago is being checked again")
+	}
+
+	// Young orders come round quickly — payment usually happens in the first
+	// minutes, so that is where the attention goes.
+	if _, err := f.pool.Exec(ctx,
+		`UPDATE orders SET last_gateway_check_at = NOW() - INTERVAL '3 minutes' WHERE id = $1`, orderID); err != nil {
+		t.Fatalf("age check: %v", err)
+	}
+	if !queued() {
+		t.Fatal("a young order was not re-checked after three minutes")
+	}
+
+	// An order abandoned hours ago is checked hourly, not every few minutes.
+	age("5 hours")
+	if _, err := f.pool.Exec(ctx,
+		`UPDATE orders SET last_gateway_check_at = NOW() - INTERVAL '10 minutes' WHERE id = $1`, orderID); err != nil {
+		t.Fatalf("age check: %v", err)
+	}
+	if queued() {
+		t.Fatal("an old order is still being checked every ten minutes")
+	}
+	if _, err := f.pool.Exec(ctx,
+		`UPDATE orders SET last_gateway_check_at = NOW() - INTERVAL '90 minutes' WHERE id = $1`, orderID); err != nil {
+		t.Fatalf("age check: %v", err)
+	}
+	if !queued() {
+		t.Fatal("an old order is never checked again at all")
+	}
+}

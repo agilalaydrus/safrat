@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { IconBuildingStore, IconCurrencyDollar, IconShieldLock, IconAlertTriangle, IconTruckDelivery } from "@tabler/icons-react";
+import { IconBuildingStore, IconCurrencyDollar, IconShieldLock, IconAlertTriangle, IconTruckDelivery, IconReceipt2 } from "@tabler/icons-react";
 import { PlatformOperator, PlatformProduct } from "@hajj-saas/proto-gen/hajj/v1/platform_pb";
 import { platformClient } from "@/lib/rpc";
 import SupplierTab from "@/components/admin/SupplierTab";
+import TransactionsTab from "@/components/admin/TransactionsTab";
 
 const rupiah = (n: bigint) => `Rp${Number(n).toLocaleString("id-ID")}`;
 
@@ -18,7 +19,7 @@ export default function PlatformAdminPage() {
   // actually happened.
   const [access, setAccess] = useState<"checking" | "granted" | "enrol" | "denied" | "error">("checking");
   const [failure, setFailure] = useState("");
-  const [tab, setTab] = useState<"operators" | "costs" | "suppliers">("operators");
+  const [tab, setTab] = useState<"transactions" | "operators" | "costs" | "suppliers">("transactions");
 
   useEffect(() => {
     platformClient.amIPlatformAdmin({})
@@ -89,13 +90,14 @@ export default function PlatformAdminPage() {
       <div className="gold-divider" />
 
       <div style={tabBar}>
-        {([["operators", "Travel", IconBuildingStore], ["costs", "Harga Modal", IconCurrencyDollar], ["suppliers", "Supplier", IconTruckDelivery]] as const).map(([id, label, Icon]) => (
+        {([["transactions", "Transaksi", IconReceipt2], ["operators", "Travel", IconBuildingStore], ["costs", "Harga Modal", IconCurrencyDollar], ["suppliers", "Supplier", IconTruckDelivery]] as const).map(([id, label, Icon]) => (
           <button key={id} onClick={() => setTab(id)} style={tab === id ? tabActive : tabInactive}>
             <Icon size={17} />{label}
           </button>
         ))}
       </div>
 
+      {tab === "transactions" && <TransactionsTab />}
       {tab === "operators" && <OperatorsTab />}
       {tab === "costs" && <SupplierCostsTab />}
       {tab === "suppliers" && <SupplierTab />}

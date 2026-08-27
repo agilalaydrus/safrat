@@ -244,9 +244,17 @@ RETURNING *;
 -- webhook survivable.
 --
 -- Only orders old enough that a webhook would already have arrived, so the
--- poller does not race the notification for every single checkout. Bounded on
--- the far side too: an invoice Xendit never resolved in a week is not going to
--- resolve now, and polling it forever would grow without limit.
+-- poller does not race the notification for every checkout. Bounded on the far
+-- side too: an invoice the gateway never resolved in a week is not going to
+-- resolve now.
+--
+-- And bounded in frequency. The payment window is a day, so without a backoff
+-- an abandoned checkout would be asked about every two minutes for that whole
+-- day. Payment usually happens in the first minutes, so attention is spent
+-- there; after two hours an order is probably abandoned and is checked hourly
+-- until its invoice expires. Exhausting the gateway's rate limit would stop
+-- settlement for everybody — a worse loss than the dropped webhook this exists
+-- to catch.
 SELECT id, xendit_invoice_id
 FROM orders
 WHERE status = 'PENDING'
@@ -254,8 +262,24 @@ WHERE status = 'PENDING'
   AND xendit_invoice_id <> ''
   AND created_at < NOW() - make_interval(mins => $1::int)
   AND created_at > NOW() - INTERVAL '7 days'
-ORDER BY created_at ASC
+  AND (
+    last_gateway_check_at IS NULL
+    OR last_gateway_check_at < NOW() - (
+      CASE
+        WHEN created_at > NOW() - INTERVAL '15 minutes' THEN INTERVAL '2 minutes'
+        WHEN created_at > NOW() - INTERVAL '2 hours'    THEN INTERVAL '10 minutes'
+        ELSE INTERVAL '1 hour'
+      END
+    )
+  )
+ORDER BY last_gateway_check_at ASC NULLS FIRST
 LIMIT $2;
+
+-- name: MarkOrdersGatewayChecked :exec
+-- Recorded whatever the answer was, including none: an order the gateway could
+-- not be reached about must still wait its turn, or one unreachable invoice
+-- would monopolise every sweep.
+UPDATE orders SET last_gateway_check_at = NOW() WHERE id = ANY($1::uuid[]);
 
 -- name: ResolveHeldOrderToPaid :one
 -- The operator attests the discrepancy was settled another way. Only HELD

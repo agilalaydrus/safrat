@@ -1060,10 +1060,18 @@ condition that cannot hold in a compiled server and that nobody can set by
 accident. Private and link-local stay refused even under test, because those are
 the addresses that actually matter.
 
-**Dispatch is a sweep, not a job queued at payment time.** A queued job is lost
-if the enqueue fails or the queue is drained, and the jamaah waits with nothing
-to notice it. A sweep re-reads the truth every pass, so anything unsent is
-eventually picked up however it got that way. Runs every minute.
+**Dispatch is immediate, with a sweep underneath — corrected after the owner
+pointed out that a digital product's SLA is seconds, not a minute.** The first
+version made the sweep the mechanism, which was wrong: a jamaah buying pulsa
+expects it now. Sending is enqueued the moment payment settles and picked up in
+milliseconds; the sweep every minute is the net for an enqueue that failed, a
+Redis restart that dropped the queue, or a worker that died mid-send.
+
+Neither is sufficient alone — the queue is fast but losable, the sweep durable
+but slow — so the common case is immediate and the uncommon case is merely
+late. A failed enqueue never fails the payment: the money has settled and the
+row already records the debt. Verified that both paths racing the same order
+call the supplier exactly once.
 
 **Nothing that fails becomes FAILED.** A transport error, an unresolvable
 address, a bad recipe — none of them prove the supplier did not deliver, so all
@@ -1075,6 +1083,39 @@ settles DELIVERED, learns the price from the same answer, and **is not called a
 second time** on the next pass; a supplier that never answers becomes
 NEEDS_REVIEW with the attempt counted; and an address pointing at cloud metadata
 is refused with a reason that names it.
+
+#### Done — PR 21: payment window, polling backoff, and platform transaction monitoring
+
+Owner: *"semua transaksi harus tertulis ... once dia belum bayar, atau sudah
+bayar pun"*, *"limit dari create transaction sampe ke payment itu gaboleh
+terlalu sebentar"*, and *"cepat dan aman, tercatat, dan tidak ada celah
+kerugian."*
+
+**Every transaction was already written before payment** — orders are created
+`PENDING`, then settled — so that requirement held. What was missing was
+anywhere on the platform side to *see* them, which the new Transaksi tab
+supplies: every transaction across every tenant, paid or not, with **two status
+columns** because "was it paid" and "did it arrive" are different questions and
+one column carrying both hides the state that matters.
+
+**The payment window is now explicit.** It was never set, so it silently used
+Xendit's default. Twenty-four hours is generous on purpose: scanning a QRIS
+code or carrying a virtual account number to a bank is not instant, and
+somebody buying at night may finish in the morning. An unpaid invoice holds no
+stock and blocks nothing, so a long window costs nothing.
+
+**But a day-long window created a real problem**, which is the interesting part
+of this change. The poller guards against a lost webhook by asking the gateway
+every two minutes — for a whole day, per abandoned checkout, across every
+tenant. Roughly seven hundred calls each. Exhausting the gateway's rate limit
+would stop settlement working for *everybody*, which is a far worse loss than
+the dropped webhook the poller exists to catch.
+
+So checks back off with age: every 2 minutes for the first quarter hour, every
+10 minutes up to two hours, hourly after that. Payment usually happens in the
+first minutes, so that is where the attention goes. A check is recorded whether
+or not the gateway answered — otherwise one unreachable invoice would be
+retried on every pass while everything behind it starved.
 
 #### Open — ordered
 

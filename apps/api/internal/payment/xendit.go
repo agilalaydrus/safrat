@@ -17,6 +17,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 // ErrNotConfigured is returned instead of silently no-op'ing, unlike the
@@ -26,6 +27,19 @@ import (
 var ErrNotConfigured = errors.New("Xendit belum dikonfigurasi (XENDIT_SECRET_KEY kosong)")
 
 const invoicesURL = "https://api.xendit.co/v2/invoices"
+
+// invoiceValidFor is how long a jamaah has to complete payment.
+//
+// Set explicitly rather than left to the gateway's default. Paying is not
+// instant: a QRIS code has to be scanned in another app, a virtual account
+// number has to be carried to a bank or a teller, and somebody buying at night
+// may well finish in the morning. A short window turns an ordinary delay into a
+// failed transaction and a jamaah who has to start over.
+//
+// Twenty-four hours is generous on purpose, and costs nothing: an unpaid
+// invoice holds no stock and blocks nothing, while the poller keeps checking
+// throughout, so a payment made at the twenty-third hour still settles.
+const invoiceValidFor = 24 * time.Hour
 
 type Client struct {
 	secretKey   string
@@ -79,6 +93,7 @@ func (c *Client) CreateInvoice(ctx context.Context, req CreateInvoiceRequest) (*
 		"currency":             "IDR",
 		"success_redirect_url": req.SuccessRedirectURL,
 		"failure_redirect_url": req.FailureRedirectURL,
+		"invoice_duration":     int(invoiceValidFor.Seconds()),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal xendit invoice request: %w", err)

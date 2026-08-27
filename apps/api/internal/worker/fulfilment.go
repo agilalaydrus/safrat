@@ -2,8 +2,14 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/hajj-saas/api/internal/apperror"
+	"github.com/hajj-saas/api/internal/queue"
 
 	"github.com/hajj-saas/api/internal/repository"
 	"github.com/hajj-saas/api/internal/service"
@@ -27,6 +33,32 @@ func NewFulfilmentSweepTask() *asynq.Task {
 
 func NewFulfilmentDispatchTask() *asynq.Task {
 	return asynq.NewTask(TaskFulfilmentDispatch, nil)
+}
+
+// HandleDispatchOne sends one named order immediately.
+//
+// This is the path that actually meets a digital product's latency: enqueued
+// the moment a payment settles, picked up in milliseconds. The periodic sweep
+// below is the net underneath it, not the mechanism.
+//
+// Finding nothing to send is a normal outcome, not a failure — the sweep may
+// have reached the same order first, and whichever arrives second should
+// simply stop.
+func (h *FulfilmentHandler) HandleDispatchOne(ctx context.Context, task *asynq.Task) error {
+	var payload queue.DispatchPayload
+	if err := json.Unmarshal(task.Payload(), &payload); err != nil {
+		// A payload we cannot read will never become readable, so retrying is
+		// pointless; asynq is told to stop rather than to keep trying.
+		return fmt.Errorf("%w: %v", asynq.SkipRetry, err)
+	}
+	pending, err := h.suppliers.PendingDispatchFor(ctx, payload.OrderID)
+	if err != nil {
+		if errors.Is(err, apperror.ErrNotFound) {
+			return nil
+		}
+		return err
+	}
+	return h.service.Dispatch(ctx, pending)
 }
 
 // FulfilmentHandler watches the transactions that need a human.

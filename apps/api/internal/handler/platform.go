@@ -139,3 +139,11 @@ func (h *PlatformHandler) ListSupplierLogs(ctx context.Context, req *connect.Req
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) ListTransactions(ctx context.Context, req *connect.Request[hajjv1.ListTransactionsRequest]) (*connect.Response[hajjv1.ListTransactionsResponse], error) {
+	result, err := h.platformService.ListTransactions(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

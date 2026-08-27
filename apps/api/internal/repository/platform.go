@@ -172,3 +172,73 @@ func (r *PlatformRepository) GetProduct(ctx context.Context, productID string) (
 	}
 	return &product, err
 }
+
+// PlatformTransaction is one transaction as the platform sees it, with both
+// halves of its life: whether it was paid, and whether what was paid for
+// arrived.
+type PlatformTransaction struct {
+	OrderID           string
+	ReceiptNumber     string
+	OperatorName      string
+	PilgrimName       string
+	ProductName       string
+	Category          string
+	AmountIDR         int64
+	PaidAmountIDR     *int64
+	NetPaidIDR        int64
+	Status            string
+	HeldReason        string
+	FulfilmentStatus  string
+	SupplierName      string
+	SupplierReference string
+	FulfilmentError   string
+	CreatedAt         time.Time
+	PaidAt            *time.Time
+}
+
+// ListTransactions returns transactions across every tenant, newest first.
+//
+// needsAttention narrows to the ones that are actually costing somebody: a
+// payment that did not match its bill, or something paid for that never
+// arrived. Everything else is history, and history is not what a platform
+// operator opens this screen to find.
+func (r *PlatformRepository) ListTransactions(ctx context.Context, needsAttention bool, limit int32) ([]*PlatformTransaction, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT o.id::text, o.receipt_number, op.name, p.full_name, pr.name, pr.category,
+		       o.total_price_idr, o.paid_amount_idr, COALESCE(pay.net_paid_idr, 0),
+		       o.status, o.held_reason,
+		       COALESCE(f.status, ''), COALESCE(s.name, ''),
+		       COALESCE(f.supplier_reference, ''), COALESCE(f.last_error, ''),
+		       o.created_at, o.paid_at
+		FROM orders o
+		JOIN operators op ON op.id = o.operator_id
+		JOIN pilgrims p ON p.id = o.pilgrim_id
+		JOIN products pr ON pr.id = o.product_id
+		LEFT JOIN order_payments pay ON pay.order_id = o.id
+		LEFT JOIN order_fulfilments f ON f.order_id = o.id
+		LEFT JOIN suppliers s ON s.id = f.supplier_id
+		WHERE NOT $1::bool
+		   OR o.status = 'HELD'
+		   OR f.status IN ('NEEDS_REVIEW', 'FAILED')
+		ORDER BY o.created_at DESC
+		LIMIT $2`, needsAttention, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	transactions := make([]*PlatformTransaction, 0)
+	for rows.Next() {
+		var item PlatformTransaction
+		if err := rows.Scan(&item.OrderID, &item.ReceiptNumber, &item.OperatorName, &item.PilgrimName,
+			&item.ProductName, &item.Category, &item.AmountIDR, &item.PaidAmountIDR, &item.NetPaidIDR,
+			&item.Status, &item.HeldReason, &item.FulfilmentStatus, &item.SupplierName,
+			&item.SupplierReference, &item.FulfilmentError, &item.CreatedAt, &item.PaidAt); err != nil {
+			return nil, err
+		}
+		transactions = append(transactions, &item)
+	}
+	return transactions, rows.Err()
+}

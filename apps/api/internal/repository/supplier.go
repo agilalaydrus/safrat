@@ -446,3 +446,31 @@ func (r *SupplierRepository) ListPendingDispatch(ctx context.Context, limit int3
 	}
 	return pending, rows.Err()
 }
+
+// PendingDispatchFor resolves one order for immediate sending, for the fast
+// path that runs the moment a payment settles rather than at the next sweep.
+func (r *SupplierRepository) PendingDispatchFor(ctx context.Context, orderID string) (PendingDispatch, error) {
+	id, err := pgUUID(orderID)
+	if err != nil {
+		return PendingDispatch{}, apperror.ErrValidation
+	}
+	var item PendingDispatch
+	err = r.pool.QueryRow(ctx, `
+		SELECT f.order_id::text, f.operator_id::text, f.supplier_id::text,
+		       pr.supplier_sku, o.total_price_idr, COALESCE(p.phone, '')
+		FROM order_fulfilments f
+		JOIN orders o ON o.id = f.order_id
+		JOIN pilgrims p ON p.id = o.pilgrim_id
+		JOIN product_routes pr ON pr.product_id = o.product_id AND pr.is_active
+		JOIN suppliers s ON s.id = f.supplier_id AND s.status = 'ACTIVE'
+		WHERE f.order_id = $1 AND f.status = 'PENDING'`, id).
+		Scan(&item.OrderID, &item.OperatorID, &item.SupplierID,
+			&item.SupplierSKU, &item.AmountIDR, &item.Destination)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Already sent, already settled, or no longer routable. Not an error:
+		// the fast path and the sweep can both reach the same order, and
+		// whichever arrives second should simply find nothing to do.
+		return PendingDispatch{}, apperror.ErrNotFound
+	}
+	return item, err
+}

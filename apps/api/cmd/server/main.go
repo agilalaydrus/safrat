@@ -21,6 +21,7 @@ import (
 	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/notification"
 	"github.com/hajj-saas/api/internal/payment"
+	"github.com/hajj-saas/api/internal/queue"
 	"github.com/hajj-saas/api/internal/repository"
 	"github.com/hajj-saas/api/internal/service"
 	"github.com/hajj-saas/api/internal/storage"
@@ -235,6 +236,17 @@ func main() {
 		kloterHandler := handler.NewKloterHandler(kloterService)
 		identityHandler := handler.NewIdentityHandler(identityService)
 		fulfilmentService := service.NewFulfilmentService(fulfilmentRepository, supplierRepository, supplierCostRepository, orderRepository)
+		// The fast path. Without Redis this is nil and every fulfilment waits
+		// for the worker's sweep instead — slower, never wrong.
+		if fulfilmentQueue, queueErr := queue.NewFulfilmentQueue(strings.TrimSpace(os.Getenv("REDIS_URL"))); queueErr != nil {
+			logger.Error("init fulfilment queue", "error", queueErr)
+		} else if fulfilmentQueue != nil {
+			fulfilmentService.AttachQueue(fulfilmentQueue)
+			defer func() { _ = fulfilmentQueue.Close() }()
+		} else {
+			logger.Warn("fulfilment dispatch will wait for the periodic sweep",
+				"reason", "REDIS_URL is not set")
+		}
 		orderService.AttachFulfilment(fulfilmentService)
 		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, auditRepository)
 		orderHandler := handler.NewOrderHandler(orderService)
