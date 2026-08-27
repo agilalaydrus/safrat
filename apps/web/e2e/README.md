@@ -46,6 +46,17 @@ pnpm --filter @hajj-saas/web e2e --project=offline-pwa
 `pnpm --filter @hajj-saas/web e2e` runs all of them, which assumes every service
 above is up.
 
+> **If `offline-pwa` fails, check that :8141 is really the API this script
+> started.** The Go server reads plain environment variables and loads no
+> `.env` of its own, so `e2e:pwa:api` sources `apps/api/.env` before overriding
+> the port and origin. It used to not, and exited immediately with
+> `BETTER_AUTH_SECRET is required` — while a stale server from an earlier
+> session kept answering on :8141 with the wrong CORS origin. The specs then
+> failed with an empty service worker registration, which looks nothing like
+> the configuration problem it is. `curl -X OPTIONS
+> http://127.0.0.1:8141/hajj.v1.IdentityService/GetMyAccess -H 'Origin:
+> http://127.0.0.1:3141'` should answer 204, not 403.
+
 > **A plain `pnpm build` breaks the offline project.** `swDest` is
 > `public/sw.js` (see `next.config.ts`), which is shared by every build — so a
 > normal build overwrites the service worker with a new revision pointing at
