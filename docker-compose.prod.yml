@@ -66,8 +66,11 @@ services:
       # host and fell back to a unix socket instead of erroring).
       PGHOST: postgres
       PGPORT: "5432"
-      PGUSER: safrat
-      PGPASSWORD: ${POSTGRES_PASSWORD}
+      # Defaults preserve the current owner connection. Set APP_PGUSER and
+      # APP_PGPASSWORD only when cutting application services over to the
+      # least-privilege role; migration jobs keep their separate owner login.
+      PGUSER: ${APP_PGUSER:-safrat}
+      PGPASSWORD: ${APP_PGPASSWORD:-${POSTGRES_PASSWORD}}
       PGDATABASE: safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-https://tawafiqhub.id}
@@ -117,8 +120,8 @@ services:
       KYC_ENCRYPTION_KEY: ${KYC_ENCRYPTION_KEY}
       PGHOST: postgres
       PGPORT: "5432"
-      PGUSER: safrat
-      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGUSER: ${APP_PGUSER:-safrat}
+      PGPASSWORD: ${APP_PGPASSWORD:-${POSTGRES_PASSWORD}}
       PGDATABASE: safrat
       REDIS_URL: redis://redis:6379
       SENTRY_DSN: ${SENTRY_DSN}
@@ -155,8 +158,8 @@ services:
       # parser if it contains certain characters (this broke in production).
       PGHOST: postgres
       PGPORT: "5432"
-      PGUSER: safrat
-      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGUSER: ${APP_PGUSER:-safrat}
+      PGPASSWORD: ${APP_PGPASSWORD:-${POSTGRES_PASSWORD}}
       PGDATABASE: safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: https://tawafiqhub.id

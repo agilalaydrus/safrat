@@ -92,8 +92,10 @@ services:
       # host and fell back to a unix socket instead of erroring).
       PGHOST: postgres
       PGPORT: "5432"
-      PGUSER: safrat
-      PGPASSWORD: ${POSTGRES_PASSWORD}
+      # Keep these unset for the owner-role default. Set both only during the
+      # manual least-privilege cutover in section 12b.
+      PGUSER: ${APP_PGUSER:-safrat}
+      PGPASSWORD: ${APP_PGPASSWORD:-${POSTGRES_PASSWORD}}
       PGDATABASE: safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       CORS_ALLOWED_ORIGIN: https://tawafiqhub.id
@@ -118,8 +120,8 @@ services:
     environment:
       PGHOST: postgres
       PGPORT: "5432"
-      PGUSER: safrat
-      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGUSER: ${APP_PGUSER:-safrat}
+      PGPASSWORD: ${APP_PGPASSWORD:-${POSTGRES_PASSWORD}}
       PGDATABASE: safrat
       REDIS_URL: redis://redis:6379
       SENTRY_DSN: ${SENTRY_DSN}
@@ -146,8 +148,8 @@ services:
       # parser if it contains certain characters (this broke in production).
       PGHOST: postgres
       PGPORT: "5432"
-      PGUSER: safrat
-      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGUSER: ${APP_PGUSER:-safrat}
+      PGPASSWORD: ${APP_PGPASSWORD:-${POSTGRES_PASSWORD}}
       PGDATABASE: safrat
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
       BETTER_AUTH_URL: https://tawafiqhub.id
@@ -178,6 +180,11 @@ networks:
 
 ```bash
 POSTGRES_PASSWORD=use_a_strong_random_password
+
+# Optional application-only database login. Keep both unset until the manual
+# least-privilege cutover in section 12b; migrations retain the owner password.
+# APP_PGUSER=safrat_app
+# APP_PGPASSWORD=use_a_different_strong_random_password
 
 # Better Auth — generate with: openssl rand -base64 32
 # Must be identical in both api and web services
@@ -743,21 +750,30 @@ what the application authenticates as.
       GROUP BY table_name ORDER BY table_name;"
    ```
 
-3. **Point only the application at it.** In `.env.prod`, change `PGUSER`/
-   `PGPASSWORD` to the new role. **Leave goose and `npx auth migrate` running as
-   `safrat`** — migrations need to own and alter tables, which is exactly the
-   power the app is giving up. `deploy.yml` runs goose in its own container with
-   its own credentials, so check that step still uses the owner.
+3. **Point only the application at it.** Add these to `.env.prod`, using the
+   same password assigned in step 1:
+   ```dotenv
+   APP_PGUSER=safrat_app
+   APP_PGPASSWORD=PASTE_THE_SAME_LONG_RANDOM_PASSWORD
+   ```
+   Do not replace `POSTGRES_PASSWORD`: PostgreSQL itself, goose, and
+   `npx auth migrate` continue using the `safrat` owner. The Compose file maps
+   `APP_PGUSER`/`APP_PGPASSWORD` only into `api`, `worker`, and `web`; when they
+   are absent it safely falls back to the current owner credentials.
 
 4. **Restart and watch.** A missing grant surfaces as `permission denied for
-   table ...` in the API logs, not as silent misbehaviour.
+   table ...` in the service logs, not as silent misbehaviour. All three app
+   services must be recreated because the web service also talks to PostgreSQL.
    ```bash
-   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --no-deps api worker
-   docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f --tail=100 api
+   docker compose -f docker-compose.prod.yml --env-file .env.prod \
+     up -d --no-deps api worker web
+   docker compose -f docker-compose.prod.yml --env-file .env.prod \
+     logs -f --tail=100 api worker web
    ```
 
-**Rollback** is one line — point `PGUSER`/`PGPASSWORD` back at `safrat` and
-restart. Nothing about the schema changes, so there is nothing to undo.
+**Rollback** is to remove `APP_PGUSER` and `APP_PGPASSWORD` from `.env.prod`,
+then restart. The services fall back to `safrat`/`POSTGRES_PASSWORD`. Nothing
+about the schema changes, so there is nothing else to undo.
 
 ### Catching a money table that forgot its revoke
 
