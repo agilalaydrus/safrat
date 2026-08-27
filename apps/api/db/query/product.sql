@@ -1,6 +1,6 @@
 -- name: CreateProduct :one
-INSERT INTO products (operator_id, season_id, name, category, type, price_idr, duration_days, description, inclusions, is_active, platform_margin_bps, operator_margin_bps, agent_margin_bps, default_kloter_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+INSERT INTO products (operator_id, season_id, name, code, nominal_idr, category, type, price_idr, duration_days, description, inclusions, is_active, platform_margin_bps, operator_margin_bps, agent_margin_bps, default_kloter_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 RETURNING *;
 
 -- name: GetProduct :one
@@ -17,7 +17,7 @@ UPDATE products
 SET name = $3, category = $4, type = $5, price_idr = $6, duration_days = $7,
     description = $8, inclusions = $9, is_active = $10,
     platform_margin_bps = $11, operator_margin_bps = $12, agent_margin_bps = $13,
-    default_kloter_id = $14, updated_at = NOW()
+    default_kloter_id = $14, code = $15, nominal_idr = $16, updated_at = NOW()
 WHERE id = $1 AND operator_id = $2
 RETURNING *;
 

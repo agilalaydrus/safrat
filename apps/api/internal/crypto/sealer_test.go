@@ -23,12 +23,16 @@ func newTestSealer(t *testing.T) *Sealer {
 
 func TestSealAndOpenRoundTrip(t *testing.T) {
 	sealer := newTestSealer(t)
-	for _, plaintext := range []string{"3174012345670001", "09.254.294.1-407.000", "x"} {
+	// Short values are round-tripped but not searched for inside the
+	// ciphertext: a one- or two-character string turns up in random base64
+	// often enough to fail on its own, which is a flaky test rather than a
+	// finding. Real identity numbers are long, and those are checked.
+	for _, plaintext := range []string{"3174012345670001", "09.254.294.1-407.000", "x", ""} {
 		sealed, err := sealer.Seal(plaintext)
 		if err != nil {
 			t.Fatalf("seal: %v", err)
 		}
-		if strings.Contains(sealed, plaintext) {
+		if len(plaintext) >= 8 && strings.Contains(sealed, plaintext) {
 			t.Fatalf("the stored value still contains the plaintext: %s", sealed)
 		}
 		opened, err := sealer.Open(sealed)
@@ -38,6 +42,24 @@ func TestSealAndOpenRoundTrip(t *testing.T) {
 		if opened != plaintext {
 			t.Fatalf("round trip gave %q, want %q", opened, plaintext)
 		}
+	}
+}
+
+// The property that actually matters, checked the way it should be: the
+// ciphertext decodes to bytes that are nothing like the input.
+func TestSealedBytesDoNotContainThePlaintext(t *testing.T) {
+	sealer := newTestSealer(t)
+	const nik = "3174012345670001"
+	sealed, err := sealer.Seal(nik)
+	if err != nil {
+		t.Fatalf("seal: %v", err)
+	}
+	raw, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(sealed, "v1."))
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if strings.Contains(string(raw), nik) {
+		t.Fatal("the ciphertext bytes contain the identity number")
 	}
 }
 

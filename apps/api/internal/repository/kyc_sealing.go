@@ -5,6 +5,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/crypto"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // kycSealer encrypts the identity numbers this system must keep but has no
@@ -43,4 +44,14 @@ func openKYC(stored string) string {
 		return ""
 	}
 	return plaintext
+}
+
+// pgInt8Ptr turns an optional amount into a nullable column value, keeping
+// "not applicable" distinct from zero. A product with no face value is not a
+// product whose face value is nothing.
+func pgInt8Ptr(value *int64) pgtype.Int8 {
+	if value == nil {
+		return pgtype.Int8{}
+	}
+	return pgtype.Int8{Int64: *value, Valid: true}
 }

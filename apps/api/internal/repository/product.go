@@ -19,7 +19,7 @@ func NewProductRepository(queries *db.Queries, pool *pgxpool.Pool) *ProductRepos
 	return &ProductRepository{queries: queries, pool: pool}
 }
 
-func (r *ProductRepository) Create(ctx context.Context, operatorID, seasonID, name, category, productType, description string, priceIDR int64, durationDays int32, inclusions []string, platformMarginBps, operatorMarginBps, agentMarginBps int32, itinerary []domain.ItineraryDay, hotelIDs []string, defaultKloterID string) (*domain.Product, error) {
+func (r *ProductRepository) Create(ctx context.Context, operatorID, seasonID, name, code, category, productType, description string, priceIDR int64, nominalIDR *int64, durationDays int32, inclusions []string, platformMarginBps, operatorMarginBps, agentMarginBps int32, itinerary []domain.ItineraryDay, hotelIDs []string, defaultKloterID string) (*domain.Product, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -38,7 +38,7 @@ func (r *ProductRepository) Create(ctx context.Context, operatorID, seasonID, na
 	}
 	defer tx.Rollback(ctx)
 	qtx := r.queries.WithTx(tx)
-	product, err := qtx.CreateProduct(ctx, db.CreateProductParams{OperatorID: opUUID, SeasonID: seasonUUID, Name: name, Category: category, Type: productType, PriceIdr: priceIDR, DurationDays: durationDays, Description: description, Inclusions: nonNilStrings(inclusions), IsActive: true, PlatformMarginBps: platformMarginBps, OperatorMarginBps: operatorMarginBps, AgentMarginBps: agentMarginBps, DefaultKloterID: kloterUUID})
+	product, err := qtx.CreateProduct(ctx, db.CreateProductParams{OperatorID: opUUID, SeasonID: seasonUUID, Name: name, Code: code, NominalIdr: pgInt8Ptr(nominalIDR), Category: category, Type: productType, PriceIdr: priceIDR, DurationDays: durationDays, Description: description, Inclusions: nonNilStrings(inclusions), IsActive: true, PlatformMarginBps: platformMarginBps, OperatorMarginBps: operatorMarginBps, AgentMarginBps: agentMarginBps, DefaultKloterID: kloterUUID})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -92,7 +92,7 @@ func (r *ProductRepository) ListBySeasonID(ctx context.Context, operatorID, seas
 	return result, nil
 }
 
-func (r *ProductRepository) Update(ctx context.Context, operatorID, productID, name, category, productType, description string, priceIDR int64, durationDays int32, inclusions []string, isActive bool, platformMarginBps, operatorMarginBps, agentMarginBps int32, itinerary []domain.ItineraryDay, hotelIDs []string, defaultKloterID string) (*domain.Product, error) {
+func (r *ProductRepository) Update(ctx context.Context, operatorID, productID, name, code, category, productType, description string, priceIDR int64, nominalIDR *int64, durationDays int32, inclusions []string, isActive bool, platformMarginBps, operatorMarginBps, agentMarginBps int32, itinerary []domain.ItineraryDay, hotelIDs []string, defaultKloterID string) (*domain.Product, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -111,7 +111,7 @@ func (r *ProductRepository) Update(ctx context.Context, operatorID, productID, n
 	}
 	defer tx.Rollback(ctx)
 	qtx := r.queries.WithTx(tx)
-	product, err := qtx.UpdateProduct(ctx, db.UpdateProductParams{ID: productUUID, OperatorID: opUUID, Name: name, Category: category, Type: productType, PriceIdr: priceIDR, DurationDays: durationDays, Description: description, Inclusions: nonNilStrings(inclusions), IsActive: isActive, PlatformMarginBps: platformMarginBps, OperatorMarginBps: operatorMarginBps, AgentMarginBps: agentMarginBps, DefaultKloterID: kloterUUID})
+	product, err := qtx.UpdateProduct(ctx, db.UpdateProductParams{ID: productUUID, OperatorID: opUUID, Name: name, Code: code, NominalIdr: pgInt8Ptr(nominalIDR), Category: category, Type: productType, PriceIdr: priceIDR, DurationDays: durationDays, Description: description, Inclusions: nonNilStrings(inclusions), IsActive: isActive, PlatformMarginBps: platformMarginBps, OperatorMarginBps: operatorMarginBps, AgentMarginBps: agentMarginBps, DefaultKloterID: kloterUUID})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -203,6 +203,7 @@ func optionalUUID(value string) (pgtype.UUID, error) {
 }
 
 func toProduct(product db.Product) *domain.Product {
-	return &domain.Product{ID: uuid.UUID(product.ID.Bytes).String(), OperatorID: uuid.UUID(product.OperatorID.Bytes).String(), SeasonID: uuid.UUID(product.SeasonID.Bytes).String(), Name: product.Name, Category: product.Category, Type: product.Type, PriceIDR: product.PriceIdr, DurationDays: product.DurationDays, Description: product.Description, Inclusions: product.Inclusions, IsActive: product.IsActive, CreatedAt: product.CreatedAt.Time, UpdatedAt: product.UpdatedAt.Time, SupplierCostIDR: int8Ptr(product.SupplierCostIdr), SupplierCostSource: product.SupplierCostSource,
+	return &domain.Product{ID: uuid.UUID(product.ID.Bytes).String(), OperatorID: uuid.UUID(product.OperatorID.Bytes).String(), SeasonID: uuid.UUID(product.SeasonID.Bytes).String(), Name: product.Name, Category: product.Category, Type: product.Type, PriceIDR: product.PriceIdr, DurationDays: product.DurationDays, Description: product.Description, Inclusions: product.Inclusions, IsActive: product.IsActive, CreatedAt: product.CreatedAt.Time, UpdatedAt: product.UpdatedAt.Time, Code: product.Code, NominalIDR: int8Ptr(product.NominalIdr),
+		SupplierCostIDR: int8Ptr(product.SupplierCostIdr), SupplierCostSource: product.SupplierCostSource,
 		PlatformMarginBps: product.PlatformMarginBps, OperatorMarginBps: product.OperatorMarginBps, AgentMarginBps: product.AgentMarginBps, DefaultKloterID: nullableUUIDString(product.DefaultKloterID)}
 }

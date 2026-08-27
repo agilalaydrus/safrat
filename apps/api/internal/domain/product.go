@@ -22,6 +22,11 @@ type Product struct {
 	// SupplierCostIDR is what this product costs to supply, when known. Nil
 	// means nobody has said and nothing has been observed — the price cannot
 	// be checked against a floor that does not exist.
+	// Code is what a person quotes. NominalIDR is the face value the customer
+	// receives, nil when the product has none — a travel package delivers a
+	// journey, not an amount.
+	Code               string
+	NominalIDR         *int64
 	SupplierCostIDR    *int64
 	SupplierCostSource string
 	PlatformMarginBps  int32

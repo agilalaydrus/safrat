@@ -1223,6 +1223,55 @@ message. Placed where money moves rather than in a settings page: the moment
 somebody needs it is the moment a payment failed, and asking them to go looking
 then is asking them to give up.
 
+#### Owner's ruling — transaction records are never reduced (2026-08-27)
+
+> *"Transaksi memang akan selalu mencatat nomor tujuan, tidak boleh data
+> transaksi hilang sama sekali."*
+
+This settles the conflict flagged earlier between append-only logs and the
+right to erasure. The destination number stays in the transaction record, and
+nothing is deleted.
+
+That position has a basis, not just a preference: UU PDP allows retention where
+another legal obligation requires it, and a transaction record is exactly that.
+It is also the only thing that makes a dispute arguable — a jamaah claiming
+their pulsa never arrived, or a supplier claiming it did, both need the number
+it was sent to.
+
+What the ruling does **not** remove is the obligation to hold it safely. The
+identity numbers are encrypted; the destination number in a transaction is not,
+because it is part of the record itself. Worth revisiting if a regulator ever
+asks how the two are told apart.
+
+Separate backup database: owner will do it later.
+
+#### Done — PR 23: a product catalogue with the numbers a catalogue needs (migration 107)
+
+A product had a name and a price. Three things were missing, and conflating
+them is how a digital catalogue goes wrong:
+
+- **`code`** — what a person quotes. `PULSA-TSEL-10K`, not a UUID. Unique per
+  operator, because two travels may both sell `PULSA-10K` and neither should
+  need to know the other exists. Left blank, it is derived from the name, so
+  nobody is forced to invent one and nothing slips past the uniqueness index.
+- **`nominal_idr`** — the face value the customer receives. Pulsa of 10,000
+  sold for 11,500. **Nullable, not zero**: a travel package has no face value;
+  it does not have one worth nothing.
+- **`supplier_cost_idr`** — already there from PR 13, what we pay.
+
+Four distinct numbers where only one existed. Without nominal, "10,000 pulsa
+sold for 11,500" and "11,500 pulsa sold at cost" are the same row, and nobody
+can tell a margin from a mistake.
+
+Existing products were backfilled with a code derived from their name plus a
+fragment of their id — ugly and unambiguous, and an operator can rename it.
+
+**A flaky test of my own, caught and fixed:** the encryption round-trip asserted
+that the ciphertext does not contain the plaintext, using a one-character input.
+A single character turns up in random base64 often enough to fail on its own.
+Short values are now round-tripped without that check, and the property that
+actually matters is asserted against the decoded bytes instead.
+
 #### Open — ordered
 
 Items 1, 3, 4 and 5 of the original list are done (see PR sections above).

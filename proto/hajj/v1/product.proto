@@ -41,6 +41,14 @@ message Product {
   //
   // platform_margin_bps + operator_margin_bps + agent_margin_bps <= 10000,
   // validated on save (service/product.go), not just documented.
+  // What a person quotes — "PULSA-TSEL-10K", not a UUID. Unique within an
+  // operator, so two travels may both sell "PULSA-10K" without either needing
+  // to know the other exists.
+  string code = 29;
+  // The face value the customer receives, for products that have one: pulsa of
+  // 10,000 sold for 11,500. Zero means the product has no face value, which is
+  // the case for a travel package — distinct from a face value of nothing.
+  int64 nominal_idr = 30;
   reserved 14, 15, 16;
   reserved "platform_margin_pct", "operator_margin_pct", "agent_margin_pct";
   int32 platform_margin_bps = 26;
@@ -74,6 +82,8 @@ message CreateProductRequest {
   string description = 6;
   repeated string inclusions = 7;
   string category = 8 [(buf.validate.field).string.min_len = 1];
+  string code = 23 [(buf.validate.field).string = {max_len: 40, pattern: "^[A-Za-z0-9._-]*$"}];
+  int64 nominal_idr = 24 [(buf.validate.field).int64.gte = 0];
   reserved 9, 10, 11;
   reserved "platform_margin_pct", "operator_margin_pct", "agent_margin_pct";
   int32 platform_margin_bps = 20;
@@ -98,6 +108,8 @@ message UpdateProductRequest {
   repeated string inclusions = 7;
   bool is_active = 8;
   string category = 9 [(buf.validate.field).string.min_len = 1];
+  string code = 23 [(buf.validate.field).string = {max_len: 40, pattern: "^[A-Za-z0-9._-]*$"}];
+  int64 nominal_idr = 24 [(buf.validate.field).int64.gte = 0];
   reserved 10, 11, 12;
   reserved "platform_margin_pct", "operator_margin_pct", "agent_margin_pct";
   int32 platform_margin_bps = 20;

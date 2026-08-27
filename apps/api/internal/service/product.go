@@ -84,7 +84,7 @@ func (s *ProductService) Create(ctx context.Context, orgID string, req *hajjv1.C
 	if err != nil {
 		return nil, serviceError("ProductService.Create", err)
 	}
-	product, err := s.productRepository.Create(ctx, op.ID, req.SeasonId, req.Name, req.Category, req.Type, req.Description, req.PriceIdr, req.DurationDays, req.Inclusions, platformMargin, operatorMargin, agentMargin, itineraryFromProto(req.ItineraryDays), req.HotelIds, req.DefaultKloterId)
+	product, err := s.productRepository.Create(ctx, op.ID, req.SeasonId, req.Name, productCode(req.Code, req.Name), req.Category, req.Type, req.Description, req.PriceIdr, optionalAmount(req.NominalIdr), req.DurationDays, req.Inclusions, platformMargin, operatorMargin, agentMargin, itineraryFromProto(req.ItineraryDays), req.HotelIds, req.DefaultKloterId)
 	if err != nil {
 		return nil, serviceError("ProductService.Create", err)
 	}
@@ -137,7 +137,7 @@ func (s *ProductService) Update(ctx context.Context, orgID string, req *hajjv1.U
 	if err != nil {
 		return nil, serviceError("ProductService.Update", err)
 	}
-	product, err := s.productRepository.Update(ctx, op.ID, req.ProductId, req.Name, req.Category, req.Type, req.Description, req.PriceIdr, req.DurationDays, req.Inclusions, req.IsActive, platformMargin, operatorMargin, agentMargin, itineraryFromProto(req.ItineraryDays), req.HotelIds, req.DefaultKloterId)
+	product, err := s.productRepository.Update(ctx, op.ID, req.ProductId, req.Name, productCode(req.Code, req.Name), req.Category, req.Type, req.Description, req.PriceIdr, optionalAmount(req.NominalIdr), req.DurationDays, req.Inclusions, req.IsActive, platformMargin, operatorMargin, agentMargin, itineraryFromProto(req.ItineraryDays), req.HotelIds, req.DefaultKloterId)
 	if err != nil {
 		return nil, serviceError("ProductService.Update", err)
 	}
@@ -163,6 +163,12 @@ func productMessage(product *domain.Product) *hajjv1.Product {
 		CreatedAt: timestamppb.New(product.CreatedAt), UpdatedAt: timestamppb.New(product.UpdatedAt),
 		PlatformMarginBps: product.PlatformMarginBps, OperatorMarginBps: product.OperatorMarginBps, AgentMarginBps: product.AgentMarginBps,
 		HotelIds: product.HotelIDs, DefaultKloterId: product.DefaultKloterID,
+		Code: product.Code,
+	}
+	// Zero on the wire means "no face value", which is what a travel package
+	// has — as distinct from a face value of nothing.
+	if product.NominalIDR != nil {
+		msg.NominalIdr = *product.NominalIDR
 	}
 	for _, d := range product.ItineraryDays {
 		msg.ItineraryDays = append(msg.ItineraryDays, &hajjv1.ItineraryDay{
@@ -182,4 +188,43 @@ func itineraryFromProto(days []*hajjv1.ItineraryDay) []domain.ItineraryDay {
 		})
 	}
 	return result
+}
+
+// productCode falls back to a slug of the name when none is given.
+//
+// A code is what a person quotes on the phone, so an operator who does not
+// think to invent one should still get something usable rather than a blank —
+// and a blank would also slip past the uniqueness index, which only covers
+// non-empty codes.
+func productCode(code, name string) string {
+	trimmed := strings.ToUpper(strings.TrimSpace(code))
+	if trimmed != "" {
+		return trimmed
+	}
+	slug := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+			return r
+		case r >= 'a' && r <= 'z':
+			return r - 32
+		case r == ' ' || r == '-' || r == '_':
+			return '-'
+		default:
+			return -1
+		}
+	}, strings.TrimSpace(name))
+	slug = strings.Trim(slug, "-")
+	if len(slug) > 32 {
+		slug = strings.Trim(slug[:32], "-")
+	}
+	return slug
+}
+
+// optionalAmount keeps "not applicable" distinct from zero. A travel package
+// has no face value; it does not have one worth nothing.
+func optionalAmount(amount int64) *int64 {
+	if amount <= 0 {
+		return nil
+	}
+	return &amount
 }

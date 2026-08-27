@@ -12,9 +12,12 @@ type Values = {
   name: string; category: string; type: string; price: string; duration: string; description: string; inclusions: string; active: boolean;
   platformMargin: string; operatorMargin: string; agentMargin: string;
   itinerary: DayForm[]; hotelIds: string[]; defaultKloterId: string;
+  // code is what a person quotes; nominal is the face value the customer
+  // receives, blank for products that have none.
+  code: string; nominal: string;
 };
 const emptyDay = (dayNumber: number): DayForm => ({ dayNumber, title: "", city: "", activities: "", mealBreakfast: false, mealLunch: false, mealDinner: false });
-const empty: Values = { name: "", category: "TRAVEL_PACKAGE", type: "HAJJ", price: "", duration: "", description: "", inclusions: "", active: true, platformMargin: "15", operatorMargin: "70", agentMargin: "15", itinerary: [], hotelIds: [], defaultKloterId: "" };
+const empty: Values = { name: "", category: "TRAVEL_PACKAGE", type: "HAJJ", price: "", duration: "", description: "", inclusions: "", active: true, platformMargin: "15", operatorMargin: "70", agentMargin: "15", itinerary: [], hotelIds: [], defaultKloterId: "", code: "", nominal: "" };
 const CATEGORIES: [string, string][] = [
   ["TRAVEL_PACKAGE", "Paket Perjalanan"],
   ["EQUIPMENT", "Perlengkapan Umrah & Haji"],
@@ -41,6 +44,7 @@ export default function ProductFormDialog({ open, seasonId, initial, onClose, on
     const v: Values = initial ? {
       name: initial.name, category: initial.category || "TRAVEL_PACKAGE", type: initial.type || "HAJJ",
       price: String(initial.priceIdr), duration: String(initial.durationDays), description: initial.description,
+      code: initial.code, nominal: initial.nominalIdr > 0n ? String(initial.nominalIdr) : "",
       inclusions: initial.inclusions.join("\n"), active: initial.isActive,
       // The wire carries basis points (1500 = 15%); operators think in whole
       // percent, so the form stays in percent and converts at the boundary.
@@ -88,6 +92,10 @@ export default function ProductFormDialog({ open, seasonId, initial, onClose, on
         name: form.name.trim(), category: form.category, type: isTravelPackage ? form.type : "",
         priceIdr: BigInt(form.price), durationDays: Number(form.duration), description: form.description.trim(),
         inclusions: form.inclusions.split("\n").map((v) => v.trim()).filter(Boolean),
+        code: form.code.trim().toUpperCase(),
+        // Empty means the product has no face value, which is what a travel
+        // package has — the server keeps that distinct from a value of zero.
+        nominalIdr: BigInt(form.nominal.replace(/\D/g, "") || "0"),
         platformMarginBps: Math.round((Number(form.platformMargin) || 0) * 100), operatorMarginBps: Math.round((Number(form.operatorMargin) || 0) * 100), agentMarginBps: Math.round((Number(form.agentMargin) || 0) * 100),
         itineraryDays: isTravelPackage ? form.itinerary : [], hotelIds: isTravelPackage ? form.hotelIds : [], defaultKloterId: isTravelPackage ? form.defaultKloterId : "",
       };
@@ -114,10 +122,23 @@ export default function ProductFormDialog({ open, seasonId, initial, onClose, on
           <form id="product-form" onSubmit={submit} style={{ display: "grid", gap: 16 }}>
             <p style={section}>DETAIL PRODUK</p>
             <Field label="Nama Produk" error={errors.name}><input className="safrat-input" value={form.name} onChange={(e) => update("name", e.target.value)} style={input} aria-invalid={!!errors.name} /></Field>
+            {/* The code is what somebody quotes on the phone. Left blank it is
+                derived from the name, so nobody is forced to invent one. */}
+            <Field label="Kode Produk" error={errors.code}>
+              <input className="safrat-input" value={form.code} placeholder="mis. PULSA-TSEL-10K"
+                onChange={(e) => update("code", e.target.value.toUpperCase())} style={input} />
+            </Field>
             <Field label="Kategori"><select className="safrat-input" value={form.category} onChange={(e) => update("category", e.target.value)} style={input}>{CATEGORIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
             {isTravelPackage && <Field label="Jenis Perjalanan"><select className="safrat-input" value={form.type} onChange={(e) => update("type", e.target.value)} style={input}><option value="HAJJ">Haji</option><option value="UMRAH">Umrah</option></select></Field>}
             <div style={cols}>
-              <Field label="Harga (Rp)" error={errors.price}><input className="safrat-input" type="number" min="0" value={form.price} onChange={(e) => update("price", e.target.value)} style={input} aria-invalid={!!errors.price} /></Field>
+              <Field label="Harga Jual (Rp)" error={errors.price}><input className="safrat-input" type="number" min="0" value={form.price} onChange={(e) => update("price", e.target.value)} style={input} aria-invalid={!!errors.price} /></Field>
+              {/* Face value, which is not the price: pulsa of 10.000 sold for
+                  11.500. Blank for anything without one, like a travel
+                  package — that is different from a face value of zero. */}
+              <Field label="Nominal Produk (Rp)">
+                <input className="safrat-input" type="number" min="0" value={form.nominal} placeholder="kosongkan bila tidak ada"
+                  onChange={(e) => update("nominal", e.target.value)} style={input} />
+              </Field>
               <Field label="Durasi (hari)" error={errors.duration}><input className="safrat-input" type="number" min="1" value={form.duration} onChange={(e) => update("duration", e.target.value)} style={input} aria-invalid={!!errors.duration} /></Field>
             </div>
             <Field label="Deskripsi"><textarea className="safrat-input" maxLength={1000} value={form.description} onChange={(e) => update("description", e.target.value)} style={{ ...input, minHeight: 100, padding: "12px 14px" }} /><small style={count}>{form.description.length}/1000</small></Field>
