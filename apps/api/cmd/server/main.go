@@ -125,6 +125,7 @@ func main() {
 		platformRepository := repository.NewPlatformRepository(pool)
 		supplierCostRepository := repository.NewSupplierCostRepository(pool)
 		supplierRepository := repository.NewSupplierRepository(pool)
+		fulfilmentRepository := repository.NewFulfilmentRepository(pool)
 
 		// Gate for Caddy's on-demand TLS. Caddy asks before obtaining a
 		// certificate for a hostname it has never seen; answering 200 here is
@@ -233,6 +234,8 @@ func main() {
 		notificationHandler := handler.NewNotificationHandler(notificationService)
 		kloterHandler := handler.NewKloterHandler(kloterService)
 		identityHandler := handler.NewIdentityHandler(identityService)
+		fulfilmentService := service.NewFulfilmentService(fulfilmentRepository, supplierRepository, supplierCostRepository, orderRepository)
+		orderService.AttachFulfilment(fulfilmentService)
 		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, auditRepository)
 		orderHandler := handler.NewOrderHandler(orderService)
 		platformHandler := handler.NewPlatformHandler(platformService)
@@ -328,6 +331,7 @@ func main() {
 		mux.Handle(ritualPath, ritualServiceHandler)
 		mux.Handle(healthReportPath, healthReportServiceHandler)
 		mux.Handle(monitoringPath, monitoringServiceHandler)
+		mux.HandleFunc("POST /webhooks/supplier/{token}", handler.NewSupplierCallbackHandler(logger, fulfilmentService))
 		mux.HandleFunc("POST /webhooks/xendit", handler.NewXenditWebhookHandler(logger, orderRepository, orderService, subscriptionRepository, config.XenditWebhookToken,
 			handler.NewWebhookSourceGuard(logger, os.Getenv("XENDIT_WEBHOOK_ALLOWED_IPS"))))
 		uploadDir := os.Getenv("UPLOAD_DIR")

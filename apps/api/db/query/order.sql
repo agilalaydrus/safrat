@@ -183,13 +183,15 @@ ORDER BY MAX(op.created_at) DESC;
 -- that quietly removes the transaction from view.
 SELECT
   o.id, o.quantity, o.total_price_idr, o.status, o.created_at, o.paid_at,
-  o.xendit_invoice_url,
+  o.xendit_invoice_url, o.receipt_number,
+  op.name AS operator_name,
   pr.name AS product_name,
   COALESCE(r.amount_idr, 0)::bigint AS refunded_idr,
   r.created_at AS refunded_at,
   COALESCE(r.reason, '') AS refund_reason
 FROM orders o
 JOIN products pr ON pr.id = o.product_id
+JOIN operators op ON op.id = o.operator_id
 LEFT JOIN order_refunds r ON r.order_id = o.id
 WHERE o.pilgrim_id = $1
 ORDER BY o.created_at DESC;
@@ -270,3 +272,9 @@ UPDATE orders
 SET status = 'FAILED', updated_at = NOW()
 WHERE id = $1 AND operator_id = $2 AND status = 'HELD'
 RETURNING *;
+
+-- name: GetOrderByIdempotencyKeyAny :one
+-- Unscoped by operator, for the supplier callback path: it is authenticated by
+-- the supplier's own token and has no operator in hand — the operator is what
+-- it is looking up. Every other order read is tenant-scoped and must stay so.
+SELECT * FROM orders WHERE id = $1;

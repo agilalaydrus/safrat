@@ -196,7 +196,7 @@ func toOrder(o db.Order) *domain.Order {
 		PilgrimID: uuid.UUID(o.PilgrimID.Bytes).String(), ProductID: uuid.UUID(o.ProductID.Bytes).String(), AgentID: nullableUUIDString(o.AgentID),
 		Quantity: o.Quantity, UnitPriceIDR: o.UnitPriceIdr, TotalPriceIDR: o.TotalPriceIdr,
 		PlatformAmountIDR: o.PlatformAmountIdr, OperatorAmountIDR: o.OperatorAmountIdr, AgentCommissionIDR: o.AgentCommissionIdr,
-		Status: o.Status, HeldReason: o.HeldReason, XenditInvoiceID: o.XenditInvoiceID.String, XenditInvoiceURL: o.XenditInvoiceUrl.String,
+		Status: o.Status, HeldReason: o.HeldReason, ReceiptNumber: o.ReceiptNumber, XenditInvoiceID: o.XenditInvoiceID.String, XenditInvoiceURL: o.XenditInvoiceUrl.String,
 		PaidAmountIDR: int8Ptr(o.PaidAmountIdr),
 		PaidAt:        timestamptzPtr(o.PaidAt), CreatedAt: o.CreatedAt.Time,
 	}
@@ -207,7 +207,7 @@ func toOrderFromRow(o db.GetOrderRow) *domain.Order {
 		ID: o.ID, OperatorID: o.OperatorID, SeasonID: o.SeasonID, PilgrimID: o.PilgrimID, ProductID: o.ProductID, AgentID: o.AgentID,
 		Quantity: o.Quantity, UnitPriceIdr: o.UnitPriceIdr, TotalPriceIdr: o.TotalPriceIdr,
 		PlatformAmountIdr: o.PlatformAmountIdr, OperatorAmountIdr: o.OperatorAmountIdr, AgentCommissionIdr: o.AgentCommissionIdr,
-		Status: o.Status, HeldReason: o.HeldReason, PaidAmountIdr: o.PaidAmountIdr,
+		Status: o.Status, HeldReason: o.HeldReason, PaidAmountIdr: o.PaidAmountIdr, ReceiptNumber: o.ReceiptNumber,
 		XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
 	})
 	base.PilgrimName = o.PilgrimName
@@ -221,7 +221,7 @@ func toOrderFromListRow(o db.ListOrdersRow) *domain.Order {
 		ID: o.ID, OperatorID: o.OperatorID, SeasonID: o.SeasonID, PilgrimID: o.PilgrimID, ProductID: o.ProductID, AgentID: o.AgentID,
 		Quantity: o.Quantity, UnitPriceIdr: o.UnitPriceIdr, TotalPriceIdr: o.TotalPriceIdr,
 		PlatformAmountIdr: o.PlatformAmountIdr, OperatorAmountIdr: o.OperatorAmountIdr, AgentCommissionIdr: o.AgentCommissionIdr,
-		Status: o.Status, HeldReason: o.HeldReason, PaidAmountIdr: o.PaidAmountIdr,
+		Status: o.Status, HeldReason: o.HeldReason, PaidAmountIdr: o.PaidAmountIdr, ReceiptNumber: o.ReceiptNumber,
 		XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
 	})
 	base.PilgrimName = o.PilgrimName
@@ -250,6 +250,7 @@ func (r *OrderRepository) ListTransactionsForPilgrim(ctx context.Context, pilgri
 			CreatedAt: row.CreatedAt.Time, PaidAt: timestamptzPtr(row.PaidAt),
 			RefundedIDR: row.RefundedIdr, RefundedAt: timestamptzPtr(row.RefundedAt),
 			RefundReason: row.RefundReason, CheckoutURL: row.XenditInvoiceUrl.String,
+			ReceiptNumber: row.ReceiptNumber, OperatorName: row.OperatorName,
 		})
 	}
 	return result, nil
@@ -348,4 +349,22 @@ func int8Ptr(value pgtype.Int8) *int64 {
 	}
 	amount := value.Int64
 	return &amount
+}
+
+// GetAny reads an order without operator scoping.
+//
+// Every other read here is tenant-scoped and must stay that way. This one
+// exists for the supplier callback path, which is authenticated by a supplier's
+// token and has no operator in hand — the operator is what it is looking up.
+// Not for use anywhere a caller's identity is available.
+func (r *OrderRepository) GetAny(ctx context.Context, orderID string) (*domain.Order, error) {
+	id, err := pgUUID(orderID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	order, err := r.queries.GetOrderByIdempotencyKeyAny(ctx, id)
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toOrder(order), nil
 }

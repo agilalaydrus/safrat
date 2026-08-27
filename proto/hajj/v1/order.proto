@@ -75,6 +75,7 @@ message Order {
   // held if it is. Both empty until a payment notification arrives.
   int64 paid_amount_idr = 22;
   string held_reason = 23;
+  string receipt_number = 24;
 }
 
 message CreateOrderRequest {

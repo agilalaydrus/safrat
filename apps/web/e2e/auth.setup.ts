@@ -34,8 +34,15 @@ test("provision the fixture operator", async () => {
       data: { name: fixture.name, email: fixture.email, password: fixture.password },
       failOnStatusCode: false,
     });
+    // Also clears any second factor left enabled by a previous run.
+    //
+    // This is not tidiness. Better Auth does not issue a session at all when an
+    // account has TOTP enrolled — sign-in returns a challenge instead — so a
+    // leftover flag makes this setup save an *empty* storage state and every
+    // spec after it fails with something that looks nothing like the cause.
+    // A fixture account cannot answer a TOTP challenge, so it must not have one.
     const verified = await pool.query(
-      'UPDATE "user" SET "emailVerified" = true WHERE email = $1 RETURNING id',
+      'UPDATE "user" SET "emailVerified" = true, "twoFactorEnabled" = false WHERE email = $1 RETURNING id',
       [fixture.email],
     );
     if (verified.rowCount === 0) {

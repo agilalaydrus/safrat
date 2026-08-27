@@ -8,6 +8,7 @@ import { useRegisterShellServiceWorker } from "@/lib/register-sw";
 import { useLocationPing } from "@/lib/geolocation";
 import { useRegisterPilgrimPush } from "@/lib/pilgrim-push";
 import { RequireAccess } from "@/components/auth/RequireAccess";
+import { RequireTwoFactor } from "@/components/auth/RequireTwoFactor";
 import { PilgrimCodeProvider, usePilgrimCode } from "@/lib/pilgrim-context";
 import { authClient } from "@/lib/auth-client";
 import { invalidateMyAccessCache } from "@/lib/access-cache";
@@ -107,9 +108,14 @@ function PilgrimShell({ children }: { children: React.ReactNode }) {
 export default function PilgrimLayout({ children }: { children: React.ReactNode }) {
   return (
     <RequireAccess role="pilgrim">
+      {/* prompt, not enforce: SOS lives behind this shell, and standing between
+          a jamaah in distress and the button that summons help is a hazard, not
+          a security improvement. */}
+      <RequireTwoFactor mode="prompt">
       <PilgrimCodeProvider>
         <PilgrimShell>{children}</PilgrimShell>
       </PilgrimCodeProvider>
+      </RequireTwoFactor>
     </RequireAccess>
   );
 }

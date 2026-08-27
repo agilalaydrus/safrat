@@ -27,6 +27,7 @@ type OrderService struct {
 	xenditClient       *payment.Client
 	ledgerRepository   *repository.LedgerRepository
 	agentRepository    *repository.AgentRepository
+	fulfilmentService  *FulfilmentService
 	refundRepository   *repository.RefundRepository
 	db                 *pgxpool.Pool
 	// appBaseURL is where Xendit redirects the pilgrim's browser back to
@@ -269,6 +270,16 @@ func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req 
 // (see product.default_kloter_id) once an order actually reaches PAID —
 // best-effort: a failure here never undoes the payment, it's just logged.
 func (s *OrderService) applyPaidSideEffects(ctx context.Context, product *domain.Product, order *domain.Order) {
+	// A paid order for anything the platform supplies now owes a delivery, and
+	// that debt is recorded rather than assumed. Before this, payment was the
+	// end of the story: money taken, nothing ever sent, and no state anywhere
+	// saying so.
+	//
+	// Travel packages are excluded because nobody is buying them from a
+	// supplier — the operator fulfils those themselves.
+	if s.fulfilmentService != nil && product != nil && product.Category != "TRAVEL_PACKAGE" {
+		s.fulfilmentService.Open(ctx, order.ID, order.OperatorID)
+	}
 	if product == nil || product.Category != "TRAVEL_PACKAGE" || product.DefaultKloterID == "" {
 		return
 	}
@@ -435,7 +446,7 @@ func orderMessage(o *domain.Order) *hajjv1.Order {
 		Quantity: o.Quantity, UnitPriceIdr: o.UnitPriceIDR, TotalPriceIdr: o.TotalPriceIDR,
 		PlatformAmountIdr: o.PlatformAmountIDR, OperatorAmountIdr: o.OperatorAmountIDR, AgentCommissionIdr: o.AgentCommissionIDR,
 		Status: o.Status, CheckoutUrl: o.XenditInvoiceURL, CreatedAt: timestamppb.New(o.CreatedAt),
-		HeldReason: o.HeldReason,
+		HeldReason: o.HeldReason, ReceiptNumber: o.ReceiptNumber,
 	}
 	if o.PaidAmountIDR != nil {
 		result.PaidAmountIdr = *o.PaidAmountIDR
@@ -827,4 +838,15 @@ func (s *OrderService) ResolveHeldOrder(ctx context.Context, orgID, userID strin
 		fmt.Sprintf("Transaksi tertahan %s — dibayar %s dari tagihan %s (%s)%s",
 			decision, rupiah(paid), rupiah(before.TotalPriceIDR), before.HeldReason, noteSuffix(req.Note)))
 	return orderMessage(resolved), nil
+}
+
+// AttachFulfilment wires the delivery side in after construction.
+//
+// A setter rather than another constructor argument: FulfilmentService needs
+// repositories OrderService also uses, and threading it through the
+// constructor would make the wiring in main.go order-dependent for no gain.
+// Nil is a valid state — an operator selling only travel packages owes no
+// supplier anything.
+func (s *OrderService) AttachFulfilment(fulfilments *FulfilmentService) {
+	s.fulfilmentService = fulfilments
 }

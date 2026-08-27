@@ -198,6 +198,11 @@ message CertificateData {
 // One line in a jamaah's own transaction history.
 message PilgrimTransaction {
   string order_id = 1;
+  // A number a person can quote — over the phone, or on a printed receipt.
+  // The order id is a UUID, which is neither.
+  string receipt_number = 12;
+  // What the operator is called, for the receipt's header.
+  string operator_name = 13;
   string product_name = 2;
   int32 quantity = 3;
   int64 amount_idr = 4;

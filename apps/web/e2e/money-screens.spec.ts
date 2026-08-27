@@ -64,7 +64,24 @@ async function seedOrders(): Promise<{ paid: string; held: string }> {
   return { paid: paid.id, held: held.id };
 }
 
+/**
+ * Staff must enrol a second factor before the dashboard opens. The fixture
+ * account is enrolled here rather than in each test: this spec is about how the
+ * screens look, and every one of them lives behind that gate.
+ */
+async function enrolFixtureStaff() {
+  await query(`UPDATE "user" SET "twoFactorEnabled" = true WHERE email = $1`, [fixture.email]);
+}
+
 test.describe("money screens render", () => {
+  test.beforeEach(enrolFixtureStaff);
+  // Restored, because an enrolled fixture cannot sign in again: Better Auth
+  // answers with a TOTP challenge instead of a session, and the next run's
+  // setup would save an empty storage state.
+  test.afterAll(async () => {
+    await query(`UPDATE "user" SET "twoFactorEnabled" = false WHERE email = $1`, [fixture.email]);
+  });
+
   test("orders dashboard shows both money actions, and each dialog opens", async ({ page }) => {
     await seedOrders();
     await page.goto("/dashboard/orders");
@@ -93,10 +110,21 @@ test.describe("money screens render", () => {
   });
 
   test("two-factor enrolment renders its first step", async ({ page }) => {
+    // Un-enrolled for this one: the first step is what somebody setting it up
+    // actually sees.
+    await query(`UPDATE "user" SET "twoFactorEnabled" = false WHERE email = $1`, [fixture.email]);
     await page.goto("/keamanan");
     await expect(page.getByRole("heading", { name: /Verifikasi Dua Langkah/i })).toBeVisible();
     await expect(page.getByText(/Langkah 1/)).toBeVisible();
     await capture(page, "04-two-factor-enrolment");
+  });
+
+  test("staff without a second factor are sent to enrol before the dashboard opens", async ({ page }) => {
+    await query(`UPDATE "user" SET "twoFactorEnabled" = false WHERE email = $1`, [fixture.email]);
+    await page.goto("/dashboard/orders");
+    await expect(page).toHaveURL(/\/keamanan/);
+    await capture(page, "09-staff-must-enrol");
+    await enrolFixtureStaff();
   });
 
   test("the platform panel is not found without access, and asks for 2FA with it", async ({ page }) => {
@@ -104,6 +132,16 @@ test.describe("money screens render", () => {
       `SELECT s."userId" FROM session s JOIN "user" u ON u.id = s."userId"
        WHERE u.email = $1 ORDER BY s."expiresAt" DESC LIMIT 1`, [fixture.email]);
     if (!session) throw new Error("fixture operator has no session — did setup run?");
+
+    // Start from no access at all, whatever a previous run left behind. A
+    // failed run used to leave the grant in place, and the next one then began
+    // in the wrong state and failed for a reason that had nothing to do with
+    // the code.
+    await query("DELETE FROM platform_admins WHERE user_id = $1", [session.userId]);
+    // Un-enrolled too, because this test walks all three states and the middle
+    // one only exists before enrolment. beforeEach enrols the fixture so the
+    // dashboard opens; here that has to be undone deliberately.
+    await query(`UPDATE "user" SET "twoFactorEnabled" = false WHERE id = $1`, [session.userId]);
 
     // No access at all: the page reports itself as not existing.
     await page.goto("/admin");

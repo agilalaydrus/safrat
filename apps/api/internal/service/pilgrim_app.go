@@ -338,6 +338,7 @@ func (s *PilgrimAppService) ListMyTransactions(ctx context.Context, req *hajjv1.
 			OrderId: t.OrderID, ProductName: t.ProductName, Quantity: t.Quantity,
 			AmountIdr: t.AmountIDR, Status: t.Status, RefundedIdr: t.RefundedIDR,
 			RefundReason: t.RefundReason, CreatedAt: timestamppb.New(t.CreatedAt),
+			ReceiptNumber: t.ReceiptNumber, OperatorName: t.OperatorName,
 		}
 		if t.PaidAt != nil {
 			message.PaidAt = timestamppb.New(*t.PaidAt)

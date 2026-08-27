@@ -933,7 +933,12 @@ is now closed:
 
 - **Closed: a skipped rule is no longer silent.** `Read` reports what it could
   not apply and why, and the tester surfaces it.
-- **Open: an UNMATCHED transaction hangs with nothing watching it.** Refusing to
+- **Closed: an UNMATCHED transaction is now watched.** `worker/fulfilment.go`
+  sweeps every 10 minutes for anything NEEDS_REVIEW, or SENT and silent for over
+  an hour, and logs each one individually at WARN with the jamaah, product and
+  supplier named. "Seven are stuck" is not actionable; "this jamaah's pulsa
+  never arrived" is. The original text of the gap follows, for the reasoning:
+- ~~**Open: an UNMATCHED transaction hangs with nothing watching it.**~~ Refusing to
   treat an unreadable response as failure is right — refunding a transaction the
   supplier may well have delivered is worse and irreversible — but the
   consequence is that it waits for a human. There is an index and a filtered log
@@ -945,6 +950,82 @@ is now closed:
   cannot be overwritten manually — a false zero that locks itself in. Nil puts
   the product in the panel's "no cost recorded" queue instead, where it is
   visible and fixable.
+
+#### Done — PR 19: fulfilment, receipts, and two-factor for everyone
+
+Four pieces, built together because they interlock.
+
+**Fulfilment exists at all now** (migration 102). A paid order for a digital
+product used to end there: money taken, nothing ever sent, no state saying so.
+`order_fulfilments` is deliberately separate from `orders.status` — "did they
+pay" and "did it arrive" are different questions, and one column carrying both
+makes *paid but undelivered* inexpressible, which is exactly the state that has
+to be visible.
+
+- One fulfilment per order, enforced by a unique constraint rather than by the
+  worker checking first: two workers picking up the same paid order both pass a
+  check-then-act, and the result is a jamaah's pulsa sent twice at our cost.
+- Claiming is a conditional UPDATE, not read-then-write. The transition *is* the
+  lock; a worker that reads PENDING and then writes SENT can be overtaken
+  between the two statements.
+- A product with no active route still opens a fulfilment, immediately flagged
+  NEEDS_REVIEW. The jamaah has paid either way, and a paid order with no record
+  of owing anything is precisely how a transaction disappears.
+
+**The callback endpoint** (`POST /webhooks/supplier/{token}`) reads what a
+supplier posts with that supplier's own rules. Plain net/http, not Connect —
+suppliers post whatever shape they like and would not speak Connect if asked.
+It answers 200 whatever it makes of the body: a supplier that gets an error
+retries, and a retry cannot fix a reference we do not recognise or a rule
+nobody has written. The record is in the logs either way.
+
+Verified end to end: a delivered transaction settles and **learns the supplier's
+price from the same message**, giving the product a floor it did not have; six
+concurrent callbacks produce one delivery and one cost observation; an
+unreadable response becomes NEEDS_REVIEW and appears in the attention queue; a
+human can close it and **a later supplier message cannot overwrite that
+decision**; and an unknown token settles nothing.
+
+**The stuck sweep closes the gap** the parsing decisions left. Holding rather
+than refunding is only defensible if somebody is actually told to look.
+
+**Receipts** (migration 103). Every transaction now has a number a person can
+quote — `INV-YYYYMM-NNNNNN`, from one global sequence. A per-tenant counter
+would have to be read and incremented, which two concurrent checkouts race on,
+and the usual fix serialises every sale in the tenant. Numbers are therefore
+not contiguous within one travel, which nobody asked for and which would leak
+how many sales other tenants made. `TransactionReceipt` renders one from the
+jamaah's own history, printable — and PDF is the browser's own print dialog
+rather than a server-side renderer, which would mean a second layout to keep in
+step with this one.
+
+**Two-factor for staff and jamaah**, with a difference that is a judgement call
+worth reading: staff are **blocked** until enrolled; jamaah get a **prompt they
+can dismiss**. Behind the pilgrim shell sits SOS. Standing between a jamaah in
+distress and the button that summons help, because they have not installed an
+authenticator app, is a hazard rather than a security improvement. The owner's
+instruction was that jamaah use two-factor too, and they will — the judgement
+is only about whether the app refuses to open in the meantime.
+
+**Two things the browser found**, neither of which any other test could:
+
+1. **Enabling 2FA silently broke the e2e setup.** Better Auth issues no session
+   at all when an account has TOTP enrolled — sign-in returns a challenge — so
+   a flag left enabled by an earlier run made the setup save an *empty* storage
+   state, and every later spec failed with something that looked nothing like
+   the cause. The setup now clears it for fixture accounts, which cannot answer
+   a challenge anyway.
+2. **A failed run left its platform grant behind**, so the next run started with
+   access it was supposed to be testing the absence of. The test now clears it
+   first rather than only afterwards.
+
+**Admin screens** for suppliers and their reading rules, including the rule
+tester — try a pattern against a real sample before trusting it with money.
+
+**Still to build:** the outbound call to a supplier. Its *shape* is speculative
+without a real supplier contract — the request template column exists for it —
+while everything around it (state machine, idempotency, logging, reading,
+cost learning, escalation) is built and tested.
 
 #### Open — ordered
 

@@ -60,6 +60,7 @@ func main() {
 	subscriptionRepository := repository.NewSubscriptionRepository(pool)
 	journeyRepository := repository.NewJourneyRepository(queries)
 	orderRepository := repository.NewOrderRepository(queries)
+	fulfilmentRepository := repository.NewFulfilmentRepository(pool)
 	productRepository := repository.NewProductRepository(queries, pool)
 	ledgerRepository := repository.NewLedgerRepository(pool)
 	refundRepository := repository.NewRefundRepository(pool)
@@ -88,6 +89,7 @@ func main() {
 		agentRepository, pool, payment.NewClient(strings.TrimSpace(os.Getenv("XENDIT_SECRET_KEY"))),
 		strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGIN")))
 	paymentHandler := worker.NewPaymentHandler(logger, orderRepository, orderService)
+	fulfilmentHandler := worker.NewFulfilmentHandler(logger, fulfilmentRepository)
 	objectStorage, storageErr := storage.New(context.Background(), storage.ConfigFromEnv())
 	if storageErr != nil {
 		logger.Error("init storefront object storage", "error", storageErr)
@@ -150,6 +152,14 @@ func main() {
 		logger.Error("register payment poll schedule", "error", err)
 		os.Exit(1)
 	}
+	// Every 10 minutes. A jamaah waiting on undelivered pulsa is not urgent to
+	// the minute, but it must not be discovered a day later either — and
+	// nothing else is watching, because holding rather than refunding was a
+	// deliberate choice that only works if somebody is told.
+	if _, err := scheduler.Register("@every 10m", worker.NewFulfilmentSweepTask()); err != nil {
+		logger.Error("register fulfilment sweep schedule", "error", err)
+		os.Exit(1)
+	}
 	if storefrontAssetHandler != nil {
 		if _, err := scheduler.Register("@every 1h", worker.NewStorefrontAssetGCTask()); err != nil {
 			logger.Error("register storefront asset cleanup schedule", "error", err)
@@ -172,6 +182,7 @@ func main() {
 	mux.HandleFunc(worker.TaskSubscriptionSweep, subscriptionHandler.HandleSweep)
 	mux.HandleFunc(worker.TaskCommissionReconcile, commissionHandler.HandleReconcile)
 	mux.HandleFunc(worker.TaskPaymentPoll, paymentHandler.HandlePoll)
+	mux.HandleFunc(worker.TaskFulfilmentSweep, fulfilmentHandler.HandleSweep)
 	if storefrontAssetHandler != nil {
 		mux.HandleFunc(worker.TaskStorefrontAssetGC, storefrontAssetHandler.HandleGC)
 	}
