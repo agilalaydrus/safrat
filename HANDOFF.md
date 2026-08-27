@@ -2288,3 +2288,71 @@ berarti menulis ulang riwayat yang sudah dipublikasikan.
 Antrean berikutnya tidak berubah: PPOB menolak checkout tanpa routing aktif,
 batas Rp20 juta per akun per hari, lalu katalog produk digital pindah ke
 kepemilikan platform.
+
+---
+
+## Gate routing & batas harian (selesai)
+
+Dua keputusan owner, nomor 4 dan 5.
+
+### Routing: menolak sebelum uang diambil
+
+Produk PPOB/roaming tanpa jalur ke supplier dulu bisa dibeli — uang diambil,
+fulfilment dibuka, dan baru saat itu ketahuan tidak ada tujuan pengiriman.
+Sekarang ditolak **sebelum** pembayaran dibuat.
+
+Status routing dibaca bersama harga dalam satu query, bukan query terpisah,
+supaya layar harga dan checkout menilai baris yang sama. Ia mengalir sebagai
+data ke gate harga yang sudah ada, jadi layar travel menampilkan penolakannya
+otomatis dan katalog agen menjatuhkan produknya.
+
+**Tiga penolakan, bukan satu**: belum ada routing, routing dinonaktifkan,
+supplier tidak aktif. Masing-masing kesalahan berbeda. Dan **semuanya menyebut
+TawafiqHub** — routing milik platform, travel tidak bisa memperbaikinya
+sendiri, jadi penolakan tanpa arahan adalah jalan buntu.
+
+Paket perjalanan dan perlengkapan dikecualikan: keduanya membuka fulfilment
+tapi diselesaikan manusia, tidak ada panggilan supplier untuk dirutekan.
+
+### Batas Rp20 juta: ditegakkan database
+
+Bagian sulitnya bukan angkanya. Batas yang dicek dengan membaca total lalu
+menulis order bukan batas: dua permintaan bersamaan sama-sama membaca total
+lama, sama-sama menemukan ruang, sama-sama menulis.
+
+Jadi totalnya hidup di baris dengan CHECK, dan pembelanjaan adalah UPSERT yang
+menambah di tempat. **Dibuktikan, bukan diasumsikan**: enam pembelian Rp9 juta
+serentak terhadap batas Rp20 juta menyisakan tepat dua yang lolos.
+
+Order dan konsumsi batas satu transaksi. Konsumsi dulu → kuota bocor saat
+insert ternyata pengulangan. Insert dulu → order tercipta yang seharusnya
+ditolak.
+
+**Harinya Asia/Jakarta**, bukan UTC. Hari UTC berganti pukul 07:00 waktu
+setempat.
+
+Refund/gagal/kedaluwarsa mengembalikan kuota, dalam satu statement yang
+sekaligus menghapus capnya — jadi idempoten di tiga jalur settlement dan sweep
+tanpa perlu koordinasi.
+
+### Yang perlu keputusanmu: retensi
+
+`daily_digital_spend` tumbuh satu baris per akun per hari, **tanpa batas**.
+Ia tidak bisa dijangkau cascade: `buyer_id` polimorfik (jamaah atau agen),
+jadi tidak ada foreign key tunggal yang bisa menutupinya.
+
+Baris yang lebih tua dari hari ini tidak lagi dipakai untuk penegakan, tapi
+berguna sebagai riwayat belanja. Berapa lama disimpan itu keputusanmu — kalau
+sudah diputuskan, purge-nya bisa masuk sweep worker yang sudah ada.
+
+### Database uji
+
+Tes integrasi butuh `STOREFRONT_TEST_DATABASE_URL` dengan tabel Better Auth.
+Cara tercepat membuatnya:
+
+```
+docker exec safrat-postgres-1 createdb -U safrat -T safrat safrat_limit_test
+```
+
+Klon dari database dev, karena `goose` sendiri tidak bisa membuat tabel
+`"user"` — Better Auth yang memigrasikannya.
