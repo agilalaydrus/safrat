@@ -670,37 +670,73 @@ granted → works; revoked → refused again on the very next request.
 
 #### Open — ordered
 
-1. **Duplicate orders.** `CreateOrder` has no idempotency key and `orders` has
-   no unique index preventing it. A double-click creates two orders and two
-   Xendit invoices, and the pilgrim can pay both — charged twice for one
-   intent. Same class as the three fixed above; fix it the same way, in the
-   database.
+Items 1, 3, 4 and 5 of the original list are done (see PR sections above).
+What remains, in the order I would take it:
 
-2. **Fulfilment does not exist for anything but travel packages.** Product
-   categories are `TRAVEL_PACKAGE`, `EQUIPMENT`, `ROAMING_DATA`, `PPOB_CREDIT`,
-   but `applyPaidSideEffects` only acts on `TRAVEL_PACKAGE` (auto-kloter).
-   - `EQUIPMENT` (physical): `orders` has no delivery status, address, tracking
-     or handover proof. Safe only while handover is manual and in person.
-   - `ROAMING_DATA` (digital): no voucher/eSIM issued or stored.
-   - `PPOB_CREDIT` (digital): **no provider integration at all** — the pilgrim
-     pays and no credit is ever sent. Consider disabling this category until it
-     can be fulfilled.
-   When PPOB is built, idempotency is critical: Xendit redelivers webhooks, and
-   without a key on the fulfilment side one payment becomes two top-ups.
+1. **Agents and Muttawwif cannot buy for themselves.** Owner confirmed this is
+   needed: *"banyak jamaah yang mau nya cuma bayar cash aja, gamau beli dari
+   apps."* `orders.pilgrim_id` is `NOT NULL`, so the buyer must be a jamaah, and
+   the agent-to-agent referral chain (`agents.referred_by_agent_id`, which
+   exists and has never paid anyone) stays dead.
 
-4. **Webhook does not verify the paid amount.** It reads only `id` and
-   `status`. Xendit invoices are fixed-amount so practical risk is low, but
-   comparing the amount is one line and is standard practice.
+   **Blast radius, already mapped:** make `pilgrim_id` nullable, add a buyer
+   agent column and a CHECK that exactly one is set. Then four queries that
+   `JOIN pilgrims` *inner* have to become LEFT JOIN — `GetOrder`, `ListOrders`,
+   `GetSeasonPaidTotal` (cashflow.sql), and `ListReferredCustomerRecapForAgent`.
+   Miss one and an agent's own orders **vanish silently** from the dashboard
+   rather than failing loudly, which is why this wants a fresh session rather
+   than the tail of a long one.
 
-5. **No fraud/suspect handling.** No flag, no manual hold, no attempt limits.
-   Card fraud detection sits with Xendit's hosted checkout, but there is no way
-   for the operator to hold a suspicious order out of the totals.
+   Open question for the owner: when an agent buys for themselves, does the
+   commission go to the agent above them in `referred_by_agent_id`?
 
-6. **Receipts are per pilgrim, not per transaction.**
-   `/dashboard/pilgrims/[id]/invoice` works well — order list, paid total,
-   print/PDF, `@media print`. Missing: a per-transaction receipt with a
-   referenceable invoice number, and any way for the *pilgrim* to see or print
-   their own proof of payment. Today only the operator can.
+2. **Digital product catalogue belongs to the platform, not to each operator.**
+   Owner: *"clients travel umroh semuanya bukan penjual untuk product digital,
+   yang punya jalur API ke supplier, dll hanya pihak tawafiqhub."* Today
+   `products` are per-operator, so each travel invents its own
+   `ROAMING_DATA`/`PPOB_CREDIT` rows and prices, and the platform has no
+   catalogue at all. The foundation is now in place — supplier cost with a
+   price floor, and an admin panel to manage it — but the ownership change
+   itself has not started. **Discuss before building: this moves who owns the
+   data.**
+
+3. **Fulfilment exists for nothing but travel packages.** `applyPaidSideEffects`
+   only handles `TRAVEL_PACKAGE` (auto-kloter).
+   - `EQUIPMENT` (physical): no delivery status, address, tracking or handover
+     proof. Safe only while handover is manual and in person.
+   - `ROAMING_DATA` (digital): no voucher or eSIM issued or stored.
+   - `PPOB_CREDIT`: **no provider integration at all** — a jamaah pays and no
+     credit is ever sent. Keep it disabled until it can be fulfilled.
+
+   This is where `SupplierCostRepository.RecordObservation` finally gets called,
+   and where a Saga-style compensating transaction genuinely earns its keep:
+   charge → call supplier → supplier fails → refund. Idempotency is critical on
+   the fulfilment side too, or one payment becomes two top-ups.
+
+4. **Per-transaction receipts.** `/dashboard/pilgrims/[id]/invoice` is
+   per-pilgrim and operator-only. Missing: a receipt per transaction with a
+   referenceable number, and any way for the **paying account** to see or print
+   its own proof. Owner asked for this explicitly.
+
+5. **Fraud and attempt limits.** The held state exists now, and a held
+   transaction is excluded from revenue and from payable commission. Still
+   missing: attempt limits, and any signal beyond an amount mismatch that would
+   put a transaction into it.
+
+6. **Database role without UPDATE/DELETE on the ledgers.** The application
+   currently connects as a superuser, which can disable the append-only
+   triggers outright — so today's "cannot be manipulated" guarantee is weaker
+   than the triggers suggest. Operational work on the VPS, not code.
+
+7. **`XENDIT_WEBHOOK_ALLOWED_IPS`** — needs a support request to Xendit, who do
+   not publish the ranges. Config blocks are ready in nginx and Caddy.
+
+8. **Nothing has been rendered in a browser.** Every page built in this run —
+   jamaah/muttawwif/agent transaction history, the refund dialog, the held-order
+   review dialog, `/admin` — passes typecheck and lint and has never been
+   looked at. Playwright exists in `apps/web/e2e/`.
+
+9. **Caddy cutover** — still manual, still unstarted (`deploy/caddy/README.md`).
 
 #### Standing rule for all of the above
 
