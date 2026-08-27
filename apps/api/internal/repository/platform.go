@@ -21,19 +21,33 @@ func NewPlatformRepository(pool *pgxpool.Pool) *PlatformRepository {
 	return &PlatformRepository{pool: pool}
 }
 
-// IsPlatformAdmin reports whether a Better Auth user holds platform access.
+// PlatformAccess is what the platform gate needs to know about a caller.
+type PlatformAccess struct {
+	// Granted is a row in platform_admins.
+	Granted bool
+	// TwoFactorEnabled comes from Better Auth. It matters because the plugin
+	// only issues a session once the second factor is verified, so an enrolled
+	// admin's session is one that passed TOTP. An admin who never enrolled has
+	// a session backed by a password alone.
+	TwoFactorEnabled bool
+}
+
+// PlatformAccessFor reports whether a Better Auth user holds platform access,
+// and whether their account is protected by a second factor.
 //
 // Deliberately a plain lookup with no caching. This is the widest privilege in
 // the system, and a revocation that takes effect on the next request is worth
 // far more than the microseconds a cache would save.
-func (r *PlatformRepository) IsPlatformAdmin(ctx context.Context, userID string) (bool, error) {
+func (r *PlatformRepository) PlatformAccessFor(ctx context.Context, userID string) (PlatformAccess, error) {
 	if userID == "" {
-		return false, nil
+		return PlatformAccess{}, nil
 	}
-	var exists bool
-	err := r.pool.QueryRow(ctx,
-		`SELECT EXISTS(SELECT 1 FROM platform_admins WHERE user_id = $1)`, userID).Scan(&exists)
-	return exists, err
+	var access PlatformAccess
+	err := r.pool.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM platform_admins WHERE user_id = $1),
+		       COALESCE((SELECT u."twoFactorEnabled" FROM "user" u WHERE u.id = $1), false)`,
+		userID).Scan(&access.Granted, &access.TwoFactorEnabled)
+	return access, err
 }
 
 // PlatformOperator is one tenant as the platform sees it.

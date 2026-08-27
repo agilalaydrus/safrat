@@ -41,7 +41,13 @@ service PlatformService {
 }
 
 message AmIPlatformAdminRequest {}
-message AmIPlatformAdminResponse { bool is_platform_admin = 1; }
+message AmIPlatformAdminResponse {
+  bool is_platform_admin = 1;
+  // Whether the caller's account has a second factor enrolled. Platform access
+  // requires it, so the panel needs both answers to tell "you have no access"
+  // apart from "you have access but must enrol first".
+  bool two_factor_enabled = 2;
+}
 
 message PlatformOperator {
   string id = 1;

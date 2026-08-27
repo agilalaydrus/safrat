@@ -39,14 +39,25 @@ func (s *PlatformService) requirePlatformAdmin(ctx context.Context) (string, err
 	if userID == "" {
 		return "", connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
 	}
-	admin, err := s.platformRepository.IsPlatformAdmin(ctx, userID)
+	access, err := s.platformRepository.PlatformAccessFor(ctx, userID)
 	if err != nil {
 		return "", serviceError("PlatformService", err)
 	}
-	if !admin {
+	if !access.Granted {
 		// The same answer for "not an admin" as for "no such thing", so this
 		// cannot be used to probe who holds platform access.
 		return "", connect.NewError(connect.CodePermissionDenied, errors.New("akses admin platform diperlukan"))
+	}
+	// Being granted is not enough. This identity can read every tenant's data,
+	// so it must not rest on a password alone — and without this check the
+	// second factor would be optional for precisely the account where it
+	// matters most.
+	//
+	// Distinguishable from a plain refusal on purpose: an admin who has not
+	// enrolled needs to be told to enrol, not told they lack access.
+	if !access.TwoFactorEnabled {
+		return "", connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("aktifkan verifikasi dua langkah sebelum membuka panel admin"))
 	}
 	return userID, nil
 }
@@ -60,11 +71,16 @@ func (s *PlatformService) AmIPlatformAdmin(ctx context.Context) (*hajjv1.AmIPlat
 	if userID == "" {
 		return &hajjv1.AmIPlatformAdminResponse{IsPlatformAdmin: false}, nil
 	}
-	admin, err := s.platformRepository.IsPlatformAdmin(ctx, userID)
+	access, err := s.platformRepository.PlatformAccessFor(ctx, userID)
 	if err != nil {
 		return nil, serviceError("PlatformService.AmIPlatformAdmin", err)
 	}
-	return &hajjv1.AmIPlatformAdminResponse{IsPlatformAdmin: admin}, nil
+	// Reported separately so the panel can tell an admin who has not enrolled
+	// to enrol, instead of showing them the same wall as somebody with no
+	// access at all.
+	return &hajjv1.AmIPlatformAdminResponse{
+		IsPlatformAdmin: access.Granted, TwoFactorEnabled: access.TwoFactorEnabled,
+	}, nil
 }
 
 func (s *PlatformService) ListOperators(ctx context.Context) (*hajjv1.ListOperatorsResponse, error) {

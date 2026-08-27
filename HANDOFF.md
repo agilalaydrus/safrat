@@ -668,6 +668,57 @@ granted → works; revoked → refused again on the very next request.
 **To grant the first admin** (there is no other way, by design):
 `INSERT INTO platform_admins (user_id, note) VALUES ('<better-auth-user-id>', 'founder');`
 
+#### Done — PR 15: two-factor authentication, and the admin panel behind it
+
+Owner: *"panel ADMIN ini hanya boleh di akses oleh saya saja, dan ada validasi
+2fa juga untuk saya sendiri."*
+
+**Better Auth's own `twoFactor` plugin**, not a hand-rolled TOTP. Rolling our
+own would mean owning secret storage, clock skew, replay windows and recovery
+codes — all of which the plugin handles and all of which are easy to get subtly
+wrong. `npx auth@1.6.28 migrate` adds the `twoFactor` table and
+`user.twoFactorEnabled`.
+
+**The Go API needed no change at all**, and that is worth understanding rather
+than assuming: the plugin does not create a session until the code verifies —
+the pending one is discarded. So a session row existing in the database already
+means the second factor was passed, and the API validates sessions by looking
+them up. Verified against Better Auth's documentation rather than inferred.
+
+**Platform access now requires an enrolled second factor.** Being in
+`platform_admins` is no longer sufficient. Without this the second factor would
+be optional for precisely the identity that can read every tenant's data.
+Reported distinctly from a refusal (`failed_precondition`, and a separate field
+on `AmIPlatformAdmin`) because the remedy differs: enrol, rather than ask for
+access. Verified over HTTP: granted-but-unenrolled is refused, enrolled opens.
+
+**Enrolment lives at `/keamanan`, outside the admin gate** — deliberately. If
+enrolling could only be reached from behind the gate that requires it, the first
+admin could never get in. It asks for the account password first (proof of
+ownership, not just possession of an unlocked laptop), then verifies a code
+before switching on, so nobody can lock themselves out with an authenticator
+that was never set up correctly.
+
+**Sign-in handles the challenge in place**, in `AuthForm`, rather than
+navigating away — a mistyped code should not cost the user the password they
+just typed. Google sign-in is untouched: those accounts already carry whatever
+second factor the Google account has.
+
+**`/admin` now returns not-found for accounts without access.** Honest framing:
+this hides the panel, it does not protect it. The bundle is downloadable by
+anyone signed in, so the real control remains the server refusing every
+`PlatformService` call — which is separately tested against a genuine operator
+owner's session.
+
+**Recovery codes are shown once, at enrolment.** They are the only way back
+from a lost phone; without them, recovery needs database access, which is the
+thing the panel exists to remove.
+
+**Not done:** 2FA is optional for everyone except platform admins. Whether staff
+or jamaah should be required to enrol is still a decision — `AuthForm` is the
+single sign-in surface for every role, so requiring it there would put an
+authenticator app between a jamaah and their schedule.
+
 #### Open — ordered
 
 Items 1, 3, 4 and 5 of the original list are done (see PR sections above).
@@ -737,42 +788,6 @@ What remains, in the order I would take it:
    looked at. Playwright exists in `apps/web/e2e/`.
 
 9. **Caddy cutover** — still manual, still unstarted (`deploy/caddy/README.md`).
-
-10. **Two-factor authentication (Google Authenticator) on email/password
-    sign-in.** Owner's request, 2026-08-27: every login using email and
-    password must pass a TOTP check.
-
-    **Use Better Auth's own `twoFactor` plugin**, not a hand-rolled TOTP
-    implementation. `better-auth@^1.6.28` is already installed and already runs
-    the `organization` plugin, so the pattern is established: add `twoFactor()`
-    to the `plugins` array in `apps/web/lib/auth.ts`, run `npx better-auth
-    migrate` for its tables, and drive enrolment and verification from
-    `authClient`. Rolling our own would mean owning secret storage, clock skew,
-    replay windows and recovery codes — all of which the plugin already handles,
-    and all of which are easy to get subtly wrong.
-
-    **Scope it to email/password only, as asked.** Google sign-in
-    (`socialProviders`) already carries whatever second factor the Google
-    account has; forcing a second TOTP on top adds friction without adding
-    protection. `emailAndPassword` is separately configured in the same file,
-    so the two paths are already distinguishable.
-
-    Things this touches that are easy to miss:
-    - **`components/auth/AuthForm.tsx`** is the single sign-in surface for
-      staff, pilgrims, leaders and agents alike. A TOTP step added there appears
-      for everyone, which is probably right — but it means a jamaah who only
-      ever wanted to see their schedule now needs an authenticator app. Decide
-      deliberately whether enrolment is mandatory for all roles or only for
-      staff and platform admins.
-    - **Recovery codes are not optional.** Without them, a lost phone means a
-      locked-out operator and a support request that can only be resolved with
-      database access — exactly what the admin panel exists to avoid.
-    - **Platform admins should arguably be required to enrol**, since that
-      identity can read every tenant's data (see PR 14).
-    - The Go API never sees any of this: it validates opaque session tokens by
-      DB lookup, so a session that exists is already one Better Auth decided to
-      issue. No API change should be needed — worth confirming rather than
-      assuming.
 
 #### Standing rule for all of the above
 

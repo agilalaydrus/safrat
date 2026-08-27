@@ -92,6 +92,11 @@ func TestPlatformPanelIsClosedToOperatorStaffIntegration(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO platform_admins (user_id, note) VALUES ($1, 'uji')`, userID); err != nil {
 		t.Fatalf("grant: %v", err)
 	}
+	// Platform access also demands an enrolled second factor; that rule has its
+	// own test below, so here it is simply satisfied.
+	if _, err := pool.Exec(ctx, `UPDATE "user" SET "twoFactorEnabled" = true WHERE id = $1`, userID); err != nil {
+		t.Fatalf("enrol: %v", err)
+	}
 	t.Cleanup(func() {
 		_, _ = pool.Exec(context.Background(), `DELETE FROM platform_admins WHERE user_id = $1`, userID)
 	})
@@ -134,6 +139,9 @@ func TestPlatformCostSettingRespectsObservedCostsIntegration(t *testing.T) {
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO platform_admins (user_id) VALUES ($1)`, userID); err != nil {
 		t.Fatalf("grant: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE "user" SET "twoFactorEnabled" = true WHERE id = $1`, userID); err != nil {
+		t.Fatalf("enrol: %v", err)
 	}
 	t.Cleanup(func() {
 		_, _ = pool.Exec(context.Background(), `DELETE FROM platform_admins WHERE user_id = $1`, userID)
@@ -179,5 +187,82 @@ func TestPlatformCostSettingRespectsObservedCostsIntegration(t *testing.T) {
 	// After which no amount of typing can push it back down.
 	if _, err := setCost(100_000); connect.CodeOf(err) != connect.CodeFailedPrecondition {
 		t.Fatalf("overwriting an observed cost returned %v, want failed_precondition", connect.CodeOf(err))
+	}
+}
+
+// Platform access reads every tenant's data, so being granted is not enough on
+// its own — the account has to carry a second factor. Without this check the
+// second factor would be optional for precisely the identity where it matters
+// most.
+func TestPlatformAccessRequiresTwoFactorIntegration(t *testing.T) {
+	databaseURL := os.Getenv("STOREFRONT_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("STOREFRONT_TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	t.Cleanup(pool.Close)
+
+	fixture := newHTTPFixture(t, pool)
+	var userID string
+	if err := pool.QueryRow(ctx, `SELECT "userId" FROM session WHERE token = $1`, fixture.sessionToken).Scan(&userID); err != nil {
+		t.Fatalf("read session user: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO platform_admins (user_id, note) VALUES ($1, 'uji 2fa')`, userID); err != nil {
+		t.Fatalf("grant: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM platform_admins WHERE user_id = $1`, userID)
+	})
+
+	queries := db.New(pool)
+	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
+		repository.NewSupplierCostRepository(pool), repository.NewAuditRepository(queries))
+	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
+		handler.NewPlatformHandler(platform),
+		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
+			repository.NewIdentityRepository(queries, repository.NewAgentRepository(queries)),
+			repository.NewSubscriptionRepository(pool))),
+	)
+	mux := http.NewServeMux()
+	mux.Handle(path, serviceHandler)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	client := hajjv1connect.NewPlatformServiceClient(server.Client(), server.URL)
+
+	list := func() error {
+		request := connect.NewRequest(&hajjv1.ListOperatorsRequest{})
+		request.Header().Set("Authorization", "Bearer "+fixture.sessionToken)
+		_, err := client.ListOperators(ctx, request)
+		return err
+	}
+
+	// Granted, but no second factor enrolled.
+	if err := list(); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("an admin without 2FA got %v (%v), want failed_precondition", connect.CodeOf(err), err)
+	}
+
+	// The panel must be able to tell that apart from a plain refusal, or it
+	// would tell an admin to ask for access they already have.
+	selfRequest := connect.NewRequest(&hajjv1.AmIPlatformAdminRequest{})
+	selfRequest.Header().Set("Authorization", "Bearer "+fixture.sessionToken)
+	self, err := client.AmIPlatformAdmin(ctx, selfRequest)
+	if err != nil {
+		t.Fatalf("AmIPlatformAdmin: %v", err)
+	}
+	if !self.Msg.IsPlatformAdmin || self.Msg.TwoFactorEnabled {
+		t.Fatalf("reported admin=%v twoFactor=%v, want true and false",
+			self.Msg.IsPlatformAdmin, self.Msg.TwoFactorEnabled)
+	}
+
+	// Enrolled, and it opens.
+	if _, err := pool.Exec(ctx, `UPDATE "user" SET "twoFactorEnabled" = true WHERE id = $1`, userID); err != nil {
+		t.Fatalf("enrol: %v", err)
+	}
+	if err := list(); err != nil {
+		t.Fatalf("an enrolled admin was refused: %v", err)
 	}
 }

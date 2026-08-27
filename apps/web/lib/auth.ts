@@ -1,5 +1,5 @@
 import { betterAuth } from "better-auth";
-import { organization } from "better-auth/plugins";
+import { organization, twoFactor } from "better-auth/plugins";
 import { Pool } from "pg";
 import { invitationEmail, resetPasswordEmail, sendEmail, verifyEmailEmail } from "./email";
 
@@ -12,6 +12,18 @@ const pool = new Pool();
 export const auth = betterAuth({
   database: pool,
   plugins: [
+    // Second factor for email/password sign-in. Google accounts already carry
+    // whatever second factor the Google account has, so this only bites on the
+    // credential path.
+    //
+    // The plugin is what makes the session trustworthy end to end: it does not
+    // create a session at all until the TOTP code is verified — the pending one
+    // is discarded — so a session row existing in the database already means
+    // the second factor was passed. The Go API validates sessions by looking
+    // them up, and therefore needs no knowledge of any of this.
+    twoFactor({
+      issuer: "TawafiqHub",
+    }),
     organization({
       allowUserToCreateOrganization: true,
       // Real leader/staff onboarding — admin enters an email

@@ -1,9 +1,15 @@
 import { createAuthClient } from "better-auth/react";
-import { organizationClient } from "better-auth/client/plugins";
+import { organizationClient, twoFactorClient } from "better-auth/client/plugins";
 
 export const authClient = createAuthClient({
   baseURL: process.env.NEXT_PUBLIC_APP_URL!,
-  plugins: [organizationClient()],
+  plugins: [
+    organizationClient(),
+    // No onTwoFactorRedirect here: the sign-in form handles the challenge in
+    // place rather than navigating away, so the email and password the user
+    // just typed are not lost if they mistype the code.
+    twoFactorClient(),
+  ],
   fetchOptions: {
     cache: "no-store",
     onError: async (ctx) => {

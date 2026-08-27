@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { IconBuildingStore, IconCurrencyDollar, IconLock, IconAlertTriangle } from "@tabler/icons-react";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { IconBuildingStore, IconCurrencyDollar, IconShieldLock, IconAlertTriangle } from "@tabler/icons-react";
 import { PlatformOperator, PlatformProduct } from "@hajj-saas/proto-gen/hajj/v1/platform_pb";
 import { platformClient } from "@/lib/rpc";
 
@@ -13,13 +15,20 @@ export default function PlatformAdminPage() {
   // and a failed call must not look like one either. Conflating the two sent me
   // hunting a permissions bug that was never there, so the error now says what
   // actually happened.
-  const [access, setAccess] = useState<"checking" | "granted" | "denied" | "error">("checking");
+  const [access, setAccess] = useState<"checking" | "granted" | "enrol" | "denied" | "error">("checking");
   const [failure, setFailure] = useState("");
   const [tab, setTab] = useState<"operators" | "costs">("operators");
 
   useEffect(() => {
     platformClient.amIPlatformAdmin({})
-      .then((r) => setAccess(r.isPlatformAdmin ? "granted" : "denied"))
+      .then((r) => {
+        if (!r.isPlatformAdmin) { setAccess("denied"); return; }
+        // Granted, but platform access requires a second factor — this
+        // identity can read every tenant's data, so it must not rest on a
+        // password alone. Told apart from a refusal, because the fix is
+        // different: enrol, rather than ask for access.
+        setAccess(r.twoFactorEnabled ? "granted" : "enrol");
+      })
       .catch((err: unknown) => {
         setFailure(err instanceof Error ? err.message : String(err));
         setAccess("error");
@@ -43,18 +52,30 @@ export default function PlatformAdminPage() {
       </main>
     );
   }
-  if (access === "denied") {
+  if (access === "enrol") {
     return (
       <main style={page}>
         <section style={locked}>
-          <IconLock size={44} color="var(--color-warm-400)" />
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 500 }}>Halaman ini khusus admin TawafiqHub</h1>
-          <p style={{ color: "var(--color-warm-500)", margin: 0, maxWidth: 420 }}>
-            Akun Anda tidak memiliki akses platform. Jika ini keliru, hubungi tim TawafiqHub.
+          <IconShieldLock size={44} color="#b45309" />
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 500 }}>Aktifkan verifikasi dua langkah</h1>
+          <p style={{ color: "var(--color-warm-500)", margin: 0, maxWidth: 460 }}>
+            Panel ini membaca data seluruh travel, jadi tidak boleh bergantung pada kata sandi saja.
+            Daftarkan aplikasi authenticator Anda terlebih dahulu.
           </p>
+          <Link href="/keamanan" style={enrolButton}>Buka pengaturan keamanan</Link>
         </section>
       </main>
     );
+  }
+  if (access === "denied") {
+    // Nothing is rendered for an account without access — the page reports
+    // itself as not existing.
+    //
+    // This hides the panel, it does not protect it: the JavaScript bundle is
+    // downloadable by anyone signed in, so the real control is the server
+    // refusing every PlatformService call. Worth doing anyway, because a
+    // surface nobody knows about is a surface nobody probes.
+    notFound();
   }
 
   return (
@@ -240,5 +261,6 @@ const td: React.CSSProperties = { padding: 14, color: "var(--color-warm-700)", v
 const alert: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 99, background: "var(--color-gold-50)", color: "#b45309", fontWeight: 700, fontSize: 12 };
 const costInput: React.CSSProperties = { minHeight: 40, width: 140, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 10px" };
 const saveButton: React.CSSProperties = { minHeight: 40, border: 0, borderRadius: 8, padding: "0 16px", background: "var(--color-gold-500)", color: "#fff", fontWeight: 700 };
+const enrolButton: React.CSSProperties = { minHeight: 48, display: "inline-flex", alignItems: "center", padding: "0 22px", borderRadius: 8, background: "var(--color-emerald-800)", color: "#fff", fontWeight: 700, textDecoration: "none" };
 const failureBox: React.CSSProperties = { display: "block", maxWidth: 520, padding: 12, background: "var(--color-cream-100)", borderRadius: 8, fontSize: 13, color: "var(--color-danger-600)", overflowWrap: "anywhere" };
 const locked: React.CSSProperties = { minHeight: 320, display: "grid", placeItems: "center", alignContent: "center", gap: 12, textAlign: "center", border: "1px dashed var(--color-cream-400)", borderRadius: 12, padding: 32 };
