@@ -58,13 +58,13 @@ func TestBasePriceMustCoverSupplierCost(t *testing.T) {
 func TestPilgrimOrderPricingReportsConfigurationGaps(t *testing.T) {
 	product := &domain.Product{}
 
-	_, err := pricePilgrimOrder(product, domain.PriceLevels{Configured: true}, 1, "")
+	_, err := pricePilgrimOrder(product, domain.PriceLevels{Configured: true}, domain.RouteReadiness{}, 1, "")
 	if connect.CodeOf(err) != connect.CodeFailedPrecondition || !strings.Contains(err.Error(), ErrBasePriceUnset.Error()) {
 		t.Fatalf("missing base returned %v, want an actionable failed precondition", err)
 	}
 
 	base := int64(10_000)
-	_, err = pricePilgrimOrder(product, domain.PriceLevels{BasePriceIDR: &base}, 1, "")
+	_, err = pricePilgrimOrder(product, domain.PriceLevels{BasePriceIDR: &base}, domain.RouteReadiness{}, 1, "")
 	if connect.CodeOf(err) != connect.CodeFailedPrecondition || !strings.Contains(err.Error(), ErrMarkupUnset.Error()) {
 		t.Fatalf("missing markup returned %v, want an actionable failed precondition", err)
 	}

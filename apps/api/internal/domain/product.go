@@ -79,3 +79,51 @@ type PriceLevels struct {
 	// product.
 	Configured bool
 }
+
+// RouteReadiness is whether a product can actually reach a supplier.
+//
+// Carried alongside the price because for a digital product the two are the
+// same question: an unroutable product cannot be sold at any price, and
+// discovering that only after taking payment leaves a jamaah holding a paid
+// order nothing can deliver.
+type RouteReadiness struct {
+	// Required is false for anything the operator fulfils themselves — travel
+	// packages, and equipment handed over by hand. Those have no supplier to
+	// route to, so absent routing is not a fault.
+	Required bool
+
+	Exists         bool
+	Active         bool
+	SupplierStatus string
+}
+
+// Refusal explains why this product cannot be sold, or returns empty when it
+// can. The three cases are separated deliberately: each is a different fault
+// with a different fix, and "tidak bisa dijual" alone sends everyone looking
+// in the wrong place.
+//
+// Every message names TawafiqHub, because routing is platform-owned and none
+// of these is something a travel can fix in their own dashboard. A refusal
+// that a reader cannot act on is a dead end — it has to say who to ask.
+func (r RouteReadiness) Refusal() string {
+	if !r.Required {
+		return ""
+	}
+	if !r.Exists {
+		return "produk belum diatur routing-nya ke supplier; hubungi TawafiqHub untuk mengaktifkan"
+	}
+	if !r.Active {
+		return "routing produk ini sedang dinonaktifkan oleh TawafiqHub"
+	}
+	if r.SupplierStatus != "ACTIVE" {
+		return "supplier produk ini sedang tidak aktif; TawafiqHub sedang menanganinya"
+	}
+	return ""
+}
+
+// RoutingRequired reports whether a category is delivered by calling a
+// supplier. Equipment is excluded on purpose: it also creates a fulfilment,
+// but one a person completes by hand, so it has no route to be missing.
+func RoutingRequired(category string) bool {
+	return category == "ROAMING_DATA" || category == "PPOB_CREDIT"
+}

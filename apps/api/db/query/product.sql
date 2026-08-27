@@ -63,10 +63,18 @@ SELECT
   sqlc.embed(p),
   m.operator_markup_idr,
   m.agent_markup_idr,
-  (m.id IS NOT NULL)::boolean AS markup_configured
+  (m.id IS NOT NULL)::boolean AS markup_configured,
+  -- Routing state travels with the price because a digital product with no
+  -- working route cannot be sold at any price. Read here rather than in a
+  -- second query so the pricing screen and checkout judge the same row.
+  (r.id IS NOT NULL)::boolean AS route_exists,
+  COALESCE(r.is_active, false)::boolean AS route_active,
+  COALESCE(sup.status, '')::text AS supplier_status
 FROM products p
 LEFT JOIN product_markups m
   ON m.product_id = p.id AND m.operator_id = $2
+LEFT JOIN product_routes r ON r.product_id = p.id
+LEFT JOIN suppliers sup ON sup.id = r.supplier_id
 WHERE p.id = $1 AND p.operator_id = $2;
 
 -- name: UpsertProductMarkup :one
@@ -79,9 +87,15 @@ SET operator_markup_idr = EXCLUDED.operator_markup_idr,
 RETURNING *;
 
 -- name: ListProductMarkups :many
-SELECT sqlc.embed(p), m.operator_markup_idr, m.agent_markup_idr, (m.id IS NOT NULL)::boolean AS markup_configured
+SELECT sqlc.embed(p), m.operator_markup_idr, m.agent_markup_idr,
+  (m.id IS NOT NULL)::boolean AS markup_configured,
+  (r.id IS NOT NULL)::boolean AS route_exists,
+  COALESCE(r.is_active, false)::boolean AS route_active,
+  COALESCE(sup.status, '')::text AS supplier_status
 FROM products p
 LEFT JOIN product_markups m ON m.product_id = p.id AND m.operator_id = $1
+LEFT JOIN product_routes r ON r.product_id = p.id
+LEFT JOIN suppliers sup ON sup.id = r.supplier_id
 WHERE p.operator_id = $1 AND p.season_id = $2
 ORDER BY p.created_at DESC;
 

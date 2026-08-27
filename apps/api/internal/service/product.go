@@ -247,14 +247,14 @@ func (s *ProductService) ListPricing(ctx context.Context, orgID string, req *haj
 		return nil, serviceError("ProductService.ListPricing", err)
 	}
 
-	products, levels, err := s.productRepository.ListPricing(ctx, op.ID, req.SeasonId)
+	products, levels, routes, err := s.productRepository.ListPricing(ctx, op.ID, req.SeasonId)
 	if err != nil {
 		return nil, serviceError("ProductService.ListPricing", err)
 	}
 
 	out := make([]*hajjv1.ProductPricing, 0, len(products))
 	for i, product := range products {
-		out = append(out, pricingMessage(product, levels[i]))
+		out = append(out, pricingMessage(product, levels[i], routes[i]))
 	}
 	return &hajjv1.ListProductPricingResponse{Pricing: out}, nil
 }
@@ -279,7 +279,7 @@ func (s *ProductService) SetMarkup(ctx context.Context, orgID string, req *hajjv
 	// rather than a silent no-op write. The upsert is scoped by operator id
 	// too, so nothing could be written across tenants either way — but a
 	// caller must be told, not left believing a save happened.
-	if _, _, err := s.productRepository.Pricing(ctx, op.ID, req.ProductId); err != nil {
+	if _, _, _, err := s.productRepository.Pricing(ctx, op.ID, req.ProductId); err != nil {
 		return nil, serviceError("ProductService.SetMarkup", err)
 	}
 
@@ -291,11 +291,11 @@ func (s *ProductService) SetMarkup(ctx context.Context, orgID string, req *hajjv
 	// computed prices, and computing them from what was just sent would show
 	// the caller their own input dressed as a result — including when the base
 	// is unset and the product still cannot be sold.
-	product, levels, err := s.productRepository.Pricing(ctx, op.ID, req.ProductId)
+	product, levels, route, err := s.productRepository.Pricing(ctx, op.ID, req.ProductId)
 	if err != nil {
 		return nil, serviceError("ProductService.SetMarkup", err)
 	}
-	return &hajjv1.SetProductMarkupResponse{Pricing: pricingMessage(product, levels)}, nil
+	return &hajjv1.SetProductMarkupResponse{Pricing: pricingMessage(product, levels, route)}, nil
 }
 
 // pricingMessage builds one row of the pricing screen.
@@ -304,7 +304,7 @@ func (s *ProductService) SetMarkup(ctx context.Context, orgID string, req *hajjv
 // its conditions here. If the screen judged sellability on its own terms it
 // would drift from checkout, and the failure mode is the worst kind: a product
 // the screen calls ready that refuses at the moment a customer tries to pay.
-func pricingMessage(product *domain.Product, levels domain.PriceLevels) *hajjv1.ProductPricing {
+func pricingMessage(product *domain.Product, levels domain.PriceLevels, route domain.RouteReadiness) *hajjv1.ProductPricing {
 	msg := &hajjv1.ProductPricing{
 		ProductId:         product.ID,
 		ProductName:       product.Name,
@@ -321,8 +321,8 @@ func pricingMessage(product *domain.Product, levels domain.PriceLevels) *hajjv1.
 
 	// Quantity one: this is a unit price list. Every level scales linearly, so
 	// a unit price is the whole truth here.
-	pilgrimPrice, pilgrimErr := pricePilgrimOrder(product, levels, 1, "")
-	agentPrice, agentErr := priceAgentOrder(product, levels, 1)
+	pilgrimPrice, pilgrimErr := pricePilgrimOrder(product, levels, route, 1, "")
+	agentPrice, agentErr := priceAgentOrder(product, levels, route, 1)
 
 	if pilgrimErr != nil {
 		msg.UnsellableReason = refusalText(pilgrimErr)

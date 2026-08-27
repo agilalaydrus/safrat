@@ -218,21 +218,24 @@ func toProduct(product db.Product) *domain.Product {
 // A product that exists but has no markup row comes back with Configured
 // false rather than as an error, so the caller can say "belum diatur" instead
 // of "tidak ditemukan". Those send a person to two different screens.
-func (r *ProductRepository) Pricing(ctx context.Context, operatorID, productID string) (*domain.Product, domain.PriceLevels, error) {
+func (r *ProductRepository) Pricing(ctx context.Context, operatorID, productID string) (*domain.Product, domain.PriceLevels, domain.RouteReadiness, error) {
 	operator, err := pgUUID(operatorID)
 	if err != nil {
-		return nil, domain.PriceLevels{}, err
+		return nil, domain.PriceLevels{}, domain.RouteReadiness{}, err
 	}
 	product, err := pgUUID(productID)
 	if err != nil {
-		return nil, domain.PriceLevels{}, err
+		return nil, domain.PriceLevels{}, domain.RouteReadiness{}, err
 	}
 
 	row, err := r.queries.GetProductPricing(ctx, db.GetProductPricingParams{ID: product, OperatorID: operator})
 	if err != nil {
-		return nil, domain.PriceLevels{}, err
+		return nil, domain.PriceLevels{}, domain.RouteReadiness{}, err
 	}
-	return toProduct(row.Product), toPriceLevels(row.Product, row.OperatorMarkupIdr, row.AgentMarkupIdr, row.MarkupConfigured), nil
+	return toProduct(row.Product),
+		toPriceLevels(row.Product, row.OperatorMarkupIdr, row.AgentMarkupIdr, row.MarkupConfigured),
+		toRouteReadiness(row.Product, row.RouteExists, row.RouteActive, row.SupplierStatus),
+		nil
 }
 
 // SetMarkup writes an operator's markups for one product.
@@ -283,28 +286,39 @@ func (r *ProductRepository) SetBasePrice(ctx context.Context, productID string, 
 
 // ListPricing is the operator's pricing screen: every product in a season with
 // whatever markup it carries, including the ones carrying none.
-func (r *ProductRepository) ListPricing(ctx context.Context, operatorID, seasonID string) ([]*domain.Product, []domain.PriceLevels, error) {
+func (r *ProductRepository) ListPricing(ctx context.Context, operatorID, seasonID string) ([]*domain.Product, []domain.PriceLevels, []domain.RouteReadiness, error) {
 	operator, err := pgUUID(operatorID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	season, err := pgUUID(seasonID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	rows, err := r.queries.ListProductMarkups(ctx, db.ListProductMarkupsParams{OperatorID: operator, SeasonID: season})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	products := make([]*domain.Product, 0, len(rows))
 	levels := make([]domain.PriceLevels, 0, len(rows))
+	routes := make([]domain.RouteReadiness, 0, len(rows))
 	for _, row := range rows {
 		products = append(products, toProduct(row.Product))
 		levels = append(levels, toPriceLevels(row.Product, row.OperatorMarkupIdr, row.AgentMarkupIdr, row.MarkupConfigured))
+		routes = append(routes, toRouteReadiness(row.Product, row.RouteExists, row.RouteActive, row.SupplierStatus))
 	}
-	return products, levels, nil
+	return products, levels, routes, nil
+}
+
+func toRouteReadiness(product db.Product, exists, active bool, supplierStatus string) domain.RouteReadiness {
+	return domain.RouteReadiness{
+		Required:       domain.RoutingRequired(product.Category),
+		Exists:         exists,
+		Active:         active,
+		SupplierStatus: supplierStatus,
+	}
 }
 
 func toPriceLevels(product db.Product, operatorMarkup, agentMarkup pgtype.Int8, configured bool) domain.PriceLevels {

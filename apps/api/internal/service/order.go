@@ -68,7 +68,7 @@ func ensurePriceCoversSupplierCost(product *domain.Product, price Price) error {
 // pricePilgrimOrder is the one pricing gate shared by every lane that sells
 // to a jamaah. Expected configuration gaps are failed preconditions a person
 // can fix, not internal errors.
-func pricePilgrimOrder(product *domain.Product, levels domain.PriceLevels, quantity int32, referrerAgentID string) (Price, error) {
+func pricePilgrimOrder(product *domain.Product, levels domain.PriceLevels, route domain.RouteReadiness, quantity int32, referrerAgentID string) (Price, error) {
 	price, err := ComputePrice(levels, quantity, BuyerPilgrim, referrerAgentID)
 	if err != nil {
 		return Price{}, connect.NewError(connect.CodeFailedPrecondition, err)
@@ -76,15 +76,35 @@ func pricePilgrimOrder(product *domain.Product, levels domain.PriceLevels, quant
 	if err := ensurePriceCoversSupplierCost(product, price); err != nil {
 		return Price{}, err
 	}
+	if err := ensureRouteReady(route); err != nil {
+		return Price{}, err
+	}
 	return price, nil
 }
 
-func priceAgentOrder(product *domain.Product, levels domain.PriceLevels, quantity int32) (Price, error) {
+// ensureRouteReady refuses a digital product that cannot reach a supplier.
+//
+// Checked before the payment is created, not after. The old order was: take
+// the money, then discover at dispatch that nothing could deliver it — which
+// leaves a jamaah holding a paid order and someone having to unwind it by
+// hand. A refusal costs a person one message; a refund costs everyone an hour
+// and a customer's confidence.
+func ensureRouteReady(route domain.RouteReadiness) error {
+	if reason := route.Refusal(); reason != "" {
+		return connect.NewError(connect.CodeFailedPrecondition, errors.New(reason))
+	}
+	return nil
+}
+
+func priceAgentOrder(product *domain.Product, levels domain.PriceLevels, route domain.RouteReadiness, quantity int32) (Price, error) {
 	price, err := ComputePrice(levels, quantity, BuyerAgent, "")
 	if err != nil {
 		return Price{}, connect.NewError(connect.CodeFailedPrecondition, err)
 	}
 	if err := ensurePriceCoversSupplierCost(product, price); err != nil {
+		return Price{}, err
+	}
+	if err := ensureRouteReady(route); err != nil {
 		return Price{}, err
 	}
 	return price, nil
@@ -121,14 +141,14 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *hajjv1.CreateOrderR
 	if err != nil {
 		return nil, serviceError("OrderService.CreateOrder", apperror.ErrNotFound)
 	}
-	product, levels, err := s.productRepository.Pricing(ctx, info.OperatorID, req.ProductId)
+	product, levels, route, err := s.productRepository.Pricing(ctx, info.OperatorID, req.ProductId)
 	if err != nil {
 		return nil, serviceError("OrderService.CreateOrder", apperror.ErrNotFound)
 	}
 	if !product.IsActive {
 		return nil, serviceError("OrderService.CreateOrder", apperror.ErrFailedPrecondition)
 	}
-	price, err := pricePilgrimOrder(product, levels, req.Quantity, info.AgentID)
+	price, err := pricePilgrimOrder(product, levels, route, req.Quantity, info.AgentID)
 	if err != nil {
 		return nil, err
 	}
@@ -212,14 +232,14 @@ func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req 
 	if err != nil {
 		return nil, serviceError("OrderService.CreateManualOrder", err)
 	}
-	product, levels, err := s.productRepository.Pricing(ctx, op.ID, req.ProductId)
+	product, levels, route, err := s.productRepository.Pricing(ctx, op.ID, req.ProductId)
 	if err != nil {
 		return nil, serviceError("OrderService.CreateManualOrder", apperror.ErrNotFound)
 	}
 	if !product.IsActive {
 		return nil, serviceError("OrderService.CreateManualOrder", apperror.ErrFailedPrecondition)
 	}
-	price, err := pricePilgrimOrder(product, levels, req.Quantity, pilgrim.AgentID)
+	price, err := pricePilgrimOrder(product, levels, route, req.Quantity, pilgrim.AgentID)
 	if err != nil {
 		return nil, err
 	}
@@ -709,14 +729,14 @@ func (s *OrderService) CreateOrderForPilgrim(ctx context.Context, orgID, userID 
 	if err != nil {
 		return nil, serviceError("OrderService.CreateOrderForPilgrim", err)
 	}
-	product, levels, err := s.productRepository.Pricing(ctx, op.ID, req.ProductId)
+	product, levels, route, err := s.productRepository.Pricing(ctx, op.ID, req.ProductId)
 	if err != nil {
 		return nil, serviceError("OrderService.CreateOrderForPilgrim", apperror.ErrNotFound)
 	}
 	if !product.IsActive {
 		return nil, serviceError("OrderService.CreateOrderForPilgrim", apperror.ErrFailedPrecondition)
 	}
-	price, err := pricePilgrimOrder(product, levels, req.Quantity, pilgrim.AgentID)
+	price, err := pricePilgrimOrder(product, levels, route, req.Quantity, pilgrim.AgentID)
 	if err != nil {
 		return nil, err
 	}
@@ -783,7 +803,7 @@ func (s *OrderService) ListMyPurchaseCatalogue(ctx context.Context, orgID string
 	if err != nil {
 		return nil, serviceError("OrderService.ListMyPurchaseCatalogue", err)
 	}
-	products, levels, err := s.productRepository.ListPricing(ctx, op.ID, req.SeasonId)
+	products, levels, routes, err := s.productRepository.ListPricing(ctx, op.ID, req.SeasonId)
 	if err != nil {
 		return nil, serviceError("OrderService.ListMyPurchaseCatalogue", err)
 	}
@@ -792,7 +812,10 @@ func (s *OrderService) ListMyPurchaseCatalogue(ctx context.Context, orgID string
 		if !product.IsActive || (product.Category != "ROAMING_DATA" && product.Category != "PPOB_CREDIT") {
 			continue
 		}
-		price, priceErr := priceAgentOrder(product, levels[i], 1)
+		// Anything that would refuse at checkout is left out of the catalogue
+		// entirely — an unroutable product included here is one an agent can
+		// select, pay attention to, and only then be told no.
+		price, priceErr := priceAgentOrder(product, levels[i], routes[i], 1)
 		if priceErr != nil {
 			continue
 		}
@@ -826,7 +849,7 @@ func (s *OrderService) CreateOrderForSelf(ctx context.Context, orgID, userID str
 	if err != nil {
 		return nil, serviceError("OrderService.CreateOrderForSelf", err)
 	}
-	product, levels, err := s.productRepository.Pricing(ctx, op.ID, req.ProductId)
+	product, levels, route, err := s.productRepository.Pricing(ctx, op.ID, req.ProductId)
 	if err != nil {
 		return nil, serviceError("OrderService.CreateOrderForSelf", apperror.ErrNotFound)
 	}
@@ -834,7 +857,7 @@ func (s *OrderService) CreateOrderForSelf(ctx context.Context, orgID, userID str
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
 			errors.New("produk ini belum tersedia untuk pembelian mandiri agen"))
 	}
-	price, err := priceAgentOrder(product, levels, req.Quantity)
+	price, err := priceAgentOrder(product, levels, route, req.Quantity)
 	if err != nil {
 		return nil, err
 	}
