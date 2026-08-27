@@ -124,6 +124,7 @@ func main() {
 		refundRepository := repository.NewRefundRepository(pool)
 		platformRepository := repository.NewPlatformRepository(pool)
 		supplierCostRepository := repository.NewSupplierCostRepository(pool)
+		supplierRepository := repository.NewSupplierRepository(pool)
 
 		// Gate for Caddy's on-demand TLS. Caddy asks before obtaining a
 		// certificate for a hostname it has never seen; answering 200 here is
@@ -232,7 +233,7 @@ func main() {
 		notificationHandler := handler.NewNotificationHandler(notificationService)
 		kloterHandler := handler.NewKloterHandler(kloterService)
 		identityHandler := handler.NewIdentityHandler(identityService)
-		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, auditRepository)
+		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, auditRepository)
 		orderHandler := handler.NewOrderHandler(orderService)
 		platformHandler := handler.NewPlatformHandler(platformService)
 		broadcastHandler := handler.NewBroadcastHandler(broadcastService)

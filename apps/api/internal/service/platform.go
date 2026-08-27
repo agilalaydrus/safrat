@@ -22,11 +22,12 @@ import (
 type PlatformService struct {
 	platformRepository     *repository.PlatformRepository
 	supplierCostRepository *repository.SupplierCostRepository
+	supplierRepository     *repository.SupplierRepository
 	auditRepository        *repository.AuditRepository
 }
 
-func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, audit *repository.AuditRepository) *PlatformService {
-	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, auditRepository: audit}
+func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, audit *repository.AuditRepository) *PlatformService {
+	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, supplierRepository: suppliers, auditRepository: audit}
 }
 
 // requirePlatformAdmin is the only thing standing between a signed-in operator

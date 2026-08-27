@@ -38,6 +38,29 @@ service PlatformService {
   // observed from a supplier's own response — what was actually charged
   // outranks what somebody typed.
   rpc SetProductSupplierCost(SetProductSupplierCostRequest) returns (SetProductSupplierCostResponse);
+
+  // Supplier catalogue. Digital products are supplied by the platform, so all
+  // of this is platform-owned — a travel neither sets nor sees it.
+  rpc ListSuppliers(ListSuppliersRequest) returns (ListSuppliersResponse);
+  rpc SaveSupplier(SaveSupplierRequest) returns (SaveSupplierResponse);
+
+  // Which supplier fulfils which product.
+  rpc ListProductRoutes(ListProductRoutesRequest) returns (ListProductRoutesResponse);
+  rpc SaveProductRoute(SaveProductRouteRequest) returns (SaveProductRouteResponse);
+
+  // How a supplier's answers are read. Patterns rather than code, because
+  // suppliers change their response shape without warning and a deploy per
+  // change is not a workable answer.
+  rpc ListResponseRules(ListResponseRulesRequest) returns (ListResponseRulesResponse);
+  rpc CreateResponseRule(CreateResponseRuleRequest) returns (CreateResponseRuleResponse);
+  rpc SetResponseRuleActive(SetResponseRuleActiveRequest) returns (SetResponseRuleActiveResponse);
+  // TestResponseRules runs a sample response through a supplier's live rules
+  // without touching anything. Writing a pattern blind against real money is
+  // how bad rules reach production.
+  rpc TestResponseRules(TestResponseRulesRequest) returns (TestResponseRulesResponse);
+
+  // What suppliers actually said.
+  rpc ListSupplierLogs(ListSupplierLogsRequest) returns (ListSupplierLogsResponse);
 }
 
 message AmIPlatformAdminRequest {}
@@ -94,3 +117,138 @@ message SetProductSupplierCostRequest {
   int64 supplier_cost_idr = 2 [(buf.validate.field).int64.gte = 0];
 }
 message SetProductSupplierCostResponse { PlatformProduct product = 1; }
+
+message PlatformSupplier {
+  string id = 1;
+  string name = 2;
+  // Stable machine name, used in logs and routing so a display rename never
+  // orphans history.
+  string code = 3;
+  string base_url = 4;
+  // Names the environment variable holding this supplier's credentials. The
+  // credentials themselves are never stored, so a database dump carries none.
+  string credential_env_var = 5;
+  // ACTIVE | INACTIVE | SUSPENDED
+  string status = 6;
+  string notes = 7;
+  int32 route_count = 8;
+  int32 rule_count = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message ListSuppliersRequest {}
+message ListSuppliersResponse { repeated PlatformSupplier suppliers = 1; }
+
+message SaveSupplierRequest {
+  string name = 1 [(buf.validate.field).string = {min_len: 1, max_len: 120}];
+  // Upserted on: saving an existing code updates it rather than creating a
+  // second supplier.
+  string code = 2 [(buf.validate.field).string = {min_len: 2, max_len: 40, pattern: "^[a-z0-9_-]+$"}];
+  string base_url = 3 [(buf.validate.field).string.max_len = 300];
+  string credential_env_var = 4 [(buf.validate.field).string.max_len = 100];
+  string status = 5 [(buf.validate.field).string = {in: ["ACTIVE", "INACTIVE", "SUSPENDED"]}];
+  string notes = 6 [(buf.validate.field).string.max_len = 1000];
+}
+message SaveSupplierResponse { PlatformSupplier supplier = 1; }
+
+message PlatformProductRoute {
+  string id = 1;
+  string product_id = 2;
+  string product_name = 3;
+  string operator_name = 4;
+  string category = 5;
+  string supplier_id = 6;
+  string supplier_name = 7;
+  string supplier_sku = 8;
+  bool is_active = 9;
+}
+
+message ListProductRoutesRequest {}
+message ListProductRoutesResponse { repeated PlatformProductRoute routes = 1; }
+
+message SaveProductRouteRequest {
+  string product_id = 1 [(buf.validate.field).string.uuid = true];
+  string supplier_id = 2 [(buf.validate.field).string.uuid = true];
+  string supplier_sku = 3 [(buf.validate.field).string = {min_len: 1, max_len: 120}];
+  bool is_active = 4;
+}
+message SaveProductRouteResponse {}
+
+message SupplierResponseRule {
+  string id = 1;
+  string supplier_id = 2;
+  // Lower runs first; the first match decides.
+  int32 priority = 3;
+  string pattern = 4;
+  // SUCCESS | FAILED | PENDING
+  string outcome = 5;
+  // Named capture groups lifted out of a match, when the response carries them.
+  string reference_group = 6;
+  string cost_group = 7;
+  string description = 8;
+  bool is_active = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message ListResponseRulesRequest { string supplier_id = 1 [(buf.validate.field).string.uuid = true]; }
+message ListResponseRulesResponse { repeated SupplierResponseRule rules = 1; }
+
+message CreateResponseRuleRequest {
+  string supplier_id = 1 [(buf.validate.field).string.uuid = true];
+  int32 priority = 2 [(buf.validate.field).int32 = {gte: 1, lte: 1000}];
+  string pattern = 3 [(buf.validate.field).string = {min_len: 1, max_len: 2000}];
+  string outcome = 4 [(buf.validate.field).string = {in: ["SUCCESS", "FAILED", "PENDING"]}];
+  string reference_group = 5 [(buf.validate.field).string.max_len = 40];
+  string cost_group = 6 [(buf.validate.field).string.max_len = 40];
+  string description = 7 [(buf.validate.field).string.max_len = 300];
+}
+message CreateResponseRuleResponse { SupplierResponseRule rule = 1; }
+
+// Rules are deactivated rather than edited. Changing a pattern in place would
+// silently change how past logs should have been read.
+message SetResponseRuleActiveRequest {
+  string rule_id = 1 [(buf.validate.field).string.uuid = true];
+  bool is_active = 2;
+}
+message SetResponseRuleActiveResponse {}
+
+message TestResponseRulesRequest {
+  string supplier_id = 1 [(buf.validate.field).string.uuid = true];
+  string sample_response = 2 [(buf.validate.field).string = {min_len: 1, max_len: 8000}];
+}
+message TestResponseRulesResponse {
+  // SUCCESS | FAILED | PENDING | UNMATCHED
+  string outcome = 1;
+  // Which rule decided, empty when nothing matched.
+  string matched_rule_id = 2;
+  string reference = 3;
+  int64 cost_idr = 4;
+  // False when the response carries no cost. Distinct from a cost of zero,
+  // which would look like a free product.
+  bool cost_reported = 5;
+}
+
+message SupplierLogEntry {
+  string id = 1;
+  string supplier_name = 2;
+  string order_id = 3;
+  // REQUEST | CALLBACK
+  string direction = 4;
+  string endpoint = 5;
+  string request_body = 6;
+  string response_body = 7;
+  int32 http_status = 8;
+  string outcome = 9;
+  string supplier_reference = 10;
+  int64 cost_idr = 11;
+  string error = 12;
+  google.protobuf.Timestamp created_at = 13;
+}
+
+message ListSupplierLogsRequest {
+  // Narrows to responses no rule recognised — the queue that keeps the rules
+  // honest, since each one is a supplier saying something unreadable.
+  bool unmatched_only = 1;
+  int32 limit = 2;
+}
+message ListSupplierLogsResponse { repeated SupplierLogEntry logs = 1; }

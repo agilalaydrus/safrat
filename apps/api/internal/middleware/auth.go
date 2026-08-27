@@ -136,6 +136,17 @@ var sessionOnlyProcedures = map[string]bool{
 	"/hajj.v1.PlatformService/ListOperators":           true,
 	"/hajj.v1.PlatformService/ListProductsNeedingCost": true,
 	"/hajj.v1.PlatformService/SetProductSupplierCost":  true,
+	// The supplier catalogue — same gate, same reason: every one of these
+	// checks requirePlatformAdmin before touching anything.
+	"/hajj.v1.PlatformService/ListSuppliers":         true,
+	"/hajj.v1.PlatformService/SaveSupplier":          true,
+	"/hajj.v1.PlatformService/ListProductRoutes":     true,
+	"/hajj.v1.PlatformService/SaveProductRoute":      true,
+	"/hajj.v1.PlatformService/ListResponseRules":     true,
+	"/hajj.v1.PlatformService/CreateResponseRule":    true,
+	"/hajj.v1.PlatformService/SetResponseRuleActive": true,
+	"/hajj.v1.PlatformService/TestResponseRules":     true,
+	"/hajj.v1.PlatformService/ListSupplierLogs":      true,
 }
 
 // restrictedMemberProcedures lists RPCs a "restricted member" — an org

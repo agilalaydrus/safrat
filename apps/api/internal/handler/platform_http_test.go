@@ -38,7 +38,7 @@ func TestPlatformPanelIsClosedToOperatorStaffIntegration(t *testing.T) {
 
 	queries := db.New(pool)
 	platform := service.NewPlatformService(
-		repository.NewPlatformRepository(pool), repository.NewSupplierCostRepository(pool),
+		repository.NewPlatformRepository(pool), repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool),
 		repository.NewAuditRepository(queries))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
@@ -152,7 +152,7 @@ func TestPlatformCostSettingRespectsObservedCostsIntegration(t *testing.T) {
 
 	queries := db.New(pool)
 	costs := repository.NewSupplierCostRepository(pool)
-	platform := service.NewPlatformService(repository.NewPlatformRepository(pool), costs, repository.NewAuditRepository(queries))
+	platform := service.NewPlatformService(repository.NewPlatformRepository(pool), costs, repository.NewSupplierRepository(pool), repository.NewAuditRepository(queries))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
@@ -220,7 +220,7 @@ func TestPlatformAccessRequiresTwoFactorIntegration(t *testing.T) {
 
 	queries := db.New(pool)
 	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
-		repository.NewSupplierCostRepository(pool), repository.NewAuditRepository(queries))
+		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool), repository.NewAuditRepository(queries))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
@@ -264,5 +264,182 @@ func TestPlatformAccessRequiresTwoFactorIntegration(t *testing.T) {
 	}
 	if err := list(); err != nil {
 		t.Fatalf("an enrolled admin was refused: %v", err)
+	}
+}
+
+// The supplier catalogue end to end, through the real interceptor and gate:
+// register a supplier, teach it how to read one response shape, route a product
+// at it, and confirm the panel's rule tester agrees with what the worker would
+// conclude.
+func TestSupplierCatalogueOverHTTPIntegration(t *testing.T) {
+	databaseURL := os.Getenv("STOREFRONT_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("STOREFRONT_TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	t.Cleanup(pool.Close)
+
+	fixture := newHTTPFixture(t, pool)
+	var userID, productID string
+	if err := pool.QueryRow(ctx, `SELECT "userId" FROM session WHERE token = $1`, fixture.sessionToken).Scan(&userID); err != nil {
+		t.Fatalf("read session user: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO platform_admins (user_id) VALUES ($1)`, userID); err != nil {
+		t.Fatalf("grant: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE "user" SET "twoFactorEnabled" = true WHERE id = $1`, userID); err != nil {
+		t.Fatalf("enrol: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM platform_admins WHERE user_id = $1`, userID)
+	})
+	if err := pool.QueryRow(ctx, `SELECT id::text FROM products WHERE operator_id = $1`, fixture.operatorID).Scan(&productID); err != nil {
+		t.Fatalf("read product: %v", err)
+	}
+
+	queries := db.New(pool)
+	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
+		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool),
+		repository.NewAuditRepository(queries))
+	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
+		handler.NewPlatformHandler(platform),
+		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
+			repository.NewIdentityRepository(queries, repository.NewAgentRepository(queries)),
+			repository.NewSubscriptionRepository(pool))),
+	)
+	mux := http.NewServeMux()
+	mux.Handle(path, serviceHandler)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	client := hajjv1connect.NewPlatformServiceClient(server.Client(), server.URL)
+
+	auth := func(request interface{ Header() http.Header }) {
+		request.Header().Set("Authorization", "Bearer "+fixture.sessionToken)
+	}
+
+	code := "uji-" + fixture.operatorID[:8]
+	saveReq := connect.NewRequest(&hajjv1.SaveSupplierRequest{
+		Name: "Supplier Uji", Code: code, BaseUrl: "https://supplier.invalid/api",
+		CredentialEnvVar: "SUPPLIER_UJI_KEY", Status: "ACTIVE", Notes: "dibuat oleh test",
+	})
+	auth(saveReq)
+	saved, err := client.SaveSupplier(ctx, saveReq)
+	if err != nil {
+		t.Fatalf("save supplier: %v", err)
+	}
+	supplierID := saved.Msg.Supplier.Id
+	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), `DELETE FROM suppliers WHERE id = $1`, supplierID) })
+
+	// Saving the same code again updates rather than creating a second one —
+	// renaming for display must not orphan a supplier's history.
+	saveReq2 := connect.NewRequest(&hajjv1.SaveSupplierRequest{
+		Name: "Supplier Uji (baru)", Code: code, Status: "ACTIVE",
+	})
+	auth(saveReq2)
+	saved2, err := client.SaveSupplier(ctx, saveReq2)
+	if err != nil {
+		t.Fatalf("re-save supplier: %v", err)
+	}
+	if saved2.Msg.Supplier.Id != supplierID {
+		t.Fatalf("saving the same code created a second supplier (%s vs %s)", saved2.Msg.Supplier.Id, supplierID)
+	}
+
+	// A pattern that cannot compile must be refused here, not discovered later
+	// over live transactions.
+	badReq := connect.NewRequest(&hajjv1.CreateResponseRuleRequest{
+		SupplierId: supplierID, Priority: 10, Pattern: "(unclosed", Outcome: "SUCCESS",
+	})
+	auth(badReq)
+	if _, err := client.CreateResponseRule(ctx, badReq); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("a malformed pattern returned %v, want invalid_argument", connect.CodeOf(err))
+	}
+	// So must one naming a capture group it never defines.
+	missingGroup := connect.NewRequest(&hajjv1.CreateResponseRuleRequest{
+		SupplierId: supplierID, Priority: 10, Pattern: "OK", Outcome: "SUCCESS", ReferenceGroup: "ref",
+	})
+	auth(missingGroup)
+	if _, err := client.CreateResponseRule(ctx, missingGroup); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("a rule naming an absent group returned %v, want invalid_argument", connect.CodeOf(err))
+	}
+
+	goodReq := connect.NewRequest(&hajjv1.CreateResponseRuleRequest{
+		SupplierId: supplierID, Priority: 10,
+		Pattern:        `(?i)"status"\s*:\s*"SUCCESS".*?"sn"\s*:\s*"(?P<ref>[^"]+)".*?"harga"\s*:\s*(?P<cost>[0-9.]+)`,
+		Outcome:        "SUCCESS",
+		ReferenceGroup: "ref", CostGroup: "cost", Description: "format JSON standar",
+	})
+	auth(goodReq)
+	if _, err := client.CreateResponseRule(ctx, goodReq); err != nil {
+		t.Fatalf("create rule: %v", err)
+	}
+
+	// The tester is the point of the whole screen: try a pattern before
+	// trusting it with money.
+	testReq := connect.NewRequest(&hajjv1.TestResponseRulesRequest{
+		SupplierId:     supplierID,
+		SampleResponse: `{"status":"SUCCESS","sn":"SN-88123","harga":18.500}`,
+	})
+	auth(testReq)
+	reading, err := client.TestResponseRules(ctx, testReq)
+	if err != nil {
+		t.Fatalf("test rules: %v", err)
+	}
+	if reading.Msg.Outcome != "SUCCESS" || reading.Msg.Reference != "SN-88123" {
+		t.Fatalf("outcome=%s reference=%s, want SUCCESS and SN-88123", reading.Msg.Outcome, reading.Msg.Reference)
+	}
+	if !reading.Msg.CostReported || reading.Msg.CostIdr != 18_500 {
+		t.Fatalf("cost=%d reported=%v, want 18500 reported", reading.Msg.CostIdr, reading.Msg.CostReported)
+	}
+
+	// Anything the rules do not recognise reads as UNMATCHED, never as a
+	// failure — a response nobody taught the system to read must not refund a
+	// transaction the supplier may have delivered.
+	unknownReq := connect.NewRequest(&hajjv1.TestResponseRulesRequest{
+		SupplierId: supplierID, SampleResponse: "OK 4711",
+	})
+	auth(unknownReq)
+	unknown, err := client.TestResponseRules(ctx, unknownReq)
+	if err != nil {
+		t.Fatalf("test unknown: %v", err)
+	}
+	if unknown.Msg.Outcome != "UNMATCHED" {
+		t.Fatalf("outcome = %s for an unrecognised response, want UNMATCHED", unknown.Msg.Outcome)
+	}
+
+	// Routing a product at the supplier, then confirming it is what the
+	// fulfilment path would find.
+	routeReq := connect.NewRequest(&hajjv1.SaveProductRouteRequest{
+		ProductId: productID, SupplierId: supplierID, SupplierSku: "PULSA-10K", IsActive: true,
+	})
+	auth(routeReq)
+	if _, err := client.SaveProductRoute(ctx, routeReq); err != nil {
+		t.Fatalf("save route: %v", err)
+	}
+	listReq := connect.NewRequest(&hajjv1.ListProductRoutesRequest{})
+	auth(listReq)
+	routes, err := client.ListProductRoutes(ctx, listReq)
+	if err != nil {
+		t.Fatalf("list routes: %v", err)
+	}
+	var found bool
+	for _, route := range routes.Msg.Routes {
+		if route.ProductId == productID && route.SupplierSku == "PULSA-10K" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("the saved route is not in the list")
+	}
+
+	// And an operator owner without platform access sees none of it.
+	other := newHTTPFixture(t, pool)
+	deniedReq := connect.NewRequest(&hajjv1.ListSuppliersRequest{})
+	deniedReq.Header().Set("Authorization", "Bearer "+other.sessionToken)
+	if _, err := client.ListSuppliers(ctx, deniedReq); connect.CodeOf(err) != connect.CodePermissionDenied {
+		t.Fatalf("an operator owner reached the supplier catalogue (%v)", connect.CodeOf(err))
 	}
 }

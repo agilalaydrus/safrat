@@ -843,7 +843,7 @@ ran it, not something to carry in the repository.
 agent portal's Rekap Transaksi tab. Those need pilgrim, leader and agent
 fixtures respectively; the operator storage state cannot reach them.
 
-#### In progress — PR 18: supplier routing, the foundation of the admin architecture
+#### Done — PR 18: supplier routing and its management surface
 
 Owner asked for a real management architecture on the admin side: products,
 prices, product routing, supplier response and callback handling (accept, parse
@@ -894,10 +894,32 @@ Three decisions in there worth keeping:
 Rules are validated when **saved**, so a bad pattern is refused in the panel
 rather than discovered over live transactions at three in the morning.
 
-**Still to build on this foundation:** the admin RPCs and screens for suppliers,
-routes and rules; the callback endpoint that feeds responses through the reader;
-the fulfilment worker that calls suppliers and records
-`supplier_cost_observations`; and the logs and transaction-monitoring views.
+**Management surface, all behind the platform gate.** `PlatformService` gained
+nine methods: supplier list and upsert, route list and save, rule list, create
+and deactivate, a rule tester, and the log view.
+
+Three choices in there worth keeping:
+
+- **Suppliers upsert on `code`, not id.** Saving an existing code updates it,
+  so renaming a supplier for display can never create a second one alongside
+  its own history. Verified over HTTP.
+- **Rules are deactivated, never edited.** Changing a pattern in place would
+  silently change how past logs *should* have been read; a new rule plus
+  deactivating the old one keeps that history legible.
+- **`TestResponseRules` runs a sample through the live rules, touching
+  nothing.** Writing a pattern blind against real money is how bad rules reach
+  production. The panel can try one first, and the tester uses exactly the code
+  the worker will.
+
+Rules are compiled at save time, so a malformed pattern — or one naming a
+capture group it never defines — is refused with `invalid_argument` rather than
+discovered over live transactions. Both cases are covered by the HTTP test,
+along with an operator owner being refused the whole catalogue.
+
+**Still to build:** the admin screens for all of this (the RPCs exist, the UI
+does not); the callback endpoint feeding responses through the reader; the
+fulfilment worker that calls suppliers and records
+`supplier_cost_observations`; and transaction monitoring.
 
 #### Open — ordered
 

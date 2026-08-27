@@ -27,7 +27,7 @@ func TestRedisBusCrossInstance(t *testing.T) {
 	defer rdbA.Close()
 	defer rdbB.Close()
 
-	publisher := NewRedisBus(rdbA) // replica A
+	publisher := NewRedisBus(rdbA)  // replica A
 	subscriber := NewRedisBus(rdbB) // replica B
 
 	op := "op-test-" + time.Now().Format("150405.000000")
