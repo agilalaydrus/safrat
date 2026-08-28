@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { organization, twoFactor } from "better-auth/plugins";
 import { Pool } from "pg";
 import { invitationEmail, resetPasswordEmail, sendEmail, verifyEmailEmail } from "./email";
+import { twoFactorEmailGate } from "./two-factor-email-gate";
 
 // No connectionString — a URL string breaks if POSTGRES_PASSWORD contains
 // characters pg-connection-string's strict parser rejects (this happened in
@@ -12,6 +13,9 @@ const pool = new Pool();
 export const auth = betterAuth({
   database: pool,
   plugins: [
+    // Passwordless accounts must prove access to their verified email before
+    // the built-in enable endpoint may create an authenticator secret.
+    twoFactorEmailGate(),
     // Second factor for email/password sign-in. Google accounts already carry
     // whatever second factor the Google account has, so this only bites on the
     // credential path.
@@ -23,6 +27,7 @@ export const auth = betterAuth({
     // them up, and therefore needs no knowledge of any of this.
     twoFactor({
       issuer: "TawafiqHub",
+      allowPasswordless: true,
     }),
     organization({
       allowUserToCreateOrganization: true,

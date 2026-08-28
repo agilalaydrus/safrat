@@ -125,13 +125,16 @@ test.describe("money screens render", () => {
     await expect(page.getByRole("heading", { name: /Verifikasi Dua Langkah/i })).toBeVisible();
     await expect(page.getByText(/Langkah 1/)).toBeVisible();
     await capture(page, "04-two-factor-enrolment");
+
+    await page.getByLabel(/Kata sandi akun/i).fill(fixture.password);
+    await page.getByRole("button", { name: /^Lanjutkan$/i }).click();
+    await expect(page.getByLabel(/QR Code untuk Google Authenticator atau Authy/i)).toBeVisible();
+    await capture(page, "17-two-factor-qr");
   });
 
-  // A Google account has no password: Better Auth writes no `credential` row
-  // for it. The enrolment page asked for one anyway, so staff who signed up
-  // with Google were sent to a screen with no way forward — locked out of the
-  // dashboard entirely, since the gate refuses to open until enrolment is done.
-  test("an account with no password is offered a way to create one", async ({ page }) => {
+  // A Google account has no password: it proves ownership with an email OTP,
+  // and the built-in enable endpoint must reject a direct bypass attempt.
+  test("an account with no password uses a server-gated email OTP", async ({ page }) => {
     const [credential] = await query<{ id: string; accountId: string; password: string }>(
       `SELECT a.id, a."accountId", a.password FROM account a
        JOIN "user" u ON u.id = a."userId"
@@ -149,12 +152,32 @@ test.describe("money screens render", () => {
       await unenrolFixtureStaff();
 
       await page.goto("/keamanan");
-      await expect(page.getByText(/Langkah 1 — buat kata sandi akun/i)).toBeVisible();
+      await expect(page.getByText(/Langkah 1 — verifikasi email akun/i)).toBeVisible();
       // The dead end was a password field on an account that has none.
       await expect(page.getByLabel(/Kata sandi akun/i)).toHaveCount(0);
-      await expect(page.getByRole("button", { name: /Kirim tautan buat kata sandi/i })).toBeVisible();
+      await expect(page.getByRole("button", { name: /Kirim OTP ke email/i })).toBeVisible();
+
+      const bypassStatus = await page.evaluate(async () => {
+        const response = await fetch("/api/auth/two-factor/enable", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        return response.status;
+      });
+      expect(bypassStatus).toBe(403);
+
+      // CI deliberately has no SMTP credentials, so sendEmail is a no-op; the
+      // endpoint still exercises OTP creation and reveals the code input.
+      await page.getByRole("button", { name: /Kirim OTP ke email/i }).click();
+      await expect(page.getByLabel(/Kode OTP dari email/i)).toBeVisible();
       await capture(page, "16-keamanan-no-password");
     } finally {
+      await query(
+        `DELETE FROM verification v USING "user" u
+         WHERE u.email = $1 AND v.identifier LIKE '%' || u.id || '%'`,
+        [fixture.email],
+      );
       await query(
         `INSERT INTO account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt")
          SELECT $1, $2, 'credential', u.id, $3, NOW(), NOW() FROM "user" u WHERE u.email = $4

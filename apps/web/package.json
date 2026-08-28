@@ -26,8 +26,10 @@
     "firebase": "^12.17.1",
     "lucide-react": "^1.33.0",
     "next": "15.5.23",
+    "nodemailer": "^9.0.5",
     "papaparse": "^5.6.0",
     "pg": "^8.23.0",
+    "qrcode.react": "^4.2.0",
     "react": "19.0.3",
     "react-dom": "19.0.3",
     "zod": "^3.24.1"
@@ -37,6 +39,7 @@
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.10.2",
+    "@types/nodemailer": "^8.0.1",
     "@types/papaparse": "^5.5.2",
     "@types/pg": "^8.21.0",
     "@types/react": "^19.0.2",

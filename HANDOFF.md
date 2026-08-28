@@ -2571,3 +2571,28 @@ Repo sudah punya skrip PWA yang benar (`e2e:pwa:build` dengan `distDir` sendiri,
 ke `.next` dan menyajikannya dengan `next start` — dan menabrak setiap masalah
 yang sudah dijelaskan README: dev server dan build produksi berbagi `.next`,
 `public/sw.js` ditimpa setiap build, dan API hanya menerima satu origin CORS.
+
+---
+
+## Enrolment 2FA Google: OTP email + QR (2026-08-27)
+
+Alur tautan pembuatan password pada bagian sebelumnya sudah diganti. Akun yang
+punya credential tetap mengonfirmasi password; akun Google-only menerima OTP 6
+digit ke email terverifikasi lalu langsung memasang authenticator tanpa membuat
+password lokal.
+
+Pengaman penting berada di server, bukan hanya UI:
+
+- OTP berlaku 5 menit, disimpan sebagai HMAC, maksimal 5 percobaan, dan baru
+  dapat dikirim ulang setelah 60 detik.
+- OTP yang benar membuat grant 5 menit, satu kali pakai, dan terikat pada token
+  sesi. Hook Better Auth menolak `/two-factor/enable` untuk akun passwordless
+  jika grant ini tidak ada, jadi endpoint bawaan tidak dapat dipanggil langsung
+  untuk melewati OTP.
+- `twoFactor({ allowPasswordless: true })` hanya membuka jalur setelah hook di
+  atas mengizinkannya. QR berasal dari `totpURI`; kode pertama dari aplikasi
+  authenticator tetap wajib diverifikasi sebelum 2FA aktif.
+
+Email transaksional sekarang memakai SMTP Hostinger melalui Nodemailer. Sebelum
+deploy, isi `SMTP_USER`, `SMTP_PASSWORD`, dan opsional `SMTP_FROM_EMAIL` di
+`.env.prod`; default host/port adalah `smtp.hostinger.com:465` dengan TLS.

@@ -155,8 +155,11 @@ services:
       BETTER_AUTH_URL: https://tawafiqhub.id
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      RESEND_API_KEY: ${RESEND_API_KEY}
-      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL}
+      SMTP_HOST: ${SMTP_HOST:-smtp.hostinger.com}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-${SMTP_USER}}
       SENTRY_DSN: ${SENTRY_DSN}
     ports:
       - "127.0.0.1:9101:3000"   # nginx → localhost:9101 → container :3000
@@ -216,13 +219,14 @@ NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
 NEXT_PUBLIC_FIREBASE_APP_ID=...
 NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
 
-# Email — password reset + email verification, both link-based
-# (apps/web/lib/email.ts). No-op (logged) when unset. RESEND_FROM_EMAIL
-# must belong to a domain verified in Resend, or falls back to
-# onboarding@resend.dev (sandbox — only deliverable to the Resend
-# account's own address).
-RESEND_API_KEY=re_...
-RESEND_FROM_EMAIL=noreply@tawafiqhub.id
+# Email — password reset, email verification, invitations, and security OTP
+# (apps/web/lib/email.ts). Hostinger mailbox password, not the hPanel password.
+# No-op (logged) when SMTP_USER or SMTP_PASSWORD is unset.
+SMTP_HOST=smtp.hostinger.com
+SMTP_PORT=465
+SMTP_USER=noreply@tawafiqhub.id
+SMTP_PASSWORD=replace-with-mailbox-password
+SMTP_FROM_EMAIL=noreply@tawafiqhub.id
 
 # Xendit (Module 7 — Orders & Payments) — apps/api only, unrelated to
 # email/web. Without XENDIT_SECRET_KEY, checkout fails fast with a clear
@@ -938,16 +942,19 @@ leakage. **Already production-grade, verified live, no action needed:**
 
 **Closed since the initial audit (2026-08-16):**
 
-- **Password reset + email verification** — both link-based, via Resend
-  (`lib/email.ts`, wired into `lib/auth.ts`). `requireEmailVerification: true`
+- **Password reset + email verification** — both link-based, via Hostinger SMTP
+  (`lib/email.ts`, wired into `lib/auth.ts`). Authenticator enrolment for a
+  Google-only account uses a 5-minute email OTP through the same mailbox.
+  `requireEmailVerification: true`
   means an unverified account can no longer sign in and use the app
   indefinitely — this is also what gives account-linking's
   `requireLocalEmailVerified` guard (below) real teeth for an organically
   signed-up account, not just a Google-first one. `/forgot-password` and
   `/reset-password` are the user-facing pages. Verified live against a
-  real Resend send (see commit) — RESEND_API_KEY must still be set per
-  environment (`.env.local` for dev, `.env.prod` for production) or these
-  are silent no-ops, same as Firebase/Sentry.
+  real send after SMTP credentials are configured — SMTP_USER and
+  SMTP_PASSWORD must be set per environment (`.env.local` for dev,
+  `.env.prod` for production) or these are silent no-ops, same as
+  Firebase/Sentry.
 
 **Not yet built — do before handling real payment data (Module 7):**
 

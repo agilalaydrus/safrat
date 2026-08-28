@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { IconShieldCheck, IconShieldLock, IconCopy, IconCheck } from "@tabler/icons-react";
+import { QRCodeSVG } from "qrcode.react";
 import { authClient } from "@/lib/auth-client";
 
 // Enrolment lives outside the admin panel on purpose. Platform access requires
@@ -20,15 +21,15 @@ export default function SecurityPage() {
   // null while unknown, so the password step is never shown to an account that
   // turns out not to have one.
   const [hasPassword, setHasPassword] = useState<boolean | null>(null);
-  const [resetSent, setResetSent] = useState(false);
+  const [emailOtp, setEmailOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
 
   const enabled = Boolean((session?.user as { twoFactorEnabled?: boolean } | undefined)?.twoFactorEnabled);
 
   // An account created through Google has no password at all — Better Auth
-  // writes no `credential` row for it. Enrolment needs one, so asking for a
-  // password the account has never had is a dead end, and it was one: the
-  // gate sent staff here, this page asked for a password, and there was no way
-  // forward from that screen.
+  // writes no `credential` row for it. Those accounts prove ownership with a
+  // short-lived email OTP instead of being forced to create a local password.
   useEffect(() => {
     if (!session?.user) return;
     let cancelled = false;
@@ -45,28 +46,38 @@ export default function SecurityPage() {
     return () => { cancelled = true; };
   }, [session?.user]);
 
-  // The way out for a Google-only account: the reset flow creates the missing
-  // credential record, so it doubles as "set a password for the first time".
-  const sendPasswordSetup = async () => {
-    const email = session?.user?.email;
-    if (!email) return;
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = window.setInterval(() => setResendIn((current) => Math.max(0, current - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [resendIn]);
+
+  const postEnrollmentOtp = async (action: "request" | "verify", body: Record<string, string> = {}) => {
+    const response = await fetch(`/api/auth/two-factor/enrollment-otp/${action}`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json().catch(() => ({})) as { message?: string };
+    if (!response.ok) throw new Error(payload.message || "Permintaan tidak dapat diproses.");
+  };
+
+  const sendEnrollmentOtp = async () => {
     setBusy(true);
     setError("");
     try {
-      const { error: failed } = await authClient.requestPasswordReset({
-        email,
-        redirectTo: "/keamanan",
-      });
-      if (failed) { setError(failed.message ?? "Gagal mengirim tautan."); return; }
-      setResetSent(true);
+      await postEnrollmentOtp("request");
+      setOtpSent(true);
+      setResendIn(60);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Gagal mengirim tautan.");
+      setError(err instanceof Error ? err.message : "Gagal mengirim kode OTP.");
     } finally {
       setBusy(false);
     }
   };
 
-  useEffect(() => { setError(""); }, [password, code]);
+  useEffect(() => { setError(""); }, [password, emailOtp, code]);
 
   // The plugin needs the account password to enable 2FA — proof that whoever
   // is holding this session is the account owner, not somebody who found an
@@ -81,6 +92,24 @@ export default function SecurityPage() {
       setBackupCodes(data?.backupCodes ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memulai pendaftaran.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const verifyEmailOtpAndStart = async () => {
+    const otp = emailOtp.replace(/\D/g, "");
+    if (otp.length !== 6) { setError("Masukkan 6 digit OTP dari email Anda."); return; }
+    setBusy(true);
+    setError("");
+    try {
+      await postEnrollmentOtp("verify", { otp });
+      const { data, error: failed } = await authClient.twoFactor.enable({});
+      if (failed) { setError(failed.message ?? "Gagal memulai pemasangan authenticator."); return; }
+      setTotpUri(data?.totpURI ?? "");
+      setBackupCodes(data?.backupCodes ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kode OTP tidak dapat diverifikasi.");
     } finally {
       setBusy(false);
     }
@@ -145,32 +174,49 @@ export default function SecurityPage() {
       <h1 style={title}>Verifikasi Dua Langkah</h1>
       <p style={{ ...muted, margin: "0 0 20px", maxWidth: 560 }}>
         Menambahkan kode dari aplikasi authenticator (Google Authenticator, Authy, atau sejenisnya)
-        pada setiap login. Berlaku juga untuk akun yang masuk lewat Google — akun tersebut perlu
-        membuat kata sandi lebih dulu, karena kode authenticator terikat pada kata sandi akun.
+        untuk melindungi akses akun. Akun yang tidak memiliki kata sandi akan dikonfirmasi melalui
+        OTP yang dikirim ke email terverifikasi.
       </p>
 
       {hasPassword === false ? (
         <section style={card}>
           <p style={{ display: "flex", gap: 8, alignItems: "center", margin: 0, fontWeight: 700 }}>
-            <IconShieldLock size={20} />Langkah 1 — buat kata sandi akun
+            <IconShieldLock size={20} />Langkah 1 — verifikasi email akun
           </p>
           <p style={{ ...muted, margin: 0 }}>
-            Akun ini masuk lewat Google dan belum punya kata sandi, jadi belum ada yang bisa
-            dikonfirmasi di sini. Kami kirimkan tautan ke <strong>{session?.user?.email}</strong>{" "}
-            untuk membuatnya. Setelah itu kembali ke halaman ini untuk memasang authenticator.
+            Akun ini belum mempunyai kata sandi. Kami akan mengirim OTP 6 digit ke{" "}
+            <strong>{session?.user?.email}</strong> untuk memastikan bahwa akun ini milik Anda.
           </p>
           <p style={{ ...muted, margin: 0 }}>
-            Login lewat Google tetap bisa dipakai seperti biasa — kata sandi ini menambah cara
-            masuk, bukan menggantikannya.
+            OTP berlaku selama 5 menit dan hanya dapat dicoba maksimal 5 kali.
           </p>
+          {otpSent && (
+            <label style={label}>
+              Kode OTP dari email
+              <input
+                inputMode="numeric"
+                maxLength={6}
+                value={emailOtp}
+                onChange={(event) => setEmailOtp(event.target.value.replace(/\D/g, ""))}
+                style={{ ...input, letterSpacing: "0.3em", fontSize: 18 }}
+                autoComplete="one-time-code"
+                autoFocus
+              />
+            </label>
+          )}
           {error && <p style={errorText}>{error}</p>}
-          {resetSent ? (
-            <p style={{ margin: 0, fontWeight: 700, color: "var(--color-emerald-900)" }}>
-              Tautan sudah dikirim. Periksa email Anda, termasuk folder spam.
-            </p>
+          {otpSent ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+              <button onClick={verifyEmailOtpAndStart} disabled={busy} style={primary}>
+                {busy ? "Memverifikasi…" : "Verifikasi dan lanjutkan"}
+              </button>
+              <button onClick={sendEnrollmentOtp} disabled={busy || resendIn > 0} style={ghost}>
+                {resendIn > 0 ? `Kirim ulang (${resendIn}d)` : "Kirim ulang OTP"}
+              </button>
+            </div>
           ) : (
-            <button onClick={sendPasswordSetup} disabled={busy} style={primary}>
-              {busy ? "Mengirim…" : "Kirim tautan buat kata sandi"}
+            <button onClick={sendEnrollmentOtp} disabled={busy} style={primary}>
+              {busy ? "Mengirim…" : "Kirim OTP ke email"}
             </button>
           )}
         </section>
@@ -195,12 +241,15 @@ export default function SecurityPage() {
             <IconShieldLock size={20} />Langkah 2 — daftarkan di aplikasi authenticator
           </p>
           <p style={{ ...muted, margin: 0 }}>
-            Buka aplikasi authenticator Anda, pilih tambah akun secara manual, lalu tempel kode di bawah ini.
+            Buka aplikasi authenticator Anda, pilih tambah akun, lalu pindai QR Code berikut.
           </p>
-          {/* The raw URI rather than a QR image: rendering a QR would mean
-              pulling in a library for one screen, and every authenticator app
-              accepts a pasted otpauth:// URI. */}
-          <code style={uriBox}>{totpUri}</code>
+          <div style={qrBox} aria-label="QR Code untuk Google Authenticator atau Authy">
+            <QRCodeSVG value={totpUri} size={200} level="M" />
+          </div>
+          <details>
+            <summary style={{ cursor: "pointer", color: "var(--color-warm-700)", fontSize: 13 }}>Tidak bisa memindai? Tampilkan kode manual</summary>
+            <code style={{ ...uriBox, marginTop: 10 }}>{totpUri}</code>
+          </details>
 
           <label style={label}>
             Kode 6 digit dari aplikasi
@@ -256,5 +305,6 @@ const primary: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8
 const ghost: React.CSSProperties = { minHeight: 40, border: "1px solid var(--color-cream-400)", borderRadius: 8, background: "transparent", color: "var(--color-warm-700)", display: "inline-flex", alignItems: "center", gap: 6, justifySelf: "start", padding: "0 14px", fontSize: 13 };
 const errorText: React.CSSProperties = { color: "var(--color-danger-600)", margin: 0, fontSize: 14 };
 const uriBox: React.CSSProperties = { display: "block", padding: 12, background: "var(--color-cream-100)", borderRadius: 8, fontSize: 12, overflowWrap: "anywhere", color: "var(--color-warm-700)" };
+const qrBox: React.CSSProperties = { width: "fit-content", padding: 14, background: "#fff", border: "1px solid var(--color-cream-300)", borderRadius: 10 };
 const codeGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))", gap: 8 };
 const codeChip: React.CSSProperties = { padding: "8px 10px", background: "var(--color-cream-100)", borderRadius: 6, fontSize: 13, textAlign: "center", letterSpacing: ".05em" };

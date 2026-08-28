@@ -111,7 +111,7 @@ Background jobs:  asynq  (Redis-backed, Go-native)
                   - Goroutine pool in same binary
                   - Real periodic tasks: agent tier recalc every 5min, SOS escalation every 1min — no asynqmon UI built
 Push notif:       Firebase Admin Go SDK — optional, no-op when `FIREBASE_SERVICE_ACCOUNT_JSON` is unset
-Email:            Resend, via `apps/web/lib/email.ts` (raw HTTP API call, no SDK) — password reset + email verification, both link-based, wired into `lib/auth.ts`. No-op (logged) when `RESEND_API_KEY` is unset.
+Email:            Hostinger SMTP, via `apps/web/lib/email.ts` (Nodemailer) — password reset, email verification, invitations, and 2FA enrolment OTP. No-op (logged) when SMTP credentials are unset.
 WhatsApp/SMS:     ~~Twilio REST API~~ — never built, not in current `.env.example`
 File storage:     ~~Cloudflare R2~~ — never built, no code path reads `R2_*` vars yet; reserved for future product-image/PDF-export storage
 Observability:    Sentry Go SDK (`SENTRY_DSN`, optional/no-op when unset) + structured JSON logging via `slog` — Axiom vars exist in `.env.example` but log shipping isn't wired up
@@ -1273,8 +1273,11 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=""
 
 # Email — password reset + email verification, both link-based
 # (apps/web/lib/email.ts). No-op (logged, not thrown) when unset.
-RESEND_API_KEY=""
-RESEND_FROM_EMAIL=""
+SMTP_HOST="smtp.hostinger.com"
+SMTP_PORT="465"
+SMTP_USER=""
+SMTP_PASSWORD=""
+SMTP_FROM_EMAIL=""
 
 # Observability
 SENTRY_DSN=""
@@ -1397,7 +1400,7 @@ alone can't verify roles since Edge middleware has no DB access.
 - [ ] Cloudflare R2 bucket created, CORS configured
 - [ ] VAPID keys generated, added to env
 - [ ] `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` set, redirect URI registered in Google Cloud Console (see §9)
-- [ ] `RESEND_API_KEY` set (password reset + email verification are wired — see DEPLOY.md §13 — but silently no-op without a real key)
+- [ ] Hostinger `SMTP_USER` and `SMTP_PASSWORD` set (password reset, email verification, invitations, and 2FA OTP are wired — see DEPLOY.md §13 — but silently no-op without them)
 
 **PWA:**
 - [ ] PWA manifest: "Add to Home Screen" appears on Android
