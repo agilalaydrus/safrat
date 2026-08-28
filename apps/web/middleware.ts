@@ -7,6 +7,9 @@ const PUBLIC_PATHS = [
   "/register",
   "/sign-in",
   "/sign-up",
+  // A pending 2FA challenge deliberately has no authenticated session yet;
+  // the signed short-lived Better Auth challenge cookie is its only proof.
+  "/two-factor-challenge",
   "/forgot-password",
   "/reset-password",
   "/accept-invitation",

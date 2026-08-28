@@ -3,6 +3,7 @@ import { organization, twoFactor } from "better-auth/plugins";
 import { Pool } from "pg";
 import { invitationEmail, resetPasswordEmail, sendEmail, verifyEmailEmail } from "./email";
 import { twoFactorEmailGate } from "./two-factor-email-gate";
+import { twoFactorSecurity } from "./two-factor-security";
 
 // No connectionString — a URL string breaks if POSTGRES_PASSWORD contains
 // characters pg-connection-string's strict parser rejects (this happened in
@@ -16,9 +17,10 @@ export const auth = betterAuth({
     // Passwordless accounts must prove access to their verified email before
     // the built-in enable endpoint may create an authenticator secret.
     twoFactorEmailGate(),
-    // Second factor for email/password sign-in. Google accounts already carry
-    // whatever second factor the Google account has, so this only bites on the
-    // credential path.
+    // Better Auth's built-in challenge covers credential sign-in. TawafiqHub's
+    // companion plugin also turns an enrolled Google callback into the same
+    // pending challenge, and protects disable/regeneration with step-up auth.
+    twoFactorSecurity(pool),
     //
     // The plugin is what makes the session trustworthy end to end: it does not
     // create a session at all until the TOTP code is verified — the pending one

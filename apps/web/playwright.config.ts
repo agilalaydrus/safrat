@@ -55,6 +55,14 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], storageState: "./e2e/.auth/operator.json" },
     },
     {
+      // Uses its own short-lived account and no saved storage state: the spec
+      // deliberately signs out and back in to exercise the real pending 2FA
+      // cookie, a one-use backup code, and management step-up grants.
+      name: "auth-security",
+      testMatch: /two-factor-security\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+    },
+    {
       // Autoplay is a browser policy. The permitted branch is real (Chromium
       // launches with the policy disabled); the blocked branch injects the
       // rejection, because headless Chromium will not enforce it.

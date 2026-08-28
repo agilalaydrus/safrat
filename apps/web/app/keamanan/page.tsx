@@ -6,6 +6,7 @@ import { IconShieldCheck, IconShieldLock, IconCopy, IconCheck } from "@tabler/ic
 import { QRCodeSVG } from "qrcode.react";
 import { authClient } from "@/lib/auth-client";
 import { resolveLandingPath } from "@/lib/post-login";
+import { TwoFactorChallenge } from "@/components/auth/TwoFactorChallenge";
 
 const ENROLLMENT_DRAFT_KEY = "tawafiqhub:2fa-enrollment-draft";
 const ENROLLMENT_DRAFT_TTL_MS = 15 * 60 * 1000;
@@ -50,6 +51,12 @@ export default function SecurityPage() {
   const [emailOtp, setEmailOtp] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [resendIn, setResendIn] = useState(0);
+  const [manageOpen, setManageOpen] = useState(false);
+  const [managementVerified, setManagementVerified] = useState(false);
+  const [managementPassword, setManagementPassword] = useState("");
+  const [managementBusy, setManagementBusy] = useState(false);
+  const [managementNotice, setManagementNotice] = useState("");
+  const [replacementCodes, setReplacementCodes] = useState<string[]>([]);
 
   const enabled = Boolean((session?.user as { twoFactorEnabled?: boolean } | undefined)?.twoFactorEnabled);
 
@@ -220,6 +227,55 @@ export default function SecurityPage() {
     }
   };
 
+  const regenerateBackupCodes = async () => {
+    if (hasPassword && !managementPassword) {
+      setError("Masukkan kata sandi akun sebelum mengganti kode cadangan.");
+      return;
+    }
+    setManagementBusy(true);
+    setError("");
+    setManagementNotice("");
+    try {
+      const result = await authClient.twoFactor.generateBackupCodes({
+        password: managementPassword || undefined,
+      });
+      if (result.error || !result.data?.backupCodes) {
+        throw new Error(result.error?.message || "Kode cadangan tidak dapat dibuat.");
+      }
+      setReplacementCodes(result.data.backupCodes);
+      setCopied(false);
+      setManagementVerified(false);
+      setManagementPassword("");
+      setManagementNotice("Kode cadangan lama sudah tidak berlaku. Simpan kode baru di bawah sekarang.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mengganti kode cadangan.");
+    } finally {
+      setManagementBusy(false);
+    }
+  };
+
+  const disableAuthenticator = async () => {
+    if (hasPassword && !managementPassword) {
+      setError("Masukkan kata sandi akun sebelum menonaktifkan 2FA.");
+      return;
+    }
+    setManagementBusy(true);
+    setError("");
+    try {
+      const result = await authClient.twoFactor.disable({
+        password: managementPassword || undefined,
+      });
+      if (result.error) throw new Error(result.error.message || "2FA tidak dapat dinonaktifkan.");
+      // Disable rotates the Better Auth session. A full navigation guarantees
+      // the page reads that new session and, for staff, immediately starts the
+      // mandatory re-enrolment path instead of displaying stale active state.
+      window.location.href = "/keamanan";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menonaktifkan 2FA.");
+      setManagementBusy(false);
+    }
+  };
+
   if (isPending) return <main style={page}><p style={muted}>Memuat...</p></main>;
 
   if (enabled && !totpUri) {
@@ -238,6 +294,66 @@ export default function SecurityPage() {
           <button onClick={() => void continueToApp()} disabled={redirecting} style={primary}>
             {redirecting ? "Mengalihkan…" : "Lanjutkan ke aplikasi"}
           </button>
+          <button
+            onClick={() => {
+              setManageOpen((current) => !current);
+              setManagementVerified(false);
+              setManagementNotice("");
+              setReplacementCodes([]);
+              setError("");
+            }}
+            style={ghost}
+          >
+            {manageOpen ? "Tutup pengelolaan 2FA" : "Kelola 2FA"}
+          </button>
+          {manageOpen && (
+            <section style={managementBox}>
+              <div>
+                <p style={{ margin: 0, fontWeight: 700 }}>Pengelolaan authenticator</p>
+                <p style={{ ...muted, margin: "5px 0 0" }}>
+                  Verifikasi ulang sebelum mengganti kode cadangan atau memasang ulang authenticator.
+                </p>
+              </div>
+              {!managementVerified && replacementCodes.length === 0 && (
+                <TwoFactorChallenge onVerified={async () => {
+                  setManagementVerified(true);
+                  setError("");
+                }} />
+              )}
+              {managementVerified && (
+                <div style={{ display: "grid", gap: 12 }}>
+                  {hasPassword && (
+                    <label style={label}>
+                      Konfirmasi kata sandi akun
+                      <input
+                        type="password"
+                        value={managementPassword}
+                        onChange={(event) => setManagementPassword(event.target.value)}
+                        autoComplete="current-password"
+                        style={input}
+                      />
+                    </label>
+                  )}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                    <button onClick={() => void regenerateBackupCodes()} disabled={managementBusy} style={primary}>
+                      {managementBusy ? "Memproses…" : "Buat kode cadangan baru"}
+                    </button>
+                    <button onClick={() => void disableAuthenticator()} disabled={managementBusy} style={dangerButton}>
+                      Nonaktifkan dan pasang ulang
+                    </button>
+                  </div>
+                  <p style={{ ...muted, margin: 0 }}>
+                    Akun staf tidak dapat membuka dashboard setelah dinonaktifkan sampai authenticator dipasang kembali.
+                  </p>
+                </div>
+              )}
+              {managementNotice && <p role="status" style={{ margin: 0, color: "var(--color-emerald-900)", fontWeight: 700 }}>{managementNotice}</p>}
+              {replacementCodes.length > 0 && (
+                <BackupCodes codes={replacementCodes} copied={copied} setCopied={setCopied} />
+              )}
+              {error && <p style={errorText}>{error}</p>}
+            </section>
+          )}
         </section>
       </main>
     );
@@ -404,3 +520,5 @@ const uriBox: React.CSSProperties = { display: "block", padding: 12, background:
 const qrBox: React.CSSProperties = { width: "fit-content", padding: 14, background: "#fff", border: "1px solid var(--color-cream-300)", borderRadius: 10 };
 const codeGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))", gap: 8 };
 const codeChip: React.CSSProperties = { padding: "8px 10px", background: "var(--color-cream-100)", borderRadius: 6, fontSize: 13, textAlign: "center", letterSpacing: ".05em" };
+const managementBox: React.CSSProperties = { display: "grid", gap: 14, padding: 16, background: "var(--color-cream-100)", border: "1px solid var(--color-cream-400)", borderRadius: 10 };
+const dangerButton: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-danger-600)", borderRadius: 8, background: "transparent", color: "var(--color-danger-600)", fontWeight: 700, padding: "0 18px" };

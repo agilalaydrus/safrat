@@ -20,7 +20,12 @@ export const authClient = createAuthClient({
       // form with no explanation (the actual UX bug reported: login fails
       // and the user sees nothing).
       const path = new URL(ctx.request.url).pathname;
-      if (ctx.response.status === 401 && !path.includes("/sign-in") && !path.includes("/sign-up")) {
+      if (
+        ctx.response.status === 401 &&
+        !path.includes("/sign-in") &&
+        !path.includes("/sign-up") &&
+        !path.includes("/two-factor/")
+      ) {
         window.location.href = "/sign-in";
       }
     },

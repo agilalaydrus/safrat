@@ -2600,3 +2600,42 @@ Pengaman penting berada di server, bukan hanya UI:
 Email transaksional sekarang memakai SMTP Hostinger melalui Nodemailer. Sebelum
 deploy, isi `SMTP_USER`, `SMTP_PASSWORD`, dan opsional `SMTP_FROM_EMAIL` di
 `.env.prod`; default host/port adalah `smtp.hostinger.com:465` dengan TLS.
+
+---
+
+## Siklus 2FA lengkap: Google, backup code, dan pengelolaan (2026-08-28)
+
+Klaim "setiap login" sebelumnya belum benar: plugin Better Auth hanya menahan
+login credential; callback Google langsung menerbitkan sesi penuh. Sekarang
+`twoFactorSecurity` menangani callback Google untuk akun yang sudah enrol:
+
+- sesi OAuth yang baru dibuat dihapus dari database **dan** seluruh Set-Cookie
+  sesi dibersihkan sebelum respons meninggalkan server;
+- server membuat signed pending challenge yang sama dengan jalur credential,
+  lalu mengarahkan ke `/two-factor-challenge`;
+- TOTP atau satu backup code yang valid baru menerbitkan sesi aplikasi.
+
+Login credential dan Google memakai komponen challenge yang sama. UI sekarang
+menawarkan backup code (format `XXXXX-XXXXX`); kode bersifat sekali pakai.
+Respons 401 endpoint 2FA dikecualikan dari redirect global supaya kode yang
+salah tetap menampilkan pesan pada form, bukan me-reload dan menghapus state.
+
+Pengelolaan pada `/keamanan` juga lengkap:
+
+- regenerate backup codes dan disable/re-enrol tersedia dari layar aktif;
+- kedua endpoint sensitif ditahan server-side sampai TOTP/backup-code step-up
+  yang terikat ke token sesi aktif dan berlaku lima menit;
+- akun credential tetap harus mengonfirmasi password sesuai aturan Better
+  Auth; akun Google-only tidak diminta password yang memang tidak ada;
+- disable merotasi sesi, dan single-session hook mengakhiri sesi lain;
+- enrolment, login factor, step-up, regenerasi, disable, dan challenge Google
+  ditulis ke `audit_logs` tanpa kode atau secret.
+
+`e2e/two-factor-security.spec.ts` melewati alur nyata: enrol TOTP, bypass
+management ditolak 403, wrong-code tetap di form, step-up, regenerasi, login
+dengan backup code, lalu disable sebagai akun tanpa credential. Regression
+OTP-email → QR dan enrolment credential juga tetap hijau.
+
+Satu validasi yang tetap manual setelah deploy: callback Google sungguhan
+memerlukan provider Google eksternal. Logout penuh, masuk dengan Google pada
+akun enrol, dan pastikan `/two-factor-challenge` tampil sebelum dashboard.
