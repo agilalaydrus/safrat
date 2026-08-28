@@ -1,7 +1,7 @@
 # Handoff Notes
 
 > Working state + prioritized roadmap for the next agent. Point-in-time snapshot
-> (2026-08-28). Verify against current code before trusting any file:line.
+> (2026-08-29). Verify against current code before trusting any file:line.
 
 ## Owner workflow preferences
 
@@ -2676,10 +2676,11 @@ untuk lifecycle/idempotency/concurrency serta penolakan direct-SQL, dan dua
 alur Playwright nyata (pengajuan jamaah serta operator sampai PAID dengan tepat
 satu debit ledger).
 
-### Antrean UI berikutnya — drawer Tambah Kloter
+### Drawer Tambah Kloter (diperbaiki 2026-08-29)
 
-Dari screenshot owner, drawer kanan **Tambah Kloter** pada `/dashboard/kloter`
-berada di bawah header dashboard: judul drawer tertutup/terpucat dan area atas
-tidak terbaca. Perbaiki stacking context/z-index atau top inset portal sheet,
-lalu cek desktop dan mobile agar overlay, drawer, dan header tidak saling
-menutupi.
+Drawer kanan **Tambah Kloter** pada `/dashboard/kloter` sebelumnya memakai
+`z-index: 30`, lebih rendah dari sticky topbar dashboard (`40`). Overlay kini
+berada pada layer modal `70`, di atas topbar dan mobile navigation drawer.
+Regression test memeriksa `elementFromPoint` tepat di area overlap atas pada
+desktop 1280x800 dan mobile 390x844; judul serta tombol tutup juga wajib tetap
+terlihat. Kedua viewport sudah diverifikasi lewat screenshot Playwright.

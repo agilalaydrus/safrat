@@ -163,6 +163,35 @@ test.describe("money screens render", () => {
     }
   });
 
+  test("the kloter form covers the sticky dashboard header", async ({ page }) => {
+    await page.goto("/dashboard/kloter");
+    await expect(page.getByRole("heading", { name: /Kloter Keberangkatan/i })).toBeVisible();
+
+    for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
+      await page.setViewportSize(viewport);
+      await page.getByRole("button", { name: /Tambah Kloter/i }).first().click();
+      const dialog = page.getByRole("dialog", { name: /Tambah kloter/i });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole("heading", { name: /Tambah kloter/i })).toBeVisible();
+      await expect(dialog.getByRole("button", { name: /Tutup/i })).toBeVisible();
+
+      // Probe the upper part of the sheet where it overlaps the sticky topbar.
+      // If the old z-index regression returns, elementFromPoint resolves to
+      // the dashboard header instead of an element inside the dialog.
+      const dialogOwnsTopLayer = await page.evaluate(() => {
+        const dialogElement = document.querySelector<HTMLElement>('[role="dialog"][aria-label="Tambah kloter"]');
+        if (!dialogElement) return false;
+        const bounds = dialogElement.getBoundingClientRect();
+        const hit = document.elementFromPoint(bounds.right - 32, 32);
+        return Boolean(hit?.closest('[role="dialog"]') === dialogElement);
+      });
+      expect(dialogOwnsTopLayer).toBe(true);
+      await capture(page, viewport.width < 500 ? "20-kloter-dialog-mobile" : "19-kloter-dialog-desktop");
+      await dialog.getByRole("button", { name: /Tutup/i }).click();
+      await expect(dialog).toBeHidden();
+    }
+  });
+
   // The travel's own pricing screen. Every level of the price is shown here,
   // and the two buyer prices are computed by the server — so this is the one
   // place a person can see whether the layered pricing agrees with itself.

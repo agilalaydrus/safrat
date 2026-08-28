@@ -171,7 +171,10 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   return <label style={{ display: "grid", gap: 6 }}><span style={fieldLabel}>{label}</span>{children}{hint && <span style={{ fontSize: 11, color: "var(--color-warm-400)" }}>{hint}</span>}</label>;
 }
 
-const overlay: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 30, display: "flex", justifyContent: "flex-end", background: "rgba(15,23,42,.48)" };
+// The dashboard topbar sits at z-index 40 and the mobile navigation drawer at
+// 60. This form is a modal surface, so it must cover both instead of starting
+// underneath the sticky header (which hid its title and close button).
+const overlay: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 70, display: "flex", justifyContent: "flex-end", background: "rgba(15,23,42,.48)" };
 const sheet: React.CSSProperties = { width: "min(480px,100%)", height: "100vh", overflowY: "auto", background: "#fff", padding: 24, boxShadow: "-6px 0 32px rgba(15,23,42,.12)" };
 const header: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 };
 const eyebrow: React.CSSProperties = { margin: "0 0 6px", color: "var(--color-gold-800)", fontSize: 11, fontWeight: 700, letterSpacing: ".08em" };
