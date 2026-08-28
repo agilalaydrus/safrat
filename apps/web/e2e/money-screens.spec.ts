@@ -118,6 +118,13 @@ test.describe("money screens render", () => {
     await capture(page, "15-pricing-levels");
   });
 
+  test("an enrolled account can continue from the security screen", async ({ page }) => {
+    await page.goto("/keamanan");
+    await expect(page.getByText(/Sudah aktif/i)).toBeVisible();
+    await page.getByRole("button", { name: /Lanjutkan ke aplikasi/i }).click();
+    await expect(page).toHaveURL(/\/dashboard(?:\/|$)/);
+  });
+
   test("two-factor enrolment renders its first step", async ({ page }) => {
     // Un-enrolled for this one: the first step is what somebody setting it up
     // actually sees.

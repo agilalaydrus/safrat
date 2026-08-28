@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { IconShieldCheck, IconShieldLock, IconCopy, IconCheck } from "@tabler/icons-react";
 import { QRCodeSVG } from "qrcode.react";
 import { authClient } from "@/lib/auth-client";
+import { resolveLandingPath } from "@/lib/post-login";
 
 const ENROLLMENT_DRAFT_KEY = "tawafiqhub:2fa-enrollment-draft";
 const ENROLLMENT_DRAFT_TTL_MS = 15 * 60 * 1000;
@@ -31,6 +33,7 @@ function clearEnrollmentDraft() {
 // a second factor, so if enrolling could only be reached from behind that gate,
 // the first admin could never get in.
 export default function SecurityPage() {
+  const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
   const [password, setPassword] = useState("");
   const [totpUri, setTotpUri] = useState("");
@@ -39,6 +42,7 @@ export default function SecurityPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const [copied, setCopied] = useState(false);
   // null while unknown, so the password step is never shown to an account that
   // turns out not to have one.
@@ -200,6 +204,22 @@ export default function SecurityPage() {
     }
   };
 
+  const continueToApp = async () => {
+    setRedirecting(true);
+    setError("");
+    try {
+      // Confirm that Better Auth has published the newly 2FA-enabled session
+      // before resolving the role-based destination. This avoids landing on a
+      // protected page while the client still holds the pre-enrolment session.
+      const current = await authClient.getSession({ fetchOptions: { cache: "no-store" } });
+      if (!current.data?.user) throw new Error("Sesi tidak dapat dikonfirmasi.");
+      router.replace(await resolveLandingPath());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal melanjutkan. Silakan coba lagi.");
+      setRedirecting(false);
+    }
+  };
+
   if (isPending) return <main style={page}><p style={muted}>Memuat...</p></main>;
 
   if (enabled && !totpUri) {
@@ -214,6 +234,10 @@ export default function SecurityPage() {
           <p style={{ ...muted, margin: 0 }}>
             Setiap login dengan email dan kata sandi akan meminta kode dari aplikasi authenticator Anda.
           </p>
+          {error && <p style={errorText}>{error}</p>}
+          <button onClick={() => void continueToApp()} disabled={redirecting} style={primary}>
+            {redirecting ? "Mengalihkan…" : "Lanjutkan ke aplikasi"}
+          </button>
         </section>
       </main>
     );
@@ -231,6 +255,10 @@ export default function SecurityPage() {
             tanpa itu, pemulihan akun hanya bisa lewat akses database.
           </p>
           <BackupCodes codes={backupCodes} copied={copied} setCopied={setCopied} />
+          {error && <p style={errorText}>{error}</p>}
+          <button onClick={() => void continueToApp()} disabled={redirecting} style={primary}>
+            {redirecting ? "Mengalihkan…" : "Saya sudah menyimpan — lanjutkan"}
+          </button>
         </section>
       </main>
     );
