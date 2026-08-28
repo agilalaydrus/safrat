@@ -49,7 +49,7 @@ async function hasCredentialPassword(ctx: Parameters<typeof getSessionFromCtx>[0
  *
  * Better Auth's allowPasswordless option deliberately trusts an authenticated
  * session. TawafiqHub requires one more proof: a short-lived email OTP. The
- * before hook below consumes that proof server-side, so calling the built-in
+ * before hook below checks that proof server-side, so calling the built-in
  * /two-factor/enable endpoint directly cannot bypass the email check.
  */
 export function twoFactorEmailGate() {
@@ -117,6 +117,15 @@ export function twoFactorEmailGate() {
         throw APIError.from("BAD_REQUEST", { code: "PASSWORD_REQUIRED", message: "Konfirmasikan kata sandi akun Anda." });
       }
 
+      // A valid proof may already exist when the browser lost the successful
+      // enable response and retries this step. Treat that retry as successful;
+      // the proof is still tied to this user and exact session token.
+      const existingGrantIdentifier = grantIdentifier(user.id, session.token);
+      const existingGrant = await ctx.context.internalAdapter.findVerificationValue(existingGrantIdentifier);
+      if (existingGrant?.value === user.id && existingGrant.expiresAt > new Date()) {
+        return ctx.json({ success: true });
+      }
+
       const identifier = otpIdentifier(user.id);
       const verification = await ctx.context.internalAdapter.findVerificationValue(identifier);
       if (!verification || verification.expiresAt <= new Date()) {
@@ -152,7 +161,7 @@ export function twoFactorEmailGate() {
       }
 
       await ctx.context.internalAdapter.deleteVerificationByIdentifier(identifier);
-      const grant = grantIdentifier(user.id, session.token);
+      const grant = existingGrantIdentifier;
       await ctx.context.internalAdapter.deleteVerificationByIdentifier(grant);
       await ctx.context.internalAdapter.createVerificationValue({
         identifier: grant,
@@ -182,9 +191,9 @@ export function twoFactorEmailGate() {
             if (grant) await ctx.context.internalAdapter.deleteVerificationByIdentifier(identifier);
             throw APIError.from("FORBIDDEN", { code: "EMAIL_OTP_REQUIRED", message: "Verifikasi OTP email diperlukan." });
           }
-          // One successful call only. A failed/replayed enable request must go
-          // through email verification again instead of retaining the grant.
-          await ctx.context.internalAdapter.deleteVerificationByIdentifier(identifier);
+          // Keep the session-bound grant for its five-minute lifetime. This
+          // makes enable safe to retry if its response is lost to a refresh,
+          // service-worker navigation, or transient network failure.
         }),
       }],
     },

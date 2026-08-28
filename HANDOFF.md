@@ -2585,10 +2585,11 @@ Pengaman penting berada di server, bukan hanya UI:
 
 - OTP berlaku 5 menit, disimpan sebagai HMAC, maksimal 5 percobaan, dan baru
   dapat dikirim ulang setelah 60 detik.
-- OTP yang benar membuat grant 5 menit, satu kali pakai, dan terikat pada token
-  sesi. Hook Better Auth menolak `/two-factor/enable` untuk akun passwordless
-  jika grant ini tidak ada, jadi endpoint bawaan tidak dapat dipanggil langsung
-  untuk melewati OTP.
+- OTP yang benar membuat grant 5 menit dan terikat pada token sesi. Grant dapat
+  dipakai ulang hanya dalam jendela pendek tersebut agar respons enable yang
+  hilang dapat dicoba lagi tanpa email baru. Hook Better Auth tetap menolak
+  `/two-factor/enable` untuk akun passwordless jika grant ini tidak ada, jadi
+  endpoint bawaan tidak dapat dipanggil langsung untuk melewati OTP.
 - `twoFactor({ allowPasswordless: true })` hanya membuka jalur setelah hook di
   atas mengizinkannya. QR berasal dari `totpURI`; kode pertama dari aplikasi
   authenticator tetap wajib diverifikasi sebelum 2FA aktif.

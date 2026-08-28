@@ -63,6 +63,26 @@ export default function SecurityPage() {
     if (!response.ok) throw new Error(payload.message || "Permintaan tidak dapat diproses.");
   };
 
+  const enableAuthenticator = async (password?: string) => {
+    // Call the endpoint directly. Better Auth's two-factor client broadcasts a
+    // session refresh for every /two-factor/* response, which can remount this
+    // page before React retains the QR returned by the enable call.
+    const response = await fetch("/api/auth/two-factor/enable", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(password ? { password } : {}),
+    });
+    const payload = await response.json().catch(() => ({})) as {
+      message?: string;
+      totpURI?: string;
+      backupCodes?: string[];
+    };
+    if (!response.ok) throw new Error(payload.message || "Gagal memulai pemasangan authenticator.");
+    if (!payload.totpURI) throw new Error("Server tidak mengembalikan QR authenticator. Silakan coba lagi.");
+    return payload;
+  };
+
   const sendEnrollmentOtp = async () => {
     setBusy(true);
     setError("");
@@ -86,10 +106,9 @@ export default function SecurityPage() {
     if (!password) { setError("Masukkan kata sandi akun Anda."); return; }
     setBusy(true);
     try {
-      const { data, error: failed } = await authClient.twoFactor.enable({ password });
-      if (failed) { setError(failed.message ?? "Kata sandi salah."); return; }
-      setTotpUri(data?.totpURI ?? "");
-      setBackupCodes(data?.backupCodes ?? []);
+      const data = await enableAuthenticator(password);
+      setTotpUri(data.totpURI ?? "");
+      setBackupCodes(data.backupCodes ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memulai pendaftaran.");
     } finally {
@@ -104,10 +123,9 @@ export default function SecurityPage() {
     setError("");
     try {
       await postEnrollmentOtp("verify", { otp });
-      const { data, error: failed } = await authClient.twoFactor.enable({});
-      if (failed) { setError(failed.message ?? "Gagal memulai pemasangan authenticator."); return; }
-      setTotpUri(data?.totpURI ?? "");
-      setBackupCodes(data?.backupCodes ?? []);
+      const data = await enableAuthenticator();
+      setTotpUri(data.totpURI ?? "");
+      setBackupCodes(data.backupCodes ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kode OTP tidak dapat diverifikasi.");
     } finally {
