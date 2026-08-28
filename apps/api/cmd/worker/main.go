@@ -77,6 +77,8 @@ func main() {
 	productRepository := repository.NewProductRepository(queries, pool)
 	ledgerRepository := repository.NewLedgerRepository(pool)
 	refundRepository := repository.NewRefundRepository(pool)
+	refundPayoutRepository := repository.NewRefundPayoutRepository(pool, kycSealer)
+	identityRepository := repository.NewIdentityRepository(queries, agentRepository)
 	agentService := service.NewAgentService(operatorRepository, agentRepository, auditRepository, pool)
 	journeyService := service.NewJourneyService(operatorRepository, journeyRepository, auditRepository)
 	tierHandler := worker.NewTierHandler(logger, operatorRepository, agentService)
@@ -102,6 +104,8 @@ func main() {
 		agentRepository, seasonRepository, pool, payment.NewClient(strings.TrimSpace(os.Getenv("XENDIT_SECRET_KEY"))),
 		strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGIN")))
 	paymentHandler := worker.NewPaymentHandler(logger, orderRepository, orderService)
+	refundPayoutService := service.NewRefundPayoutService(operatorRepository, identityRepository, refundPayoutRepository, ledgerRepository, auditRepository, pool, payment.NewClient(strings.TrimSpace(os.Getenv("XENDIT_SECRET_KEY"))))
+	refundPayoutHandler := worker.NewRefundPayoutHandler(logger, refundPayoutRepository, refundPayoutService)
 	fulfilmentService := service.NewFulfilmentService(fulfilmentRepository, supplierRepository, supplierCostRepository, orderRepository)
 	dailySpendHandler := worker.NewDailySpendHandler(logger, orderRepository)
 	kycHandler := worker.NewKYCHandler(logger, kycRepository)
@@ -168,6 +172,10 @@ func main() {
 		logger.Error("register payment poll schedule", "error", err)
 		os.Exit(1)
 	}
+	if _, err := scheduler.Register("@every 30s", worker.NewRefundPayoutDispatchTask()); err != nil {
+		logger.Error("register refund payout dispatch schedule", "error", err)
+		os.Exit(1)
+	}
 	// Every 10 minutes. A jamaah waiting on undelivered pulsa is not urgent to
 	// the minute, but it must not be discovered a day later either — and
 	// nothing else is watching, because holding rather than refunding was a
@@ -219,6 +227,7 @@ func main() {
 	mux.HandleFunc(worker.TaskSubscriptionSweep, subscriptionHandler.HandleSweep)
 	mux.HandleFunc(worker.TaskCommissionReconcile, commissionHandler.HandleReconcile)
 	mux.HandleFunc(worker.TaskPaymentPoll, paymentHandler.HandlePoll)
+	mux.HandleFunc(worker.TaskRefundPayoutDispatch, refundPayoutHandler.HandleDispatch)
 	mux.HandleFunc(worker.TaskFulfilmentSweep, fulfilmentHandler.HandleSweep)
 	mux.HandleFunc(worker.TaskFulfilmentDispatch, fulfilmentHandler.HandleDispatch)
 	mux.HandleFunc(queue.TaskDispatchOne, fulfilmentHandler.HandleDispatchOne)

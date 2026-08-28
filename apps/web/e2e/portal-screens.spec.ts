@@ -150,7 +150,7 @@ test.describe("portal history screens render", () => {
       await page.getByLabel(/Catatan untuk travel/i).fill("Konfirmasi lewat WhatsApp");
       await page.getByRole("button", { name: /Ajukan Pencairan/i }).click();
 
-      await expect(page.getByText(/Permintaan pencairan tercatat/i)).toBeVisible();
+		await expect(page.getByText(/Permintaan pencairan tunai tercatat/i)).toBeVisible();
       await expect(page.getByText(/Menunggu diproses/i)).toBeVisible();
       const [stored] = await query<{ amount_idr: string; method: string; status: string }>(
         `SELECT pr.amount_idr::text, pr.method, pr.status FROM pilgrim_refund_payout_requests pr
@@ -238,5 +238,26 @@ test.describe("agent and muttawwif screens render", () => {
     await page.getByRole("button", { name: /Rekap Transaksi/ }).click();
     await expect(page.getByText(/Nilai bersih/i)).toBeVisible();
     await capture(page, "15-agent-recap");
+  });
+
+  test("an agent can withdraw a refund from their own purchase ledger", async ({ page }) => {
+    const { agentId } = await makeFixtureStaffAnAgentAndLeader();
+    const [agent] = await query<{ operator_id: string }>(`SELECT operator_id::text FROM agents WHERE id=$1`, [agentId]);
+    await query(`DO $$ BEGIN PERFORM set_config('app.allow_ledger_purge','on',true); DELETE FROM pilgrim_refund_payout_requests WHERE agent_id='${agentId}'; DELETE FROM agent_refund_balance_entries WHERE agent_id='${agentId}'; END $$;`);
+    try {
+      await query(`INSERT INTO agent_refund_balance_entries (operator_id,agent_id,amount_idr,kind,note,idempotency_key) VALUES ($1,$2,185000,'REFUND','Refund pembelian agen',$3)`, [agent!.operator_id, agentId, `e2e-agent-refund-${Date.now()}`]);
+      await page.goto("/agent");
+      await page.getByRole("button", { name: /Beli Produk/ }).click();
+      await expect(page.getByRole("heading", { name: /Dana yang dikembalikan/i })).toBeVisible();
+      await page.getByLabel(/^Jumlah$/).fill("185000");
+      await page.getByLabel(/Metode yang diinginkan/i).selectOption(String(3));
+      await page.getByRole("button", { name: /Ajukan Pencairan/i }).click();
+      await expect(page.getByText(/Permintaan pencairan tunai tercatat/i)).toBeVisible();
+      const [stored] = await query<{ beneficiary_kind: string; amount_idr: string }>(`SELECT beneficiary_kind,amount_idr::text FROM pilgrim_refund_payout_requests WHERE agent_id=$1 ORDER BY created_at DESC LIMIT 1`, [agentId]);
+      expect(stored).toEqual({ beneficiary_kind: "AGENT", amount_idr: "185000" });
+      await capture(page, "21-agent-refund-wallet");
+    } finally {
+      await query(`DO $$ BEGIN PERFORM set_config('app.allow_ledger_purge','on',true); DELETE FROM pilgrim_refund_payout_requests WHERE agent_id='${agentId}'; DELETE FROM agent_refund_balance_entries WHERE agent_id='${agentId}'; END $$;`);
+    }
   });
 });

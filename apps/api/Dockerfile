@@ -23,11 +23,16 @@ RUN cd apps/api && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" 
 # (`docker compose run --rm api /storefront-backfill`). Shipped in the same
 # image so it always matches the schema the deployed API expects.
 RUN cd apps/api && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /storefront-backfill ./cmd/storefront-backfill
+RUN mkdir -p /app/uploads/documents
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /server /server
 COPY --from=build /worker /worker
 COPY --from=build /storefront-backfill /storefront-backfill
+# Seed the named production volume with a directory owned by distroless'
+# nonroot user. Without this, uploads target / in a read-only/non-writable
+# container and disappear whenever the image is replaced.
+COPY --from=build --chown=65532:65532 /app/uploads /uploads
 EXPOSE 8080
 USER nonroot:nonroot
 # CMD, not ENTRYPOINT — docker-compose.prod.yml's worker service overrides

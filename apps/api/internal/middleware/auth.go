@@ -127,8 +127,10 @@ var sessionOnlyProcedures = map[string]bool{
 	// never open from an app_access_code alone. Their service additionally
 	// binds that code to this session's linked pilgrim; payout creation also
 	// requires the Better Auth account to have 2FA enabled.
-	"/hajj.v1.RefundPayoutService/GetMyRefundWallet":   true,
-	"/hajj.v1.RefundPayoutService/RequestRefundPayout": true,
+	"/hajj.v1.RefundPayoutService/GetMyRefundWallet":        true,
+	"/hajj.v1.RefundPayoutService/RequestRefundPayout":      true,
+	"/hajj.v1.RefundPayoutService/GetMyAgentRefundWallet":   true,
+	"/hajj.v1.RefundPayoutService/RequestAgentRefundPayout": true,
 	// PlatformService — TawafiqHub's own admin surface. Session-only because a
 	// platform admin is a Better Auth user who need not belong to any operator;
 	// requiring org membership would force platform staff into somebody's
@@ -399,6 +401,15 @@ func (a *authInterceptor) authenticate(ctx context.Context, procedure string, he
 func ResolveStaffSession(ctx context.Context, pool *pgxpool.Pool, token string) (userID, organizationID, userName string, err error) {
 	userID, organizationID, userName, _, err = resolveStaffSessionWithRole(ctx, pool, token)
 	return userID, organizationID, userName, err
+}
+
+// ResolveStaffSessionRole is the authorization-oriented counterpart used by
+// plain HTTP handlers that need the caller's organization role. Keeping this
+// separate prevents a user's display name from ever being mistaken for an
+// authorization value.
+func ResolveStaffSessionRole(ctx context.Context, pool *pgxpool.Pool, token string) (userID, organizationID, orgRole string, err error) {
+	userID, organizationID, _, orgRole, err = resolveStaffSessionWithRole(ctx, pool, token)
+	return userID, organizationID, orgRole, err
 }
 
 func resolveStaffSessionWithRole(ctx context.Context, pool *pgxpool.Pool, token string) (userID, organizationID, userName, orgRole string, err error) {

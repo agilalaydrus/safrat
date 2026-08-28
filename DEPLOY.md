@@ -104,6 +104,10 @@ services:
       XENDIT_SECRET_KEY: ${XENDIT_SECRET_KEY}
       XENDIT_WEBHOOK_TOKEN: ${XENDIT_WEBHOOK_TOKEN}
       XENDIT_WEBHOOK_ALLOWED_IPS: ${XENDIT_WEBHOOK_ALLOWED_IPS}
+      KYC_ENCRYPTION_KEY: ${KYC_ENCRYPTION_KEY}
+      UPLOAD_DIR: /uploads/documents
+    volumes:
+      - uploads_data:/uploads
     ports:
       - "127.0.0.1:9100:8080"   # nginx → localhost:9100 → container :8080
     depends_on:
@@ -118,6 +122,8 @@ services:
     command: ["./worker"]
     restart: always
     environment:
+      KYC_ENCRYPTION_KEY: ${KYC_ENCRYPTION_KEY}
+      XENDIT_SECRET_KEY: ${XENDIT_SECRET_KEY}
       PGHOST: postgres
       PGPORT: "5432"
       PGUSER: ${APP_PGUSER:-safrat}
@@ -170,6 +176,7 @@ services:
 
 volumes:
   postgres_data:
+  uploads_data:
 
 networks:
   internal:
@@ -228,12 +235,15 @@ SMTP_USER=noreply@tawafiqhub.id
 SMTP_PASSWORD=replace-with-mailbox-password
 SMTP_FROM_EMAIL=noreply@tawafiqhub.id
 
-# Xendit (Module 7 — Orders & Payments) — apps/api only, unrelated to
+# Xendit (Module 7 — Orders, Payments & Refund Payouts) — api and worker,
+# unrelated to
 # email/web. Without XENDIT_SECRET_KEY, checkout fails fast with a clear
 # error (internal/payment/xendit.go) rather than creating an unpayable
 # order. Register the webhook URL in the Xendit Dashboard > Settings >
-# Webhooks: https://api.tawafiqhub.id/webhooks/xendit — XENDIT_WEBHOOK_TOKEN
-# must match the "Verification Token" shown on that same page.
+# Webhooks: https://tawafiqhub.id/webhooks/xendit and the separate PAYOUT
+# callback https://tawafiqhub.id/webhooks/xendit/payout —
+# XENDIT_WEBHOOK_TOKEN must match the "Verification Token" shown there. The
+# secret key also needs MONEY-OUT permission for automatic refund payouts.
 XENDIT_SECRET_KEY=xnd_production_...
 XENDIT_WEBHOOK_TOKEN=...
 

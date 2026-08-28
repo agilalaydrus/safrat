@@ -2642,39 +2642,70 @@ akun enrol, dan pastikan `/two-factor-challenge` tampil sebelum dashboard.
 
 ---
 
-## Saldo refund jamaah dan workflow pencairan (2026-08-28)
+## Pencairan refund otomatis + refund pembelian agen (selesai 2026-08-29)
 
-Saldo hasil refund sekarang dapat dilihat dan diajukan pencairannya oleh
-jamaah dari `/pilgrim/transactions`. Operator owner/admin mengelolanya melalui
-menu **Refund & Saldo** di `/dashboard/refunds`, dengan alur
-`REQUESTED -> PROCESSING -> PAID | FAILED`.
+Pekerjaan audit nomor 3 dan 4 sudah selesai. Saldo refund jamaah tetap tersedia
+di `/pilgrim/transactions`, dan pembelian agen untuk dirinya sendiri sekarang
+dapat direfund ke wallet khusus pada tab **Beli Produk** di `/agent`. Operator
+owner/admin memantau keduanya melalui **Refund & Saldo** di
+`/dashboard/refunds`.
 
-Pengaman uangnya berada di service dan database:
+### Aturan uang yang sekarang berlaku
 
-- pengajuan memakai idempotency key tersimpan dan replay mengembalikan hasil
-  asli; advisory lock per jamaah serta trigger database mencegah dua request
-  aktif mengunci saldo yang sama;
-- jamaah harus memakai sesi Better Auth yang tertaut ke access code miliknya
-  dan sudah mengaktifkan 2FA; caller tidak dapat memilih `pilgrim_id` lain;
-- hanya owner/admin dapat melihat dan mengubah workflow operator;
-- status terminal tidak dapat diubah, request tidak dapat dihapus oleh jalur
-  aplikasi, dan PAID wajib mempunyai referensi pembayaran;
-- transisi PAID dan entry `WITHDRAWAL` negatif dilakukan dalam satu transaksi.
-  Deferred trigger juga menolak status PAID tanpa debit ledger yang tepat,
-  sehingga retry tidak dapat membayar atau mendebit dua kali;
-- REQUESTED, PROCESSING, PAID, dan FAILED semuanya masuk audit log.
+- Refund self-purchase agen masuk ke append-only
+  `agent_refund_balance_entries`, bukan ledger komisi. Agen tidak mendapat
+  komisi dari pembeliannya sendiri dan refund tidak dapat menciptakan atau
+  memulihkan komisi.
+- Satu payout punya tepat satu penerima: `PILGRIM` atau `AGENT`. Identitas
+  penerima selalu diturunkan dari sesi Better Auth, tidak pernah dipercaya dari
+  request. Pengajuan tetap wajib 2FA.
+- Nomor rekening/e-wallet disimpan terenkripsi menggunakan
+  `KYC_ENCRYPTION_KEY`; API/UI hanya mengembalikan empat digit terakhir.
+- Idempotency key, advisory lock per penerima, partial unique index, balance
+  trigger, dan deferred ledger trigger mencegah double reservation dan double
+  debit walau request bersamaan atau webhook dikirim ulang.
+- Status gateway adalah
+  `REQUESTED -> PROCESSING -> PAID | FAILED`, dengan `PAID -> REVERSED` bila
+  Xendit membalik transfer. Withdrawal dan reversal ledger selalu berada dalam
+  transaksi yang sama dengan statusnya dan masing-masing hanya dapat ditulis
+  sekali.
 
-Metode saat ini adalah transfer bank, e-wallet, atau tunai. Sistem sengaja
-tidak menyimpan nomor rekening/e-wallet pada request; operator mengonfirmasi
-tujuan lewat nomor jamaah terdaftar dan menyimpan referensi pembayaran. Ini
-workflow operasional yang dapat diaudit, belum integrasi pencairan otomatis ke
-payment gateway dan belum menyimpan berkas bukti transfer.
+### Gateway dan payout tunai
 
-Validasi yang sudah lulus: Buf lint/generate, seluruh Go test/vet/build,
-frontend typecheck/lint, build produksi Next.js, integration test PostgreSQL
-untuk lifecycle/idempotency/concurrency serta penolakan direct-SQL, dan dua
-alur Playwright nyata (pengajuan jamaah serta operator sampai PAID dengan tepat
-satu debit ledger).
+- Transfer bank/e-wallet dikirim oleh worker melalui Xendit Payouts v3 dengan
+  UUID request sebagai reference serta idempotency key yang stabil. Tidak ada
+  network call saat transaksi database terbuka.
+- Webhook `POST /webhooks/xendit/payout` adalah wake-up signal saja. Server
+  selalu mengambil ulang status lewat API Xendit terautentikasi sebelum
+  mengubah ledger. Poller 30 detik merekonsiliasi webhook yang hilang dan
+  timeout yang hasilnya ambigu.
+- Tunai tetap manual. Owner/admin harus mengunggah bukti PDF/JPG/PNG (maksimum
+  10 MB) sebelum `MARK_PAID`; file disimpan dengan nama acak dan mode `0640`.
+  Volume production `uploads_data` membuat bukti dan dokumen lama tetap ada
+  saat image/container diganti.
+- Resolver upload memakai role organisasi sesungguhnya, bukan display name;
+  hanya owner/admin yang dapat memasang bukti dan menyelesaikan payout tunai.
+
+### Konfigurasi produksi yang masih harus dilakukan saat deploy
+
+- Kunci `XENDIT_SECRET_KEY` harus mempunyai izin **MONEY-OUT**.
+- Daftarkan callback PAYOUT:
+  `https://tawafiqhub.id/webhooks/xendit/payout` dengan verification token yang
+  sama pada `XENDIT_WEBHOOK_TOKEN`.
+- Pertahankan nilai `KYC_ENCRYPTION_KEY` yang sudah dipakai; kunci itu sekarang
+  juga membuka tujuan payout terenkripsi. `cmd/rotatekyc` belum merotasi tabel
+  payout, jadi jangan rotasi saat ada payout non-terminal dan jangan musnahkan
+  kunci lama sebelum dukungan rotasi tujuan payout tersedia.
+- `XENDIT_WEBHOOK_ALLOWED_IPS` masih menunggu rentang resmi dari support
+  Xendit. Token + API re-fetch sudah aktif, tetapi allowlist tetap perlu
+  dilengkapi.
+- Commit ini belum di-push atau di-deploy.
+
+Validasi yang sudah lulus mencakup migration 119 up/down/up, Buf lint/generate,
+seluruh Go test/vet/build, frontend typecheck/lint/build, integration test
+PostgreSQL untuk refund agen, reservation concurrency, payout terenkripsi,
+webhook replay dan reversal, serta Playwright nyata untuk pengajuan jamaah,
+wallet refund agen, dan payout tunai sampai PAID dengan tepat satu debit.
 
 ### Drawer Tambah Kloter (diperbaiki 2026-08-29)
 

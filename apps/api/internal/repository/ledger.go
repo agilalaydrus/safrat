@@ -122,6 +122,82 @@ type BalanceEntry struct {
 	IdempotencyKey  string
 }
 
+type AgentRefundBalanceEntry struct {
+	OperatorID      string
+	AgentID         string
+	AmountIDR       int64
+	Kind            string
+	OrderID         string
+	Note            string
+	CreatedByUserID string
+	IdempotencyKey  string
+}
+
+func (r *LedgerRepository) AppendAgentRefundBalanceTx(ctx context.Context, tx pgx.Tx, entry AgentRefundBalanceEntry) error {
+	operatorID, err := pgUUID(entry.OperatorID)
+	if err != nil {
+		return apperror.ErrValidation
+	}
+	agentID, err := pgUUID(entry.AgentID)
+	if err != nil || entry.AmountIDR == 0 || entry.Kind == "" {
+		return apperror.ErrValidation
+	}
+	var orderID any
+	if strings.TrimSpace(entry.OrderID) != "" {
+		parsed, err := pgUUID(entry.OrderID)
+		if err != nil {
+			return apperror.ErrValidation
+		}
+		orderID = parsed
+	}
+	_, err = tx.Exec(ctx, `
+		INSERT INTO agent_refund_balance_entries
+		  (operator_id, agent_id, amount_idr, kind, order_id, note, created_by_user_id, idempotency_key)
+		VALUES ($1,$2,$3,$4,$5,$6,NULLIF($7,''),$8)
+		ON CONFLICT DO NOTHING`, operatorID, agentID, entry.AmountIDR, entry.Kind,
+		orderID, entry.Note, entry.CreatedByUserID, entry.IdempotencyKey)
+	return err
+}
+
+func (r *LedgerRepository) AgentRefundBalance(ctx context.Context, agentID string) (int64, error) {
+	return agentRefundBalance(ctx, r.pool, agentID)
+}
+
+func (r *LedgerRepository) AgentRefundBalanceTx(ctx context.Context, tx pgx.Tx, agentID string) (int64, error) {
+	return agentRefundBalance(ctx, tx, agentID)
+}
+
+func agentRefundBalance(ctx context.Context, query ledgerQuerier, agentID string) (int64, error) {
+	id, err := pgUUID(agentID)
+	if err != nil {
+		return 0, apperror.ErrValidation
+	}
+	var total int64
+	err = query.QueryRow(ctx, `SELECT COALESCE(SUM(amount_idr),0)::bigint FROM agent_refund_balance_entries WHERE agent_id=$1`, id).Scan(&total)
+	return total, err
+}
+
+func (r *LedgerRepository) ListAgentRefundBalanceEntries(ctx context.Context, agentID string) ([]*domain.AgentRefundBalanceEntry, error) {
+	id, err := pgUUID(agentID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	rows, err := r.pool.Query(ctx, `SELECT id::text, amount_idr, kind, note, COALESCE(order_id::text,''), created_at FROM agent_refund_balance_entries WHERE agent_id=$1 ORDER BY created_at DESC`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	entries := make([]*domain.AgentRefundBalanceEntry, 0)
+	for rows.Next() {
+		var entry domain.AgentRefundBalanceEntry
+		if err := rows.Scan(&entry.ID, &entry.AmountIDR, &entry.Kind, &entry.Note, &entry.OrderID, &entry.CreatedAt); err != nil {
+			return nil, err
+		}
+		entries = append(entries, &entry)
+	}
+	return entries, rows.Err()
+}
+
 // AppendBalance records a movement in a pilgrim's deposit. Same idempotency
 // contract, and the same conflict handling, as AppendCommission: a repeat is
 // an advice about the same entry.

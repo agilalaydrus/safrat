@@ -19,6 +19,7 @@ const payoutStatus: Record<number, { label: string; color: string; background: s
   [RefundPayoutStatus.PROCESSING]: { label: "Sedang diproses", color: "#1d4ed8", background: "#eff6ff" },
   [RefundPayoutStatus.PAID]: { label: "Sudah dibayar", color: "var(--color-emerald-900)", background: "var(--color-emerald-50)" },
   [RefundPayoutStatus.FAILED]: { label: "Tidak berhasil", color: "var(--color-danger-600)", background: "#fff1f2" },
+  [RefundPayoutStatus.REVERSED]: { label: "Dikembalikan gateway", color: "#7c3aed", background: "#f5f3ff" },
 };
 
 const methodLabel: Record<number, string> = {
@@ -27,24 +28,32 @@ const methodLabel: Record<number, string> = {
   [RefundPayoutMethod.CASH]: "Tunai",
 };
 
-export default function RefundWalletPanel({ appAccessCode, fallbackBalance = 0n }: { appAccessCode: string; fallbackBalance?: bigint }) {
+const bankChannels = [
+  ["CENAIDJA", "BCA"], ["BRINIDJA", "BRI"], ["BNINIDJA", "BNI"],
+  ["BMRIIDJA", "Mandiri"], ["BNIAIDJA", "CIMB Niaga"], ["BBBAIDJA", "Permata"],
+] as const;
+const walletChannels = [["ID_DANA", "DANA"], ["ID_OVO", "OVO"], ["ID_GOPAY", "GoPay"], ["ID_SHOPEEPAY", "ShopeePay"], ["ID_LINKAJA", "LinkAja"]] as const;
+
+export default function RefundWalletPanel({ appAccessCode = "", fallbackBalance = 0n, agent = false }: { appAccessCode?: string; fallbackBalance?: bigint; agent?: boolean }) {
   const [wallet, setWallet] = useState<RefundWallet>();
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState(RefundPayoutMethod.BANK_TRANSFER);
   const [note, setNote] = useState("");
+  const [destinationChannel, setDestinationChannel] = useState<string>(bankChannels[0][0]);
+  const [accountHolder, setAccountHolder] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
 
   const load = useCallback(async () => {
-    if (!appAccessCode) return;
     try {
-      setWallet(await refundPayoutClient.getMyRefundWallet({ appAccessCode }));
+      setWallet(agent ? await refundPayoutClient.getMyAgentRefundWallet({}) : await refundPayoutClient.getMyRefundWallet({ appAccessCode }));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Saldo refund tidak dapat dimuat.");
     }
-  }, [appAccessCode]);
+  }, [agent, appAccessCode]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -63,13 +72,22 @@ export default function RefundWalletPanel({ appAccessCode, fallbackBalance = 0n 
     setError("");
     setNotice("");
     try {
-      await refundPayoutClient.requestRefundPayout({
-        appAccessCode, amountIdr: requestedAmount, method,
-        note: note.trim(), idempotencyKey,
-      });
-      setNotice("Permintaan pencairan tercatat. Travel akan menghubungi nomor Anda untuk konfirmasi tujuan pembayaran.");
+      const destination = method === RefundPayoutMethod.CASH ? {} : {
+        destinationChannel, destinationAccountHolder: accountHolder.trim(), destinationAccountNumber: accountNumber.trim(),
+      };
+      if (method !== RefundPayoutMethod.CASH && (!accountHolder.trim() || !/^\d{7,34}$/.test(accountNumber.trim()))) {
+        setError("Isi nama pemilik dan nomor rekening/e-wallet yang valid.");
+        return;
+      }
+      if (agent) {
+        await refundPayoutClient.requestAgentRefundPayout({ amountIdr: requestedAmount, method, note: note.trim(), idempotencyKey, ...destination });
+      } else {
+        await refundPayoutClient.requestRefundPayout({ appAccessCode, amountIdr: requestedAmount, method, note: note.trim(), idempotencyKey, ...destination });
+      }
+      setNotice(method === RefundPayoutMethod.CASH ? "Permintaan pencairan tunai tercatat." : "Permintaan tercatat dan akan dikirim otomatis melalui Xendit.");
       setAmount("");
       setNote("");
+      setAccountNumber("");
       setIdempotencyKey(crypto.randomUUID());
       await load();
     } catch (caught) {
@@ -104,7 +122,7 @@ export default function RefundWalletPanel({ appAccessCode, fallbackBalance = 0n 
             <IconShieldLock size={17} color="var(--color-emerald-800)" />
             <strong>Ajukan pencairan</strong>
           </div>
-          <p style={help}>Demi keamanan, akun tertaut dan 2FA aktif wajib digunakan. Travel akan menghubungi nomor terdaftar untuk memverifikasi rekening atau tujuan e-wallet.</p>
+          <p style={help}>Akun tertaut dan 2FA aktif wajib digunakan. Transfer bank/e-wallet dikirim otomatis melalui Xendit; nomor tujuan disimpan terenkripsi.</p>
           <label style={field}>Jumlah
             <input value={amount} onChange={(event) => setAmount(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder={String(available)} style={input} />
           </label>
@@ -112,12 +130,25 @@ export default function RefundWalletPanel({ appAccessCode, fallbackBalance = 0n 
             <button type="button" onClick={() => setAmount(String(available))} style={smallButton}>Cairkan semua</button>
           </div>
           <label style={field}>Metode yang diinginkan
-            <select value={method} onChange={(event) => setMethod(Number(event.target.value) as RefundPayoutMethod)} style={input}>
+            <select value={method} onChange={(event) => { const next = Number(event.target.value) as RefundPayoutMethod; setMethod(next); setDestinationChannel(next === RefundPayoutMethod.EWALLET ? walletChannels[0][0] : bankChannels[0][0]); }} style={input}>
               <option value={RefundPayoutMethod.BANK_TRANSFER}>Transfer bank</option>
               <option value={RefundPayoutMethod.EWALLET}>E-wallet</option>
               <option value={RefundPayoutMethod.CASH}>Tunai</option>
             </select>
           </label>
+          {method !== RefundPayoutMethod.CASH && <>
+            <label style={field}>{method === RefundPayoutMethod.EWALLET ? "Penyedia e-wallet" : "Bank tujuan"}
+              <select value={destinationChannel} onChange={(event) => setDestinationChannel(event.target.value)} style={input}>
+                {(method === RefundPayoutMethod.EWALLET ? walletChannels : bankChannels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            <label style={field}>Nama pemilik akun
+              <input value={accountHolder} onChange={(event) => setAccountHolder(event.target.value)} maxLength={255} autoComplete="name" style={input} />
+            </label>
+            <label style={field}>{method === RefundPayoutMethod.EWALLET ? "Nomor ponsel e-wallet" : "Nomor rekening"}
+              <input value={accountNumber} onChange={(event) => setAccountNumber(event.target.value.replace(/\D/g, ""))} maxLength={34} inputMode="numeric" autoComplete="off" style={input} />
+            </label>
+          </>}
           <label style={field}>Catatan untuk travel
             <textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} rows={3} placeholder="Contoh: hubungi lewat WhatsApp sebelum transfer" style={{ ...input, paddingTop: 12 }} />
           </label>
@@ -164,7 +195,7 @@ function PayoutRow({ request }: { request: RefundPayoutRequest }) {
   return <div style={payoutRow}>
     <div><strong>{money(request.amountIdr)}</strong><small style={muted}>{methodLabel[request.method] ?? "Metode lain"} · {date(request.createdAt?.toDate())}</small></div>
     <span style={{ ...statusBadge, color: status.color, background: status.background }}><IconClockHour4 size={13} />{status.label}</span>
-    {(request.paymentReference || request.resolutionNote) && <small style={{ ...muted, gridColumn: "1 / -1" }}>{request.paymentReference ? `Referensi: ${request.paymentReference}` : request.resolutionNote}</small>}
+    {(request.destinationAccountLast4 || request.paymentReference || request.resolutionNote) && <small style={{ ...muted, gridColumn: "1 / -1" }}>{request.destinationAccountLast4 ? `${request.destinationChannel} · •••• ${request.destinationAccountLast4}` : ""}{request.paymentReference ? ` · Referensi: ${request.paymentReference}` : request.resolutionNote ? ` · ${request.resolutionNote}` : ""}</small>}
   </div>;
 }
 

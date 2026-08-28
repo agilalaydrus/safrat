@@ -3,12 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { IconCheck, IconClockHour4, IconExternalLink, IconRefresh, IconWallet, IconX } from "@tabler/icons-react";
 import {
+  RefundBeneficiaryKind,
   RefundPayoutAction,
   RefundPayoutMethod,
   RefundPayoutRequest,
   RefundPayoutStatus,
 } from "@hajj-saas/proto-gen/hajj/v1/refund_payout_pb";
 import { refundPayoutClient } from "@/lib/rpc";
+import { getBearerToken } from "@/lib/transport";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 const money = (value: bigint) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value));
 const stamp = (value?: Date) => value?.toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) ?? "—";
@@ -22,6 +26,7 @@ const statusInfo: Record<number, { label: string; color: string; background: str
   [RefundPayoutStatus.PROCESSING]: { label: "Diproses", color: "#1d4ed8", background: "#eff6ff" },
   [RefundPayoutStatus.PAID]: { label: "Dibayar", color: "var(--color-emerald-900)", background: "var(--color-emerald-50)" },
   [RefundPayoutStatus.FAILED]: { label: "Gagal", color: "var(--color-danger-600)", background: "#fff1f2" },
+  [RefundPayoutStatus.REVERSED]: { label: "Dibalik gateway", color: "#7c3aed", background: "#f5f3ff" },
 };
 
 type Resolution = { requestId: string; action: RefundPayoutAction; note: string; paymentReference: string };
@@ -34,6 +39,7 @@ export default function RefundPayoutDashboard() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [resolution, setResolution] = useState<Resolution>();
+  const [uploadingProof, setUploadingProof] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,7 +65,7 @@ export default function RefundPayoutDashboard() {
     setNotice("");
     try {
       await refundPayoutClient.transitionRefundPayout({ requestId: request.id, action, note: note.trim(), paymentReference: paymentReference.trim() });
-      setNotice(action === RefundPayoutAction.START_PROCESSING ? `Pencairan ${request.pilgrimName} mulai diproses.` : action === RefundPayoutAction.MARK_PAID ? `Pembayaran ${request.pilgrimName} dicatat dan saldo ledger didebit.` : `Permintaan ${request.pilgrimName} ditandai gagal; saldo kembali tersedia.`);
+      setNotice(action === RefundPayoutAction.START_PROCESSING ? `Pencairan ${request.beneficiaryName} mulai diproses.` : action === RefundPayoutAction.MARK_PAID ? `Pembayaran ${request.beneficiaryName} dicatat dan saldo ledger didebit.` : `Permintaan ${request.beneficiaryName} ditandai gagal; saldo kembali tersedia.`);
       setResolution(undefined);
       await load();
     } catch (caught) {
@@ -73,10 +79,25 @@ export default function RefundPayoutDashboard() {
     setResolution({ requestId: request.id, action, note: "", paymentReference: "" });
   }
 
+  async function uploadProof(requestId: string, file?: File) {
+    if (!file) return;
+    setUploadingProof(true); setError("");
+    try {
+      const token = await getBearerToken();
+      if (!token) throw new Error("Sesi tidak ditemukan. Silakan login ulang.");
+      const form = new FormData(); form.append("request_id", requestId); form.append("file", file);
+      const response = await fetch(`${API_URL}/upload/refund-payout-proof`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
+      if (!response.ok) throw new Error(await response.text() || "Upload gagal.");
+      setNotice("Bukti serah terima berhasil diunggah.");
+      await load();
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Bukti tidak dapat diunggah."); }
+    finally { setUploadingProof(false); }
+  }
+
   return (
     <main style={page}>
       <header style={header}>
-        <div><p style={eyebrow}>KEUANGAN / REFUND</p><h1 style={title}>Pencairan Saldo Jamaah</h1><p style={subtitle}>Proses dana refund sampai selesai tanpa menghapus jejak ledger.</p></div>
+        <div><p style={eyebrow}>KEUANGAN / REFUND</p><h1 style={title}>Pencairan Saldo Refund</h1><p style={subtitle}>Pantau payout jamaah dan agen; transfer non-tunai direkonsiliasi otomatis melalui Xendit.</p></div>
         <button type="button" onClick={() => void load()} style={secondary}><IconRefresh size={16} />Muat ulang</button>
       </header>
 
@@ -95,6 +116,7 @@ export default function RefundPayoutDashboard() {
           [RefundPayoutStatus.PROCESSING, "Diproses"],
           [RefundPayoutStatus.PAID, "Dibayar"],
           [RefundPayoutStatus.FAILED, "Gagal"],
+          [RefundPayoutStatus.REVERSED, "Dibalik"],
         ] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setFilter(value)} style={filter === value ? filterActive : filterButton}>{label}</button>)}
       </div>
 
@@ -111,25 +133,31 @@ export default function RefundPayoutDashboard() {
             const activeResolution = resolution?.requestId === request.id ? resolution : undefined;
             return <article key={request.id} style={card}>
               <div style={cardTop}>
-                <div><p style={personName}>{request.pilgrimName}</p><p style={meta}>{request.pilgrimPhone || "Nomor telepon belum tersedia"} · {stamp(request.createdAt?.toDate())}</p></div>
+                <div><p style={personName}>{request.beneficiaryName || request.pilgrimName}</p><p style={meta}>{request.beneficiaryKind === RefundBeneficiaryKind.AGENT ? "Agen" : "Jamaah"} · {request.pilgrimPhone || "Nomor telepon belum tersedia"} · {stamp(request.createdAt?.toDate())}</p></div>
                 <span style={{ ...badge, color: status.color, background: status.background }}>{status.label}</span>
               </div>
               <div style={amountRow}><strong style={{ fontSize: 24 }}>{money(request.amountIdr)}</strong><span style={method}>{methodLabel[request.method] ?? "Metode lain"}</span></div>
               {request.note && <p style={noteBox}>{request.note}</p>}
+              {request.destinationAccountLast4 && <div style={noteBox}>Tujuan: <strong>{request.destinationChannel} · •••• {request.destinationAccountLast4}</strong> atas nama {request.destinationAccountHolder}</div>}
+              {request.provider && <div style={resultBox}><span>Gateway: <strong>{request.provider}</strong> · {request.providerStatus || "menunggu"}</span>{request.providerFailureCode && <span>Kode kegagalan: {request.providerFailureCode}</span>}</div>}
               {(request.paymentReference || request.resolutionNote) && <div style={resultBox}>{request.paymentReference && <span>Referensi pembayaran: <strong>{request.paymentReference}</strong></span>}{request.resolutionNote && <span>Catatan: {request.resolutionNote}</span>}</div>}
 
               <div style={actions}>
-                {whatsapp && <a href={whatsapp} target="_blank" rel="noreferrer" style={secondary}>Hubungi jamaah <IconExternalLink size={14} /></a>}
-                {request.status === RefundPayoutStatus.REQUESTED && <button disabled={working === request.id} onClick={() => void transition(request, RefundPayoutAction.START_PROCESSING)} style={primary}><IconClockHour4 size={15} />Mulai proses</button>}
-                {request.status === RefundPayoutStatus.PROCESSING && <button disabled={working === request.id} onClick={() => openResolution(request, RefundPayoutAction.MARK_PAID)} style={primary}><IconCheck size={15} />Tandai dibayar</button>}
-                {(request.status === RefundPayoutStatus.REQUESTED || request.status === RefundPayoutStatus.PROCESSING) && <button disabled={working === request.id} onClick={() => openResolution(request, RefundPayoutAction.MARK_FAILED)} style={danger}><IconX size={15} />Gagal</button>}
+                {whatsapp && <a href={whatsapp} target="_blank" rel="noreferrer" style={secondary}>Hubungi penerima <IconExternalLink size={14} /></a>}
+                {request.method === RefundPayoutMethod.CASH && request.status === RefundPayoutStatus.REQUESTED && <button disabled={working === request.id} onClick={() => void transition(request, RefundPayoutAction.START_PROCESSING)} style={primary}><IconClockHour4 size={15} />Mulai proses</button>}
+                {request.method === RefundPayoutMethod.CASH && request.status === RefundPayoutStatus.PROCESSING && <button disabled={working === request.id} onClick={() => openResolution(request, RefundPayoutAction.MARK_PAID)} style={primary}><IconCheck size={15} />Tandai dibayar</button>}
+                {request.method === RefundPayoutMethod.CASH && (request.status === RefundPayoutStatus.REQUESTED || request.status === RefundPayoutStatus.PROCESSING) && <button disabled={working === request.id} onClick={() => openResolution(request, RefundPayoutAction.MARK_FAILED)} style={danger}><IconX size={15} />Gagal</button>}
               </div>
 
               {activeResolution && <div style={resolutionBox}>
                 <strong>{activeResolution.action === RefundPayoutAction.MARK_PAID ? "Konfirmasi pembayaran" : "Catat kegagalan"}</strong>
+                {activeResolution.action === RefundPayoutAction.MARK_PAID && <label style={field}>Bukti serah terima (PDF/JPG/PNG)
+                  <input type="file" accept="application/pdf,image/jpeg,image/png" disabled={uploadingProof} onChange={(event) => void uploadProof(request.id, event.target.files?.[0])} />
+                  <small style={meta}>{request.proofUrl ? "Bukti sudah tersimpan." : uploadingProof ? "Mengunggah..." : "Wajib sebelum pencairan tunai ditandai dibayar."}</small>
+                </label>}
                 {activeResolution.action === RefundPayoutAction.MARK_PAID && <label style={field}>Referensi pembayaran<input autoFocus value={activeResolution.paymentReference} onChange={(event) => setResolution({ ...activeResolution, paymentReference: event.target.value })} placeholder="Nomor transfer / bukti kas" maxLength={200} style={input} /></label>}
                 <label style={field}>{activeResolution.action === RefundPayoutAction.MARK_FAILED ? "Alasan kegagalan" : "Catatan operasional"}<textarea autoFocus={activeResolution.action === RefundPayoutAction.MARK_FAILED} value={activeResolution.note} onChange={(event) => setResolution({ ...activeResolution, note: event.target.value })} rows={2} maxLength={500} style={{ ...input, paddingTop: 10 }} /></label>
-                <div style={actions}><button onClick={() => setResolution(undefined)} style={secondary}>Batal</button><button disabled={working === request.id || (activeResolution.action === RefundPayoutAction.MARK_PAID ? !activeResolution.paymentReference.trim() : !activeResolution.note.trim())} onClick={() => void transition(request, activeResolution.action, activeResolution.note, activeResolution.paymentReference)} style={activeResolution.action === RefundPayoutAction.MARK_PAID ? primary : danger}>Simpan keputusan</button></div>
+                <div style={actions}><button onClick={() => setResolution(undefined)} style={secondary}>Batal</button><button disabled={working === request.id || uploadingProof || (activeResolution.action === RefundPayoutAction.MARK_PAID ? !activeResolution.paymentReference.trim() || !request.proofUrl : !activeResolution.note.trim())} onClick={() => void transition(request, activeResolution.action, activeResolution.note, activeResolution.paymentReference)} style={activeResolution.action === RefundPayoutAction.MARK_PAID ? primary : danger}>Simpan keputusan</button></div>
               </div>}
             </article>;
           })}

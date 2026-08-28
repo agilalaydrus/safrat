@@ -17,6 +17,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -27,6 +28,7 @@ import (
 var ErrNotConfigured = errors.New("Xendit belum dikonfigurasi (XENDIT_SECRET_KEY kosong)")
 
 const invoicesURL = "https://api.xendit.co/v2/invoices"
+const payoutsURL = "https://api.xendit.co/v3/payouts"
 
 // invoiceValidFor is how long a jamaah has to complete payment.
 //
@@ -44,11 +46,12 @@ const invoiceValidFor = 24 * time.Hour
 type Client struct {
 	secretKey   string
 	invoicesURL string
+	payoutsURL  string
 	httpClient  *http.Client
 }
 
 func NewClient(secretKey string) *Client {
-	return &Client{secretKey: secretKey, invoicesURL: invoicesURL, httpClient: &http.Client{}}
+	return &Client{secretKey: secretKey, invoicesURL: invoicesURL, payoutsURL: payoutsURL, httpClient: &http.Client{Timeout: 20 * time.Second}}
 }
 
 // NewClientWithEndpoint points the client at a different invoices endpoint.
@@ -57,7 +60,11 @@ func NewClient(secretKey string) *Client {
 // a stub rather than either calling Xendit or skipping the path entirely.
 // Production always uses NewClient; nothing outside a test should call this.
 func NewClientWithEndpoint(secretKey, endpoint string) *Client {
-	return &Client{secretKey: secretKey, invoicesURL: endpoint, httpClient: &http.Client{}}
+	return &Client{secretKey: secretKey, invoicesURL: endpoint, payoutsURL: endpoint, httpClient: &http.Client{Timeout: 20 * time.Second}}
+}
+
+func NewClientWithEndpoints(secretKey, invoiceEndpoint, payoutEndpoint string) *Client {
+	return &Client{secretKey: secretKey, invoicesURL: invoiceEndpoint, payoutsURL: payoutEndpoint, httpClient: &http.Client{Timeout: 20 * time.Second}}
 }
 
 // Configured reports whether payments can actually be taken. Nil-safe: an
@@ -192,4 +199,105 @@ func (c *Client) FetchInvoice(ctx context.Context, invoiceID string) (*InvoiceSt
 		ID: payload.ID, ExternalID: payload.ExternalID, Status: payload.Status,
 		Amount: payload.Amount, PaidAmount: payload.PaidAmount,
 	}, nil
+}
+
+type CreatePayoutRequest struct {
+	ReferenceID, IdempotencyKey  string
+	AmountIDR                    int64
+	GivenName, Surname, Phone    string
+	AccountHolder, AccountNumber string
+	RoutingType, RoutingValue    string
+	Description                  string
+}
+
+type Payout struct {
+	ID                 string
+	ReferenceID        string
+	Status             string
+	AmountIDR          int64
+	ProcessorReference string
+	FailureCode        string
+}
+
+// CreatePayout submits one B2C refund through Xendit Payouts v3. The caller
+// owns the durable retry loop and must reuse both ReferenceID and
+// IdempotencyKey; Xendit then returns the original payout instead of sending
+// the money twice after an uncertain timeout.
+func (c *Client) CreatePayout(ctx context.Context, req CreatePayoutRequest) (*Payout, error) {
+	if !c.Configured() {
+		return nil, ErrNotConfigured
+	}
+	if req.ReferenceID == "" || req.IdempotencyKey == "" || req.AmountIDR <= 0 {
+		return nil, errors.New("invalid xendit payout request")
+	}
+	recipient := map[string]any{
+		"type": "INDIVIDUAL", "given_name": req.GivenName, "surname": req.Surname,
+		"relationship": "CUSTOMER",
+		"address":      map[string]any{"country": "ID"},
+		"account_details": map[string]any{
+			"currency": "IDR", "account_country": "ID", "account_holder_name": req.AccountHolder,
+			"account_number": req.AccountNumber, "routing_type_1": req.RoutingType, "routing_value_1": req.RoutingValue,
+		},
+	}
+	if strings.TrimSpace(req.Phone) != "" {
+		recipient["details"] = map[string]any{"personal_mobile_number": req.Phone}
+	}
+	body, err := json.Marshal(map[string]any{
+		"reference_id":   req.ReferenceID,
+		"recipient":      recipient,
+		"payout_details": map[string]any{"source_currency": "IDR", "source_amount": req.AmountIDR, "destination_currency": "IDR"},
+		"source_of_fund": "BUSINESS_REVENUE", "purpose_code": "REFUND", "description": req.Description,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("marshal xendit payout request: %w", err)
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.payoutsURL, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("api-version", "2025-09-01")
+	httpReq.Header.Set("idempotency-key", req.IdempotencyKey)
+	httpReq.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(c.secretKey+":")))
+	return c.doPayout(httpReq)
+}
+
+func (c *Client) FetchPayout(ctx context.Context, payoutID string) (*Payout, error) {
+	if !c.Configured() {
+		return nil, ErrNotConfigured
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, c.payoutsURL+"/"+url.PathEscape(payoutID), nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("api-version", "2025-09-01")
+	httpReq.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(c.secretKey+":")))
+	return c.doPayout(httpReq)
+}
+
+func (c *Client) doPayout(req *http.Request) (*Payout, error) {
+	response, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("call xendit payout: %w", err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return nil, fmt.Errorf("xendit payout API error (%d): %s", response.StatusCode, string(body))
+	}
+	var payload struct {
+		PayoutID           string `json:"payout_id"`
+		ReferenceID        string `json:"reference_id"`
+		Status             string `json:"status"`
+		SourceAmount       int64  `json:"source_amount"`
+		ProcessorReference string `json:"processor_reference"`
+		FailureCode        string `json:"failure_code"`
+	}
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return nil, fmt.Errorf("parse xendit payout response: %w", err)
+	}
+	return &Payout{ID: payload.PayoutID, ReferenceID: payload.ReferenceID, Status: payload.Status, AmountIDR: payload.SourceAmount, ProcessorReference: payload.ProcessorReference, FailureCode: payload.FailureCode}, nil
 }

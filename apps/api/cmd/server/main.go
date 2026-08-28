@@ -124,7 +124,7 @@ func main() {
 		subscriptionRepository := repository.NewSubscriptionRepository(pool)
 		ledgerRepository := repository.NewLedgerRepository(pool)
 		refundRepository := repository.NewRefundRepository(pool)
-		refundPayoutRepository := repository.NewRefundPayoutRepository(pool)
+		var refundPayoutRepository *repository.RefundPayoutRepository
 		// Installed before anything can write an identity. Without a key, KYC
 		// writes fail loudly rather than storing an identity number in the
 		// clear — which would look like success and stay invisible until a
@@ -140,6 +140,7 @@ func main() {
 				"effect", "submissions will be refused rather than saved unencrypted")
 		}
 		repository.SetKYCSealer(kycSealer)
+		refundPayoutRepository = repository.NewRefundPayoutRepository(pool, kycSealer)
 		if kycSealer != nil {
 			// Printed at every start, on purpose. It identifies the key without
 			// revealing it, so a deployment carrying the wrong one is visible
@@ -241,7 +242,7 @@ func main() {
 		identityService := service.NewIdentityService(identityRepository)
 		xenditClient := payment.NewClient(config.XenditSecretKey)
 		orderService := service.NewOrderService(operatorRepository, pilgrimRepository, productRepository, orderRepository, auditRepository, ledgerRepository, refundRepository, agentRepository, seasonRepository, pool, xenditClient, config.AllowedOrigin)
-		refundPayoutService := service.NewRefundPayoutService(operatorRepository, identityRepository, refundPayoutRepository, ledgerRepository, auditRepository, pool)
+		refundPayoutService := service.NewRefundPayoutService(operatorRepository, identityRepository, refundPayoutRepository, ledgerRepository, auditRepository, pool, xenditClient)
 		broadcastService := service.NewBroadcastService(operatorRepository, broadcastRepository, auditRepository)
 		registrationService := service.NewRegistrationService(operatorRepository, registrationRepository, auditRepository, agentRepository)
 		waitlistService := service.NewWaitlistService(operatorRepository, waitlistRepository, auditRepository)
@@ -387,8 +388,9 @@ func main() {
 		mux.Handle(healthReportPath, healthReportServiceHandler)
 		mux.Handle(monitoringPath, monitoringServiceHandler)
 		mux.HandleFunc("POST /webhooks/supplier/{token}", handler.NewSupplierCallbackHandler(logger, fulfilmentService))
-		mux.HandleFunc("POST /webhooks/xendit", handler.NewXenditWebhookHandler(logger, orderRepository, orderService, subscriptionRepository, config.XenditWebhookToken,
-			handler.NewWebhookSourceGuard(logger, os.Getenv("XENDIT_WEBHOOK_ALLOWED_IPS"))))
+		xenditSourceGuard := handler.NewWebhookSourceGuard(logger, os.Getenv("XENDIT_WEBHOOK_ALLOWED_IPS"))
+		mux.HandleFunc("POST /webhooks/xendit", handler.NewXenditWebhookHandler(logger, orderRepository, orderService, subscriptionRepository, config.XenditWebhookToken, xenditSourceGuard))
+		mux.HandleFunc("POST /webhooks/xendit/payout", handler.NewXenditPayoutWebhookHandler(logger, refundPayoutService, config.XenditWebhookToken, xenditSourceGuard))
 		uploadDir := os.Getenv("UPLOAD_DIR")
 		if uploadDir == "" {
 			uploadDir = "./uploads/documents"
@@ -397,6 +399,7 @@ func main() {
 		mux.HandleFunc("POST /upload/document/self", handler.NewPilgrimSelfDocumentUploadHandler(pilgrimService, uploadDir))
 		mux.HandleFunc("POST /upload/agent-document", handler.NewAgentDocumentUploadHandler(pool, agentService, uploadDir))
 		mux.HandleFunc("POST /upload/agent-document/self", handler.NewAgentSelfDocumentUploadHandler(pool, agentService, uploadDir))
+		mux.HandleFunc("POST /upload/refund-payout-proof", handler.NewRefundPayoutProofUploadHandler(pool, refundPayoutService, uploadDir))
 		mux.Handle("/uploads/documents/", http.StripPrefix("/uploads/documents/", http.FileServer(http.Dir(uploadDir))))
 		mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, request *http.Request) {
 			if err := pool.Ping(request.Context()); err != nil {

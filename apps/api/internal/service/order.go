@@ -547,8 +547,8 @@ func orderMessage(o *domain.Order) *hajjv1.Order {
 	return result
 }
 
-// RefundOrder records that money was returned to a pilgrim, credits their
-// balance ledger, and reverses the agent's commission.
+// RefundOrder records that money is owed back to the buyer, credits the
+// buyer's dedicated refund ledger, and reverses referral commission.
 //
 // A refund is always the whole transaction. The request carries no amount, so
 // a partial refund is not something a caller can ask for, and the database
@@ -604,10 +604,6 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
 			errors.New("hanya pesanan berstatus LUNAS yang dapat direfund"))
 	}
-	if order.BuyerKind == string(BuyerAgent) {
-		return nil, connect.NewError(connect.CodeFailedPrecondition,
-			errors.New("refund saldo untuk pembeli agen belum tersedia; kembalikan dana melalui jalur pembayaran dan jangan catat ke saldo jamaah"))
-	}
 
 	// Refunding something the supplier already delivered is a straight loss:
 	// we paid them and gave the money back. Refused rather than warned, and
@@ -655,12 +651,25 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 		return s.refundResponse(ctx, op.ID, order.ID, refund, false)
 	}
 
-	if err := s.ledgerRepository.AppendBalanceTx(ctx, tx, repository.BalanceEntry{
-		OperatorID: op.ID, PilgrimID: order.PilgrimID, AmountIDR: refundAmount, Kind: "REFUND",
-		OrderID: order.ID, Note: refundNote(refund.Reason), CreatedByUserID: userID,
-		IdempotencyKey: "refund-" + refund.ID,
-	}); err != nil {
-		return nil, serviceError("OrderService.RefundOrder", err)
+	if order.BuyerKind == string(BuyerAgent) {
+		if order.BuyerAgentID == "" {
+			return nil, serviceError("OrderService.RefundOrder", errors.New("pesanan agen tidak memiliki pemilik refund"))
+		}
+		if err := s.ledgerRepository.AppendAgentRefundBalanceTx(ctx, tx, repository.AgentRefundBalanceEntry{
+			OperatorID: op.ID, AgentID: order.BuyerAgentID, AmountIDR: refundAmount, Kind: "REFUND",
+			OrderID: order.ID, Note: refundNote(refund.Reason), CreatedByUserID: userID,
+			IdempotencyKey: "refund-" + refund.ID,
+		}); err != nil {
+			return nil, serviceError("OrderService.RefundOrder", err)
+		}
+	} else {
+		if err := s.ledgerRepository.AppendBalanceTx(ctx, tx, repository.BalanceEntry{
+			OperatorID: op.ID, PilgrimID: order.PilgrimID, AmountIDR: refundAmount, Kind: "REFUND",
+			OrderID: order.ID, Note: refundNote(refund.Reason), CreatedByUserID: userID,
+			IdempotencyKey: "refund-" + refund.ID,
+		}); err != nil {
+			return nil, serviceError("OrderService.RefundOrder", err)
+		}
 	}
 
 	if commissionReversal > 0 {
@@ -700,7 +709,12 @@ func (s *OrderService) refundResponse(ctx context.Context, operatorID, orderID s
 	if err != nil {
 		return nil, serviceError("OrderService.RefundOrder", err)
 	}
-	balance, err := s.ledgerRepository.PilgrimBalance(ctx, order.PilgrimID)
+	var balance int64
+	if order.BuyerKind == string(BuyerAgent) {
+		balance, err = s.ledgerRepository.AgentRefundBalance(ctx, order.BuyerAgentID)
+	} else {
+		balance, err = s.ledgerRepository.PilgrimBalance(ctx, order.PilgrimID)
+	}
 	if err != nil {
 		return nil, serviceError("OrderService.RefundOrder", err)
 	}

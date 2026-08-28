@@ -23,6 +23,7 @@ type RefundableOrder struct {
 	ID                 string
 	PilgrimID          string
 	BuyerKind          string
+	BuyerAgentID       string
 	AgentID            string
 	TotalPriceIDR      int64
 	AgentCommissionIDR int64

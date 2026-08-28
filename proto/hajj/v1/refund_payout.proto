@@ -14,8 +14,16 @@ option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 service RefundPayoutService {
   rpc GetMyRefundWallet(GetMyRefundWalletRequest) returns (RefundWallet);
   rpc RequestRefundPayout(RequestRefundPayoutRequest) returns (RefundPayoutRequest);
+  rpc GetMyAgentRefundWallet(GetMyAgentRefundWalletRequest) returns (RefundWallet);
+  rpc RequestAgentRefundPayout(RequestAgentRefundPayoutRequest) returns (RefundPayoutRequest);
   rpc ListRefundPayoutRequests(ListRefundPayoutRequestsRequest) returns (ListRefundPayoutRequestsResponse);
   rpc TransitionRefundPayout(TransitionRefundPayoutRequest) returns (RefundPayoutRequest);
+}
+
+enum RefundBeneficiaryKind {
+  REFUND_BENEFICIARY_KIND_UNSPECIFIED = 0;
+  REFUND_BENEFICIARY_KIND_PILGRIM = 1;
+  REFUND_BENEFICIARY_KIND_AGENT = 2;
 }
 
 enum RefundPayoutMethod {
@@ -31,6 +39,7 @@ enum RefundPayoutStatus {
   REFUND_PAYOUT_STATUS_PROCESSING = 2;
   REFUND_PAYOUT_STATUS_PAID = 3;
   REFUND_PAYOUT_STATUS_FAILED = 4;
+  REFUND_PAYOUT_STATUS_REVERSED = 5;
 }
 
 enum RefundPayoutAction {
@@ -64,6 +73,16 @@ message RefundPayoutRequest {
   google.protobuf.Timestamp created_at = 11;
   google.protobuf.Timestamp processing_at = 12;
   google.protobuf.Timestamp resolved_at = 13;
+  RefundBeneficiaryKind beneficiary_kind = 14;
+  string beneficiary_id = 15;
+  string beneficiary_name = 16;
+  string destination_channel = 17;
+  string destination_account_holder = 18;
+  string destination_account_last4 = 19;
+  string provider = 20;
+  string provider_status = 21;
+  string provider_failure_code = 22;
+  string proof_url = 23;
 }
 
 message RefundWallet {
@@ -84,6 +103,21 @@ message RequestRefundPayoutRequest {
   RefundPayoutMethod method = 3 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3]}];
   string note = 4 [(buf.validate.field).string.max_len = 500];
   string idempotency_key = 5 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+  string destination_channel = 6 [(buf.validate.field).string.max_len = 50];
+  string destination_account_holder = 7 [(buf.validate.field).string.max_len = 255];
+  string destination_account_number = 8 [(buf.validate.field).string.max_len = 50];
+}
+
+message GetMyAgentRefundWalletRequest {}
+
+message RequestAgentRefundPayoutRequest {
+  int64 amount_idr = 1 [(buf.validate.field).int64.gt = 0];
+  RefundPayoutMethod method = 2 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3]}];
+  string note = 3 [(buf.validate.field).string.max_len = 500];
+  string idempotency_key = 4 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+  string destination_channel = 5 [(buf.validate.field).string.max_len = 50];
+  string destination_account_holder = 6 [(buf.validate.field).string.max_len = 255];
+  string destination_account_number = 7 [(buf.validate.field).string.max_len = 50];
 }
 
 message ListRefundPayoutRequestsRequest {

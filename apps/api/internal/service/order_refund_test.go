@@ -172,6 +172,50 @@ func TestRefundOrderReturnsTheWholeTransactionIntegration(t *testing.T) {
 	}
 }
 
+func TestRefundOrderCreditsAgentBuyerLedgerWithoutCommissionIntegration(t *testing.T) {
+	f := newRefundFixture(t)
+	ctx := context.Background()
+	tx, err := f.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, `SELECT set_config('app.allow_ledger_purge','on',true)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, `DELETE FROM agent_commission_entries WHERE order_id=$1`, f.orderID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tx.Exec(ctx, `UPDATE orders SET pilgrim_id=NULL,buyer_agent_id=$2,buyer_kind='AGENT',agent_id=NULL,agent_commission_idr=0 WHERE id=$1`, f.orderID, f.agentID); err != nil {
+		t.Fatal(err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := f.service.RefundOrder(ctx, f.orgID, "user-refund", &hajjv1.RefundOrderRequest{OrderId: f.orderID, Reason: "pembelian agen dibatalkan", IdempotencyKey: uuid.NewString()})
+	if err != nil {
+		t.Fatalf("refund agent purchase: %v", err)
+	}
+	if result.Order.Status != "REFUNDED" || result.PilgrimBalanceIdr != refundOrderTotal {
+		t.Fatalf("result = %+v", result)
+	}
+	var balance int64
+	var entries int
+	if err := f.pool.QueryRow(ctx, `SELECT COALESCE(SUM(amount_idr),0),count(*) FROM agent_refund_balance_entries WHERE agent_id=$1`, f.agentID).Scan(&balance, &entries); err != nil {
+		t.Fatal(err)
+	}
+	if balance != refundOrderTotal || entries != 1 {
+		t.Fatalf("agent refund balance/entries = %d/%d", balance, entries)
+	}
+	var pilgrimEntries int
+	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM pilgrim_balance_entries WHERE order_id=$1`, f.orderID).Scan(&pilgrimEntries); err != nil {
+		t.Fatal(err)
+	}
+	if pilgrimEntries != 0 {
+		t.Fatalf("agent refund leaked into pilgrim ledger: %d entries", pilgrimEntries)
+	}
+}
+
 // The same idempotency key always refers to the same refund. A double-clicked
 // button or a retried call must settle that one refund, never issue a second.
 func TestRefundOrderIsIdempotentUnderConcurrencyIntegration(t *testing.T) {

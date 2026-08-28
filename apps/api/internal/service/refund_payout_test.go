@@ -2,14 +2,20 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"sync"
 	"testing"
 
 	"github.com/google/uuid"
+	appcrypto "github.com/hajj-saas/api/internal/crypto"
 	"github.com/hajj-saas/api/internal/gen/db"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/middleware"
+	"github.com/hajj-saas/api/internal/payment"
 	"github.com/hajj-saas/api/internal/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -17,6 +23,7 @@ import (
 type refundPayoutFixture struct {
 	pool                         *pgxpool.Pool
 	service                      *RefundPayoutService
+	payouts                      *repository.RefundPayoutRepository
 	ledger                       *repository.LedgerRepository
 	operatorID, orgID, pilgrimID string
 	pilgrimCtx, ownerCtx         context.Context
@@ -80,13 +87,17 @@ func newRefundPayoutFixture(t *testing.T) *refundPayoutFixture {
 		t.Fatalf("credit balance: %v", err)
 	}
 	identity := repository.NewIdentityRepository(queries, repository.NewAgentRepository(queries))
-	payouts := repository.NewRefundPayoutRepository(pool)
+	sealer, err := appcrypto.NewSealer("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+	if err != nil {
+		t.Fatalf("sealer: %v", err)
+	}
+	payouts := repository.NewRefundPayoutRepository(pool, sealer)
 	service := NewRefundPayoutService(
 		repository.NewOperatorRepository(queries), identity, payouts,
 		ledger, repository.NewAuditRepository(queries), pool,
 	)
 	return &refundPayoutFixture{
-		pool: pool, service: service, ledger: ledger, operatorID: operatorID, orgID: orgID, pilgrimID: pilgrimID,
+		pool: pool, service: service, payouts: payouts, ledger: ledger, operatorID: operatorID, orgID: orgID, pilgrimID: pilgrimID,
 		pilgrimCtx: middleware.ContextWithIdentity(ctx, userID, ""),
 		ownerCtx:   middleware.ContextWithStaffIdentity(ctx, ownerID, orgID, "owner"),
 	}
@@ -102,7 +113,7 @@ func TestRefundPayoutLifecycleIsReservedIdempotentAndLedgerBackedIntegration(t *
 	key := uuid.NewString()
 	created, err := f.service.RequestRefundPayout(ctx, &hajjv1.RequestRefundPayoutRequest{
 		AppAccessCode: code, AmountIdr: 800_000,
-		Method:         hajjv1.RefundPayoutMethod_REFUND_PAYOUT_METHOD_BANK_TRANSFER,
+		Method:         hajjv1.RefundPayoutMethod_REFUND_PAYOUT_METHOD_CASH,
 		IdempotencyKey: key,
 	})
 	if err != nil {
@@ -129,6 +140,9 @@ func TestRefundPayoutLifecycleIsReservedIdempotentAndLedgerBackedIntegration(t *
 	})
 	if err != nil || processing.Status != hajjv1.RefundPayoutStatus_REFUND_PAYOUT_STATUS_PROCESSING {
 		t.Fatalf("start processing = %+v, %v", processing, err)
+	}
+	if _, err := f.service.AttachCashProof(f.ownerCtx, f.orgID, "owner", "owner", created.Id, "/uploads/documents/proof.pdf"); err != nil {
+		t.Fatalf("attach proof: %v", err)
 	}
 	paid, err := f.service.TransitionRefundPayout(f.ownerCtx, f.orgID, "owner", &hajjv1.TransitionRefundPayoutRequest{
 		RequestId: created.Id, Action: hajjv1.RefundPayoutAction_REFUND_PAYOUT_ACTION_MARK_PAID,
@@ -168,7 +182,8 @@ func TestConcurrentRefundPayoutRequestsCannotOverReserveIntegration(t *testing.T
 			defer wg.Done()
 			_, err := f.service.RequestRefundPayout(f.pilgrimCtx, &hajjv1.RequestRefundPayoutRequest{
 				AppAccessCode: code, AmountIdr: 700_000,
-				Method:         hajjv1.RefundPayoutMethod_REFUND_PAYOUT_METHOD_EWALLET,
+				Method:             hajjv1.RefundPayoutMethod_REFUND_PAYOUT_METHOD_EWALLET,
+				DestinationChannel: "ID_DANA", DestinationAccountHolder: "Jamaah Refund", DestinationAccountNumber: "08123456789",
 				IdempotencyKey: uuid.NewString(),
 			})
 			accepted[index] = err == nil
@@ -187,6 +202,86 @@ func TestConcurrentRefundPayoutRequestsCannotOverReserveIntegration(t *testing.T
 	var reserved int64
 	if err := f.pool.QueryRow(f.pilgrimCtx, `SELECT COALESCE(SUM(amount_idr),0) FROM pilgrim_refund_payout_requests WHERE pilgrim_id = $1 AND status IN ('REQUESTED','PROCESSING')`, f.pilgrimID).Scan(&reserved); err != nil || reserved != 700_000 {
 		t.Fatalf("reserved = %d, %v; want 700000", reserved, err)
+	}
+}
+
+func TestGatewayPayoutIsIdempotentEncryptedAndLedgerBackedIntegration(t *testing.T) {
+	f := newRefundPayoutFixture(t)
+	var receivedAccount, receivedKey string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			ReferenceID string `json:"reference_id"`
+			Recipient   struct {
+				Account struct {
+					Number string `json:"account_number"`
+				} `json:"account_details"`
+			} `json:"recipient"`
+			Details struct {
+				Amount int64 `json:"source_amount"`
+			} `json:"payout_details"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode: %v", err)
+		}
+		receivedAccount = body.Recipient.Account.Number
+		receivedKey = r.Header.Get("idempotency-key")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(fmt.Sprintf(`{"payout_id":"po-test","reference_id":%q,"status":"SUCCEEDED","source_amount":%d,"processor_reference":"XEN-001"}`, body.ReferenceID, body.Details.Amount)))
+	}))
+	defer server.Close()
+	f.service.xendit = payment.NewClientWithEndpoints("test", "", server.URL)
+	var code string
+	if err := f.pool.QueryRow(f.pilgrimCtx, `SELECT app_access_code FROM pilgrims WHERE id=$1`, f.pilgrimID).Scan(&code); err != nil {
+		t.Fatal(err)
+	}
+	created, err := f.service.RequestRefundPayout(f.pilgrimCtx, &hajjv1.RequestRefundPayoutRequest{AppAccessCode: code, AmountIdr: 250_000, Method: hajjv1.RefundPayoutMethod_REFUND_PAYOUT_METHOD_BANK_TRANSFER, IdempotencyKey: uuid.NewString(), DestinationChannel: "CENAIDJA", DestinationAccountHolder: "Jamaah Refund", DestinationAccountNumber: "1234567890"})
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	var stored string
+	if err := f.pool.QueryRow(f.pilgrimCtx, `SELECT destination_account_encrypted FROM pilgrim_refund_payout_requests WHERE id=$1`, created.Id).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored == "1234567890" || stored == "" {
+		t.Fatalf("account was not encrypted: %q", stored)
+	}
+	if err := f.service.DispatchGatewayPayout(f.pilgrimCtx, created.Id); err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if receivedAccount != "1234567890" || receivedKey != "refund-payout-"+created.Id {
+		t.Fatalf("gateway account/key = %q/%q", receivedAccount, receivedKey)
+	}
+	if err := f.service.DispatchGatewayPayout(f.pilgrimCtx, created.Id); err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	succeeded := &payment.Payout{ID: "po-test", ReferenceID: created.Id, Status: "SUCCEEDED", AmountIDR: 250_000, ProcessorReference: "XEN-001"}
+	if err := f.service.ApplyGatewayPayout(f.pilgrimCtx, succeeded); err != nil {
+		t.Fatalf("replayed success webhook: %v", err)
+	}
+	reversed := &payment.Payout{ID: "po-test", ReferenceID: created.Id, Status: "REVERSED", AmountIDR: 250_000, ProcessorReference: "XEN-REV-001", FailureCode: "DESTINATION_REVERSED"}
+	if err := f.service.ApplyGatewayPayout(f.pilgrimCtx, reversed); err != nil {
+		t.Fatalf("reversal: %v", err)
+	}
+	if err := f.service.ApplyGatewayPayout(f.pilgrimCtx, reversed); err != nil {
+		t.Fatalf("replayed reversal webhook: %v", err)
+	}
+	var status string
+	var withdrawals, reversals int
+	if err := f.pool.QueryRow(f.pilgrimCtx, `SELECT status FROM pilgrim_refund_payout_requests WHERE id=$1`, created.Id).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.pool.QueryRow(f.pilgrimCtx, `SELECT count(*) FROM pilgrim_balance_entries WHERE pilgrim_id=$1 AND idempotency_key=$2`, f.pilgrimID, "refund-payout-"+created.Id).Scan(&withdrawals); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.pool.QueryRow(f.pilgrimCtx, `SELECT count(*) FROM pilgrim_balance_entries WHERE pilgrim_id=$1 AND idempotency_key=$2`, f.pilgrimID, "refund-payout-reversed-"+created.Id).Scan(&reversals); err != nil {
+		t.Fatal(err)
+	}
+	balance, err := f.ledger.PilgrimBalance(f.pilgrimCtx, f.pilgrimID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != "REVERSED" || withdrawals != 1 || reversals != 1 || balance != 1_000_000 {
+		t.Fatalf("status/withdrawals/reversals/balance = %s/%d/%d/%d", status, withdrawals, reversals, balance)
 	}
 }
 

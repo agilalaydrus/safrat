@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { IconExternalLink, IconRefresh, IconShoppingCart } from "@tabler/icons-react";
 import type { Order, PurchaseCatalogueProduct } from "@hajj-saas/proto-gen/hajj/v1/order_pb";
 import { orderClient, seasonClient } from "@/lib/rpc";
+import RefundWalletPanel from "@/components/pilgrim/RefundWalletPanel";
 
 const rupiah = (value: bigint) => `Rp${Number(value).toLocaleString("id-ID")}`;
 const statusLabel: Record<string, string> = {
@@ -148,6 +149,8 @@ export default function AgentPurchaseTab() {
           </div>
         ) : <p style={muted}>Belum ada pembelian pada musim ini.</p>}
       </div>
+
+      <RefundWalletPanel agent />
     </section>
   );
 }

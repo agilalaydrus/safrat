@@ -38,6 +38,25 @@ func (h *RefundPayoutHandler) RequestRefundPayout(ctx context.Context, req *conn
 	return connect.NewResponse(result), nil
 }
 
+func (h *RefundPayoutHandler) GetMyAgentRefundWallet(ctx context.Context, req *connect.Request[hajjv1.GetMyAgentRefundWalletRequest]) (*connect.Response[hajjv1.RefundWallet], error) {
+	result, err := h.service.GetMyAgentRefundWallet(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *RefundPayoutHandler) RequestAgentRefundPayout(ctx context.Context, req *connect.Request[hajjv1.RequestAgentRefundPayoutRequest]) (*connect.Response[hajjv1.RefundPayoutRequest], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.service.RequestAgentRefundPayout(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *RefundPayoutHandler) ListRefundPayoutRequests(ctx context.Context, req *connect.Request[hajjv1.ListRefundPayoutRequestsRequest]) (*connect.Response[hajjv1.ListRefundPayoutRequestsResponse], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
