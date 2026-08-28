@@ -65,6 +65,40 @@ async function seedOrders(): Promise<{ paid: string; held: string }> {
   return { paid: paid.id, held: held.id };
 }
 
+async function seedRefundPayout(): Promise<{ requestId: string; pilgrimId: string; pilgrimName: string }> {
+  const operator = await operatorID();
+  const [season] = await query<{ id: string }>(
+    "SELECT id FROM seasons WHERE operator_id = $1 ORDER BY created_at DESC LIMIT 1", [operator]);
+  const pilgrimName = `Jamaah Pencairan ${Date.now().toString().slice(-5)}`;
+  const [pilgrim] = await query<{ id: string }>(
+    `INSERT INTO pilgrims (season_id, operator_id, full_name, passport_number, nationality, date_of_birth, gender, phone)
+     VALUES ($1,$2,$3,$4,'ID','1990-01-01'::timestamptz,'MALE','08123456789') RETURNING id::text AS id`,
+    [season!.id, operator, pilgrimName, `P-PAYOUT-${Date.now()}`]);
+  await query(
+    `INSERT INTO pilgrim_balance_entries (operator_id,pilgrim_id,amount_idr,kind,note,idempotency_key)
+     VALUES ($1,$2,350000,'REFUND','Refund untuk layar payout',$3)`,
+    [operator, pilgrim!.id, `e2e-payout-credit-${pilgrim!.id}`]);
+  const [request] = await query<{ id: string }>(
+    `INSERT INTO pilgrim_refund_payout_requests
+       (operator_id,pilgrim_id,amount_idr,method,note,idempotency_key,requested_by_user_id)
+     VALUES ($1,$2,350000,'BANK_TRANSFER','Hubungi sebelum transfer',$3,'e2e-pilgrim')
+     RETURNING id::text AS id`,
+    [operator, pilgrim!.id, `e2e-payout-request-${pilgrim!.id}`]);
+  return { requestId: request!.id, pilgrimId: pilgrim!.id, pilgrimName };
+}
+
+async function clearRefundPayout(pilgrimId: string): Promise<void> {
+  await query(`
+    DO $$
+    BEGIN
+      PERFORM set_config('app.allow_ledger_purge', 'on', true);
+      DELETE FROM pilgrim_refund_payout_requests WHERE pilgrim_id = '${pilgrimId}';
+      DELETE FROM pilgrim_balance_entries WHERE pilgrim_id = '${pilgrimId}';
+      DELETE FROM pilgrims WHERE id = '${pilgrimId}';
+    END $$;
+  `);
+}
+
 test.describe("money screens render", () => {
   test.beforeEach(enrolFixtureStaff);
   // Restored, because an enrolled fixture cannot sign in again: Better Auth
@@ -97,6 +131,36 @@ test.describe("money screens render", () => {
     // The shortfall is the whole reason this screen exists.
     await expect(review.getByText(/Kurang/)).toBeVisible();
     await capture(page, "03-review-held-dialog");
+  });
+
+  test("refund payout moves from requested to paid and debits the ledger once", async ({ page }) => {
+    const seeded = await seedRefundPayout();
+    try {
+      await page.goto("/dashboard/refunds");
+      await expect(page.getByRole("heading", { name: /Pencairan Saldo Jamaah/i })).toBeVisible();
+      const card = page.getByRole("article").filter({ hasText: seeded.pilgrimName });
+      await expect(card).toBeVisible();
+      await card.getByRole("button", { name: /Mulai proses/i }).click();
+      await expect(card.getByText(/^Diproses$/)).toBeVisible();
+
+      await card.getByRole("button", { name: /Tandai dibayar/i }).click();
+      await card.getByLabel(/Referensi pembayaran/i).fill("E2E-TRX-350K");
+      await card.getByLabel(/Catatan operasional/i).fill("Transfer diverifikasi");
+      await card.getByRole("button", { name: /Simpan keputusan/i }).click();
+      await expect(card.getByText(/^Dibayar$/)).toBeVisible();
+
+      const [proof] = await query<{ status: string; balance: string; withdrawals: string }>(
+        `SELECT pr.status,
+                COALESCE(SUM(e.amount_idr),0)::text AS balance,
+                COUNT(*) FILTER (WHERE e.kind='WITHDRAWAL')::text AS withdrawals
+         FROM pilgrim_refund_payout_requests pr
+         JOIN pilgrim_balance_entries e ON e.pilgrim_id = pr.pilgrim_id
+         WHERE pr.id = $1 GROUP BY pr.status`, [seeded.requestId]);
+      expect(proof).toEqual({ status: "PAID", balance: "0", withdrawals: "1" });
+      await capture(page, "18-refund-payout-paid");
+    } finally {
+      await clearRefundPayout(seeded.pilgrimId);
+    }
   });
 
   // The travel's own pricing screen. Every level of the price is shown here,

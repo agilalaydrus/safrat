@@ -123,6 +123,12 @@ var sessionOnlyProcedures = map[string]bool{
 	// session's own pilgrim, and takes the pilgrim id from the session rather
 	// than the request.
 	"/hajj.v1.PilgrimAppService/ListMyTransactions": true,
+	// Refund wallet reads and payout requests are money-sensitive and must
+	// never open from an app_access_code alone. Their service additionally
+	// binds that code to this session's linked pilgrim; payout creation also
+	// requires the Better Auth account to have 2FA enabled.
+	"/hajj.v1.RefundPayoutService/GetMyRefundWallet":   true,
+	"/hajj.v1.RefundPayoutService/RequestRefundPayout": true,
 	// PlatformService — TawafiqHub's own admin surface. Session-only because a
 	// platform admin is a Better Auth user who need not belong to any operator;
 	// requiring org membership would force platform staff into somebody's
@@ -456,6 +462,14 @@ func OrgRoleFromCtx(ctx context.Context) string {
 func ContextWithIdentity(ctx context.Context, userID, operatorID string) context.Context {
 	ctx = context.WithValue(ctx, ctxKeyUserID, userID)
 	return context.WithValue(ctx, ctxKeyOperatorID, operatorID)
+}
+
+// ContextWithStaffIdentity is the test/in-process counterpart for operations
+// whose service layer also enforces an owner/admin role. Production requests
+// receive these exact values from authenticate.
+func ContextWithStaffIdentity(ctx context.Context, userID, operatorID, role string) context.Context {
+	ctx = ContextWithIdentity(ctx, userID, operatorID)
+	return context.WithValue(ctx, ctxKeyOrgRole, role)
 }
 
 func bearerToken(header string) (string, error) {

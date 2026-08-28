@@ -65,6 +65,12 @@ async function seedPilgrimTransactions(): Promise<void> {
      VALUES ($1, $2, 275000, 'Paket dibatalkan jamaah')
      ON CONFLICT DO NOTHING`,
     [pilgrim.operator_id, refunded.id]);
+  await query(
+    `INSERT INTO pilgrim_balance_entries
+       (operator_id, pilgrim_id, amount_idr, kind, order_id, note, idempotency_key)
+     VALUES ($1, $2, 275000, 'REFUND', $3, 'Refund transaksi E2E', $4)
+     ON CONFLICT DO NOTHING`,
+    [pilgrim.operator_id, pilgrim.id, refunded.id, `e2e-refund-${refunded.id}`]);
 }
 
 /**
@@ -84,6 +90,8 @@ async function clearPilgrimTransactions(): Promise<void> {
     DO $$
     BEGIN
       PERFORM set_config('app.allow_ledger_purge', 'on', true);
+      DELETE FROM pilgrim_refund_payout_requests WHERE pilgrim_id = '${pilgrim.id}';
+      DELETE FROM pilgrim_balance_entries WHERE pilgrim_id = '${pilgrim.id}';
       DELETE FROM order_refunds
       WHERE order_id IN (SELECT id FROM orders WHERE pilgrim_id = '${pilgrim.id}');
       DELETE FROM orders WHERE pilgrim_id = '${pilgrim.id}';
@@ -126,6 +134,34 @@ test.describe("portal history screens render", () => {
     // The number, and the context prefilled so nobody has to explain twice.
     expect(href).toContain("6281283031003");
     expect(href).toContain("riwayat");
+  });
+
+  test("a jamaah can request their refund balance without exposing payout details", async ({ page }) => {
+    await seedPilgrimTransactions();
+    // Payout creation is deliberately stricter than reading the history.
+    await query(`UPDATE "user" SET "twoFactorEnabled" = true WHERE email = $1`, [pilgrimFixture.email]);
+    try {
+      await page.goto("/pilgrim/transactions");
+      await expect(page.getByRole("heading", { name: /Dana yang dikembalikan/i })).toBeVisible();
+      await expect(page.getByText(/Rp\s?275\.000/).first()).toBeVisible();
+
+      await page.getByLabel(/^Jumlah$/).fill("275000");
+      await page.getByLabel(/Metode yang diinginkan/i).selectOption(String(3));
+      await page.getByLabel(/Catatan untuk travel/i).fill("Konfirmasi lewat WhatsApp");
+      await page.getByRole("button", { name: /Ajukan Pencairan/i }).click();
+
+      await expect(page.getByText(/Permintaan pencairan tercatat/i)).toBeVisible();
+      await expect(page.getByText(/Menunggu diproses/i)).toBeVisible();
+      const [stored] = await query<{ amount_idr: string; method: string; status: string }>(
+        `SELECT pr.amount_idr::text, pr.method, pr.status FROM pilgrim_refund_payout_requests pr
+         JOIN pilgrims p ON p.id = pr.pilgrim_id WHERE p.email = $1 ORDER BY pr.created_at DESC LIMIT 1`,
+        [pilgrimFixture.email],
+      );
+      expect(stored).toEqual({ amount_idr: "275000", method: "CASH", status: "REQUESTED" });
+      await capture(page, "16-pilgrim-refund-wallet");
+    } finally {
+      await query(`UPDATE "user" SET "twoFactorEnabled" = false WHERE email = $1`, [pilgrimFixture.email]);
+    }
   });
 });
 

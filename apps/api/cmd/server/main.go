@@ -124,6 +124,7 @@ func main() {
 		subscriptionRepository := repository.NewSubscriptionRepository(pool)
 		ledgerRepository := repository.NewLedgerRepository(pool)
 		refundRepository := repository.NewRefundRepository(pool)
+		refundPayoutRepository := repository.NewRefundPayoutRepository(pool)
 		// Installed before anything can write an identity. Without a key, KYC
 		// writes fail loudly rather than storing an identity number in the
 		// clear — which would look like success and stay invisible until a
@@ -240,6 +241,7 @@ func main() {
 		identityService := service.NewIdentityService(identityRepository)
 		xenditClient := payment.NewClient(config.XenditSecretKey)
 		orderService := service.NewOrderService(operatorRepository, pilgrimRepository, productRepository, orderRepository, auditRepository, ledgerRepository, refundRepository, agentRepository, seasonRepository, pool, xenditClient, config.AllowedOrigin)
+		refundPayoutService := service.NewRefundPayoutService(operatorRepository, identityRepository, refundPayoutRepository, ledgerRepository, auditRepository, pool)
 		broadcastService := service.NewBroadcastService(operatorRepository, broadcastRepository, auditRepository)
 		registrationService := service.NewRegistrationService(operatorRepository, registrationRepository, auditRepository, agentRepository)
 		waitlistService := service.NewWaitlistService(operatorRepository, waitlistRepository, auditRepository)
@@ -288,6 +290,7 @@ func main() {
 		orderService.AttachFulfilment(fulfilmentService, fulfilmentRepository)
 		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, productRepository, repository.NewKYCRepository(pool), auditRepository)
 		orderHandler := handler.NewOrderHandler(orderService)
+		refundPayoutHandler := handler.NewRefundPayoutHandler(refundPayoutService)
 		platformHandler := handler.NewPlatformHandler(platformService)
 		broadcastHandler := handler.NewBroadcastHandler(broadcastService)
 		registrationHandler := handler.NewRegistrationHandler(registrationService)
@@ -330,6 +333,7 @@ func main() {
 		kloterPath, kloterServiceHandler := hajjv1connect.NewKloterServiceHandler(kloterHandler, handlerOptions...)
 		identityPath, identityServiceHandler := hajjv1connect.NewIdentityServiceHandler(identityHandler, handlerOptions...)
 		orderPath, orderServiceHandler := hajjv1connect.NewOrderServiceHandler(orderHandler, handlerOptions...)
+		refundPayoutPath, refundPayoutServiceHandler := hajjv1connect.NewRefundPayoutServiceHandler(refundPayoutHandler, handlerOptions...)
 		platformPath, platformServiceHandler := hajjv1connect.NewPlatformServiceHandler(platformHandler, handlerOptions...)
 		broadcastPath, broadcastServiceHandler := hajjv1connect.NewBroadcastServiceHandler(broadcastHandler, handlerOptions...)
 		registrationPath, registrationServiceHandler := hajjv1connect.NewRegistrationServiceHandler(registrationHandler, handlerOptions...)
@@ -364,6 +368,7 @@ func main() {
 		mux.Handle(kloterPath, kloterServiceHandler)
 		mux.Handle(identityPath, identityServiceHandler)
 		mux.Handle(orderPath, orderServiceHandler)
+		mux.Handle(refundPayoutPath, refundPayoutServiceHandler)
 		mux.Handle(platformPath, platformServiceHandler)
 		mux.Handle(broadcastPath, broadcastServiceHandler)
 		mux.Handle(registrationPath, registrationServiceHandler)

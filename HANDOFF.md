@@ -1,7 +1,7 @@
 # Handoff Notes
 
 > Working state + prioritized roadmap for the next agent. Point-in-time snapshot
-> (2026-08-26). Verify against current code before trusting any file:line.
+> (2026-08-28). Verify against current code before trusting any file:line.
 
 ## Owner workflow preferences
 
@@ -2639,3 +2639,47 @@ OTP-email → QR dan enrolment credential juga tetap hijau.
 Satu validasi yang tetap manual setelah deploy: callback Google sungguhan
 memerlukan provider Google eksternal. Logout penuh, masuk dengan Google pada
 akun enrol, dan pastikan `/two-factor-challenge` tampil sebelum dashboard.
+
+---
+
+## Saldo refund jamaah dan workflow pencairan (2026-08-28)
+
+Saldo hasil refund sekarang dapat dilihat dan diajukan pencairannya oleh
+jamaah dari `/pilgrim/transactions`. Operator owner/admin mengelolanya melalui
+menu **Refund & Saldo** di `/dashboard/refunds`, dengan alur
+`REQUESTED -> PROCESSING -> PAID | FAILED`.
+
+Pengaman uangnya berada di service dan database:
+
+- pengajuan memakai idempotency key tersimpan dan replay mengembalikan hasil
+  asli; advisory lock per jamaah serta trigger database mencegah dua request
+  aktif mengunci saldo yang sama;
+- jamaah harus memakai sesi Better Auth yang tertaut ke access code miliknya
+  dan sudah mengaktifkan 2FA; caller tidak dapat memilih `pilgrim_id` lain;
+- hanya owner/admin dapat melihat dan mengubah workflow operator;
+- status terminal tidak dapat diubah, request tidak dapat dihapus oleh jalur
+  aplikasi, dan PAID wajib mempunyai referensi pembayaran;
+- transisi PAID dan entry `WITHDRAWAL` negatif dilakukan dalam satu transaksi.
+  Deferred trigger juga menolak status PAID tanpa debit ledger yang tepat,
+  sehingga retry tidak dapat membayar atau mendebit dua kali;
+- REQUESTED, PROCESSING, PAID, dan FAILED semuanya masuk audit log.
+
+Metode saat ini adalah transfer bank, e-wallet, atau tunai. Sistem sengaja
+tidak menyimpan nomor rekening/e-wallet pada request; operator mengonfirmasi
+tujuan lewat nomor jamaah terdaftar dan menyimpan referensi pembayaran. Ini
+workflow operasional yang dapat diaudit, belum integrasi pencairan otomatis ke
+payment gateway dan belum menyimpan berkas bukti transfer.
+
+Validasi yang sudah lulus: Buf lint/generate, seluruh Go test/vet/build,
+frontend typecheck/lint, build produksi Next.js, integration test PostgreSQL
+untuk lifecycle/idempotency/concurrency serta penolakan direct-SQL, dan dua
+alur Playwright nyata (pengajuan jamaah serta operator sampai PAID dengan tepat
+satu debit ledger).
+
+### Antrean UI berikutnya — drawer Tambah Kloter
+
+Dari screenshot owner, drawer kanan **Tambah Kloter** pada `/dashboard/kloter`
+berada di bawah header dashboard: judul drawer tertutup/terpucat dan area atas
+tidak terbaca. Perbaiki stacking context/z-index atau top inset portal sheet,
+lalu cek desktop dan mobile agar overlay, drawer, dan header tidak saling
+menutupi.

@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// RefundPayoutService turns the balance created by an order refund into an
+// auditable payout workflow. The two "My" methods require a Better Auth
+// session linked to the presented pilgrim access code; operator methods use
+// the normal tenant-scoped staff session.
+service RefundPayoutService {
+  rpc GetMyRefundWallet(GetMyRefundWalletRequest) returns (RefundWallet);
+  rpc RequestRefundPayout(RequestRefundPayoutRequest) returns (RefundPayoutRequest);
+  rpc ListRefundPayoutRequests(ListRefundPayoutRequestsRequest) returns (ListRefundPayoutRequestsResponse);
+  rpc TransitionRefundPayout(TransitionRefundPayoutRequest) returns (RefundPayoutRequest);
+}
+
+enum RefundPayoutMethod {
+  REFUND_PAYOUT_METHOD_UNSPECIFIED = 0;
+  REFUND_PAYOUT_METHOD_BANK_TRANSFER = 1;
+  REFUND_PAYOUT_METHOD_EWALLET = 2;
+  REFUND_PAYOUT_METHOD_CASH = 3;
+}
+
+enum RefundPayoutStatus {
+  REFUND_PAYOUT_STATUS_UNSPECIFIED = 0;
+  REFUND_PAYOUT_STATUS_REQUESTED = 1;
+  REFUND_PAYOUT_STATUS_PROCESSING = 2;
+  REFUND_PAYOUT_STATUS_PAID = 3;
+  REFUND_PAYOUT_STATUS_FAILED = 4;
+}
+
+enum RefundPayoutAction {
+  REFUND_PAYOUT_ACTION_UNSPECIFIED = 0;
+  REFUND_PAYOUT_ACTION_START_PROCESSING = 1;
+  REFUND_PAYOUT_ACTION_MARK_PAID = 2;
+  REFUND_PAYOUT_ACTION_MARK_FAILED = 3;
+}
+
+message RefundBalanceEntry {
+  string id = 1;
+  int64 amount_idr = 2;
+  // REFUND | WITHDRAWAL | DEPOSIT | PURCHASE | ADJUSTMENT
+  string kind = 3;
+  string note = 4;
+  string order_id = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message RefundPayoutRequest {
+  string id = 1;
+  string pilgrim_id = 2;
+  string pilgrim_name = 3;
+  string pilgrim_phone = 4;
+  int64 amount_idr = 5;
+  RefundPayoutMethod method = 6;
+  string note = 7;
+  RefundPayoutStatus status = 8;
+  string resolution_note = 9;
+  string payment_reference = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp processing_at = 12;
+  google.protobuf.Timestamp resolved_at = 13;
+}
+
+message RefundWallet {
+  int64 balance_idr = 1;
+  int64 reserved_idr = 2;
+  int64 available_idr = 3;
+  repeated RefundBalanceEntry entries = 4;
+  repeated RefundPayoutRequest payout_requests = 5;
+}
+
+message GetMyRefundWalletRequest {
+  string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message RequestRefundPayoutRequest {
+  string app_access_code = 1 [(buf.validate.field).string.min_len = 1];
+  int64 amount_idr = 2 [(buf.validate.field).int64.gt = 0];
+  RefundPayoutMethod method = 3 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3]}];
+  string note = 4 [(buf.validate.field).string.max_len = 500];
+  string idempotency_key = 5 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+}
+
+message ListRefundPayoutRequestsRequest {
+  RefundPayoutStatus status = 1 [(buf.validate.field).enum.defined_only = true];
+}
+
+message ListRefundPayoutRequestsResponse {
+  repeated RefundPayoutRequest requests = 1;
+}
+
+message TransitionRefundPayoutRequest {
+  string request_id = 1 [(buf.validate.field).string.uuid = true];
+  RefundPayoutAction action = 2 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3]}];
+  string note = 3 [(buf.validate.field).string.max_len = 500];
+  string payment_reference = 4 [(buf.validate.field).string.max_len = 200];
+}

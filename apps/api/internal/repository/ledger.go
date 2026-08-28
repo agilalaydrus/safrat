@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/hajj-saas/api/internal/apperror"
+	"github.com/hajj-saas/api/internal/domain"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -164,17 +165,52 @@ func appendBalance(ctx context.Context, exec ledgerExecutor, entry BalanceEntry)
 
 // PilgrimBalance is what the operator currently holds on a pilgrim's behalf.
 func (r *LedgerRepository) PilgrimBalance(ctx context.Context, pilgrimID string) (int64, error) {
+	return pilgrimBalance(ctx, r.pool, pilgrimID)
+}
+
+func (r *LedgerRepository) PilgrimBalanceTx(ctx context.Context, tx pgx.Tx, pilgrimID string) (int64, error) {
+	return pilgrimBalance(ctx, tx, pilgrimID)
+}
+
+type ledgerQuerier interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}
+
+func pilgrimBalance(ctx context.Context, query ledgerQuerier, pilgrimID string) (int64, error) {
 	id, err := pgUUID(pilgrimID)
 	if err != nil {
 		return 0, apperror.ErrValidation
 	}
 	var total int64
-	err = r.pool.QueryRow(ctx,
+	err = query.QueryRow(ctx,
 		`SELECT COALESCE(SUM(amount_idr), 0) FROM pilgrim_balance_entries WHERE pilgrim_id = $1`, id).Scan(&total)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, nil
 	}
 	return total, err
+}
+
+func (r *LedgerRepository) ListPilgrimBalanceEntries(ctx context.Context, pilgrimID string) ([]*domain.PilgrimBalanceEntry, error) {
+	id, err := pgUUID(pilgrimID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT id::text, amount_idr, kind, note, COALESCE(order_id::text, ''), created_at
+		FROM pilgrim_balance_entries WHERE pilgrim_id = $1 ORDER BY created_at DESC`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	entries := make([]*domain.PilgrimBalanceEntry, 0)
+	for rows.Next() {
+		var entry domain.PilgrimBalanceEntry
+		if err := rows.Scan(&entry.ID, &entry.AmountIDR, &entry.Kind, &entry.Note, &entry.OrderID, &entry.CreatedAt); err != nil {
+			return nil, err
+		}
+		entries = append(entries, &entry)
+	}
+	return entries, rows.Err()
 }
 
 // ReconcileEarnedCommission credits every paid order whose commission is

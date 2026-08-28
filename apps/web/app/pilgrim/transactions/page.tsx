@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { IconReceipt, IconWifiOff, IconArrowBackUp, IconExternalLink, IconFileText } from "@tabler/icons-react";
 import TransactionReceipt from "@/components/pilgrim/TransactionReceipt";
+import RefundWalletPanel from "@/components/pilgrim/RefundWalletPanel";
 import { CustomerServiceButton } from "@/components/support/CustomerServiceButton";
 import { PilgrimTransaction } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_app_pb";
 import { pilgrimAppClient } from "@/lib/rpc";
@@ -71,6 +72,8 @@ export default function PilgrimTransactionsPage() {
           </div>
         )}
       </div>
+
+      <RefundWalletPanel appAccessCode={code} fallbackBalance={balance} />
 
       {!loaded ? (
         <p style={{ color: "var(--color-warm-500)" }}>Memuat transaksi...</p>
