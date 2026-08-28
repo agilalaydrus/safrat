@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { enrolFixtureStaff, fixture, operatorID, query, unenrolFixtureStaff } from "./fixture";
@@ -172,6 +173,36 @@ test.describe("money screens render", () => {
       await page.getByRole("button", { name: /Kirim OTP ke email/i }).click();
       await expect(page.getByLabel(/Kode OTP dari email/i)).toBeVisible();
       await capture(page, "16-keamanan-no-password");
+
+      // Install the same short-lived, session-bound proof a correct OTP would
+      // create. This lets the browser spec cover the complete passwordless UI
+      // transition without exposing or weakening the HMAC-protected OTP.
+      const [current] = await query<{ userId: string; token: string }>(
+        `SELECT s.\"userId\", s.token FROM session s
+         JOIN \"user\" u ON u.id = s.\"userId\"
+         WHERE u.email = $1 ORDER BY s.\"expiresAt\" DESC LIMIT 1`,
+        [fixture.email],
+      );
+      if (!current) throw new Error("fixture has no current session");
+      const sessionHash = createHash("sha256").update(current.token).digest("hex");
+      const grantIdentifier = `tawafiqhub:2fa-enrollment:grant:${current.userId}:${sessionHash}`;
+      await query(`DELETE FROM verification WHERE identifier = $1`, [grantIdentifier]);
+      await query(
+        `INSERT INTO verification (id, identifier, value, \"expiresAt\", \"createdAt\", \"updatedAt\")
+         VALUES ($1, $2, $3, NOW() + INTERVAL '5 minutes', NOW(), NOW())`,
+        [
+          `e2e-2fa-grant-${Date.now()}`,
+          grantIdentifier,
+          current.userId,
+        ],
+      );
+      await page.getByLabel(/Kode OTP dari email/i).fill("000000");
+      await page.getByRole("button", { name: /Verifikasi dan lanjutkan/i }).click();
+      await expect(page.getByLabel(/QR Code untuk Google Authenticator atau Authy/i)).toBeVisible();
+
+      // A remount must not discard the secret before the person scans it.
+      await page.reload();
+      await expect(page.getByLabel(/QR Code untuk Google Authenticator atau Authy/i)).toBeVisible();
     } finally {
       await query(
         `DELETE FROM verification v USING "user" u

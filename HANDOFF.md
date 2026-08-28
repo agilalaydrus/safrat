@@ -2593,6 +2593,9 @@ Pengaman penting berada di server, bukan hanya UI:
 - `twoFactor({ allowPasswordless: true })` hanya membuka jalur setelah hook di
   atas mengizinkannya. QR berasal dari `totpURI`; kode pertama dari aplikasi
   authenticator tetap wajib diverifikasi sebelum 2FA aktif.
+- Draft QR dan backup code disimpan sementara di `sessionStorage` tab selama
+  maksimal 15 menit. Ini menjaga langkah QR tetap tampil jika session/auth
+  me-remount halaman; draft dihapus segera setelah kode authenticator berhasil.
 
 Email transaksional sekarang memakai SMTP Hostinger melalui Nodemailer. Sebelum
 deploy, isi `SMTP_USER`, `SMTP_PASSWORD`, dan opsional `SMTP_FROM_EMAIL` di

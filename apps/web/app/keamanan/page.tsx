@@ -5,6 +5,28 @@ import { IconShieldCheck, IconShieldLock, IconCopy, IconCheck } from "@tabler/ic
 import { QRCodeSVG } from "qrcode.react";
 import { authClient } from "@/lib/auth-client";
 
+const ENROLLMENT_DRAFT_KEY = "tawafiqhub:2fa-enrollment-draft";
+const ENROLLMENT_DRAFT_TTL_MS = 15 * 60 * 1000;
+
+type EnrollmentDraft = {
+  totpUri: string;
+  backupCodes: string[];
+  expiresAt: number;
+};
+
+function saveEnrollmentDraft(totpUri: string, backupCodes: string[]) {
+  const draft: EnrollmentDraft = {
+    totpUri,
+    backupCodes,
+    expiresAt: Date.now() + ENROLLMENT_DRAFT_TTL_MS,
+  };
+  window.sessionStorage.setItem(ENROLLMENT_DRAFT_KEY, JSON.stringify(draft));
+}
+
+function clearEnrollmentDraft() {
+  window.sessionStorage.removeItem(ENROLLMENT_DRAFT_KEY);
+}
+
 // Enrolment lives outside the admin panel on purpose. Platform access requires
 // a second factor, so if enrolling could only be reached from behind that gate,
 // the first admin could never get in.
@@ -26,6 +48,30 @@ export default function SecurityPage() {
   const [resendIn, setResendIn] = useState(0);
 
   const enabled = Boolean((session?.user as { twoFactorEnabled?: boolean } | undefined)?.twoFactorEnabled);
+
+  // The auth/session layer can remount this page after an enable response. Keep
+  // the just-created QR in this tab long enough to survive that remount. It is
+  // removed after successful verification and never persists across tabs.
+  useEffect(() => {
+    const raw = window.sessionStorage.getItem(ENROLLMENT_DRAFT_KEY);
+    if (!raw) return;
+    try {
+      const draft = JSON.parse(raw) as Partial<EnrollmentDraft>;
+      if (
+        typeof draft.totpUri !== "string" ||
+        !Array.isArray(draft.backupCodes) ||
+        typeof draft.expiresAt !== "number" ||
+        draft.expiresAt <= Date.now()
+      ) {
+        clearEnrollmentDraft();
+        return;
+      }
+      setTotpUri(draft.totpUri);
+      setBackupCodes(draft.backupCodes.filter((item): item is string => typeof item === "string"));
+    } catch {
+      clearEnrollmentDraft();
+    }
+  }, []);
 
   // An account created through Google has no password at all — Better Auth
   // writes no `credential` row for it. Those accounts prove ownership with a
@@ -80,6 +126,9 @@ export default function SecurityPage() {
     };
     if (!response.ok) throw new Error(payload.message || "Gagal memulai pemasangan authenticator.");
     if (!payload.totpURI) throw new Error("Server tidak mengembalikan QR authenticator. Silakan coba lagi.");
+    // Persist before updating React state so even an immediate remount can
+    // restore the QR and backup codes from this tab.
+    saveEnrollmentDraft(payload.totpURI, payload.backupCodes ?? []);
     return payload;
   };
 
@@ -142,6 +191,7 @@ export default function SecurityPage() {
     try {
       const { error: failed } = await authClient.twoFactor.verifyTotp({ code: code.replace(/\D/g, "") });
       if (failed) { setError(failed.message ?? "Kode tidak cocok. Coba kode terbaru."); return; }
+      clearEnrollmentDraft();
       setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal memverifikasi kode.");
@@ -196,7 +246,7 @@ export default function SecurityPage() {
         OTP yang dikirim ke email terverifikasi.
       </p>
 
-      {hasPassword === false ? (
+      {!totpUri && hasPassword === false ? (
         <section style={card}>
           <p style={{ display: "flex", gap: 8, alignItems: "center", margin: 0, fontWeight: 700 }}>
             <IconShieldLock size={20} />Langkah 1 — verifikasi email akun
