@@ -2830,3 +2830,57 @@ komponen lain — layak disisir kalau ada waktu.
 
 Bukti foto/scan tanda terima belum disimpan. Penyimpanan S3 sudah ada dan
 dipakai storefront, jadi ini pekerjaan yang bisa disambung, bukan pondasi baru.
+
+---
+
+## Antrean "Perlu ditinjau" akhirnya bisa dikerjakan (2026-08-29)
+
+Supplier di pasar ini menjawab dengan bentuk yang berubah tanpa pemberitahuan.
+Kalau tidak ada aturan yang bisa membacanya, sistem **tidak menebak** — ia
+menandai `NEEDS_REVIEW` dan menunggu manusia. Itu naluri yang benar: menebak
+"terkirim" berarti menahan uang jamaah tanpa mengirim apa pun, menebak "gagal"
+berarti mengirim dua kali dan menanggung biayanya.
+
+Masalahnya, **manusia itu tidak punya tombol**. Panel admin menampilkan
+antreannya lengkap dengan jawaban supplier yang tak terbaca, lalu berhenti.
+`ResolveManually` ada di service dan tidak dipanggil dari mana pun — tanpa RPC,
+tanpa handler, tanpa UI. Jadi transaksi yang hasilnya tak bisa ditentukan duduk
+di sana permanen, uang sudah diambil, dan satu-satunya penyelesaian adalah
+membuka database.
+
+### Yang sekarang berlaku
+
+- Owner/admin platform menyelesaikan lewat tombol **Tinjau** di tab Transaksi.
+- Dua hasil saja: **sudah sampai** atau **gagal**. Tidak ada di antaranya —
+  "mungkin beres" itu keadaan yang sedang diselesaikan, bukan jawabannya.
+- **FAILED mengembalikan uang.** Tanpa itu ini lebih buruk daripada
+  menggantung: catatannya akan berkata perkaranya selesai sementara jamaah
+  tetap kehilangan uangnya.
+- Alasan **wajib** — keputusan ini tidak dikonfirmasi apa pun di luar sistem,
+  jadi alasannya adalah seluruh jejak pertanggungjawabannya.
+
+### Koreksi yang ditemukan tes
+
+Saya sempat menulis bahwa penyelesaian menolak percobaan kedua, dan karena itu
+ia yang mencegah refund ganda. **Salah.** Penyelesaian ulang sengaja diizinkan
+supaya keputusan keliru bisa dikoreksi — kalau tidak, operator yang salah klik
+terjebak memegang uang jamaah tanpa jalan sah mengembalikannya.
+
+Yang benar-benar mencegah pembayaran ganda adalah **refund-nya sendiri**: satu
+per order di level database, dipanggil dengan kunci yang diturunkan dari id
+order, bukan acak.
+
+### Refund tidak diduplikasi
+
+`RefundOrderForOperator` adalah jalur refund yang sudah ada dengan operator
+dikirim sebagai argumen alih-alih diambil dari sesi — admin platform bertindak
+atas order milik tenant yang bukan keanggotaannya. Operatornya dibaca **dari
+order**, jadi tidak bisa diarahkan ke tenant yang salah.
+
+### `build:verify`
+
+`pnpm build` biasa menimpa `.next` yang sedang dipakai dev server, dan
+kegagalannya muncul sebagai `fixture sign-in failed (500)` — persis seperti bug
+autentikasi. Saya menabraknya **empat kali** meski sudah mendokumentasikannya.
+Sekarang ada `pnpm --filter @hajj-saas/web build:verify` yang membangun ke
+`distDir` sendiri. Pakai itu untuk verifikasi.
