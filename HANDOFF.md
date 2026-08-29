@@ -2780,3 +2780,53 @@ menghasilkan 5 order dan 2 `REVIEW`, replay tidak mengonsumsi attempt, pembayara
 tepat pada order berisiko menjadi `HELD`, direct database settlement ditolak,
 dan review queue platform melihatnya. Seluruh service integration test, Go
 test/vet/build, Buf lint/generate, frontend typecheck/lint/build lulus.
+
+---
+
+## Pengiriman perlengkapan fisik (selesai 2026-08-29)
+
+Perlengkapan dijual dan tidak ada tempat mencatat penyerahannya. Order EQUIPMENT
+yang sudah dibayar membuka fulfilment seperti yang lain, lalu berakhir di salah
+satu dari dua keadaan yang sama-sama salah:
+
+- jalur cepat tidak menemukan routing supplier → **PENDING selamanya**;
+- sweep menandainya **NEEDS_REVIEW** dengan *"Produk belum punya routing supplier
+  aktif"*.
+
+Yang kedua lebih buruk. Ia mengarsipkan paket sebagai cacat routing yang tidak
+akan pernah bisa diperbaiki — perlengkapan memang tidak punya supplier — jadi
+antrean yang ada untuk dikosongkan justru penuh oleh hal yang tak bisa
+ditindaklanjuti, dan kegagalan routing yang asli tenggelam di dalamnya.
+
+### Yang menahannya sekarang, semuanya di database
+
+- paket kurir tidak bisa ditandai terkirim tanpa kurir, resi, alamat, dan
+  penerima; paket yang diambil sendiri tidak butuh satu pun dari itu;
+- DELIVERED wajib punya nama penerima, staf yang mencatat, dan waktu — penyerahan
+  adalah bukti, bukan status yang diklik;
+- **tujuan membeku setelah paket berangkat.** Mengoreksi alamat hasil telepon itu
+  pekerjaan biasa; menulis ulang tujuan paket yang sudah jalan bukan, dan tidak
+  akan ada jejak bahwa ia pernah berbeda;
+- serah terima tidak bisa dicatat dua kali — penulisan kedua akan menimpa siapa
+  yang sebenarnya menerima.
+
+`kind` (SUPPLIER/SHIPMENT) ditentukan dari kategori produk, **bukan** disimpulkan
+dari apakah `supplier_id` kebetulan NULL. Penyimpulan itulah yang dulu memasukkan
+paket ke antrean supplier.
+
+**PICKUP adalah metode kelas satu**, bukan kasus pinggiran. Jamaah mengambil
+koper di kantor itu normal di sini, dan memaksakan alamat berarti staf mengarang.
+
+Layarnya di `/dashboard/shipments`, menu **Pengiriman**.
+
+### Catatan aksesibilitas
+
+Petunjuk di dalam `<label>` yang membungkus input ikut masuk ke nama aksesibel
+field. "Diterima oleh" terbaca sebagai "Diterima oleh Nama orang yang menerima
+barang". Sekarang dilampirkan lewat `aria-describedby`. Pola ini ada juga di
+komponen lain — layak disisir kalau ada waktu.
+
+### Belum dikerjakan
+
+Bukti foto/scan tanda terima belum disimpan. Penyimpanan S3 sudah ada dan
+dipakai storefront, jadi ini pekerjaan yang bisa disambung, bukan pondasi baru.
