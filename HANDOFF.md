@@ -2944,3 +2944,59 @@ field sekaligus.
 ### `.next-verify` diabaikan eslint
 
 `build:verify` membuat lint gagal dengan 86 error di output terkompilasi.
+
+---
+
+## Label jamaah & rekonsiliasi bank otomatis (2026-08-29)
+
+### PilgrimFormDialog: label kini terhubung
+
+Labelnya `<span>` di dalam `<div>` — tidak ada yang menghubungkannya ke kontrol.
+Pembaca layar mengumumkan **tiga belas kotak tanpa nama**, dan petunjuk maupun
+pesan kesalahan tidak pernah dibacakan bersama field-nya. Ini form terpanjang di
+aplikasi, dan tempat seluruh catatan seorang jamaah diketik.
+
+`fieldKey` sudah unik per field, jadi id-nya diturunkan dari situ — tidak ada
+prop baru yang harus dijaga selaras. Kesalahan validasi diberi `role="alert"`
+supaya diumumkan saat muncul, bukan baru ditemukan oleh orang yang kebetulan
+menavigasi kembali.
+
+### Rekonsiliasi transfer bank
+
+Tagihan sudah membawa nominal unik sampai rupiah, dan pencocoknya sudah ada;
+yang hilang adalah **yang memberinya makan**. Sekarang poller atau scraper
+mengirim mutasi ke `POST /webhooks/bank-feed` dan pencocokan berjalan sendiri.
+
+**Feed itu masukan tidak tepercaya** — API bank di hari baik, scraper yang
+membaca HTML orang lain di hari biasa. Jadi:
+
+- **Ditandatangani HMAC atas isi badan**, bukan token di header. Token hanya
+  membuktikan pengirim tahu tokennya; tanda tangan juga membuktikan badannya
+  tidak diubah di tengah jalan — dan badan itu melunasi tagihan.
+- **Tanpa `BANK_FEED_SECRET`, endpoint menolak semuanya.** Endpoint yang
+  memberikan akses berbayar tidak boleh terbuka karena variabel terlupa.
+- **Kredit dicatat sebelum dicocokkan**, dan tetap dicatat meski tidak cocok.
+  Kredit tak cocok adalah baris terpenting di tabel itu: uang masuk yang tidak
+  diakui apa pun.
+- **Hanya nominal persis.** Pendekatan kira-kira berarti menebak travel mana
+  yang membayar, dan salah mengkredit jauh lebih buruk daripada menyisakan
+  kredit untuk ditempatkan manusia.
+
+**Urutan penyelesaian**: mutasi dipindahkan lebih dulu, karena baris itulah yang
+memegang indeks unik `matched_invoice_id` — itu yang membuat satu kredit mustahil
+melunasi dua kali, dan yang membuat pencocok otomatis dan manusia yang mengklik
+aman berjalan bersamaan. Keduanya satu transaksi.
+
+### Jalur manual tetap ada, dan kini per tiket
+
+Sesuai permintaan owner: admin melampirkan kredit yang **benar-benar tercatat**
+ke tagihan tertentu — untuk biaya admin bank yang memotong, nominal yang salah
+terbaca, atau scraper yang rusak. Alasan wajib. Kredit yang bukan pembayaran
+langganan ditandai **IGNORED, bukan dihapus**: uangnya tetap masuk, dan catatan
+itu harus hidup lebih lama daripada keputusan tentangnya.
+
+### Yang perlu disiapkan
+
+`BANK_FEED_SECRET` di `.env.prod`. Poller/scraper-nya sendiri belum ditulis —
+kontraknya ada di `apps/api/internal/handler/bank_feed.go`, dan formatnya JSON
+sederhana dengan header `X-Signature`.
