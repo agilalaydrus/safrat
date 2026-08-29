@@ -26,17 +26,40 @@ if [[ -f "/home/deploy/safrat/docker-compose.prod.yml" ]]; then
   die "ini tampaknya server produksi. Kunci privat backup tidak boleh dibuat di sini — jalankan di laptop Anda."
 fi
 
+mkdir -p "$OUT_DIR" || die "tidak bisa membuat direktori $OUT_DIR"
 [[ -e "$KEY" ]] && die "$KEY sudah ada; menimpanya berarti membuang akses ke semua backup lama"
 
+# Errors are captured rather than discarded. Hiding stderr keeps the progress
+# dots out of the way, but it also hid the real message the one time this went
+# wrong — leaving a failure nobody could diagnose. They are shown on failure and
+# only then.
+ERRLOG="$(mktemp)"
+trap 'rm -f "$ERRLOG"' EXIT
+# openssl writes key-generation progress to stderr as long runs of dots and
+# plus signs. Kept out of the way, or the one line that explains the failure is
+# buried in a screen of punctuation.
+fail() {
+  printf 'FATAL: %s\n' "$1" >&2
+  grep -vE '^[.+*[:space:]]*$' "$ERRLOG" | sed 's/^/  openssl: /' >&2 || true
+  exit 1
+}
+
 umask 077
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out "$KEY" 2>/dev/null \
-  || die "gagal membuat kunci"
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out "$KEY" 2>"$ERRLOG" \
+  || fail "gagal membuat kunci"
+
+# The exit code alone is not enough: openssl genpkey returns 0 even when it
+# could not write the file — a missing directory produces a clean success and no
+# key. Everything after would then fail one step later, blaming the wrong thing,
+# which is exactly what happened the first time this was run for real.
+[[ -s "$KEY" ]] || fail "kunci tidak tertulis di $KEY meski openssl melaporkan sukses"
 
 # openssl cms encrypts to a certificate, not a bare public key. Long expiry
 # because this is not a TLS identity — it is a lockbox, and an expired
 # certificate here would stop backups for no security benefit.
-openssl req -x509 -new -key "$KEY" -out "$CERT" -days 7300 -subj "/CN=safrat-backup" 2>/dev/null \
-  || die "gagal membuat sertifikat"
+openssl req -x509 -new -key "$KEY" -out "$CERT" -days 7300 -subj "/CN=safrat-backup" 2>"$ERRLOG" \
+  || fail "gagal membuat sertifikat"
+[[ -s "$CERT" ]] || fail "sertifikat tidak tertulis di $CERT"
 
 chmod 0400 "$KEY"
 chmod 0444 "$CERT"
