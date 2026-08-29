@@ -1,5 +1,5 @@
 "use client";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import React, { FormEvent, useCallback, useEffect, useState } from "react";
 import { Timestamp } from "@bufbuild/protobuf";
 import { IconPlane, IconTrash, IconX } from "@tabler/icons-react";
 import { Kloter } from "@hajj-saas/proto-gen/hajj/v1/kloter_pb";
@@ -168,7 +168,18 @@ export default function KloterFormDialog({ open, seasonId, initial, onClose, onS
 }
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return <label style={{ display: "grid", gap: 6 }}><span style={fieldLabel}>{label}</span>{children}{hint && <span style={{ fontSize: 11, color: "var(--color-warm-400)" }}>{hint}</span>}</label>;
+  // Described, not renamed: a hint inside the <label> becomes part of the
+  // control's accessible name instead of its description.
+  const hintId = hint ? `hint-${label.replace(/\s+/g, "-").toLowerCase()}` : undefined;
+  const control = hint && React.isValidElement(children)
+    ? React.cloneElement(children as React.ReactElement<{ "aria-describedby"?: string }>, { "aria-describedby": hintId })
+    : children;
+  return (
+    <div style={{ display: "grid", gap: 6 }}>
+      <label style={{ display: "grid", gap: 6 }}><span style={fieldLabel}>{label}</span>{control}</label>
+      {hint && <span id={hintId} style={{ fontSize: 11, color: "var(--color-warm-400)" }}>{hint}</span>}
+    </div>
+  );
 }
 
 // The dashboard topbar sits at z-index 40 and the mobile navigation drawer at

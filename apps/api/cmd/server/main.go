@@ -285,7 +285,7 @@ func main() {
 		transportHandler := handler.NewTransportHandler(transportService)
 		productHandler := handler.NewProductHandler(productService)
 		shipmentHandler := handler.NewShipmentHandler(
-			service.NewShipmentService(operatorRepository, fulfilmentRepository, auditRepository))
+			service.NewShipmentService(operatorRepository, fulfilmentRepository, auditRepository, objectStorage))
 		agentHandler := handler.NewAgentHandler(agentService)
 		groupHandler := handler.NewGroupHandler(groupService)
 		pilgrimAppHandler := handler.NewPilgrimAppHandler(pilgrimAppService)
@@ -308,7 +308,7 @@ func main() {
 				"reason", "REDIS_URL is not set")
 		}
 		orderService.AttachFulfilment(fulfilmentService, fulfilmentRepository)
-		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, productRepository, repository.NewKYCRepository(pool), auditRepository)
+		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, productRepository, subscriptionRepository, repository.NewKYCRepository(pool), auditRepository)
 		// The platform review queue refunds when it resolves a failure, so it
 		// needs both — composed after construction because the order service is
 		// built later and takes the fulfilment service itself.

@@ -189,13 +189,20 @@ export default function CatalogueTab() {
   );
 }
 
+// The hint sits outside the <label> and is attached with aria-describedby.
+// Inside it, a wrapping label folds the hint into the field's accessible name —
+// "Kode Dikutip orang, mis. PULSA-TSEL-10K" announced as one string — which is
+// worse to hear read aloud and impossible to address precisely.
 function Field({ label: text, value, onChange, hint }: { label: string; value: string; onChange: (v: string) => void; hint?: string }) {
+  const hintId = hint ? `hint-${text.replace(/\s+/g, "-").toLowerCase()}` : undefined;
   return (
-    <label style={label}>
-      {text}
-      <input value={value} onChange={(e) => onChange(e.target.value)} style={input} />
-      {hint && <small style={{ color: "var(--color-warm-400)", fontSize: 11 }}>{hint}</small>}
-    </label>
+    <div style={label}>
+      <label style={{ display: "grid", gap: 6 }}>
+        {text}
+        <input value={value} onChange={(e) => onChange(e.target.value)} style={input} aria-describedby={hintId} />
+      </label>
+      {hint && <small id={hintId} style={{ color: "var(--color-warm-400)", fontSize: 11 }}>{hint}</small>}
+    </div>
   );
 }
 

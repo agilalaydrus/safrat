@@ -27,6 +27,7 @@ type PlatformService struct {
 	supplierCostRepository *repository.SupplierCostRepository
 	supplierRepository     *repository.SupplierRepository
 	productRepository      *repository.ProductRepository
+	subscriptionRepository *repository.SubscriptionRepository
 	kycRepository          *repository.KYCRepository
 	auditRepository        *repository.AuditRepository
 
@@ -46,8 +47,8 @@ func (s *PlatformService) AttachFulfilment(orders *OrderService, fulfilments *Fu
 	s.fulfilmentService = fulfilments
 }
 
-func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, products *repository.ProductRepository, kyc *repository.KYCRepository, audit *repository.AuditRepository) *PlatformService {
-	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, supplierRepository: suppliers, productRepository: products, kycRepository: kyc, auditRepository: audit}
+func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, products *repository.ProductRepository, subscriptions *repository.SubscriptionRepository, kyc *repository.KYCRepository, audit *repository.AuditRepository) *PlatformService {
+	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, supplierRepository: suppliers, productRepository: products, subscriptionRepository: subscriptions, kycRepository: kyc, auditRepository: audit}
 }
 
 // requirePlatformAdmin is the only thing standing between a signed-in operator
@@ -374,6 +375,68 @@ func (s *PlatformService) ResolveFulfilment(ctx context.Context, req *hajjv1.Res
 		response.RefundedIdr = refund.Refund.AmountIdr
 	}
 	return response, nil
+}
+
+// ListPendingTransfers shows what to look for in the bank statement.
+func (s *PlatformService) ListPendingTransfers(ctx context.Context, _ *hajjv1.ListPendingTransfersRequest) (*hajjv1.ListPendingTransfersResponse, error) {
+	if _, err := s.requirePlatformAdmin(ctx); err != nil {
+		return nil, err
+	}
+	transfers, err := s.subscriptionRepository.ListPendingTransfers(ctx)
+	if err != nil {
+		return nil, serviceError("PlatformService.ListPendingTransfers", err)
+	}
+	out := make([]*hajjv1.PendingTransfer, 0, len(transfers))
+	for _, t := range transfers {
+		message := &hajjv1.PendingTransfer{
+			InvoiceId: t.InvoiceID, OperatorName: t.OperatorName,
+			Plan: t.Plan, AmountIdr: t.AmountIDR, IssuedAt: timestamppb.New(t.IssuedAt),
+		}
+		if t.ExpiresAt != nil {
+			message.ExpiresAt = timestamppb.New(*t.ExpiresAt)
+		}
+		out = append(out, message)
+	}
+	return &hajjv1.ListPendingTransfersResponse{Transfers: out}, nil
+}
+
+// ConfirmBankTransfer settles the invoice whose amount arrived.
+//
+// Matched on the exact figure, which is the point of the unique suffix: an
+// amount rounded off the statement matches nothing, and that is the correct
+// answer rather than something to be lenient about. Crediting the wrong
+// operator is far worse than asking somebody to re-read a number.
+func (s *PlatformService) ConfirmBankTransfer(ctx context.Context, req *hajjv1.ConfirmBankTransferRequest) (*hajjv1.ConfirmBankTransferResponse, error) {
+	userID, err := s.requirePlatformAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req == nil || req.AmountIdr <= 0 {
+		return nil, serviceError("PlatformService.ConfirmBankTransfer", apperror.ErrValidation)
+	}
+
+	invoiceID, operatorID, operatorName, err := s.subscriptionRepository.FindPayableByAmount(ctx, req.AmountIdr)
+	if errors.Is(err, apperror.ErrNotFound) {
+		return nil, connect.NewError(connect.CodeNotFound,
+			fmt.Errorf("tidak ada tagihan transfer yang menunggu senilai %s; periksa lagi nominalnya sampai rupiah terakhir", rupiah(req.AmountIdr)))
+	}
+	if err != nil {
+		return nil, serviceError("PlatformService.ConfirmBankTransfer", err)
+	}
+
+	// MarkPaid settles the invoice and extends access in one transaction, so
+	// money can never be recorded without the access it bought. Repeating it is
+	// safe: the update is conditional on the invoice still being PENDING.
+	if err := s.subscriptionRepository.MarkPaid(ctx, invoiceID); err != nil {
+		return nil, serviceError("PlatformService.ConfirmBankTransfer", err)
+	}
+
+	_ = s.auditRepository.Write(ctx, operatorID, userID, "bank_transfer_confirmed", "subscription_invoice", invoiceID,
+		"transfer masuk "+rupiah(req.AmountIdr))
+
+	return &hajjv1.ConfirmBankTransferResponse{
+		InvoiceId: invoiceID, OperatorName: operatorName, AmountIdr: req.AmountIdr,
+	}, nil
 }
 
 func formatBasePriceNote(previous *int64, next int64) string {

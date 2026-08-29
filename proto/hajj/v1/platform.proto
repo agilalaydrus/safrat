@@ -71,6 +71,19 @@ service PlatformService {
   // once per order at the database, so repeating it cannot pay twice.
   rpc ResolveFulfilment(ResolveFulfilmentRequest) returns (ResolveFulfilmentResponse);
 
+  // ListPendingTransfers is what somebody reconciling a bank statement needs:
+  // the exact amounts still outstanding. Each is unique per day, so an incoming
+  // mutation identifies its invoice unambiguously.
+  rpc ListPendingTransfers(ListPendingTransfersRequest) returns (ListPendingTransfersResponse);
+
+  // ConfirmBankTransfer settles the invoice carrying an amount that arrived.
+  //
+  // The matching was already built and had no caller: the unique amount was
+  // computed, stored, and then nothing could act on it, so confirming a
+  // transfer meant opening the database. This is that step, done by typing the
+  // amount off the statement.
+  rpc ConfirmBankTransfer(ConfirmBankTransferRequest) returns (ConfirmBankTransferResponse);
+
   // Supplier catalogue. Digital products are supplied by the platform, so all
   // of this is platform-owned — a travel neither sets nor sees it.
   rpc ListSuppliers(ListSuppliersRequest) returns (ListSuppliersResponse);
@@ -211,6 +224,31 @@ message SavePlatformProductRequest {
   bool is_active = 8;
 }
 message SavePlatformProductResponse { PlatformProduct product = 1; }
+
+message PendingTransfer {
+  string invoice_id = 1;
+  string operator_name = 2;
+  string plan = 3;
+  // The figure to look for in the statement. Unique per day by construction.
+  int64 amount_idr = 4;
+  google.protobuf.Timestamp issued_at = 5;
+  google.protobuf.Timestamp expires_at = 6;
+}
+
+message ListPendingTransfersRequest {}
+message ListPendingTransfersResponse { repeated PendingTransfer transfers = 1; }
+
+message ConfirmBankTransferRequest {
+  // Taken from the bank statement, to the rupiah. The unique suffix is the
+  // whole identifying mechanism, so a rounded figure matches nothing — which is
+  // the correct outcome, not a bug to work around.
+  int64 amount_idr = 1 [(buf.validate.field).int64.gt = 0];
+}
+message ConfirmBankTransferResponse {
+  string invoice_id = 1;
+  string operator_name = 2;
+  int64 amount_idr = 3;
+}
 
 message ResolveFulfilmentRequest {
   string order_id = 1 [(buf.validate.field).string.uuid = true];

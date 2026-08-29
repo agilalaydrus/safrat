@@ -267,3 +267,116 @@ func validMP3Payload(data []byte) bool {
 func (s *Store) deleteInvalid(ctx context.Context, objectKey string) {
 	_, _ = s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(objectKey)})
 }
+
+// Handover proof is stored privately. A storefront asset is meant to be seen by
+// everyone; a delivery receipt shows a person's name, their signature and often
+// their doorway. It never reaches the public prefix and is never given a public
+// URL — reads go through a short-lived signed link instead.
+const (
+	HandoverContentType   = "image/jpeg"
+	MaxHandoverPhotoBytes = 5 << 20
+	// Short enough that a link pasted somewhere by accident stops working
+	// quickly, long enough to load a photo on a slow connection.
+	handoverViewLifetime = 5 * time.Minute
+)
+
+// PresignHandoverUpload returns a one-shot PUT for a delivery photo.
+//
+// The key is derived from the operator and order rather than supplied, so a
+// caller cannot write into another tenant's prefix or overwrite an existing
+// proof by naming it.
+func (s *Store) PresignHandoverUpload(ctx context.Context, operatorID, orderID string, sizeBytes int64) (PresignedUpload, error) {
+	if s == nil {
+		return PresignedUpload{}, ErrNotConfigured
+	}
+	if sizeBytes <= 0 || sizeBytes > MaxHandoverPhotoBytes {
+		return PresignedUpload{}, fmt.Errorf("invalid object size")
+	}
+	if _, err := uuid.Parse(operatorID); err != nil {
+		return PresignedUpload{}, fmt.Errorf("invalid operator ID")
+	}
+	if _, err := uuid.Parse(orderID); err != nil {
+		return PresignedUpload{}, fmt.Errorf("invalid order ID")
+	}
+	key := path.Join("handover", operatorID, orderID, uuid.NewString()+".jpg")
+	request, err := s.presigner.PresignPutObject(ctx, &s3.PutObjectInput{
+		Bucket:        aws.String(s.bucket),
+		Key:           aws.String(key),
+		ContentType:   aws.String(HandoverContentType),
+		ContentLength: aws.Int64(sizeBytes),
+	}, func(options *s3.PresignOptions) {
+		options.Expires = presignLifetime
+	})
+	if err != nil {
+		return PresignedUpload{}, fmt.Errorf("presign handover upload: %w", err)
+	}
+	return PresignedUpload{
+		UploadURL: request.URL, ObjectKey: key,
+		ContentType: HandoverContentType, ExpiresAt: time.Now().Add(presignLifetime),
+	}, nil
+}
+
+// ConfirmHandoverUpload checks that something real landed before the key is
+// recorded as evidence.
+//
+// Without this a caller could store any key it liked and the record would claim
+// a photo exists where none does — which is worse than no photo, because the
+// row would say the handover was documented.
+func (s *Store) ConfirmHandoverUpload(ctx context.Context, operatorID, orderID, objectKey string) error {
+	if s == nil {
+		return ErrNotConfigured
+	}
+	if err := ValidHandoverKey(operatorID, orderID, objectKey); err != nil {
+		return err
+	}
+	head, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(s.bucket), Key: aws.String(objectKey),
+	})
+	if err != nil {
+		return fmt.Errorf("handover object not found")
+	}
+	if head.ContentLength == nil || *head.ContentLength <= 0 || *head.ContentLength > MaxHandoverPhotoBytes {
+		s.deleteInvalid(ctx, objectKey)
+		return fmt.Errorf("handover object has an unusable size")
+	}
+	return nil
+}
+
+// PresignHandoverView returns a short-lived read link for a stored proof.
+func (s *Store) PresignHandoverView(ctx context.Context, operatorID, orderID, objectKey string) (string, error) {
+	if s == nil {
+		return "", ErrNotConfigured
+	}
+	if err := ValidHandoverKey(operatorID, orderID, objectKey); err != nil {
+		return "", err
+	}
+	request, err := s.presigner.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.bucket), Key: aws.String(objectKey),
+	}, func(options *s3.PresignOptions) {
+		options.Expires = handoverViewLifetime
+	})
+	if err != nil {
+		return "", fmt.Errorf("presign handover view: %w", err)
+	}
+	return request.URL, nil
+}
+
+// ValidHandoverKey is the tenant boundary for these objects, expressed once.
+//
+// The key must sit under this operator and this order. Anything else — a
+// traversal, another tenant's prefix, a key for a different order — is refused
+// before it reaches S3, so a stored key can never point somewhere it should
+// not.
+func ValidHandoverKey(operatorID, orderID, objectKey string) error {
+	if _, err := uuid.Parse(operatorID); err != nil {
+		return fmt.Errorf("invalid operator ID")
+	}
+	if _, err := uuid.Parse(orderID); err != nil {
+		return fmt.Errorf("invalid order ID")
+	}
+	prefix := path.Join("handover", operatorID, orderID) + "/"
+	if !strings.HasPrefix(objectKey, prefix) || path.Clean(objectKey) != objectKey {
+		return fmt.Errorf("handover key is outside this order")
+	}
+	return nil
+}

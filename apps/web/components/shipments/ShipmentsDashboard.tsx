@@ -103,6 +103,8 @@ function ShipmentCard({ shipment, onSaved, onNotice }: {
   const [tracking, setTracking] = useState(shipment.trackingNumber);
   const [handover, setHandover] = useState("");
   const [handoverNote, setHandoverNote] = useState("");
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [proofUrl, setProofUrl] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
@@ -121,6 +123,28 @@ function ShipmentCard({ shipment, onSaved, onNotice }: {
 
   const editable = shipment.destinationEditable;
   const delivered = shipment.status === "DELIVERED";
+
+  // Uploaded straight to storage with a one-shot link, so the photo never
+  // passes through this app. The key is returned by the server, not chosen
+  // here, so an upload cannot be aimed at another order.
+  const uploadProof = async (): Promise<string> => {
+    if (!photo) return "";
+    const { uploadUrl, objectKey, contentType } = await shipmentClient.createHandoverProofUpload({
+      orderId: shipment.orderId, sizeBytes: BigInt(photo.size),
+    });
+    const response = await fetch(uploadUrl, {
+      method: "PUT", body: photo, headers: { "Content-Type": contentType },
+    });
+    if (!response.ok) throw new Error("Gagal mengunggah foto. Coba lagi.");
+    return objectKey;
+  };
+
+  // Fetched on demand: a list carrying links to people's doorways is a list
+  // that leaks the moment it is logged, cached or screenshotted.
+  const showProof = async () => {
+    const { viewUrl } = await shipmentClient.getHandoverProofUrl({ orderId: shipment.orderId });
+    setProofUrl(viewUrl);
+  };
 
   return (
     <div style={card}>
@@ -142,6 +166,11 @@ function ShipmentCard({ shipment, onSaved, onNotice }: {
           {shipment.handoverNote ? (
             <span style={{ fontWeight: 400, color: "var(--color-warm-500)" }}>· {shipment.handoverNote}</span>
           ) : null}
+          {shipment.hasHandoverProof ? (
+            proofUrl ? null : <button style={ghost} onClick={showProof}>Lihat foto</button>
+          ) : (
+            <span style={{ fontWeight: 400, color: "var(--color-warm-400)" }}>· tanpa foto</span>
+          )}
         </p>
       ) : (
         <>
@@ -204,12 +233,28 @@ function ShipmentCard({ shipment, onSaved, onNotice }: {
           <div style={grid}>
             <Field label="Diterima oleh" value={handover} onChange={setHandover} hint="Nama orang yang menerima barang" />
             <Field label="Catatan" value={handoverNote} onChange={setHandoverNote} />
+            <div style={label}>
+              <label style={{ display: "grid", gap: 6 }}>
+                Foto bukti
+                <input
+                  type="file"
+                  accept="image/jpeg"
+                  onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+                  style={{ ...input, minHeight: 38, paddingTop: 8 }}
+                  aria-describedby={`proof-hint-${shipment.orderId}`}
+                />
+              </label>
+              <small id={`proof-hint-${shipment.orderId}`} style={{ color: "var(--color-warm-400)", fontSize: 11 }}>
+                Opsional. Foto tanda terima — disimpan privat, bukan di halaman publik.
+              </small>
+            </div>
             <button
               style={primary}
               disabled={busy !== "" || !handover.trim()}
-              onClick={() => run("handover", () =>
+              onClick={() => run("handover", async () =>
                 shipmentClient.markShipmentHandedOver({
                   orderId: shipment.orderId, handoverRecipient: handover, handoverNote,
+                  handoverProofKey: await uploadProof(),
                 }), "Serah terima tercatat.")}
             >
               <IconCheck size={16} />
@@ -217,6 +262,11 @@ function ShipmentCard({ shipment, onSaved, onNotice }: {
             </button>
           </div>
         </>
+      )}
+
+      {proofUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={proofUrl} alt="Foto bukti serah terima" style={{ maxWidth: 320, borderRadius: 8 }} />
       )}
     </div>
   );

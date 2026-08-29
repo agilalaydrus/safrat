@@ -9,6 +9,7 @@ import (
 	"github.com/hajj-saas/api/internal/apperror"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/repository"
+	"github.com/hajj-saas/api/internal/storage"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -19,10 +20,69 @@ type ShipmentService struct {
 	operatorRepository   *repository.OperatorRepository
 	fulfilmentRepository *repository.FulfilmentRepository
 	auditRepository      *repository.AuditRepository
+	// Nil when object storage is unconfigured. Photo proof then simply is not
+	// offered, rather than the whole delivery workflow failing to start —
+	// recording a handover by name is still worth doing.
+	objectStorage *storage.Store
 }
 
-func NewShipmentService(operators *repository.OperatorRepository, fulfilments *repository.FulfilmentRepository, audit *repository.AuditRepository) *ShipmentService {
-	return &ShipmentService{operatorRepository: operators, fulfilmentRepository: fulfilments, auditRepository: audit}
+func NewShipmentService(operators *repository.OperatorRepository, fulfilments *repository.FulfilmentRepository, audit *repository.AuditRepository, objects *storage.Store) *ShipmentService {
+	return &ShipmentService{operatorRepository: operators, fulfilmentRepository: fulfilments, auditRepository: audit, objectStorage: objects}
+}
+
+// CreateProofUpload hands back a one-shot link for the receipt photo.
+func (s *ShipmentService) CreateProofUpload(ctx context.Context, orgID string, req *hajjv1.CreateHandoverProofUploadRequest) (*hajjv1.CreateHandoverProofUploadResponse, error) {
+	if req == nil || !isUUID(req.OrderId) || req.SizeBytes <= 0 {
+		return nil, serviceError("ShipmentService.CreateProofUpload", apperror.ErrValidation)
+	}
+	if s.objectStorage == nil {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("penyimpanan berkas belum dikonfigurasi; serah terima tetap dapat dicatat tanpa foto"))
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("ShipmentService.CreateProofUpload", err)
+	}
+	// Read first, so an upload cannot be presigned for an order belonging to
+	// somebody else.
+	if _, err := s.fulfilmentRepository.GetShipment(ctx, op.ID, req.OrderId); err != nil {
+		return nil, serviceError("ShipmentService.CreateProofUpload", err)
+	}
+
+	upload, err := s.objectStorage.PresignHandoverUpload(ctx, op.ID, req.OrderId, req.SizeBytes)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	return &hajjv1.CreateHandoverProofUploadResponse{
+		UploadUrl: upload.UploadURL, ObjectKey: upload.ObjectKey, ContentType: upload.ContentType,
+	}, nil
+}
+
+// GetProofURL returns a short-lived link to a stored photo.
+//
+// Fetched on demand rather than included in the shipment list: a list carrying
+// links to people's doorways is a list that leaks the moment it is logged,
+// cached or screenshotted.
+func (s *ShipmentService) GetProofURL(ctx context.Context, orgID string, req *hajjv1.GetHandoverProofUrlRequest) (*hajjv1.GetHandoverProofUrlResponse, error) {
+	if req == nil || !isUUID(req.OrderId) {
+		return nil, serviceError("ShipmentService.GetProofURL", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("ShipmentService.GetProofURL", err)
+	}
+	shipment, err := s.fulfilmentRepository.GetShipment(ctx, op.ID, req.OrderId)
+	if err != nil {
+		return nil, serviceError("ShipmentService.GetProofURL", err)
+	}
+	if shipment.HandoverProofKey == "" || s.objectStorage == nil {
+		return &hajjv1.GetHandoverProofUrlResponse{}, nil
+	}
+	url, err := s.objectStorage.PresignHandoverView(ctx, op.ID, req.OrderId, shipment.HandoverProofKey)
+	if err != nil {
+		return nil, serviceError("ShipmentService.GetProofURL", err)
+	}
+	return &hajjv1.GetHandoverProofUrlResponse{ViewUrl: url}, nil
 }
 
 func (s *ShipmentService) ListShipments(ctx context.Context, orgID string, req *hajjv1.ListShipmentsRequest) (*hajjv1.ListShipmentsResponse, error) {
@@ -123,8 +183,23 @@ func (s *ShipmentService) MarkHandedOver(ctx context.Context, orgID, userID stri
 		return nil, serviceError("ShipmentService.MarkHandedOver", err)
 	}
 
+	// Verified before it is stored. A key recorded for an object that does not
+	// exist would read as evidence of something that never happened — worse
+	// than no photo, because the row would claim the handover was documented.
+	proofKey := strings.TrimSpace(req.HandoverProofKey)
+	if proofKey != "" {
+		if s.objectStorage == nil {
+			return nil, connect.NewError(connect.CodeFailedPrecondition,
+				errors.New("penyimpanan berkas belum dikonfigurasi"))
+		}
+		if err := s.objectStorage.ConfirmHandoverUpload(ctx, op.ID, req.OrderId, proofKey); err != nil {
+			return nil, connect.NewError(connect.CodeInvalidArgument,
+				errors.New("foto bukti tidak ditemukan di penyimpanan; ulangi unggahannya"))
+		}
+	}
+
 	err = s.fulfilmentRepository.MarkShipmentHandedOver(ctx, op.ID, req.OrderId,
-		strings.TrimSpace(req.HandoverRecipient), strings.TrimSpace(req.HandoverNote), userID)
+		strings.TrimSpace(req.HandoverRecipient), strings.TrimSpace(req.HandoverNote), proofKey, userID)
 	if errors.Is(err, apperror.ErrFailedPrecondition) {
 		return nil, connect.NewError(connect.CodeFailedPrecondition,
 			errors.New("paket ini sudah tercatat diserahkan"))
@@ -161,6 +236,7 @@ func shipmentMessage(shipment *repository.Shipment) *hajjv1.Shipment {
 		ShippingAddress: shipment.ShippingAddress, Courier: shipment.Courier,
 		TrackingNumber: shipment.TrackingNumber,
 		HandoverRecipient: shipment.HandoverRecipient, HandoverNote: shipment.HandoverNote,
+		HasHandoverProof:  shipment.HandoverProofKey != "",
 		DestinationEditable: shipment.DestinationEditable(),
 	}
 	if shipment.PaidAt != nil {

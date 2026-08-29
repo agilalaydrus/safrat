@@ -13,6 +13,9 @@ const eslintConfig = [
       ".next/**",
       // The offline PWA specs build into their own distDir (see next.config.ts).
       ".next-e2e/**",
+      // build:verify writes here so a verification build cannot clobber the
+      // dev server. Linting compiled output is noise, and 86 errors of it.
+      ".next-verify/**",
       "node_modules/**",
       "next-env.d.ts",
       "public/sw.js",

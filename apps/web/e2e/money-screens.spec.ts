@@ -516,6 +516,17 @@ test.describe("money screens render", () => {
       await dialog.getByRole("button", { name: /^Batal$/ }).click();
     }
 
+    // Reconciling a bank statement. The unique amount was computed and stored
+    // and nothing could act on it, so confirming a transfer meant opening the
+    // database. A rounded figure must not match — crediting the wrong travel is
+    // far worse than asking somebody to re-read a number.
+    await page.getByRole("button", { name: /^Transfer$/ }).click();
+    await expect(page.getByText(/nominal yang unik sampai rupiah terakhir/i)).toBeVisible();
+    await page.getByRole("textbox", { name: /Nominal masuk/ }).fill("12345");
+    await page.getByRole("button", { name: /Konfirmasi transfer/ }).click();
+    await expect(page.getByText(/tidak ada tagihan transfer yang menunggu/i)).toBeVisible();
+    await capture(page, "19-admin-transfers");
+
     // Identity: the list must never carry the numbers themselves.
     await page.getByRole("button", { name: /^Identitas$/ }).click();
     await expect(page.getByText(/tidak ditampilkan di daftar ini/i)).toBeVisible();

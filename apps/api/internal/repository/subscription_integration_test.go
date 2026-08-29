@@ -137,9 +137,16 @@ func TestSubscriptionPaymentGrantsAccessIntegration(t *testing.T) {
 		t.Fatalf("issue: %v", err)
 	}
 
-	found, foundOperator, err := subscriptions.FindPayableByAmount(ctx, invoice.Amount)
+	found, foundOperator, foundName, err := subscriptions.FindPayableByAmount(ctx, invoice.Amount)
 	if err != nil || found != invoice.ID || foundOperator != operatorID {
 		t.Fatalf("lookup by amount = %q/%q (%v)", found, foundOperator, err)
+	}
+	// The name comes back with the lookup so a confirmation can say whose
+	// payment it was — read here rather than afterwards, because once the
+	// invoice is settled it is no longer pending and a second query finds
+	// nothing.
+	if foundName == "" {
+		t.Fatal("nama travel tidak ikut terbaca; konfirmasi tidak dapat menyebut pemiliknya")
 	}
 
 	if err := subscriptions.MarkPaid(ctx, invoice.ID); err != nil {
@@ -165,7 +172,7 @@ func TestSubscriptionPaymentGrantsAccessIntegration(t *testing.T) {
 	}
 
 	// A settled amount must no longer match an incoming mutation.
-	if _, _, err := subscriptions.FindPayableByAmount(ctx, invoice.Amount); !errors.Is(err, apperror.ErrNotFound) {
+	if _, _, _, err := subscriptions.FindPayableByAmount(ctx, invoice.Amount); !errors.Is(err, apperror.ErrNotFound) {
 		t.Fatalf("paid invoice still matched by amount: %v", err)
 	}
 }
@@ -187,7 +194,7 @@ func TestSubscriptionOverdueInvoiceReleasesItsAmountIntegration(t *testing.T) {
 		t.Fatalf("expire: %v", err)
 	}
 	// The amount no longer settles anything...
-	if _, _, err := subscriptions.FindPayableByAmount(ctx, invoice.Amount); !errors.Is(err, apperror.ErrNotFound) {
+	if _, _, _, err := subscriptions.FindPayableByAmount(ctx, invoice.Amount); !errors.Is(err, apperror.ErrNotFound) {
 		t.Fatalf("expired invoice still payable: %v", err)
 	}
 	// ...but it is NOT free again today. Expiry releases the pending hold; the

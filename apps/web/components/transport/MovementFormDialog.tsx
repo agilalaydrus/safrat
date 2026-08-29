@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import React, { FormEvent, useEffect, useState } from "react";
 import { Timestamp } from "@bufbuild/protobuf";
 import { IconX } from "@tabler/icons-react";
 import { Kloter } from "@hajj-saas/proto-gen/hajj/v1/kloter_pb";
@@ -88,7 +88,22 @@ export default function MovementFormDialog({ open, seasonId, onClose, onSaved }:
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) { return <section style={{ display: "grid", gap: 16 }}><p style={sectionTitle}>{title}</p>{children}</section>; }
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) { return <label style={{ display: "grid", gap: 6 }}><span style={fieldLabel}>{label}</span>{children}{hint && <span style={{ fontSize: 11, color: "var(--color-warm-400)" }}>{hint}</span>}</label>; }
+// The hint is attached with aria-describedby rather than left inside the
+// <label>. Inside it, a wrapping label folds the hint into the control's
+// accessible name — "Nomor kendaraan Contoh: B 1234 XY" read as one string —
+// which is worse to hear and impossible to address precisely in a test.
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  const hintId = hint ? `hint-${label.replace(/\s+/g, "-").toLowerCase()}` : undefined;
+  const control = hint && React.isValidElement(children)
+    ? React.cloneElement(children as React.ReactElement<{ "aria-describedby"?: string }>, { "aria-describedby": hintId })
+    : children;
+  return (
+    <div style={{ display: "grid", gap: 6 }}>
+      <label style={{ display: "grid", gap: 6 }}><span style={fieldLabel}>{label}</span>{control}</label>
+      {hint && <span id={hintId} style={{ fontSize: 11, color: "var(--color-warm-400)" }}>{hint}</span>}
+    </div>
+  );
+}
 
 const overlay: React.CSSProperties = { position: "fixed", inset: 0, zIndex: 30, display: "flex", justifyContent: "flex-end", background: "rgba(15,23,42,.48)", backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)" };
 const sheet: React.CSSProperties = { width: "min(560px,100%)", height: "100vh", display: "flex", flexDirection: "column", background: "#ffffff", boxShadow: "-6px 0 32px rgba(15,23,42,.12)", borderRadius: "16px 0 0 16px", animation: "sheet-in .22s cubic-bezier(0,0,.2,1)", overflow: "hidden" };

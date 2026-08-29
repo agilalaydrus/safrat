@@ -312,6 +312,7 @@ type Shipment struct {
 	TrackingNumber    string
 	HandoverRecipient string
 	HandoverNote      string
+	HandoverProofKey  string
 	PaidAt            *time.Time
 	SentAt            *time.Time
 	DeliveredAt       *time.Time
@@ -328,7 +329,8 @@ const shipmentColumns = `
 	COALESCE(pil.full_name, buyer.name, ''), o.quantity, o.total_price_idr,
 	f.status, f.delivery_method, f.recipient_name, f.recipient_phone,
 	f.shipping_address, f.courier, f.tracking_number,
-	f.handover_recipient, f.handover_note, o.paid_at, f.sent_at, f.delivered_at`
+	f.handover_recipient, f.handover_note, f.handover_proof_key,
+	o.paid_at, f.sent_at, f.delivered_at`
 
 func scanShipment(row interface {
 	Scan(dest ...any) error
@@ -338,7 +340,7 @@ func scanShipment(row interface {
 		&s.Quantity, &s.TotalPriceIDR, &s.Status, &s.DeliveryMethod,
 		&s.RecipientName, &s.RecipientPhone, &s.ShippingAddress,
 		&s.Courier, &s.TrackingNumber, &s.HandoverRecipient, &s.HandoverNote,
-		&s.PaidAt, &s.SentAt, &s.DeliveredAt)
+		&s.HandoverProofKey, &s.PaidAt, &s.SentAt, &s.DeliveredAt)
 	return &s, err
 }
 
@@ -468,7 +470,7 @@ func (r *FulfilmentRepository) MarkShipmentSent(ctx context.Context, operatorID,
 // Reachable from PENDING as well as SENT, because a jamaah collecting at the
 // counter never has a dispatch step. Not reachable from DELIVERED: a handover
 // recorded twice would overwrite who actually signed for it.
-func (r *FulfilmentRepository) MarkShipmentHandedOver(ctx context.Context, operatorID, orderID, recipient, note, userID string) error {
+func (r *FulfilmentRepository) MarkShipmentHandedOver(ctx context.Context, operatorID, orderID, recipient, note, proofKey, userID string) error {
 	operator, err := pgUUID(operatorID)
 	if err != nil {
 		return apperror.ErrValidation
@@ -480,10 +482,11 @@ func (r *FulfilmentRepository) MarkShipmentHandedOver(ctx context.Context, opera
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE order_fulfilments
 		SET status = 'DELIVERED', handover_recipient = $3, handover_note = $4,
-		    handed_over_by_user_id = $5, delivered_at = NOW(), updated_at = NOW()
+		    handover_proof_key = $5, handed_over_by_user_id = $6,
+		    delivered_at = NOW(), updated_at = NOW()
 		WHERE order_id = $2 AND operator_id = $1 AND kind = 'SHIPMENT'
 		  AND status IN ('PENDING', 'SENT')`,
-		operator, order, recipient, note, userID)
+		operator, order, recipient, note, proofKey, userID)
 	if err != nil {
 		return databaseError(err)
 	}

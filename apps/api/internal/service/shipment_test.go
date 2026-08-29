@@ -79,7 +79,7 @@ func newShipmentFixture(t *testing.T) *shipmentFixture {
 
 	queries := db.New(pool)
 	fulfilments := repository.NewFulfilmentRepository(pool)
-	shipments := NewShipmentService(repository.NewOperatorRepository(queries), fulfilments, repository.NewAuditRepository(queries))
+	shipments := NewShipmentService(repository.NewOperatorRepository(queries), fulfilments, repository.NewAuditRepository(queries), nil)
 
 	// Opened the way a paid order opens one.
 	if _, err := fulfilments.Open(ctx, orderID, operatorID, "", "SHIPMENT"); err != nil {
@@ -226,5 +226,50 @@ func TestHandoverNeedsARecipientAndHappensOnceIntegration(t *testing.T) {
 	}
 	if len(list.Shipments) != 0 {
 		t.Fatal("paket yang sudah diserahkan masih di antrean kerja")
+	}
+}
+
+// A key recorded for an object that does not exist would read as evidence of
+// something that never happened — worse than no photo, because the row would
+// claim the handover was documented. With storage unconfigured the only honest
+// answer is to refuse the key, while still letting the handover be recorded by
+// name.
+func TestHandoverProofKeyIsNeverTakenOnTrustIntegration(t *testing.T) {
+	f := newShipmentFixture(t)
+	ctx := context.Background()
+
+	if _, err := f.shipments.SaveDestination(ctx, f.orgID, "staf", &hajjv1.SaveShipmentDestinationRequest{
+		OrderId: f.orderID, DeliveryMethod: "PICKUP", RecipientName: "Ahmad",
+	}); err != nil {
+		t.Fatalf("tujuan: %v", err)
+	}
+
+	// This fixture has no object storage, so any key is unverifiable.
+	if _, err := f.shipments.MarkHandedOver(ctx, f.orgID, "staf", &hajjv1.MarkShipmentHandedOverRequest{
+		OrderId: f.orderID, HandoverRecipient: "Ahmad", HandoverProofKey: "handover/palsu/photo.jpg",
+	}); err == nil {
+		t.Fatal("kunci foto yang tidak dapat diverifikasi diterima")
+	}
+
+	// Without a key it still works: recording a handover by name is worth doing
+	// on its own, and photo storage being unconfigured must not block delivery.
+	done, err := f.shipments.MarkHandedOver(ctx, f.orgID, "staf", &hajjv1.MarkShipmentHandedOverRequest{
+		OrderId: f.orderID, HandoverRecipient: "Ahmad bin Ali",
+	})
+	if err != nil {
+		t.Fatalf("serah terima tanpa foto ditolak: %v", err)
+	}
+	if done.HasHandoverProof {
+		t.Fatal("dilaporkan punya bukti foto padahal tidak ada")
+	}
+
+	// And the view path answers empty rather than erroring, so a screen can ask
+	// without knowing in advance.
+	view, err := f.shipments.GetProofURL(ctx, f.orgID, &hajjv1.GetHandoverProofUrlRequest{OrderId: f.orderID})
+	if err != nil {
+		t.Fatalf("get proof url: %v", err)
+	}
+	if view.ViewUrl != "" {
+		t.Fatalf("URL diberikan padahal tidak ada foto: %q", view.ViewUrl)
 	}
 }

@@ -249,3 +249,35 @@ func TestPresignStorefrontUploadValidatesInputs(t *testing.T) {
 		}
 	}
 }
+
+// The tenant boundary for delivery photos. A stored key is evidence, so it must
+// never be able to point at another operator's order — or anywhere outside the
+// order it belongs to.
+func TestHandoverKeyStaysInsideItsOrder(t *testing.T) {
+	operator := "11111111-1111-1111-1111-111111111111"
+	order := "22222222-2222-2222-2222-222222222222"
+	other := "33333333-3333-3333-3333-333333333333"
+	good := "handover/" + operator + "/" + order + "/photo.jpg"
+
+	if err := ValidHandoverKey(operator, order, good); err != nil {
+		t.Fatalf("kunci yang sah ditolak: %v", err)
+	}
+
+	refused := map[string]string{
+		"tenant lain":        "handover/" + other + "/" + order + "/photo.jpg",
+		"order lain":         "handover/" + operator + "/" + other + "/photo.jpg",
+		"traversal":          "handover/" + operator + "/" + order + "/../../../etc/passwd",
+		"prefix storefront":  "storefront/" + operator + "/hero.webp",
+		"tanpa prefix":       "photo.jpg",
+		"prefix menyerupai":  "handover/" + operator + "/" + order + "-lain/photo.jpg",
+	}
+	for name, key := range refused {
+		if err := ValidHandoverKey(operator, order, key); err == nil {
+			t.Fatalf("%s diterima: %q", name, key)
+		}
+	}
+
+	if err := ValidHandoverKey("bukan-uuid", order, good); err == nil {
+		t.Fatal("operator bukan UUID diterima")
+	}
+}

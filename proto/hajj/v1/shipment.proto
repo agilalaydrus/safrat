@@ -27,6 +27,16 @@ service ShipmentService {
   // MarkShipmentHandedOver records who actually received it. Delivery is
   // evidence, not a status somebody clicked, which is why this takes a name.
   rpc MarkShipmentHandedOver(MarkShipmentHandedOverRequest) returns (Shipment);
+
+  // CreateHandoverProofUpload returns a one-shot link for the receipt photo.
+  // The key is derived from the order rather than supplied, so an upload cannot
+  // be aimed at another tenant's prefix.
+  rpc CreateHandoverProofUpload(CreateHandoverProofUploadRequest) returns (CreateHandoverProofUploadResponse);
+
+  // GetHandoverProofUrl returns a short-lived link to view a stored photo.
+  // These are never public: a delivery receipt shows a person's name, their
+  // signature and often their doorway.
+  rpc GetHandoverProofUrl(GetHandoverProofUrlRequest) returns (GetHandoverProofUrlResponse);
 }
 
 message Shipment {
@@ -51,6 +61,10 @@ message Shipment {
 
   string handover_recipient = 14;
   string handover_note = 15;
+  // True when a receipt photo was stored. The URL is fetched separately and
+  // on demand, so a list of shipments never carries links to people's
+  // doorways.
+  bool has_handover_proof = 20;
 
   google.protobuf.Timestamp paid_at = 16;
   google.protobuf.Timestamp sent_at = 17;
@@ -90,4 +104,27 @@ message MarkShipmentHandedOverRequest {
   // Who signed for it. Required: this is what a dispute is argued with.
   string handover_recipient = 2 [(buf.validate.field).string = {min_len: 1, max_len: 160}];
   string handover_note = 3 [(buf.validate.field).string.max_len = 500];
+  // Optional. The object key returned by CreateHandoverProofUpload, once the
+  // photo has actually been uploaded to it. Verified server-side before it is
+  // stored, because a key recorded for an object that does not exist would read
+  // as evidence of something that never happened.
+  string handover_proof_key = 4 [(buf.validate.field).string.max_len = 400];
+}
+
+message CreateHandoverProofUploadRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  int64 size_bytes = 2 [(buf.validate.field).int64 = {gt: 0, lte: 5242880}];
+}
+message CreateHandoverProofUploadResponse {
+  string upload_url = 1;
+  string object_key = 2;
+  string content_type = 3;
+}
+
+message GetHandoverProofUrlRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+}
+message GetHandoverProofUrlResponse {
+  // Empty when no photo was recorded. Short-lived when there is one.
+  string view_url = 1;
 }

@@ -58,3 +58,25 @@ func (h *ShipmentHandler) MarkShipmentHandedOver(ctx context.Context, req *conne
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *ShipmentHandler) CreateHandoverProofUpload(ctx context.Context, req *connect.Request[hajjv1.CreateHandoverProofUploadRequest]) (*connect.Response[hajjv1.CreateHandoverProofUploadResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.shipmentService.CreateProofUpload(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *ShipmentHandler) GetHandoverProofUrl(ctx context.Context, req *connect.Request[hajjv1.GetHandoverProofUrlRequest]) (*connect.Response[hajjv1.GetHandoverProofUrlResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.shipmentService.GetProofURL(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

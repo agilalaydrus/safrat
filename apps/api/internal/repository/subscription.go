@@ -204,17 +204,20 @@ func (r *SubscriptionRepository) insertInvoice(ctx context.Context, operatorID a
 // FindPayableByAmount identifies the invoice an incoming bank mutation settles.
 // It matches only unpaid, unexpired transfers, so a stale amount from a closed
 // invoice cannot credit anyone.
-func (r *SubscriptionRepository) FindPayableByAmount(ctx context.Context, amount int64) (string, string, error) {
-	var invoiceID, operatorID string
-	err := r.pool.QueryRow(ctx, `
-		SELECT id::text, operator_id::text
-		FROM subscription_invoices
-		WHERE amount_idr = $1 AND status = 'PENDING' AND channel = 'BANK_TRANSFER'`, amount).
-		Scan(&invoiceID, &operatorID)
+// The operator name comes back too, so a caller confirming a payment can say
+// whose it was. Read here rather than looked up afterwards: once the invoice is
+// settled it is no longer pending, and a second query would find nothing.
+func (r *SubscriptionRepository) FindPayableByAmount(ctx context.Context, amount int64) (invoiceID, operatorID, operatorName string, err error) {
+	err = r.pool.QueryRow(ctx, `
+		SELECT i.id::text, i.operator_id::text, o.name
+		FROM subscription_invoices i
+		JOIN operators o ON o.id = i.operator_id
+		WHERE i.amount_idr = $1 AND i.status = 'PENDING' AND i.channel = 'BANK_TRANSFER'`, amount).
+		Scan(&invoiceID, &operatorID, &operatorName)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", "", apperror.ErrNotFound
+		return "", "", "", apperror.ErrNotFound
 	}
-	return invoiceID, operatorID, err
+	return invoiceID, operatorID, operatorName, err
 }
 
 // MarkPaid settles an invoice and extends access in the same transaction, so
@@ -430,4 +433,46 @@ func IsForeignKeyViolation(err error, constraint string) bool {
 		return false
 	}
 	return pgErr.Code == "23503" && pgErr.ConstraintName == constraint
+}
+
+// PendingTransfer is an invoice waiting for a bank transfer to arrive.
+type PendingTransfer struct {
+	InvoiceID    string
+	OperatorID   string
+	OperatorName string
+	Plan         string
+	AmountIDR    int64
+	IssuedAt     time.Time
+	ExpiresAt    *time.Time
+}
+
+// ListPendingTransfers is what somebody reconciling a bank statement needs on
+// screen: the exact amounts still outstanding, oldest first.
+//
+// The amount is the whole mechanism — each is made unique per day so an
+// incoming mutation identifies its invoice unambiguously — so this is really a
+// list of what to look for in the statement.
+func (r *SubscriptionRepository) ListPendingTransfers(ctx context.Context) ([]*PendingTransfer, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT i.id::text, i.operator_id::text, o.name, i.plan, i.amount_idr,
+		       i.created_at, i.expires_at
+		FROM subscription_invoices i
+		JOIN operators o ON o.id = i.operator_id
+		WHERE i.status = 'PENDING' AND i.channel = 'BANK_TRANSFER'
+		ORDER BY i.created_at ASC
+		LIMIT 200`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	transfers := make([]*PendingTransfer, 0)
+	for rows.Next() {
+		var t PendingTransfer
+		if err := rows.Scan(&t.InvoiceID, &t.OperatorID, &t.OperatorName, &t.Plan,
+			&t.AmountIDR, &t.IssuedAt, &t.ExpiresAt); err != nil {
+			return nil, err
+		}
+		transfers = append(transfers, &t)
+	}
+	return transfers, rows.Err()
 }

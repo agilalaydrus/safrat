@@ -265,3 +265,22 @@ func (h *PlatformHandler) ResolveFulfilment(ctx context.Context, req *connect.Re
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) ListPendingTransfers(ctx context.Context, req *connect.Request[hajjv1.ListPendingTransfersRequest]) (*connect.Response[hajjv1.ListPendingTransfersResponse], error) {
+	result, err := h.platformService.ListPendingTransfers(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) ConfirmBankTransfer(ctx context.Context, req *connect.Request[hajjv1.ConfirmBankTransferRequest]) (*connect.Response[hajjv1.ConfirmBankTransferResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.ConfirmBankTransfer(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
