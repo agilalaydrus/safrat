@@ -31,6 +31,9 @@ type Order struct {
 	HeldReason         string
 	ReceiptNumber      string
 	Destination        string
+	CheckoutChannel    string
+	RiskLevel          string
+	RiskReason         string
 	PaidAt             *time.Time
 	CreatedAt          time.Time
 }

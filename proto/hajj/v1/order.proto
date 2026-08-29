@@ -75,7 +75,7 @@ message Order {
   int64 platform_amount_idr = 13;
   int64 operator_amount_idr = 14;
   int64 agent_commission_idr = 15;
-  // PENDING | PAID | EXPIRED | FAILED | CANCELLED | REFUNDED
+  // PENDING | PAID | HELD | EXPIRED | FAILED | CANCELLED | REFUNDED
   string status = 16;
   string checkout_url = 17;
   google.protobuf.Timestamp paid_at = 18;
@@ -98,6 +98,11 @@ message Order {
   // The phone/account number supplied to the provider. Frozen on the
   // transaction so later profile edits cannot rewrite what was purchased.
   string destination = 31;
+  // NORMAL | REVIEW. REVIEW is assigned by database-enforced checkout
+  // velocity rules and means a matching gateway payment must enter HELD.
+  string risk_level = 32;
+  // Human-readable evidence for staff; empty for NORMAL transactions.
+  string risk_reason = 33;
 }
 
 message CreateOrderRequest {

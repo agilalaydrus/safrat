@@ -7,6 +7,7 @@ import { Product } from "@hajj-saas/proto-gen/hajj/v1/product_pb";
 import { pilgrimAppClient, orderClient } from "@/lib/rpc";
 import { cachedFetch } from "@/lib/offline";
 import { usePilgrimCode } from "@/lib/pilgrim-context";
+import { checkoutErrorMessage } from "@/lib/checkout-error";
 import { CustomerServiceButton } from "@/components/support/CustomerServiceButton";
 
 const money = (n: bigint) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(n));
@@ -52,7 +53,8 @@ export default function PilgrimProductsPage() {
       setError("Gagal membuat tautan pembayaran. Silakan coba lagi.");
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "";
-      setError(/failed_precondition/i.test(message) ? "Pembayaran belum tersedia untuk operator ini. Hubungi petugas Anda." : "Gagal memproses pesanan. Silakan coba lagi.");
+      const fallback = /failed_precondition/i.test(message) ? "Pembayaran belum tersedia untuk operator ini. Hubungi petugas Anda." : "Gagal memproses pesanan. Silakan coba lagi.";
+      setError(checkoutErrorMessage(caught, fallback));
     } finally {
       setBuying(null);
     }

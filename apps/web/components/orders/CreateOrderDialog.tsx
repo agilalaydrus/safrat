@@ -5,6 +5,7 @@ import { Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { Product } from "@hajj-saas/proto-gen/hajj/v1/product_pb";
 import { ManualOrderPaymentMethod } from "@hajj-saas/proto-gen/hajj/v1/order_pb";
 import { pilgrimClient, productClient, orderClient } from "@/lib/rpc";
+import { checkoutErrorMessage } from "@/lib/checkout-error";
 
 const rupiah = (n: bigint | number) => `Rp${Number(n).toLocaleString("id-ID")}`;
 
@@ -77,7 +78,7 @@ export default function CreateOrderDialog({ open, seasonId, onClose, onCreated }
       }
       onCreated();
     } catch (err) {
-      setErrors({ _form: err instanceof Error ? err.message : "Gagal membuat pesanan." });
+      setErrors({ _form: checkoutErrorMessage(err, err instanceof Error ? err.message : "Gagal membuat pesanan.") });
     } finally {
       setSaving(false);
     }

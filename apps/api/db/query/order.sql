@@ -7,7 +7,7 @@ INSERT INTO orders (
   unit_price_idr, total_price_idr, platform_amount_idr, operator_amount_idr,
   agent_commission_idr, idempotency_key, placed_by_agent_id, buyer_agent_id,
   buyer_kind, base_price_idr, operator_markup_idr, agent_markup_idr,
-  destination, digital_spend_counted_on
+  destination, digital_spend_counted_on, checkout_channel
 ) VALUES (
   sqlc.arg(operator_id), sqlc.arg(season_id), sqlc.narg(pilgrim_id),
   sqlc.arg(product_id), NULLIF(sqlc.arg(agent_id)::text, '')::uuid,
@@ -18,7 +18,7 @@ INSERT INTO orders (
   sqlc.narg(buyer_agent_id), sqlc.arg(buyer_kind),
   sqlc.arg(base_price_idr), sqlc.arg(operator_markup_idr),
   sqlc.arg(agent_markup_idr), sqlc.arg(destination),
-  sqlc.narg(digital_spend_counted_on)
+  sqlc.narg(digital_spend_counted_on), sqlc.arg(checkout_channel)
 )
 ON CONFLICT (operator_id, idempotency_key) WHERE idempotency_key <> '' DO NOTHING
 RETURNING *;

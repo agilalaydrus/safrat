@@ -60,6 +60,7 @@ type CreateOrderParams struct {
 	AgentCommissionIDR int64
 	IdempotencyKey     string
 	Destination        string
+	CheckoutChannel    string
 
 	// CountsTowardDailyLimit is true only for the digital categories the cap
 	// applies to. Decided by the service, because "which products are digital"
@@ -124,6 +125,7 @@ func (r *OrderRepository) Create(ctx context.Context, params CreateOrderParams) 
 		AgentMarkupIdr:        params.AgentMarkupIDR,
 		Destination:           strings.TrimSpace(params.Destination),
 		DigitalSpendCountedOn: spendStamp,
+		CheckoutChannel:       params.CheckoutChannel,
 	})
 	if err == nil {
 		// Only a genuinely new order spends. A replay reaches the branch below
@@ -146,6 +148,12 @@ func (r *OrderRepository) Create(ctx context.Context, params CreateOrderParams) 
 			return nil, false, err
 		}
 		return toOrder(order), true, nil
+	}
+	if isCheckViolation(err, "orders_checkout_attempt_limit") {
+		return nil, false, apperror.ErrCheckoutAttemptLimit
+	}
+	if isCheckViolation(err, "orders_checkout_held_block") {
+		return nil, false, apperror.ErrCheckoutHeldBlocked
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, false, err
@@ -310,7 +318,9 @@ func toOrder(o db.Order) *domain.Order {
 		BasePriceIDR: o.BasePriceIdr, OperatorMarkupIDR: o.OperatorMarkupIdr, AgentMarkupIDR: o.AgentMarkupIdr,
 		TotalPriceIDR:     o.TotalPriceIdr,
 		PlatformAmountIDR: o.PlatformAmountIdr, OperatorAmountIDR: o.OperatorAmountIdr, AgentCommissionIDR: o.AgentCommissionIdr,
-		Status: o.Status, HeldReason: o.HeldReason, ReceiptNumber: o.ReceiptNumber, Destination: o.Destination, XenditInvoiceID: o.XenditInvoiceID.String, XenditInvoiceURL: o.XenditInvoiceUrl.String,
+		Status: o.Status, HeldReason: o.HeldReason, ReceiptNumber: o.ReceiptNumber, Destination: o.Destination,
+		CheckoutChannel: o.CheckoutChannel, RiskLevel: o.RiskLevel, RiskReason: o.RiskReason,
+		XenditInvoiceID: o.XenditInvoiceID.String, XenditInvoiceURL: o.XenditInvoiceUrl.String,
 		PaidAmountIDR: int8Ptr(o.PaidAmountIdr),
 		PaidAt:        timestamptzPtr(o.PaidAt), CreatedAt: o.CreatedAt.Time,
 	}
@@ -324,7 +334,8 @@ func toOrderFromRow(o db.GetOrderRow) *domain.Order {
 		BasePriceIdr: o.BasePriceIdr, OperatorMarkupIdr: o.OperatorMarkupIdr, AgentMarkupIdr: o.AgentMarkupIdr,
 		PlatformAmountIdr: o.PlatformAmountIdr, OperatorAmountIdr: o.OperatorAmountIdr, AgentCommissionIdr: o.AgentCommissionIdr,
 		Status: o.Status, HeldReason: o.HeldReason, PaidAmountIdr: o.PaidAmountIdr, ReceiptNumber: o.ReceiptNumber,
-		Destination: o.Destination, XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
+		Destination: o.Destination, CheckoutChannel: o.CheckoutChannel, RiskLevel: o.RiskLevel, RiskReason: o.RiskReason,
+		XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
 	})
 	base.PilgrimName = o.PilgrimName
 	base.BuyerName = o.BuyerName
@@ -341,7 +352,8 @@ func toOrderFromListRow(o db.ListOrdersRow) *domain.Order {
 		BasePriceIdr: o.BasePriceIdr, OperatorMarkupIdr: o.OperatorMarkupIdr, AgentMarkupIdr: o.AgentMarkupIdr,
 		PlatformAmountIdr: o.PlatformAmountIdr, OperatorAmountIdr: o.OperatorAmountIdr, AgentCommissionIdr: o.AgentCommissionIdr,
 		Status: o.Status, HeldReason: o.HeldReason, PaidAmountIdr: o.PaidAmountIdr, ReceiptNumber: o.ReceiptNumber,
-		Destination: o.Destination, XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
+		Destination: o.Destination, CheckoutChannel: o.CheckoutChannel, RiskLevel: o.RiskLevel, RiskReason: o.RiskReason,
+		XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
 	})
 	base.PilgrimName = o.PilgrimName
 	base.BuyerName = o.BuyerName
@@ -384,6 +396,7 @@ func (r *OrderRepository) ListForBuyerAgent(ctx context.Context, operatorID, sea
 			AgentCommissionIdr: row.AgentCommissionIdr, Status: row.Status, HeldReason: row.HeldReason,
 			PaidAmountIdr: row.PaidAmountIdr, ReceiptNumber: row.ReceiptNumber, Destination: row.Destination,
 			XenditInvoiceID: row.XenditInvoiceID, XenditInvoiceUrl: row.XenditInvoiceUrl,
+			CheckoutChannel: row.CheckoutChannel, RiskLevel: row.RiskLevel, RiskReason: row.RiskReason,
 			PaidAt: row.PaidAt, CreatedAt: row.CreatedAt,
 		})
 		base.BuyerName = row.BuyerName

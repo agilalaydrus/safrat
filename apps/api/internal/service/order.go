@@ -120,6 +120,14 @@ func priceAgentOrder(product *domain.Product, levels domain.PriceLevels, route d
 // the original refusal still stands — a limit that cannot be described is
 // still a limit, and swallowing it would let the purchase through.
 func (s *OrderService) describeLimitRefusal(ctx context.Context, err error, buyerKind, buyerID string) error {
+	if errors.Is(err, apperror.ErrCheckoutAttemptLimit) {
+		return fmt.Errorf("%w: maksimal 5 checkout pembayaran baru per akun dalam 1 jam; gunakan link yang sudah dibuat atau coba lagi setelah jeda 1 jam",
+			apperror.ErrCheckoutAttemptLimit)
+	}
+	if errors.Is(err, apperror.ErrCheckoutHeldBlocked) {
+		return fmt.Errorf("%w: akun ini masih memiliki pembayaran yang sedang diperiksa; selesaikan transaksi tersebut sebelum membuat checkout baru",
+			apperror.ErrCheckoutHeldBlocked)
+	}
 	if !errors.Is(err, apperror.ErrDailyLimitExceeded) {
 		return err
 	}
@@ -133,6 +141,17 @@ func (s *OrderService) describeLimitRefusal(ctx context.Context, err error, buye
 	}
 	return fmt.Errorf("%w: batas transaksi produk digital %s per hari; terpakai %s, sisa %s hari ini",
 		apperror.ErrDailyLimitExceeded, rupiah(spend.LimitIDR), rupiah(spend.TotalIDR), rupiah(remaining))
+}
+
+// checkoutCreateError makes a fraud refusal visible even though PostgreSQL
+// rolls the rejected INSERT back. The audit write uses a separate transaction;
+// otherwise the evidence would disappear with the order it refused.
+func (s *OrderService) checkoutCreateError(ctx context.Context, method, operatorID, userID, buyerKind, buyerID string, err error) error {
+	described := s.describeLimitRefusal(ctx, err, buyerKind, buyerID)
+	if errors.Is(err, apperror.ErrCheckoutAttemptLimit) || errors.Is(err, apperror.ErrCheckoutHeldBlocked) {
+		_ = s.auditRepository.Write(ctx, operatorID, userID, "checkout_attempt_rejected", strings.ToLower(buyerKind), buyerID, described.Error())
+	}
+	return serviceError(method, described)
 }
 
 // jakartaLocation is resolved once. A daily limit that rolled over on UTC
@@ -220,11 +239,11 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *hajjv1.CreateOrderR
 		BasePriceIDR: price.BasePriceIDR, OperatorMarkupIDR: price.OperatorMarkupIDR, AgentMarkupIDR: price.AgentMarkupIDR,
 		TotalPriceIDR: price.TotalPriceIDR, PlatformAmountIDR: price.PlatformAmountIDR,
 		OperatorAmountIDR: price.OperatorAmountIDR, AgentCommissionIDR: price.AgentCommissionIDR,
-		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey), Destination: destination,
+		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey), Destination: destination, CheckoutChannel: "XENDIT",
 		CountsTowardDailyLimit: domain.RoutingRequired(product.Category), SpendDate: jakartaToday(),
 	})
 	if err != nil {
-		return nil, serviceError("OrderService.CreateOrder", s.describeLimitRefusal(ctx, err, string(BuyerPilgrim), info.ID))
+		return nil, s.checkoutCreateError(ctx, "OrderService.CreateOrder", info.OperatorID, "", string(BuyerPilgrim), info.ID, err)
 	}
 	// A replay of the same key: the order already exists and already has its
 	// invoice. Creating a second invoice here is exactly the double charge the
@@ -297,6 +316,10 @@ func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req 
 	if method == "XENDIT_LINK" && !s.xenditClient.Configured() {
 		return nil, serviceError("OrderService.CreateManualOrder", fmt.Errorf("%w: %w", apperror.ErrFailedPrecondition, payment.ErrNotConfigured))
 	}
+	checkoutChannel := "MANUAL"
+	if method == "XENDIT_LINK" {
+		checkoutChannel = "XENDIT"
+	}
 
 	// Staff selling on a jamaah's behalf does not change who referred them, so
 	// the commission still follows the referral.
@@ -307,11 +330,11 @@ func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req 
 		BasePriceIDR: price.BasePriceIDR, OperatorMarkupIDR: price.OperatorMarkupIDR, AgentMarkupIDR: price.AgentMarkupIDR,
 		TotalPriceIDR: price.TotalPriceIDR, PlatformAmountIDR: price.PlatformAmountIDR,
 		OperatorAmountIDR: price.OperatorAmountIDR, AgentCommissionIDR: price.AgentCommissionIDR,
-		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey), Destination: destination,
+		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey), Destination: destination, CheckoutChannel: checkoutChannel,
 		CountsTowardDailyLimit: domain.RoutingRequired(product.Category), SpendDate: jakartaToday(),
 	})
 	if err != nil {
-		return nil, serviceError("OrderService.CreateManualOrder", s.describeLimitRefusal(ctx, err, string(BuyerPilgrim), pilgrim.ID))
+		return nil, s.checkoutCreateError(ctx, "OrderService.CreateManualOrder", op.ID, middleware.UserIDFromCtx(ctx), string(BuyerPilgrim), pilgrim.ID, err)
 	}
 	order.ProductName = product.Name
 	order.PilgrimName = pilgrim.FullName
@@ -433,7 +456,9 @@ func (s *OrderService) SettlePayment(ctx context.Context, invoiceID string, paid
 		return nil
 	}
 
-	if paidAmountIDR != order.TotalPriceIDR {
+	holdReasons := make([]string, 0, 2)
+	amountMismatch := paidAmountIDR != order.TotalPriceIDR
+	if amountMismatch {
 		reason := fmt.Sprintf("Nominal dibayar %s tidak sama dengan tagihan %s", rupiah(paidAmountIDR), rupiah(order.TotalPriceIDR))
 		if paidAmountIDR <= 0 {
 			// The gateway told us nothing usable. That is a configuration
@@ -441,12 +466,21 @@ func (s *OrderService) SettlePayment(ctx context.Context, invoiceID string, paid
 			// a matching amount.
 			reason = fmt.Sprintf("Nominal pembayaran tidak dilaporkan gateway; tagihan %s belum dapat diverifikasi", rupiah(order.TotalPriceIDR))
 		}
+		holdReasons = append(holdReasons, reason)
+	}
+	if order.RiskLevel == "REVIEW" {
+		holdReasons = append(holdReasons, "Pemeriksaan keamanan: "+order.RiskReason)
+	}
+	if len(holdReasons) > 0 {
+		reason := strings.Join(holdReasons, ". ")
 		held, holdErr := s.orderRepository.HoldByInvoiceID(ctx, invoiceID, paidAmountIDR, reason)
 		if holdErr != nil {
 			return holdErr
 		}
 		_ = s.auditRepository.Write(ctx, order.OperatorID, "", "order_payment_held", "order", held.ID, reason)
-		sentry.CaptureException(fmt.Errorf("OrderService.SettlePayment: %s (order %s)", reason, held.ID))
+		if amountMismatch {
+			sentry.CaptureException(fmt.Errorf("OrderService.SettlePayment: %s (order %s)", reason, held.ID))
+		}
 		return nil
 	}
 
@@ -537,6 +571,7 @@ func orderMessage(o *domain.Order) *hajjv1.Order {
 		BuyerAgentId: o.BuyerAgentID, BuyerKind: o.BuyerKind, BuyerName: o.BuyerName,
 		BasePriceIdr: o.BasePriceIDR, OperatorMarkupIdr: o.OperatorMarkupIDR,
 		AgentMarkupIdr: o.AgentMarkupIDR, Destination: o.Destination,
+		RiskLevel: o.RiskLevel, RiskReason: o.RiskReason,
 	}
 	if o.PaidAmountIDR != nil {
 		result.PaidAmountIdr = *o.PaidAmountIDR
@@ -824,11 +859,11 @@ func (s *OrderService) CreateOrderForPilgrim(ctx context.Context, orgID, userID 
 		BasePriceIDR: price.BasePriceIDR, OperatorMarkupIDR: price.OperatorMarkupIDR, AgentMarkupIDR: price.AgentMarkupIDR,
 		TotalPriceIDR: price.TotalPriceIDR, PlatformAmountIDR: price.PlatformAmountIDR,
 		OperatorAmountIDR: price.OperatorAmountIDR, AgentCommissionIDR: price.AgentCommissionIDR,
-		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey), Destination: destination,
+		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey), Destination: destination, CheckoutChannel: "XENDIT",
 		CountsTowardDailyLimit: domain.RoutingRequired(product.Category), SpendDate: jakartaToday(),
 	})
 	if err != nil {
-		return nil, serviceError("OrderService.CreateOrderForPilgrim", s.describeLimitRefusal(ctx, err, string(BuyerPilgrim), pilgrim.ID))
+		return nil, s.checkoutCreateError(ctx, "OrderService.CreateOrderForPilgrim", op.ID, userID, string(BuyerPilgrim), pilgrim.ID, err)
 	}
 	order.ProductName = product.Name
 	order.PilgrimName = pilgrim.FullName
@@ -959,11 +994,11 @@ func (s *OrderService) CreateOrderForSelf(ctx context.Context, orgID, userID str
 		AgentMarkupIDR: price.AgentMarkupIDR, TotalPriceIDR: price.TotalPriceIDR,
 		PlatformAmountIDR: price.PlatformAmountIDR, OperatorAmountIDR: price.OperatorAmountIDR,
 		AgentCommissionIDR: 0, IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
-		Destination:            destination,
+		Destination: destination, CheckoutChannel: "XENDIT",
 		CountsTowardDailyLimit: domain.RoutingRequired(product.Category), SpendDate: jakartaToday(),
 	})
 	if err != nil {
-		return nil, serviceError("OrderService.CreateOrderForSelf", s.describeLimitRefusal(ctx, err, string(BuyerAgent), agent.ID))
+		return nil, s.checkoutCreateError(ctx, "OrderService.CreateOrderForSelf", op.ID, userID, string(BuyerAgent), agent.ID, err)
 	}
 	order.ProductName = product.Name
 	order.BuyerName = agent.Name

@@ -49,7 +49,7 @@ export default function TransactionsTab() {
       </p>
       <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}>
         <input type="checkbox" checked={needsAttention} onChange={(e) => setNeedsAttention(e.target.checked)} />
-        Hanya yang perlu ditindak (pembayaran tidak cocok, atau sudah dibayar tapi belum sampai)
+        Hanya yang perlu ditindak (checkout mencurigakan, pembayaran tidak cocok, atau sudah dibayar tapi belum sampai)
       </label>
 
       {error && <p style={{ color: "var(--color-danger-600)", margin: 0 }}>{error}</p>}
@@ -91,6 +91,12 @@ export default function TransactionsTab() {
                       {transaction.heldReason && (
                         <small style={{ display: "block", fontWeight: 400, color: "var(--color-warm-500)", whiteSpace: "normal", maxWidth: 220 }}>
                           {transaction.heldReason}
+                        </small>
+                      )}
+                      {transaction.riskLevel === "REVIEW" && transaction.status === "PENDING" && (
+                        <small style={{ display: "block", fontWeight: 400, color: "#b45309", whiteSpace: "normal", maxWidth: 220 }}>
+                          <IconAlertTriangle size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />
+                          {transaction.riskReason}
                         </small>
                       )}
                     </td>

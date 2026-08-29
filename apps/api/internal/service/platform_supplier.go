@@ -282,8 +282,9 @@ func (s *PlatformService) ListTransactions(ctx context.Context, req *hajjv1.List
 			OrderId: item.OrderID, ReceiptNumber: item.ReceiptNumber, OperatorName: item.OperatorName,
 			PilgrimName: item.PilgrimName, ProductName: item.ProductName, Category: item.Category,
 			AmountIdr: item.AmountIDR, NetPaidIdr: item.NetPaidIDR, Status: item.Status,
-			HeldReason: item.HeldReason, FulfilmentStatus: item.FulfilmentStatus,
-			SupplierName: item.SupplierName, SupplierReference: item.SupplierReference,
+			HeldReason: item.HeldReason, RiskLevel: item.RiskLevel, RiskReason: item.RiskReason,
+			FulfilmentStatus: item.FulfilmentStatus,
+			SupplierName:     item.SupplierName, SupplierReference: item.SupplierReference,
 			FulfilmentError: item.FulfilmentError, CreatedAt: timestamppb.New(item.CreatedAt),
 		}
 		if item.PaidAmountIDR != nil {

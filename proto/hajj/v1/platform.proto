@@ -371,11 +371,14 @@ message PlatformTransaction {
   string fulfilment_error = 15;
   google.protobuf.Timestamp created_at = 16;
   google.protobuf.Timestamp paid_at = 17;
+  string risk_level = 18;
+  string risk_reason = 19;
 }
 
 message ListTransactionsRequest {
   // Narrows to what is actually costing somebody: a payment that did not match
-  // its bill, or something paid for that never arrived.
+  // its bill, a checkout flagged by velocity controls, or something paid for
+  // that never arrived.
   bool needs_attention = 1;
   int32 limit = 2;
 }

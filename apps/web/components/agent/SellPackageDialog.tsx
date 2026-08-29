@@ -5,6 +5,7 @@ import { IconX } from "@tabler/icons-react";
 import { Product } from "@hajj-saas/proto-gen/hajj/v1/product_pb";
 import { ManualOrderPaymentMethod } from "@hajj-saas/proto-gen/hajj/v1/order_pb";
 import { productClient, orderClient } from "@/lib/rpc";
+import { checkoutErrorMessage } from "@/lib/checkout-error";
 
 type Props = { open: boolean; pilgrimId: string; pilgrimName: string; seasonId: string; onClose: () => void; onSold: () => void };
 
@@ -22,10 +23,11 @@ export default function SellPackageDialog({ open, pilgrimId, pilgrimName, season
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [checkoutUrl, setCheckoutUrl] = useState("");
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
 
   useEffect(() => {
     if (!open || !seasonId) return;
-    setProductId(""); setNote(""); setError(""); setCheckoutUrl(""); setMethod(ManualOrderPaymentMethod.XENDIT_LINK);
+    setProductId(""); setNote(""); setError(""); setCheckoutUrl(""); setMethod(ManualOrderPaymentMethod.XENDIT_LINK); setIdempotencyKey(crypto.randomUUID());
     productClient.listProducts({ seasonId }).then((r) => setProducts(r.products.filter((p) => p.category === "TRAVEL_PACKAGE" && p.isActive))).catch(() => setProducts([]));
   }, [open, seasonId]);
 
@@ -37,7 +39,7 @@ export default function SellPackageDialog({ open, pilgrimId, pilgrimName, season
     setSaving(true);
     setError("");
     try {
-      const result = await orderClient.createManualOrder({ pilgrimId, productId, quantity: 1, paymentMethod: method, note });
+      const result = await orderClient.createManualOrder({ pilgrimId, productId, quantity: 1, paymentMethod: method, note, idempotencyKey });
       if (result.checkoutUrl) {
         setCheckoutUrl(result.checkoutUrl);
       } else {
@@ -45,7 +47,7 @@ export default function SellPackageDialog({ open, pilgrimId, pilgrimName, season
         onClose();
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Gagal membuat pesanan.");
+      setError(checkoutErrorMessage(caught, caught instanceof Error ? caught.message : "Gagal membuat pesanan."));
     } finally {
       setSaving(false);
     }

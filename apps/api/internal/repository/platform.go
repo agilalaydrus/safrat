@@ -196,6 +196,8 @@ type PlatformTransaction struct {
 	NetPaidIDR        int64
 	Status            string
 	HeldReason        string
+	RiskLevel         string
+	RiskReason        string
 	FulfilmentStatus  string
 	SupplierName      string
 	SupplierReference string
@@ -218,7 +220,7 @@ func (r *PlatformRepository) ListTransactions(ctx context.Context, needsAttentio
 		SELECT o.id::text, o.receipt_number, op.name,
 		       COALESCE(p.full_name, buyer.name, ''), pr.name, pr.category,
 		       o.total_price_idr, o.paid_amount_idr, COALESCE(pay.net_paid_idr, 0),
-		       o.status, o.held_reason,
+		       o.status, o.held_reason, o.risk_level, o.risk_reason,
 		       COALESCE(f.status, ''), COALESCE(s.name, ''),
 		       COALESCE(f.supplier_reference, ''), COALESCE(f.last_error, ''),
 		       o.created_at, o.paid_at
@@ -232,6 +234,7 @@ func (r *PlatformRepository) ListTransactions(ctx context.Context, needsAttentio
 		LEFT JOIN suppliers s ON s.id = f.supplier_id
 		WHERE NOT $1::bool
 		   OR o.status = 'HELD'
+		   OR (o.risk_level = 'REVIEW' AND o.status = 'PENDING')
 		   OR f.status IN ('NEEDS_REVIEW', 'FAILED')
 		ORDER BY o.created_at DESC
 		LIMIT $2`, needsAttention, limit)
@@ -244,7 +247,7 @@ func (r *PlatformRepository) ListTransactions(ctx context.Context, needsAttentio
 		var item PlatformTransaction
 		if err := rows.Scan(&item.OrderID, &item.ReceiptNumber, &item.OperatorName, &item.PilgrimName,
 			&item.ProductName, &item.Category, &item.AmountIDR, &item.PaidAmountIDR, &item.NetPaidIDR,
-			&item.Status, &item.HeldReason, &item.FulfilmentStatus, &item.SupplierName,
+			&item.Status, &item.HeldReason, &item.RiskLevel, &item.RiskReason, &item.FulfilmentStatus, &item.SupplierName,
 			&item.SupplierReference, &item.FulfilmentError, &item.CreatedAt, &item.PaidAt); err != nil {
 			return nil, err
 		}

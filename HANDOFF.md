@@ -1478,10 +1478,11 @@ What remains, in the order I would take it:
    referenceable number, and any way for the **paying account** to see or print
    its own proof. Owner asked for this explicitly.
 
-4. **Fraud and attempt limits.** The held state exists now, and a held
-   transaction is excluded from revenue and from payable commission. Still
-   missing: attempt limits, and any signal beyond an amount mismatch that would
-   put a transaction into it.
+4. ~~**Fraud and attempt limits.**~~ Done in migration 121. Gateway checkout is
+   capped per buyer under a database advisory lock; velocity flags the fourth
+   and fifth attempt for review, a matching payment on those orders enters
+   `HELD`, and unresolved held money blocks a new checkout. See the 2026-08-29
+   continuation near the end of this file.
 
 5. **Database role without UPDATE/DELETE on the ledgers.** The application
    currently connects as a superuser, which can disable the append-only
@@ -2744,3 +2745,38 @@ dari masa retensi. Prosedur lengkap ada di `DEPLOY.md` section 12c.
 Validasi: migration 120 up/down/up; full Go test/vet/build; integration test
 PostgreSQL membuktikan perubahan biasa ditolak, ciphertext + fingerprint
 berpindah bersama, hasil tetap terbaca dengan kunci baru, dan rerun idempotent.
+
+## Fraud control + batas percobaan checkout (selesai lokal 2026-08-29)
+
+Migration 121 menambahkan `checkout_channel`, `risk_level`, dan `risk_reason`
+pada order. Kebijakan hanya berlaku pada gateway checkout (`XENDIT`); transaksi
+manual tunai/transfer tidak ikut dihitung.
+
+Aturan per pembeli dalam rolling window satu jam:
+
+- replay dengan idempotency key yang sama mengembalikan order lama dan tidak
+  menambah attempt;
+- attempt baru 1–3 normal;
+- attempt baru 4–5 dibuat dengan `risk_level=REVIEW`;
+- attempt baru ke-6 ditolak dengan `ResourceExhausted` dan penolakan ditulis ke
+  audit log;
+- pembeli dengan order `HELD` yang belum diselesaikan tidak dapat membuka
+  gateway checkout baru.
+
+Semua keputusan count/insert diserialkan dengan PostgreSQL advisory lock per
+pembeli, jadi request bersamaan tidak dapat melewati batas. Trigger kedua
+mencegah order `REVIEW` berpindah langsung `PENDING -> PAID`, bahkan jika caller
+melewati service. Pembayaran dengan nominal tepat tetap masuk `HELD` dan tidak
+masuk revenue/komisi payable sampai owner/admin menerima atau menolaknya.
+
+Dashboard order travel dan antrean transaksi platform menampilkan alasan risk.
+Form jamaah/agen menerjemahkan penolakan menjadi pesan Bahasa Indonesia yang
+bisa ditindak. Satu bug lama yang ikut ditemukan: `SellPackageDialog` tidak
+mengirim idempotency key; sekarang satu key dibuat per dialog dan dipertahankan
+saat retry yang hasilnya tidak pasti.
+
+Validasi: migration 121 up/down/up, integration test 12 request bersamaan hanya
+menghasilkan 5 order dan 2 `REVIEW`, replay tidak mengonsumsi attempt, pembayaran
+tepat pada order berisiko menjadi `HELD`, direct database settlement ditolak,
+dan review queue platform melihatnya. Seluruh service integration test, Go
+test/vet/build, Buf lint/generate, frontend typecheck/lint/build lulus.

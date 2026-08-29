@@ -91,7 +91,12 @@ export default function OrdersDashboard() {
                   <td style={td}>{o.productName}</td>
                   <td style={td}>{o.quantity}</td>
                   <td style={td}>{rupiah(o.totalPriceIdr)}</td>
-                  <td style={td}><span style={{ ...badge, ...STATUS_STYLE[o.status] }}>{STATUS_LABEL[o.status] ?? o.status}</span></td>
+                  <td style={td}>
+                    <span style={{ ...badge, ...STATUS_STYLE[o.status] }}>{STATUS_LABEL[o.status] ?? o.status}</span>
+                    {o.riskLevel === "REVIEW" && o.status === "PENDING" && (
+                      <small style={riskNote}><IconAlertTriangle size={12} />Dipantau: {o.riskReason}</small>
+                    )}
+                  </td>
                   <td style={td}>{o.createdAt?.toDate().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}</td>
                   <td style={td}>
                     {o.status === "PENDING" && o.checkoutUrl && <button style={ghost} onClick={() => navigator.clipboard.writeText(o.checkoutUrl)}><IconCopy size={14} />Salin Link</button>}
@@ -139,6 +144,7 @@ const th: React.CSSProperties = { textAlign: "left", padding: 14, fontSize: 11, 
 const tr: React.CSSProperties = { borderBottom: "1px solid var(--color-cream-300)" };
 const td: React.CSSProperties = { padding: 14, color: "var(--color-warm-700)", whiteSpace: "nowrap" };
 const badge: React.CSSProperties = { padding: "4px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700 };
+const riskNote: React.CSSProperties = { display: "flex", gap: 4, alignItems: "flex-start", marginTop: 7, maxWidth: 240, whiteSpace: "normal", color: "#b45309", fontSize: 11, lineHeight: 1.35 };
 const ghost: React.CSSProperties = { border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "4px 8px", background: "transparent", display: "inline-flex", alignItems: "center", gap: 4, color: "var(--color-emerald-900)", fontSize: 12 };
 const pagination: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, padding: 16, color: "var(--color-warm-500)", alignItems: "center", flexWrap: "wrap" };
 const empty: React.CSSProperties = { minHeight: 280, display: "grid", placeItems: "center", alignContent: "center", gap: 12, border: "1px dashed var(--color-cream-400)", borderRadius: 12 };

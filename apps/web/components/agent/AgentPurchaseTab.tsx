@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { IconExternalLink, IconRefresh, IconShoppingCart } from "@tabler/icons-react";
 import type { Order, PurchaseCatalogueProduct } from "@hajj-saas/proto-gen/hajj/v1/order_pb";
 import { orderClient, seasonClient } from "@/lib/rpc";
+import { checkoutErrorMessage } from "@/lib/checkout-error";
 import RefundWalletPanel from "@/components/pilgrim/RefundWalletPanel";
 
 const rupiah = (value: bigint) => `Rp${Number(value).toLocaleString("id-ID")}`;
@@ -78,7 +79,7 @@ export default function AgentPurchaseTab() {
     } catch (caught) {
       // Keep the same key after an uncertain failure. Retrying must ask about
       // the same transaction, not mint a second invoice.
-      setNotice(caught instanceof Error ? caught.message : "Transaksi tidak dapat dibuat.");
+      setNotice(checkoutErrorMessage(caught, caught instanceof Error ? caught.message : "Transaksi tidak dapat dibuat."));
     } finally {
       setSaving(false);
     }

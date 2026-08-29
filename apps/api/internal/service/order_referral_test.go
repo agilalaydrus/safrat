@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/gen/db"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
@@ -179,20 +180,23 @@ func TestReferralEarnsOnManualOrderIntegration(t *testing.T) {
 		t.Fatalf("commission = %d, want 600000", commission)
 	}
 
-	var buyerKind string
+	var buyerKind, checkoutChannel string
 	var buyerAgentID *string
 	var unit, total, base, operatorMarkup, agentMarkup, platformAmount, operatorAmount int64
 	if err := f.pool.QueryRow(ctx, `SELECT buyer_kind, buyer_agent_id::text,
 		unit_price_idr, total_price_idr, base_price_idr, operator_markup_idr,
-		agent_markup_idr, platform_amount_idr, operator_amount_idr
+		agent_markup_idr, platform_amount_idr, operator_amount_idr, checkout_channel
 		FROM orders WHERE id = $1`, response.Order.Id).Scan(
 		&buyerKind, &buyerAgentID, &unit, &total, &base, &operatorMarkup,
-		&agentMarkup, &platformAmount, &operatorAmount,
+		&agentMarkup, &platformAmount, &operatorAmount, &checkoutChannel,
 	); err != nil {
 		t.Fatalf("read frozen pricing: %v", err)
 	}
 	if buyerKind != "PILGRIM" || buyerAgentID != nil {
 		t.Fatalf("buyer kind=%s buyer agent=%v, want PILGRIM and nil", buyerKind, buyerAgentID)
+	}
+	if checkoutChannel != "MANUAL" {
+		t.Fatalf("cash order checkout channel = %q, want MANUAL", checkoutChannel)
 	}
 	if unit != referralPrice || total != referralPrice || base != referralBasePrice ||
 		operatorMarkup != referralOperatorMarkup || agentMarkup != referralAgentMarkup ||
@@ -681,6 +685,177 @@ func TestMatchingPaymentSettlesIntegration(t *testing.T) {
 	}
 	if paidAmount == nil || *paidAmount != referralPrice {
 		t.Fatalf("recorded paid amount = %v, want %d — a settled order should carry the evidence", paidAmount, referralPrice)
+	}
+}
+
+// Five is a per-buyer limit, not a per-process or per-IP suggestion. The
+// database advisory lock is what makes it hold when all attempts arrive at
+// once; a SELECT count in the service would let every goroutine observe zero.
+func TestConcurrentGatewayCheckoutAttemptsAreCappedAndFlaggedIntegration(t *testing.T) {
+	f := newReferralFixture(t)
+	ctx := context.Background()
+	code := f.accessCode(t)
+	const attempts = 12
+	errs := make([]error, attempts)
+	ids := make([]string, attempts)
+	var wg sync.WaitGroup
+	for i := range attempts {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			response, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
+				AppAccessCode: code, ProductId: f.productID, Quantity: 1,
+				IdempotencyKey: uuid.NewString(),
+			})
+			errs[index] = err
+			if response != nil && response.Order != nil {
+				ids[index] = response.Order.Id
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	accepted, refused := 0, 0
+	for i, err := range errs {
+		if err == nil {
+			accepted++
+			if ids[i] == "" {
+				t.Fatalf("accepted attempt %d returned no order", i)
+			}
+			continue
+		}
+		if connect.CodeOf(err) != connect.CodeResourceExhausted {
+			t.Fatalf("attempt %d error = %v (%s), want resource exhausted", i, err, connect.CodeOf(err))
+		}
+		refused++
+	}
+	if accepted != 5 || refused != attempts-5 {
+		t.Fatalf("accepted/refused = %d/%d, want 5/%d", accepted, refused, attempts-5)
+	}
+
+	var total, review int
+	if err := f.pool.QueryRow(ctx, `
+		SELECT COUNT(*)::int, COUNT(*) FILTER (WHERE risk_level='REVIEW')::int
+		FROM orders WHERE pilgrim_id=$1 AND checkout_channel='XENDIT'`, f.pilgrimID).
+		Scan(&total, &review); err != nil {
+		t.Fatal(err)
+	}
+	if total != 5 || review != 2 {
+		t.Fatalf("orders/review = %d/%d, want 5/2", total, review)
+	}
+	var auditCount int
+	if err := f.pool.QueryRow(ctx, `
+		SELECT COUNT(*)::int FROM audit_logs
+		WHERE operator_id=$1 AND action='checkout_attempt_rejected'`, f.operatorID).
+		Scan(&auditCount); err != nil {
+		t.Fatal(err)
+	}
+	if auditCount != refused {
+		t.Fatalf("rejected audits = %d, want %d", auditCount, refused)
+	}
+}
+
+func TestCheckoutReplayDoesNotConsumeAnotherAttemptIntegration(t *testing.T) {
+	f := newReferralFixture(t)
+	ctx := context.Background()
+	key := uuid.NewString()
+	first, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
+		AppAccessCode: f.accessCode(t), ProductId: f.productID, Quantity: 1, IdempotencyKey: key,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 8 {
+		replay, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
+			AppAccessCode: f.accessCode(t), ProductId: f.productID, Quantity: 1, IdempotencyKey: key,
+		})
+		if err != nil || replay.Order.Id != first.Order.Id {
+			t.Fatalf("replay = %+v, %v; want order %s", replay, err, first.Order.Id)
+		}
+	}
+	for range 4 {
+		if _, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
+			AppAccessCode: f.accessCode(t), ProductId: f.productID, Quantity: 1, IdempotencyKey: uuid.NewString(),
+		}); err != nil {
+			t.Fatalf("one of five distinct attempts was refused: %v", err)
+		}
+	}
+	if _, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
+		AppAccessCode: f.accessCode(t), ProductId: f.productID, Quantity: 1, IdempotencyKey: uuid.NewString(),
+	}); connect.CodeOf(err) != connect.CodeResourceExhausted {
+		t.Fatalf("sixth distinct attempt = %v (%s), want resource exhausted", err, connect.CodeOf(err))
+	}
+}
+
+func TestVelocityFlagForcesMatchingPaymentIntoHeldAndBlocksNewCheckoutIntegration(t *testing.T) {
+	f := newReferralFixture(t)
+	ctx := context.Background()
+	var flagged *hajjv1.CreateOrderResponse
+	for attempt := 1; attempt <= 4; attempt++ {
+		response, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
+			AppAccessCode: f.accessCode(t), ProductId: f.productID, Quantity: 1, IdempotencyKey: uuid.NewString(),
+		})
+		if err != nil {
+			t.Fatalf("checkout %d: %v", attempt, err)
+		}
+		flagged = response
+	}
+	if flagged.Order.RiskLevel != "REVIEW" || flagged.Order.RiskReason == "" {
+		t.Fatalf("fourth checkout risk = %q/%q, want REVIEW with reason", flagged.Order.RiskLevel, flagged.Order.RiskReason)
+	}
+	attention, err := repository.NewPlatformRepository(f.pool).ListTransactions(ctx, true, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundInReviewQueue := false
+	for _, transaction := range attention {
+		if transaction.OrderID == flagged.Order.Id {
+			foundInReviewQueue = transaction.RiskLevel == "REVIEW" && transaction.RiskReason != ""
+			break
+		}
+	}
+	if !foundInReviewQueue {
+		t.Fatal("flagged pending checkout is absent from the platform review queue")
+	}
+	if _, err := f.pool.Exec(ctx, `UPDATE orders SET status='PAID' WHERE id=$1`, flagged.Order.Id); err == nil {
+		t.Fatal("database allowed a flagged PENDING order to settle directly")
+	}
+	var invoiceID string
+	if err := f.pool.QueryRow(ctx, `SELECT xendit_invoice_id FROM orders WHERE id=$1`, flagged.Order.Id).Scan(&invoiceID); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.orders.SettlePayment(ctx, invoiceID, referralPrice); err != nil {
+		t.Fatalf("settle matching flagged payment: %v", err)
+	}
+	var status, heldReason string
+	if err := f.pool.QueryRow(ctx, `SELECT status, held_reason FROM orders WHERE id=$1`, flagged.Order.Id).Scan(&status, &heldReason); err != nil {
+		t.Fatal(err)
+	}
+	if status != "HELD" || !strings.Contains(heldReason, "Pemeriksaan keamanan") {
+		t.Fatalf("flagged settlement = %s/%q, want HELD security reason", status, heldReason)
+	}
+	var netPaid int64
+	if err := f.pool.QueryRow(ctx, `SELECT net_paid_idr FROM order_payments WHERE order_id=$1`, flagged.Order.Id).Scan(&netPaid); err != nil {
+		t.Fatal(err)
+	}
+	if netPaid != 0 {
+		t.Fatalf("held risk order entered revenue: %d", netPaid)
+	}
+	if _, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
+		AppAccessCode: f.accessCode(t), ProductId: f.productID, Quantity: 1, IdempotencyKey: uuid.NewString(),
+	}); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("checkout with unresolved HELD = %v (%s), want failed precondition", err, connect.CodeOf(err))
+	}
+	if _, err := f.orders.ResolveHeldOrder(ctx, f.orgID, "staff-risk-review", &hajjv1.ResolveHeldOrderRequest{
+		OrderId: flagged.Order.Id, Resolution: hajjv1.HeldOrderResolution_HELD_ORDER_RESOLUTION_ACCEPT,
+		Note: "identitas dan pembayaran dikonfirmasi",
+	}); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if _, err := f.orders.CreateOrder(ctx, &hajjv1.CreateOrderRequest{
+		AppAccessCode: f.accessCode(t), ProductId: f.productID, Quantity: 1, IdempotencyKey: uuid.NewString(),
+	}); err != nil {
+		t.Fatalf("fifth checkout remained blocked after review resolved: %v", err)
 	}
 }
 
