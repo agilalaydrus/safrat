@@ -40,6 +40,8 @@ export default function TransactionsTab() {
       .finally(() => setLoading(false));
   }, [needsAttention]);
   useEffect(() => { load(); }, [load]);
+  const [reviewing, setReviewing] = useState<PlatformTransaction | null>(null);
+  const [notice, setNotice] = useState("");
 
   return (
     <section style={{ display: "grid", gap: 14 }}>
@@ -53,6 +55,15 @@ export default function TransactionsTab() {
       </label>
 
       {error && <p style={{ color: "var(--color-danger-600)", margin: 0 }}>{error}</p>}
+      {notice && <p style={{ color: "var(--color-emerald-800)", margin: 0 }}>{notice}</p>}
+
+      {reviewing && (
+        <ReviewDialog
+          transaction={reviewing}
+          onClose={() => setReviewing(null)}
+          onDone={(message) => { setReviewing(null); setNotice(message); load(); }}
+        />
+      )}
 
       {loading ? <p style={muted}>Memuat...</p> : transactions.length === 0 ? (
         <p style={muted}>
@@ -61,7 +72,7 @@ export default function TransactionsTab() {
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={table}>
-            <thead><tr>{["Struk", "Travel / Jamaah", "Produk", "Nilai", "Pembayaran", "Pengiriman", "Dibuat"].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
+            <thead><tr>{["Struk", "Travel / Jamaah", "Produk", "Nilai", "Pembayaran", "Pengiriman", "Dibuat", ""].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
             <tbody>
               {transactions.map((transaction) => {
                 const payment = PAYMENT[transaction.status] ?? { label: transaction.status, tone: "var(--color-warm-700)" };
@@ -118,6 +129,15 @@ export default function TransactionsTab() {
                       ) : "—"}
                     </td>
                     <td style={{ ...td, whiteSpace: "nowrap" }}>{when(transaction.createdAt?.toDate())}</td>
+                    <td style={td}>
+                      {/* The queue could be read and not worked: a delivery
+                          nothing could determine sat here permanently with the
+                          money already taken. Only shown where a decision is
+                          actually open. */}
+                      {(transaction.fulfilmentStatus === "NEEDS_REVIEW" || transaction.fulfilmentStatus === "FAILED") && (
+                        <button style={ghost} onClick={() => setReviewing(transaction)}>Tinjau</button>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -134,3 +154,80 @@ const table: React.CSSProperties = { width: "100%", borderCollapse: "collapse", 
 const th: React.CSSProperties = { textAlign: "left", padding: 12, fontSize: 11, color: "var(--color-warm-400)", borderBottom: "1px solid var(--color-cream-300)" };
 const tr: React.CSSProperties = { borderBottom: "1px solid var(--color-cream-300)" };
 const td: React.CSSProperties = { padding: 12, color: "var(--color-warm-700)", verticalAlign: "top", fontSize: 13 };
+
+// Deciding an unreadable delivery. Two outcomes and nothing in between, because
+// "probably fine" is the state being resolved rather than an answer to it.
+function ReviewDialog({ transaction, onClose, onDone }: {
+  transaction: PlatformTransaction;
+  onClose: () => void;
+  onDone: (message: string) => void;
+}) {
+  const [status, setStatus] = useState<"DELIVERED" | "FAILED">("FAILED");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await platformClient.resolveFulfilment({
+        orderId: transaction.orderId, status, note: note.trim(),
+      });
+      onDone(result.refunded
+        ? `Ditandai gagal dan dana ${money(result.refundedIdr)} dikembalikan.`
+        : "Ditandai sudah sampai.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menyimpan keputusan.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div role="dialog" aria-label="Tinjau pengiriman" style={dialog}>
+      <strong>Tinjau pengiriman — {transaction.receiptNumber || transaction.orderId.slice(0, 8)}</strong>
+      <p style={{ ...muted, margin: 0 }}>
+        {transaction.productName} · {money(transaction.amountIdr)}
+        {transaction.fulfilmentError ? ` · ${transaction.fulfilmentError}` : ""}
+      </p>
+
+      <label style={label}>
+        Keputusan
+        <select value={status} onChange={(e) => setStatus(e.target.value as "DELIVERED" | "FAILED")} style={input}>
+          <option value="FAILED">Gagal — dana dikembalikan ke jamaah</option>
+          <option value="DELIVERED">Sudah sampai — tidak ada pengembalian</option>
+        </select>
+      </label>
+
+      <label style={label}>
+        Alasan
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          style={{ ...input, minHeight: 72, padding: 10 }}
+          placeholder="Mis. dicek ke supplier, transaksi tidak ditemukan"
+        />
+      </label>
+      <small style={{ color: "var(--color-warm-500)", fontSize: 12 }}>
+        Wajib diisi. Keputusan ini tidak dikonfirmasi oleh apa pun di luar sistem, jadi alasannya
+        adalah satu-satunya jejak pertanggungjawabannya.
+      </small>
+
+      {error && <p style={{ color: "var(--color-danger-600)", margin: 0, fontSize: 13 }}>{error}</p>}
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button style={primary} disabled={busy || !note.trim()} onClick={submit}>
+          {busy ? "Menyimpan…" : status === "FAILED" ? "Tandai gagal & kembalikan dana" : "Tandai sudah sampai"}
+        </button>
+        <button style={ghost} onClick={onClose} disabled={busy}>Batal</button>
+      </div>
+    </div>
+  );
+}
+
+const dialog: React.CSSProperties = { display: "grid", gap: 12, padding: 18, background: "#fff", border: "1px solid var(--color-cream-400)", borderLeft: "3px solid var(--color-danger-600)", borderRadius: 10, maxWidth: 560 };
+const label: React.CSSProperties = { display: "grid", gap: 6, fontSize: 13, color: "var(--color-warm-700)" };
+const input: React.CSSProperties = { minHeight: 44, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 12px", fontFamily: "inherit", fontSize: 14 };
+const primary: React.CSSProperties = { minHeight: 44, border: 0, borderRadius: 8, padding: "0 18px", background: "var(--color-emerald-800)", color: "#fff", fontWeight: 700, justifySelf: "start" };
+const ghost: React.CSSProperties = { minHeight: 40, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 14px", background: "transparent", color: "var(--color-warm-700)", fontSize: 13 };

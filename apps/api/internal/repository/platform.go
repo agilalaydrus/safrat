@@ -373,3 +373,22 @@ func (r *PlatformRepository) RevokeSessions(ctx context.Context, userID string) 
 	}
 	return tag.RowsAffected(), nil
 }
+
+// OperatorForOrder resolves which tenant an order belongs to.
+//
+// Needed because a platform admin resolving a supplier failure has to act on an
+// order in a tenant they are not a member of. The operator is read from the
+// order rather than taken from the caller, so it cannot be pointed at the wrong
+// tenant by sending a different id.
+func (r *PlatformRepository) OperatorForOrder(ctx context.Context, orderID string) (string, error) {
+	id, err := pgUUID(orderID)
+	if err != nil {
+		return "", apperror.ErrValidation
+	}
+	var operatorID string
+	err = r.pool.QueryRow(ctx, `SELECT operator_id::text FROM orders WHERE id = $1`, id).Scan(&operatorID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", apperror.ErrNotFound
+	}
+	return operatorID, err
+}

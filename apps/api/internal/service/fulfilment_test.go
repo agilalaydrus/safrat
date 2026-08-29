@@ -648,3 +648,86 @@ func TestSweepRecoversAPaidOrderWithNoFulfilmentIntegration(t *testing.T) {
 		t.Fatalf("%d fulfilments after two recovery passes, want 1", rows)
 	}
 }
+
+// Until this path existed the review queue could be read and not worked: a
+// transaction whose outcome nothing could determine sat there permanently, the
+// jamaah's money already taken, finishable only by opening the database.
+//
+// The property that matters is not that a status can be set. It is that
+// deciding "failed" returns the money, exactly once.
+func TestResolvingAFailedFulfilmentRefundsExactlyOnceIntegration(t *testing.T) {
+	f := newFulfilmentFixture(t)
+	ctx := context.Background()
+	queries := db.New(f.pool)
+
+	orders := NewOrderService(
+		repository.NewOperatorRepository(queries), repository.NewPilgrimRepository(queries),
+		repository.NewProductRepository(queries, f.pool), repository.NewOrderRepository(queries, f.pool),
+		repository.NewAuditRepository(queries), repository.NewLedgerRepository(f.pool),
+		repository.NewRefundRepository(f.pool), repository.NewAgentRepository(queries),
+		repository.NewSeasonRepository(queries), f.pool, nil, "http://localhost:3000")
+
+	// The state a supplier's unreadable answer leaves behind.
+	f.service.Open(ctx, f.orderID, f.operatorID, "PPOB_CREDIT")
+	if _, err := f.pool.Exec(ctx,
+		`UPDATE order_fulfilments SET status = 'NEEDS_REVIEW',
+		 last_error = 'Respons supplier tidak dikenali aturan mana pun' WHERE order_id = $1`,
+		f.orderID); err != nil {
+		t.Fatalf("set needs review: %v", err)
+	}
+
+	refund := func() error {
+		_, err := orders.RefundOrderForOperator(ctx, f.operatorID, "admin-uji", &hajjv1.RefundOrderRequest{
+			OrderId:        f.orderID,
+			Reason:         "Pengiriman gagal setelah ditinjau: supplier tidak menjawab",
+			IdempotencyKey: "fulfilment-failed-" + f.orderID,
+		})
+		return err
+	}
+
+	// A note is the whole accountability trail for a decision nothing outside
+	// the system confirms, so it is not optional.
+	if err := f.service.ResolveManually(ctx, f.orderID, "FAILED", "admin-uji", ""); err == nil {
+		t.Fatal("penyelesaian tanpa alasan diterima")
+	}
+	if err := f.service.ResolveManually(ctx, f.orderID, "MUNGKIN", "admin-uji", "ragu"); err == nil {
+		t.Fatal("status di luar DELIVERED/FAILED diterima")
+	}
+
+	if err := f.service.ResolveManually(ctx, f.orderID, "FAILED", "admin-uji", "supplier tidak menjawab"); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if err := refund(); err != nil {
+		t.Fatalf("refund setelah gagal: %v", err)
+	}
+
+	var refunds int
+	var refunded int64
+	if err := f.pool.QueryRow(ctx,
+		`SELECT count(*), COALESCE(sum(amount_idr),0) FROM order_refunds WHERE order_id = $1`,
+		f.orderID).Scan(&refunds, &refunded); err != nil {
+		t.Fatalf("read refunds: %v", err)
+	}
+	if refunds != 1 || refunded != 11000 {
+		t.Fatalf("refund = %d baris senilai %d, mau 1 baris senilai 11000", refunds, refunded)
+	}
+
+	// Resolving again is allowed on purpose: a wrong decision has to be
+	// correctable, or an operator who mis-clicked would be trapped holding a
+	// jamaah's money with no lawful way to return it. So the second click is
+	// accepted here —
+	if err := f.service.ResolveManually(ctx, f.orderID, "FAILED", "admin-uji", "klik kedua"); err != nil {
+		t.Fatalf("penyelesaian ulang ditolak, padahal koreksi harus mungkin: %v", err)
+	}
+	// — and the refund is what must not happen twice.
+	if err := refund(); err != nil {
+		t.Fatalf("pengulangan refund seharusnya idempoten: %v", err)
+	}
+	if err := f.pool.QueryRow(ctx,
+		`SELECT count(*) FROM order_refunds WHERE order_id = $1`, f.orderID).Scan(&refunds); err != nil {
+		t.Fatalf("read refunds: %v", err)
+	}
+	if refunds != 1 {
+		t.Fatalf("%d refund tercatat — uang dikembalikan lebih dari sekali", refunds)
+	}
+}

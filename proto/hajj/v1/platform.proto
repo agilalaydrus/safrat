@@ -57,6 +57,20 @@ service PlatformService {
   // limit, and then quietly starts hiding rows.
   rpc ListPlatformCatalogue(ListPlatformCatalogueRequest) returns (ListPlatformCatalogueResponse);
 
+  // ResolveFulfilment closes out a delivery the supplier never answered
+  // readably. Until this existed the queue could be read and not worked: a
+  // transaction whose outcome nothing could determine sat there permanently,
+  // with the jamaah's money already taken and no way to finish it short of
+  // opening the database.
+  //
+  // FAILED refunds. Marking a delivery failed and keeping the money would be
+  // worse than the limbo it replaces, because the record would then say the
+  // matter was settled.
+  //
+  // Repeatable on purpose — a wrong decision must be correctable. Refunds are
+  // once per order at the database, so repeating it cannot pay twice.
+  rpc ResolveFulfilment(ResolveFulfilmentRequest) returns (ResolveFulfilmentResponse);
+
   // Supplier catalogue. Digital products are supplied by the platform, so all
   // of this is platform-owned — a travel neither sets nor sees it.
   rpc ListSuppliers(ListSuppliersRequest) returns (ListSuppliersResponse);
@@ -197,6 +211,23 @@ message SavePlatformProductRequest {
   bool is_active = 8;
 }
 message SavePlatformProductResponse { PlatformProduct product = 1; }
+
+message ResolveFulfilmentRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  // DELIVERED or FAILED. Nothing else: "probably fine" is the state being
+  // resolved, not an answer.
+  string status = 2 [(buf.validate.field).string = {in: ["DELIVERED", "FAILED"]}];
+  // Required. This decision is confirmed by nothing outside the system, so the
+  // reason is the entire accountability trail for it.
+  string note = 3 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+}
+message ResolveFulfilmentResponse {
+  string status = 1;
+  // True when the resolution returned the money. Reported rather than inferred,
+  // so the screen states what happened instead of implying it.
+  bool refunded = 2;
+  int64 refunded_idr = 3;
+}
 
 message ListPlatformCatalogueRequest {}
 message ListPlatformCatalogueResponse { repeated PlatformProduct products = 1; }

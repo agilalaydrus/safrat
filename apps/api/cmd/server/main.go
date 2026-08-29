@@ -309,6 +309,10 @@ func main() {
 		}
 		orderService.AttachFulfilment(fulfilmentService, fulfilmentRepository)
 		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, productRepository, repository.NewKYCRepository(pool), auditRepository)
+		// The platform review queue refunds when it resolves a failure, so it
+		// needs both — composed after construction because the order service is
+		// built later and takes the fulfilment service itself.
+		platformService.AttachFulfilment(orderService, fulfilmentService)
 		orderHandler := handler.NewOrderHandler(orderService)
 		refundPayoutHandler := handler.NewRefundPayoutHandler(refundPayoutService)
 		platformHandler := handler.NewPlatformHandler(platformService)

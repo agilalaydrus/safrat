@@ -29,6 +29,21 @@ type PlatformService struct {
 	productRepository      *repository.ProductRepository
 	kycRepository          *repository.KYCRepository
 	auditRepository        *repository.AuditRepository
+
+	// Composed rather than reimplemented. Resolving a supplier failure has to
+	// refund, and a second copy of the refund path for this caller is the last
+	// thing that should ever exist twice.
+	orderService      *OrderService
+	fulfilmentService *FulfilmentService
+}
+
+// AttachFulfilment wires the two services this one needs to finish a review.
+// Set after construction because the order service is built later in main and
+// takes the fulfilment service itself — a constructor argument would make the
+// cycle impossible to wire.
+func (s *PlatformService) AttachFulfilment(orders *OrderService, fulfilments *FulfilmentService) {
+	s.orderService = orders
+	s.fulfilmentService = fulfilments
 }
 
 func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, products *repository.ProductRepository, kyc *repository.KYCRepository, audit *repository.AuditRepository) *PlatformService {
@@ -293,6 +308,72 @@ func (s *PlatformService) ListPlatformCatalogue(ctx context.Context, req *hajjv1
 		out = append(out, message)
 	}
 	return &hajjv1.ListPlatformCatalogueResponse{Products: out}, nil
+}
+
+// ResolveFulfilment closes out a delivery nothing could determine automatically.
+//
+// Resolving is deliberately repeatable: a wrong call has to be correctable, or
+// an operator who marked something delivered by mistake would be trapped
+// holding a jamaah's money with no lawful way to return it.
+//
+// So the thing that stops two clicks becoming two refunds is not this — it is
+// the refund itself, which the database allows only once per order, reached
+// here with a key derived from the order id rather than a random one. The
+// fulfilment moves first anyway, so a failure between the two leaves the record
+// saying "failed, unrefunded" rather than money gone with the matter still
+// showing open.
+func (s *PlatformService) ResolveFulfilment(ctx context.Context, req *hajjv1.ResolveFulfilmentRequest) (*hajjv1.ResolveFulfilmentResponse, error) {
+	userID, err := s.requirePlatformAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req == nil || !isUUID(req.OrderId) || strings.TrimSpace(req.Note) == "" {
+		return nil, serviceError("PlatformService.ResolveFulfilment", apperror.ErrValidation)
+	}
+	if s.orderService == nil || s.fulfilmentService == nil {
+		return nil, serviceError("PlatformService.ResolveFulfilment", errors.New("layanan fulfilment belum terpasang"))
+	}
+
+	// Read off the order, not taken from the caller. A platform admin acts
+	// across tenants, so the tenant has to come from the thing being acted on.
+	operatorID, err := s.platformRepository.OperatorForOrder(ctx, req.OrderId)
+	if err != nil {
+		return nil, serviceError("PlatformService.ResolveFulfilment", err)
+	}
+
+	if err := s.fulfilmentService.ResolveManually(ctx, req.OrderId, req.Status, userID, strings.TrimSpace(req.Note)); err != nil {
+		return nil, err
+	}
+
+	_ = s.auditRepository.Write(ctx, operatorID, userID, "fulfilment_resolved", "order", req.OrderId,
+		req.Status+": "+strings.TrimSpace(req.Note))
+
+	response := &hajjv1.ResolveFulfilmentResponse{Status: req.Status}
+	if req.Status != "FAILED" {
+		return response, nil
+	}
+
+	// Failed means the jamaah paid and received nothing, so the money goes
+	// back. The key is derived from the order rather than random: a retry after
+	// a network error must settle the same refund, not open a second one.
+	refund, err := s.orderService.RefundOrderForOperator(ctx, operatorID, userID, &hajjv1.RefundOrderRequest{
+		OrderId:        req.OrderId,
+		Reason:         "Pengiriman gagal setelah ditinjau: " + strings.TrimSpace(req.Note),
+		IdempotencyKey: "fulfilment-failed-" + req.OrderId,
+	})
+	if err != nil {
+		// The fulfilment is already FAILED and the refund is not done. Said
+		// plainly rather than swallowed: somebody has to finish it by hand, and
+		// a generic error would hide which half succeeded.
+		return nil, connect.NewError(connect.CodeInternal,
+			fmt.Errorf("status sudah ditandai gagal tetapi refund belum berhasil; selesaikan refund order %s secara manual: %w", req.OrderId, err))
+	}
+
+	response.Refunded = true
+	if refund.Refund != nil {
+		response.RefundedIdr = refund.Refund.AmountIdr
+	}
+	return response, nil
 }
 
 func formatBasePriceNote(previous *int64, next int64) string {

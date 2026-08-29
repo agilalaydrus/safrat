@@ -496,6 +496,26 @@ test.describe("money screens render", () => {
     await expect(page.getByText(/2FA/).first()).toBeVisible();
     await capture(page, "12-admin-accounts");
 
+    // The review queue used to be readable and not workable: a delivery nothing
+    // could determine sat here permanently with the jamaah's money taken. The
+    // button has to exist and the decision has to require a reason.
+    await page.getByRole("button", { name: /^Transaksi$/ }).click();
+    await expect(page.getByText(/Dua kolom status karena keduanya pertanyaan berbeda/i)).toBeVisible();
+
+    const review = page.getByRole("button", { name: /^Tinjau$/ }).first();
+    if (await review.count() > 0) {
+      await review.click();
+      const dialog = page.getByRole("dialog", { name: /Tinjau pengiriman/i });
+      await expect(dialog).toBeVisible();
+      // Failing without a reason must not be possible: the note is the whole
+      // accountability trail for a decision nothing outside confirms.
+      await expect(dialog.getByRole("button", { name: /Tandai gagal/ })).toBeDisabled();
+      await dialog.getByRole("textbox").fill("dicek ke supplier, transaksi tidak ditemukan");
+      await expect(dialog.getByRole("button", { name: /Tandai gagal/ })).toBeEnabled();
+      await capture(page, "18-admin-review-fulfilment");
+      await dialog.getByRole("button", { name: /^Batal$/ }).click();
+    }
+
     // Identity: the list must never carry the numbers themselves.
     await page.getByRole("button", { name: /^Identitas$/ }).click();
     await expect(page.getByText(/tidak ditampilkan di daftar ini/i)).toBeVisible();

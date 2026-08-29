@@ -607,14 +607,30 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 	if err != nil {
 		return nil, serviceError("OrderService.RefundOrder", err)
 	}
+	return s.RefundOrderForOperator(ctx, op.ID, userID, req)
+}
 
+// RefundOrderForOperator is the refund itself, with the operator already known.
+//
+// Split out because a platform admin resolving a supplier failure has to refund
+// an order belonging to a tenant they are not a member of — there is no orgID
+// to resolve. The alternative was a second copy of the refund path for that
+// caller, which is the last thing that should ever exist twice.
+//
+// The operator is therefore trusted from the caller. Every entry point must
+// establish it: RefundOrder from the session's organisation, the platform path
+// by reading it off the order itself.
+func (s *OrderService) RefundOrderForOperator(ctx context.Context, operatorID, userID string, req *hajjv1.RefundOrderRequest) (*hajjv1.RefundOrderResponse, error) {
+	if req == nil || strings.TrimSpace(req.OrderId) == "" || strings.TrimSpace(req.IdempotencyKey) == "" {
+		return nil, serviceError("OrderService.RefundOrder", apperror.ErrValidation)
+	}
 	tx, err := s.db.Begin(ctx)
 	if err != nil {
 		return nil, serviceError("OrderService.RefundOrder", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	order, err := s.refundRepository.LockOrderForRefund(ctx, tx, op.ID, req.OrderId)
+	order, err := s.refundRepository.LockOrderForRefund(ctx, tx, operatorID, req.OrderId)
 	if err != nil {
 		return nil, serviceError("OrderService.RefundOrder", err)
 	}
@@ -629,7 +645,7 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 		if err := tx.Commit(ctx); err != nil {
 			return nil, serviceError("OrderService.RefundOrder", err)
 		}
-		return s.refundResponse(ctx, op.ID, order.ID, existing, false)
+		return s.refundResponse(ctx, operatorID, order.ID, existing, false)
 	}
 
 	// Only money that actually arrived can go back. PENDING, EXPIRED, FAILED
@@ -669,7 +685,7 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 	}
 
 	refund, created, err := s.refundRepository.CreateRefundTx(ctx, tx, repository.RefundParams{
-		OperatorID: op.ID, OrderID: order.ID, AmountIDR: refundAmount,
+		OperatorID: operatorID, OrderID: order.ID, AmountIDR: refundAmount,
 		CommissionReversedIDR: commissionReversal, Reason: strings.TrimSpace(req.Reason),
 		CreatedByUserID: userID, IdempotencyKey: req.IdempotencyKey,
 	})
@@ -683,7 +699,7 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 		if err := tx.Commit(ctx); err != nil {
 			return nil, serviceError("OrderService.RefundOrder", err)
 		}
-		return s.refundResponse(ctx, op.ID, order.ID, refund, false)
+		return s.refundResponse(ctx, operatorID, order.ID, refund, false)
 	}
 
 	if order.BuyerKind == string(BuyerAgent) {
@@ -691,7 +707,7 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 			return nil, serviceError("OrderService.RefundOrder", errors.New("pesanan agen tidak memiliki pemilik refund"))
 		}
 		if err := s.ledgerRepository.AppendAgentRefundBalanceTx(ctx, tx, repository.AgentRefundBalanceEntry{
-			OperatorID: op.ID, AgentID: order.BuyerAgentID, AmountIDR: refundAmount, Kind: "REFUND",
+			OperatorID: operatorID, AgentID: order.BuyerAgentID, AmountIDR: refundAmount, Kind: "REFUND",
 			OrderID: order.ID, Note: refundNote(refund.Reason), CreatedByUserID: userID,
 			IdempotencyKey: "refund-" + refund.ID,
 		}); err != nil {
@@ -699,7 +715,7 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 		}
 	} else {
 		if err := s.ledgerRepository.AppendBalanceTx(ctx, tx, repository.BalanceEntry{
-			OperatorID: op.ID, PilgrimID: order.PilgrimID, AmountIDR: refundAmount, Kind: "REFUND",
+			OperatorID: operatorID, PilgrimID: order.PilgrimID, AmountIDR: refundAmount, Kind: "REFUND",
 			OrderID: order.ID, Note: refundNote(refund.Reason), CreatedByUserID: userID,
 			IdempotencyKey: "refund-" + refund.ID,
 		}); err != nil {
@@ -709,7 +725,7 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 
 	if commissionReversal > 0 {
 		if err := s.ledgerRepository.AppendCommissionTx(ctx, tx, repository.CommissionEntry{
-			OperatorID: op.ID, AgentID: order.AgentID, AmountIDR: -commissionReversal, Kind: "REVERSED",
+			OperatorID: operatorID, AgentID: order.AgentID, AmountIDR: -commissionReversal, Kind: "REVERSED",
 			OrderID: order.ID, Note: refundNote(refund.Reason), CreatedByUserID: userID,
 			IdempotencyKey: "reversal-" + refund.ID,
 		}); err != nil {
@@ -732,11 +748,11 @@ func (s *OrderService) RefundOrder(ctx context.Context, orgID, userID string, re
 
 	// Audited after the commit: the refund is the fact, and failing to write
 	// the log must not roll back money that has already been returned.
-	_ = s.auditRepository.Write(ctx, op.ID, userID, "order_refunded", "order", order.ID,
+	_ = s.auditRepository.Write(ctx, operatorID, userID, "order_refunded", "order", order.ID,
 		fmt.Sprintf("Refund penuh %s, komisi ditarik %s%s",
 			rupiah(refundAmount), rupiah(commissionReversal), noteSuffix(refund.Reason)))
 
-	return s.refundResponse(ctx, op.ID, order.ID, refund, true)
+	return s.refundResponse(ctx, operatorID, order.ID, refund, true)
 }
 
 func (s *OrderService) refundResponse(ctx context.Context, operatorID, orderID string, refund *domain.OrderRefund, created bool) (*hajjv1.RefundOrderResponse, error) {

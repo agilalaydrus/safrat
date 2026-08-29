@@ -254,3 +254,14 @@ func (h *PlatformHandler) ListPlatformCatalogue(ctx context.Context, req *connec
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) ResolveFulfilment(ctx context.Context, req *connect.Request[hajjv1.ResolveFulfilmentRequest]) (*connect.Response[hajjv1.ResolveFulfilmentResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.ResolveFulfilment(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
