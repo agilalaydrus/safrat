@@ -619,29 +619,38 @@ avoid the two drifting apart.
 
 ## 9. Database Backup (Daily)
 
+The full procedure, the key generation, and the restore rehearsal live in
+`deploy/backup/README.md`. The short version:
+
 ```bash
-cat > /home/deploy/backup-db.sh << 'EOF'
-#!/bin/bash
-set -e
-DATE=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR="/home/deploy/backups"
-mkdir -p "$BACKUP_DIR"
+install -m 0700 deploy/backup/backup-db.sh  /home/deploy/backup-db.sh
+install -m 0700 deploy/backup/restore-db.sh /home/deploy/restore-db.sh
+install -m 0400 backup-cert.pem /home/deploy/backup-cert.pem   # public half only
 
-docker compose -f /home/deploy/safrat/docker-compose.prod.yml \
-  exec -T postgres \
-  pg_dump -U safrat safrat | gzip > "${BACKUP_DIR}/safrat_${DATE}.sql.gz"
-
-find "$BACKUP_DIR" -name "*.sql.gz" -mtime +7 -delete
-echo "[$(date)] Backup done"
-EOF
-
-chmod +x /home/deploy/backup-db.sh
-/home/deploy/backup-db.sh  # test it
-
-# Schedule daily 02:00
 crontab -e
-# Add: 0 2 * * * /home/deploy/backup-db.sh >> /home/deploy/backup.log 2>&1
+# 0 2 * * * . /home/deploy/.backup-env && /home/deploy/backup-db.sh >> /home/deploy/backup.log 2>&1
 ```
+
+What replaced the previous script here, and why:
+
+**It is encrypted to a key this server does not hold.** Whoever compromises the
+VPS gets the live database — that cannot be avoided — but must not also get
+every historical copy. The private half never goes on the machine.
+
+**It goes off the machine.** A dump beside the database it came from survives a
+dropped table and nothing else. This one fails the run if the upload does not
+land, rather than leaving a "successful" backup that only exists on the server
+being backed up.
+
+**It can be restored, and that gets rehearsed.** `restore-db.sh` restores into a
+scratch database by default and refuses the live one without an explicit flag.
+It verifies the archive against the manifest taken at backup time and finishes
+by counting rows — a restore that ends without counting anything has told you
+nothing.
+
+> **Run the rehearsal monthly.** It is in section 13's checklist. A backup
+> nobody has restored is an assumption, and the day you find out is the worst
+> possible day to find out.
 
 ---
 
@@ -912,6 +921,21 @@ existing record unreadable until the rotation catches up, and the startup log
 will say so.
 
 ## 13. Security Checklist Before Go-Live
+
+### Recurring, not one-off
+
+Two of these have no "done" state — they decay, and the decay is invisible.
+
+- **Restore rehearsal, monthly** and after any large schema change. Follow
+  `deploy/backup/README.md` §4. It must finish by printing row counts and a
+  migration version; a restore that ends without counting anything has proved
+  nothing. A backup nobody has restored is an assumption, and the day it matters
+  is the worst day to discover that.
+- **Backup key custody.** The private half of the backup certificate is not on
+  the server, by design. Confirm it is still in Bitwarden *and* still on the
+  offline copy — a key that exists in exactly one place is one accident from
+  taking every backup with it.
+
 
 Full hashing/encryption audit run 2026-08-16, covering password storage,
 session tokens, transport, secrets handling, and API/callback response
