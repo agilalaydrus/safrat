@@ -91,6 +91,9 @@ message RefundWallet {
   int64 available_idr = 3;
   repeated RefundBalanceEntry entries = 4;
   repeated RefundPayoutRequest payout_requests = 5;
+  // False means bank/e-wallet payout is unavailable and clients must offer
+  // cash only. Derived from server configuration, never from the browser.
+  bool automatic_payout_available = 6;
 }
 
 message GetMyRefundWalletRequest {

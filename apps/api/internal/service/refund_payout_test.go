@@ -169,6 +169,7 @@ func TestRefundPayoutLifecycleIsReservedIdempotentAndLedgerBackedIntegration(t *
 
 func TestConcurrentRefundPayoutRequestsCannotOverReserveIntegration(t *testing.T) {
 	f := newRefundPayoutFixture(t)
+	f.service.xendit = payment.NewClientWithEndpoints("configured-for-request-test", "", "http://127.0.0.1")
 	var code string
 	if err := f.pool.QueryRow(f.pilgrimCtx, `SELECT app_access_code FROM pilgrims WHERE id = $1`, f.pilgrimID).Scan(&code); err != nil {
 		t.Fatal(err)
@@ -205,6 +206,37 @@ func TestConcurrentRefundPayoutRequestsCannotOverReserveIntegration(t *testing.T
 	}
 }
 
+func TestNonCashRefundPayoutIsUnavailableWithoutGatewayIntegration(t *testing.T) {
+	f := newRefundPayoutFixture(t)
+	var code string
+	if err := f.pool.QueryRow(f.pilgrimCtx, `SELECT app_access_code FROM pilgrims WHERE id=$1`, f.pilgrimID).Scan(&code); err != nil {
+		t.Fatal(err)
+	}
+	wallet, err := f.service.GetMyRefundWallet(f.pilgrimCtx, &hajjv1.GetMyRefundWalletRequest{AppAccessCode: code})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if wallet.AutomaticPayoutAvailable {
+		t.Fatal("wallet reported automatic payout without a configured gateway")
+	}
+	_, err = f.service.RequestRefundPayout(f.pilgrimCtx, &hajjv1.RequestRefundPayoutRequest{
+		AppAccessCode: code, AmountIdr: 100_000,
+		Method:             hajjv1.RefundPayoutMethod_REFUND_PAYOUT_METHOD_EWALLET,
+		DestinationChannel: "ID_DANA", DestinationAccountHolder: "Jamaah Refund", DestinationAccountNumber: "08123456789",
+		IdempotencyKey: uuid.NewString(),
+	})
+	if err == nil {
+		t.Fatal("non-cash payout succeeded without a configured gateway")
+	}
+	var requests int
+	if err := f.pool.QueryRow(f.pilgrimCtx, `SELECT count(*) FROM pilgrim_refund_payout_requests WHERE pilgrim_id=$1`, f.pilgrimID).Scan(&requests); err != nil {
+		t.Fatal(err)
+	}
+	if requests != 0 {
+		t.Fatalf("non-cash rejection persisted %d payout requests", requests)
+	}
+}
+
 func TestGatewayPayoutIsIdempotentEncryptedAndLedgerBackedIntegration(t *testing.T) {
 	f := newRefundPayoutFixture(t)
 	var receivedAccount, receivedKey string
@@ -233,6 +265,13 @@ func TestGatewayPayoutIsIdempotentEncryptedAndLedgerBackedIntegration(t *testing
 	var code string
 	if err := f.pool.QueryRow(f.pilgrimCtx, `SELECT app_access_code FROM pilgrims WHERE id=$1`, f.pilgrimID).Scan(&code); err != nil {
 		t.Fatal(err)
+	}
+	wallet, err := f.service.GetMyRefundWallet(f.pilgrimCtx, &hajjv1.GetMyRefundWalletRequest{AppAccessCode: code})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !wallet.AutomaticPayoutAvailable {
+		t.Fatal("wallet hid a configured payout gateway")
 	}
 	created, err := f.service.RequestRefundPayout(f.pilgrimCtx, &hajjv1.RequestRefundPayoutRequest{AppAccessCode: code, AmountIdr: 250_000, Method: hajjv1.RefundPayoutMethod_REFUND_PAYOUT_METHOD_BANK_TRANSFER, IdempotencyKey: uuid.NewString(), DestinationChannel: "CENAIDJA", DestinationAccountHolder: "Jamaah Refund", DestinationAccountNumber: "1234567890"})
 	if err != nil {

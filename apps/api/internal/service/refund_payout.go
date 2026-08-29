@@ -120,7 +120,7 @@ func (s *RefundPayoutService) wallet(ctx context.Context, kind, id, operation st
 	if err != nil {
 		return nil, serviceError(operation, err)
 	}
-	result := &hajjv1.RefundWallet{BalanceIdr: balance, ReservedIdr: reserved, AvailableIdr: balance - reserved, Entries: make([]*hajjv1.RefundBalanceEntry, 0, len(entries)), PayoutRequests: make([]*hajjv1.RefundPayoutRequest, 0, len(requests))}
+	result := &hajjv1.RefundWallet{BalanceIdr: balance, ReservedIdr: reserved, AvailableIdr: balance - reserved, Entries: make([]*hajjv1.RefundBalanceEntry, 0, len(entries)), PayoutRequests: make([]*hajjv1.RefundPayoutRequest, 0, len(requests)), AutomaticPayoutAvailable: s.automaticPayoutAvailable()}
 	for _, entry := range entries {
 		result.Entries = append(result.Entries, &hajjv1.RefundBalanceEntry{Id: entry.ID, AmountIdr: entry.AmountIDR, Kind: entry.Kind, Note: entry.Note, OrderId: entry.OrderID, CreatedAt: timestamppb.New(entry.CreatedAt)})
 	}
@@ -187,9 +187,6 @@ func (s *RefundPayoutService) request(ctx context.Context, kind, ownerID, userID
 	if in.amount <= 0 || strings.TrimSpace(in.key) == "" || method == "" {
 		return nil, serviceError(operation, apperror.ErrValidation)
 	}
-	if err := validatePayoutDestination(method, in); err != nil {
-		return nil, serviceError(operation, err)
-	}
 	tx, err := s.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return nil, serviceError(operation, err)
@@ -204,6 +201,12 @@ func (s *RefundPayoutService) request(ctx context.Context, kind, ownerID, userID
 	}
 	if existing != nil {
 		return refundPayoutMessage(existing), nil
+	}
+	if method != "CASH" && !s.automaticPayoutAvailable() {
+		return nil, serviceError(operation, preconditionError("pencairan bank dan e-wallet belum tersedia; pilih metode tunai"))
+	}
+	if err := validatePayoutDestination(method, in); err != nil {
+		return nil, serviceError(operation, err)
 	}
 	twoFactor, err := s.payouts.UserHasTwoFactor(ctx, userID)
 	if err != nil {
@@ -241,6 +244,10 @@ func (s *RefundPayoutService) request(ctx context.Context, kind, ownerID, userID
 	}
 	_ = s.audit.Write(ctx, operatorID, userID, "refund_payout_requested", "refund_payout", created.ID, fmt.Sprintf("%s via %s untuk %s", rupiah(created.AmountIDR), created.Method, kind))
 	return refundPayoutMessage(created), nil
+}
+
+func (s *RefundPayoutService) automaticPayoutAvailable() bool {
+	return s.xendit != nil && s.xendit.Configured()
 }
 
 func beneficiaryOperatorID(ctx context.Context, tx pgx.Tx, kind, id string) (string, error) {

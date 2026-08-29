@@ -146,11 +146,12 @@ test.describe("portal history screens render", () => {
       await expect(page.getByText(/Rp\s?275\.000/).first()).toBeVisible();
 
       await page.getByLabel(/^Jumlah$/).fill("275000");
+      await expect(page.getByLabel(/Metode yang diinginkan/i).locator("option")).toHaveText(["Tunai"]);
       await page.getByLabel(/Metode yang diinginkan/i).selectOption(String(3));
       await page.getByLabel(/Catatan untuk travel/i).fill("Konfirmasi lewat WhatsApp");
       await page.getByRole("button", { name: /Ajukan Pencairan/i }).click();
 
-		await expect(page.getByText(/Permintaan pencairan tunai tercatat/i)).toBeVisible();
+      await expect(page.getByText(/Permintaan pencairan tunai tercatat/i)).toBeVisible();
       await expect(page.getByText(/Menunggu diproses/i)).toBeVisible();
       const [stored] = await query<{ amount_idr: string; method: string; status: string }>(
         `SELECT pr.amount_idr::text, pr.method, pr.status FROM pilgrim_refund_payout_requests pr

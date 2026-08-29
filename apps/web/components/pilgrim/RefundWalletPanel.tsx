@@ -37,7 +37,7 @@ const walletChannels = [["ID_DANA", "DANA"], ["ID_OVO", "OVO"], ["ID_GOPAY", "Go
 export default function RefundWalletPanel({ appAccessCode = "", fallbackBalance = 0n, agent = false }: { appAccessCode?: string; fallbackBalance?: bigint; agent?: boolean }) {
   const [wallet, setWallet] = useState<RefundWallet>();
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState(RefundPayoutMethod.BANK_TRANSFER);
+  const [method, setMethod] = useState(RefundPayoutMethod.CASH);
   const [note, setNote] = useState("");
   const [destinationChannel, setDestinationChannel] = useState<string>(bankChannels[0][0]);
   const [accountHolder, setAccountHolder] = useState("");
@@ -58,6 +58,10 @@ export default function RefundWalletPanel({ appAccessCode = "", fallbackBalance 
   useEffect(() => { void load(); }, [load]);
 
   const available = wallet?.availableIdr ?? fallbackBalance;
+  const automaticPayoutAvailable = wallet?.automaticPayoutAvailable ?? false;
+  useEffect(() => {
+    if (wallet && !automaticPayoutAvailable) setMethod(RefundPayoutMethod.CASH);
+  }, [wallet, automaticPayoutAvailable]);
   const requestedAmount = useMemo(() => {
     const parsed = Number(amount.replace(/\D/g, ""));
     return Number.isSafeInteger(parsed) && parsed > 0 ? BigInt(parsed) : 0n;
@@ -122,7 +126,7 @@ export default function RefundWalletPanel({ appAccessCode = "", fallbackBalance 
             <IconShieldLock size={17} color="var(--color-emerald-800)" />
             <strong>Ajukan pencairan</strong>
           </div>
-          <p style={help}>Akun tertaut dan 2FA aktif wajib digunakan. Transfer bank/e-wallet dikirim otomatis melalui Xendit; nomor tujuan disimpan terenkripsi.</p>
+          <p style={help}>{automaticPayoutAvailable ? "Akun tertaut dan 2FA aktif wajib digunakan. Transfer bank/e-wallet dikirim otomatis melalui Xendit; nomor tujuan disimpan terenkripsi." : "Akun tertaut dan 2FA aktif wajib digunakan. Sementara ini pencairan tersedia secara tunai melalui travel."}</p>
           <label style={field}>Jumlah
             <input value={amount} onChange={(event) => setAmount(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder={String(available)} style={input} />
           </label>
@@ -131,8 +135,8 @@ export default function RefundWalletPanel({ appAccessCode = "", fallbackBalance 
           </div>
           <label style={field}>Metode yang diinginkan
             <select value={method} onChange={(event) => { const next = Number(event.target.value) as RefundPayoutMethod; setMethod(next); setDestinationChannel(next === RefundPayoutMethod.EWALLET ? walletChannels[0][0] : bankChannels[0][0]); }} style={input}>
-              <option value={RefundPayoutMethod.BANK_TRANSFER}>Transfer bank</option>
-              <option value={RefundPayoutMethod.EWALLET}>E-wallet</option>
+              {automaticPayoutAvailable && <option value={RefundPayoutMethod.BANK_TRANSFER}>Transfer bank</option>}
+              {automaticPayoutAvailable && <option value={RefundPayoutMethod.EWALLET}>E-wallet</option>}
               <option value={RefundPayoutMethod.CASH}>Tunai</option>
             </select>
           </label>

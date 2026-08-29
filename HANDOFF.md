@@ -2672,6 +2672,11 @@ owner/admin memantau keduanya melalui **Refund & Saldo** di
 
 ### Gateway dan payout tunai
 
+- Tanpa `XENDIT_SECRET_KEY`, wallet API mengumumkan capability non-tunai
+  sebagai tidak tersedia, UI jamaah/agen hanya menawarkan **Tunai**, dan
+  backend menolak request bank/e-wallet sebelum menyimpan atau mereservasi
+  saldo. Mengisi key yang valid mengaktifkan pilihan otomatis tanpa perubahan
+  kode atau feature flag tambahan.
 - Transfer bank/e-wallet dikirim oleh worker melalui Xendit Payouts v3 dengan
   UUID request sebagai reference serta idempotency key yang stabil. Tidak ada
   network call saat transaksi database terbuka.

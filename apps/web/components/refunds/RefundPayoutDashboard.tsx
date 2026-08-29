@@ -97,7 +97,7 @@ export default function RefundPayoutDashboard() {
   return (
     <main style={page}>
       <header style={header}>
-        <div><p style={eyebrow}>KEUANGAN / REFUND</p><h1 style={title}>Pencairan Saldo Refund</h1><p style={subtitle}>Pantau payout jamaah dan agen; transfer non-tunai direkonsiliasi otomatis melalui Xendit.</p></div>
+        <div><p style={eyebrow}>KEUANGAN / REFUND</p><h1 style={title}>Pencairan Saldo Refund</h1><p style={subtitle}>Pantau payout jamaah dan agen. Transfer non-tunai akan direkonsiliasi otomatis setelah Xendit dikonfigurasi.</p></div>
         <button type="button" onClick={() => void load()} style={secondary}><IconRefresh size={16} />Muat ulang</button>
       </header>
 
