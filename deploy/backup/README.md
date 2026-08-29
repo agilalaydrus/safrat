@@ -33,9 +33,27 @@ seluruh riwayat database.
 kenapa skripnya juga membuat sertifikat self-signed. Sertifikat inilah "bagian
 publik"-nya.
 
+- **`backup-key.pem`** → **jangan pernah** taruh di VPS.
 - **`backup-cert.pem`** → salin ke VPS di `/home/deploy/backup-cert.pem`.
-- **`backup-key.pem`** → **jangan pernah** taruh di VPS. Simpan di Bitwarden
-  bersama `KYC_ENCRYPTION_KEY`, dan simpan satu salinan luring.
+
+### Menyimpan kunci privat tanpa Bitwarden berbayar
+
+Paket gratis tidak bisa melampirkan berkas. Beri kata sandi pada kuncinya, dan
+yang perlu disimpan rahasia berubah: bukan lagi berkasnya, tapi kata sandinya —
+dan itu muat di field password biasa.
+
+```bash
+./deploy/backup/protect-key.sh ~/safrat-backup-key/backup-key.pem
+```
+
+Setelah terkunci, berkas kuncinya **tidak berbahaya sendirian**. Ia boleh ada di
+flash disk, di laptop kedua, di Drive, di email ke diri sendiri. Yang tidak boleh
+ada di tempat yang sama hanyalah kata sandinya.
+
+**Satu salinan saja tidak cukup, di mana pun ia disimpan.** Laptop hilang, disk
+mati, atau `rm` yang salah membuat setiap backup tidak terbaca selamanya — persis
+kegagalan yang backup ini ada untuk mencegah. Minimal dua tempat, dan salah
+satunya di luar rumah.
 
 Kehilangan kunci privat berarti kehilangan seluruh backup. Itu memang harganya
 dari server yang tidak bisa membaca miliknya sendiri.
