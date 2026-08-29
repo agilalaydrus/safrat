@@ -84,6 +84,20 @@ service PlatformService {
   // amount off the statement.
   rpc ConfirmBankTransfer(ConfirmBankTransferRequest) returns (ConfirmBankTransferResponse);
 
+  // ListBankMutations shows credits that arrived. Unmatched ones are the queue
+  // that matters: money in the account that nothing accounts for.
+  rpc ListBankMutations(ListBankMutationsRequest) returns (ListBankMutationsResponse);
+
+  // SettleInvoiceWithMutation attaches a recorded credit to one specific
+  // invoice. The fallback for when the feed mis-read an amount, a transfer
+  // arrived with a fee deducted, or the scraper broke — a person decides, and
+  // the decision is tied to a credit that exists rather than to a typed number.
+  rpc SettleInvoiceWithMutation(SettleInvoiceWithMutationRequest) returns (SettleInvoiceWithMutationResponse);
+
+  // IgnoreBankMutation records that a credit is not a subscription payment.
+  // Not a delete: the money still arrived.
+  rpc IgnoreBankMutation(IgnoreBankMutationRequest) returns (IgnoreBankMutationResponse);
+
   // Supplier catalogue. Digital products are supplied by the platform, so all
   // of this is platform-owned — a travel neither sets nor sees it.
   rpc ListSuppliers(ListSuppliersRequest) returns (ListSuppliersResponse);
@@ -249,6 +263,37 @@ message ConfirmBankTransferResponse {
   string operator_name = 2;
   int64 amount_idr = 3;
 }
+
+message BankMutation {
+  string id = 1;
+  string external_id = 2;
+  // API, SCRAPER or MANUAL. They carry different weight: a scraped row is a
+  // best-effort reading of a web page.
+  string source = 3;
+  int64 amount_idr = 4;
+  string description = 5;
+  google.protobuf.Timestamp occurred_at = 6;
+  string status = 7;
+  string matched_invoice_id = 8;
+  string note = 9;
+}
+
+message ListBankMutationsRequest { bool unmatched_only = 1; }
+message ListBankMutationsResponse { repeated BankMutation mutations = 1; }
+
+message SettleInvoiceWithMutationRequest {
+  string mutation_id = 1 [(buf.validate.field).string.uuid = true];
+  string invoice_id = 2 [(buf.validate.field).string.uuid = true];
+  // Required. A manual match is confirmed by nothing outside the system.
+  string note = 3 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+}
+message SettleInvoiceWithMutationResponse {}
+
+message IgnoreBankMutationRequest {
+  string mutation_id = 1 [(buf.validate.field).string.uuid = true];
+  string note = 2 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+}
+message IgnoreBankMutationResponse {}
 
 message ResolveFulfilmentRequest {
   string order_id = 1 [(buf.validate.field).string.uuid = true];

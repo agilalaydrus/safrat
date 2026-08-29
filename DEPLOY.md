@@ -104,6 +104,10 @@ services:
       XENDIT_SECRET_KEY: ${XENDIT_SECRET_KEY}
       XENDIT_WEBHOOK_TOKEN: ${XENDIT_WEBHOOK_TOKEN}
       XENDIT_WEBHOOK_ALLOWED_IPS: ${XENDIT_WEBHOOK_ALLOWED_IPS}
+      # Signs POST /webhooks/bank-feed. Leave unset and the endpoint refuses
+      # everything rather than accepting unauthenticated credits — it settles
+      # subscription invoices, so it must not be open by omission.
+      BANK_FEED_SECRET: ${BANK_FEED_SECRET}
       KYC_ENCRYPTION_KEY: ${KYC_ENCRYPTION_KEY}
       UPLOAD_DIR: /uploads/documents
     volumes:

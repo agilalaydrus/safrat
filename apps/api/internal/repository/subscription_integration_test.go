@@ -307,3 +307,102 @@ func TestSubscriptionConcurrentRequestsYieldOneInvoiceIntegration(t *testing.T) 
 		t.Fatalf("%d pending invoices in the database, want 1", pending)
 	}
 }
+
+// A bank feed redelivers, and a scraper re-reads the same page. Neither may
+// settle an invoice twice, and neither may lose a credit that matched nothing —
+// unaccounted money is the row that matters most here.
+func TestBankMutationsSettleOnceAndKeepWhatDidNotMatchIntegration(t *testing.T) {
+	pool := subscriptionTestPool(t)
+	ctx := context.Background()
+	subscriptions := NewSubscriptionRepository(pool)
+	operatorID := newTestOperator(t, pool, "STARTER")
+	if err := subscriptions.EnsureForOperator(ctx, operatorID); err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+	invoice, err := subscriptions.IssueBankTransferInvoice(ctx, operatorID, "GROWTH")
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+
+	external := "MUT-" + uuid.NewString()
+	record := func(amount int64) (*BankMutation, bool) {
+		m, fresh, err := subscriptions.RecordMutation(ctx, BankMutation{
+			ExternalID: external, Source: "SCRAPER", AmountIDR: amount,
+			Description: "TRANSFER MASUK", OccurredAt: time.Now(),
+		})
+		if err != nil {
+			t.Fatalf("record: %v", err)
+		}
+		return m, fresh
+	}
+
+	mutation, fresh := record(invoice.Amount)
+	if !fresh {
+		t.Fatal("mutasi pertama dilaporkan bukan baru")
+	}
+
+	// Redelivery: the same entry, stored once, and reported as already known.
+	if _, again := record(invoice.Amount); again {
+		t.Fatal("pengiriman ulang tercatat sebagai mutasi baru")
+	}
+
+	settled, err := subscriptions.SettleInvoiceWithMutation(ctx, mutation.ID, invoice.ID, "uji", "cocok otomatis")
+	if err != nil || !settled {
+		t.Fatalf("settle = %v (%v)", settled, err)
+	}
+
+	// The second attempt changes nothing and says so, which is what makes an
+	// automatic matcher and a person clicking safe to run at the same time.
+	if again, err := subscriptions.SettleInvoiceWithMutation(ctx, mutation.ID, invoice.ID, "uji", "klik kedua"); err != nil || again {
+		t.Fatalf("penyelesaian kedua = %v (%v), mau false", again, err)
+	}
+
+	var status, matched string
+	if err := pool.QueryRow(ctx,
+		`SELECT status, COALESCE(matched_invoice_id::text,'') FROM bank_mutations WHERE id = $1`,
+		mutation.ID).Scan(&status, &matched); err != nil {
+		t.Fatalf("read mutation: %v", err)
+	}
+	if status != "MATCHED" || matched != invoice.ID {
+		t.Fatalf("mutasi = %s/%s", status, matched)
+	}
+
+	// Access was granted, not merely recorded as paid.
+	var plan string
+	if err := pool.QueryRow(ctx, `SELECT plan::text FROM operators WHERE id = $1`, operatorID).Scan(&plan); err != nil {
+		t.Fatalf("read plan: %v", err)
+	}
+	if plan != "GROWTH" {
+		t.Fatalf("paket = %s, mau GROWTH — pembayaran dicatat tanpa akses yang dibelinya", plan)
+	}
+
+	// A credit matching nothing is kept, not dropped. It is money that arrived
+	// and has not been accounted for.
+	orphan, fresh, err := subscriptions.RecordMutation(ctx, BankMutation{
+		ExternalID: "MUT-" + uuid.NewString(), Source: "SCRAPER",
+		AmountIDR: invoice.Amount + 7, Description: "TIDAK DIKENAL", OccurredAt: time.Now(),
+	})
+	if err != nil || !fresh {
+		t.Fatalf("record orphan: %v", err)
+	}
+	if orphan.Status != "UNMATCHED" {
+		t.Fatalf("mutasi tak cocok = %s", orphan.Status)
+	}
+
+	unmatched, err := subscriptions.ListMutations(ctx, true)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	var seen bool
+	for _, m := range unmatched {
+		if m.ID == orphan.ID {
+			seen = true
+		}
+		if m.ID == mutation.ID {
+			t.Fatal("mutasi yang sudah cocok masih di antrean kerja")
+		}
+	}
+	if !seen {
+		t.Fatal("mutasi tak cocok hilang dari antrean")
+	}
+}

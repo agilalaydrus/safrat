@@ -79,6 +79,7 @@ services:
       XENDIT_SECRET_KEY: ${XENDIT_SECRET_KEY}
       XENDIT_WEBHOOK_TOKEN: ${XENDIT_WEBHOOK_TOKEN}
       XENDIT_WEBHOOK_ALLOWED_IPS: ${XENDIT_WEBHOOK_ALLOWED_IPS}
+      BANK_FEED_SECRET: ${BANK_FEED_SECRET}
       KYC_ENCRYPTION_KEY: ${KYC_ENCRYPTION_KEY}
       UPLOAD_DIR: /uploads/documents
       # Direct browser upload to the self-hosted MinIO endpoint. Credentials

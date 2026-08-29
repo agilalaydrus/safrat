@@ -312,7 +312,9 @@ func main() {
 		// The platform review queue refunds when it resolves a failure, so it
 		// needs both — composed after construction because the order service is
 		// built later and takes the fulfilment service itself.
+		bankMutationService := service.NewBankMutationService(subscriptionRepository, auditRepository)
 		platformService.AttachFulfilment(orderService, fulfilmentService)
+		platformService.AttachBankMutations(bankMutationService)
 		orderHandler := handler.NewOrderHandler(orderService)
 		refundPayoutHandler := handler.NewRefundPayoutHandler(refundPayoutService)
 		platformHandler := handler.NewPlatformHandler(platformService)
@@ -413,6 +415,10 @@ func main() {
 		mux.Handle(healthReportPath, healthReportServiceHandler)
 		mux.Handle(monitoringPath, monitoringServiceHandler)
 		mux.HandleFunc("POST /webhooks/supplier/{token}", handler.NewSupplierCallbackHandler(logger, fulfilmentService))
+		// Bank credits from a poller or scraper. Signed over the body, and
+		// refused outright when the secret is unset — an endpoint that grants
+		// subscription access must not be open because a variable was forgotten.
+		mux.HandleFunc("POST /webhooks/bank-feed", handler.NewBankFeedHandler(logger, bankMutationService, strings.TrimSpace(os.Getenv("BANK_FEED_SECRET"))))
 		xenditSourceGuard := handler.NewWebhookSourceGuard(logger, os.Getenv("XENDIT_WEBHOOK_ALLOWED_IPS"))
 		mux.HandleFunc("POST /webhooks/xendit", handler.NewXenditWebhookHandler(logger, orderRepository, orderService, subscriptionRepository, config.XenditWebhookToken, xenditSourceGuard))
 		mux.HandleFunc("POST /webhooks/xendit/payout", handler.NewXenditPayoutWebhookHandler(logger, refundPayoutService, config.XenditWebhookToken, xenditSourceGuard))

@@ -201,6 +201,20 @@ test.describe("money screens render", () => {
     }
   });
 
+  // The longest form in the app, and the one a jamaah's whole record is typed
+  // into. Its labels were spans, so nothing connected them to their controls —
+  // a screen reader announced unlabelled boxes. getByLabel only resolves when
+  // the association is real, so this fails if that regresses.
+  test("every field in the jamaah form is reachable by its label", async ({ page }) => {
+    await page.goto("/dashboard/pilgrims");
+    await page.getByRole("button", { name: /Tambah Jamaah/i }).first().click();
+
+    for (const name of ["Nama lengkap", "Nomor paspor", "Kewarganegaraan"]) {
+      await expect(page.getByLabel(name, { exact: false }).first()).toBeVisible();
+    }
+    await capture(page, "20-pilgrim-form-labels");
+  });
+
   // The travel's own pricing screen. Every level of the price is shown here,
   // and the two buyer prices are computed by the server — so this is the one
   // place a person can see whether the layered pricing agrees with itself.
@@ -521,7 +535,10 @@ test.describe("money screens render", () => {
     // database. A rounded figure must not match — crediting the wrong travel is
     // far worse than asking somebody to re-read a number.
     await page.getByRole("button", { name: /^Transfer$/ }).click();
-    await expect(page.getByText(/nominal yang unik sampai rupiah terakhir/i)).toBeVisible();
+    // Matched on the durable half of the sentence rather than the whole
+    // paragraph, which is copy and will be reworded again.
+    await expect(page.getByText(/unik sampai\s+rupiah terakhir/i)).toBeVisible();
+    await expect(page.getByText(/dicocokkan otomatis dari feed bank/i)).toBeVisible();
     await page.getByRole("textbox", { name: /Nominal masuk/ }).fill("12345");
     await page.getByRole("button", { name: /Konfirmasi transfer/ }).click();
     await expect(page.getByText(/tidak ada tagihan transfer yang menunggu/i)).toBeVisible();

@@ -284,3 +284,33 @@ func (h *PlatformHandler) ConfirmBankTransfer(ctx context.Context, req *connect.
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) ListBankMutations(ctx context.Context, req *connect.Request[hajjv1.ListBankMutationsRequest]) (*connect.Response[hajjv1.ListBankMutationsResponse], error) {
+	result, err := h.platformService.ListBankMutations(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) SettleInvoiceWithMutation(ctx context.Context, req *connect.Request[hajjv1.SettleInvoiceWithMutationRequest]) (*connect.Response[hajjv1.SettleInvoiceWithMutationResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.SettleInvoiceWithMutation(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) IgnoreBankMutation(ctx context.Context, req *connect.Request[hajjv1.IgnoreBankMutationRequest]) (*connect.Response[hajjv1.IgnoreBankMutationResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.IgnoreBankMutation(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

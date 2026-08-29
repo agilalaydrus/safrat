@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import React, { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Timestamp } from "@bufbuild/protobuf";
 import { IconX } from "@tabler/icons-react";
 import { Gender, Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
@@ -360,13 +360,40 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return <section style={{ display: "grid", gap: 16 }}><p style={sectionTitle}>{title}</p>{children}</section>;
 }
 
+// The label was a <span>, so nothing connected it to its control: a screen
+// reader announced thirteen unlabelled boxes, and the hint and the validation
+// error were never read out with the field they belonged to. This is the
+// longest form in the app and the one a jamaah's whole record is typed into.
+//
+// fieldKey is already unique per field, so it is used to generate the ids —
+// no new prop, and nothing to keep in step by hand.
 function Field({ fieldKey, label, required, hint, error, children }: { fieldKey: string; label: string; required?: boolean; hint?: string; error?: string; children: React.ReactNode }) {
+  const controlId = `field-${fieldKey}`;
+  const hintId = hint ? `${controlId}-hint` : undefined;
+  const errorId = error ? `${controlId}-error` : undefined;
+  // Both, when both exist: a reader should hear the guidance and what went
+  // wrong, not one at the expense of the other.
+  const describedBy = [hintId, errorId].filter(Boolean).join(" ") || undefined;
+
+  const control = React.isValidElement(children)
+    ? React.cloneElement(children as React.ReactElement<{ id?: string; "aria-describedby"?: string }>, {
+        id: controlId,
+        "aria-describedby": describedBy,
+      })
+    : children;
+
   return (
     <div style={{ display: "grid", gap: 6 }}>
-      <span style={fieldLabel}>{label}{required && <span style={{ color: "var(--color-danger-600)", marginLeft: 2, fontWeight: 400 }}>*</span>}</span>
-      {children}
-      {hint && <span style={{ fontSize: 11, color: "var(--color-warm-400)", marginTop: 2 }}>{hint}</span>}
-      {error && <span data-field-error={fieldKey} style={{ fontSize: 11, color: "var(--color-danger-600)" }}>{error}</span>}
+      <label htmlFor={controlId} style={fieldLabel}>
+        {label}
+        {required && <span style={{ color: "var(--color-danger-600)", marginLeft: 2, fontWeight: 400 }}>*</span>}
+      </label>
+      {control}
+      {hint && <span id={hintId} style={{ fontSize: 11, color: "var(--color-warm-400)", marginTop: 2 }}>{hint}</span>}
+      {/* role="alert" so a validation failure is announced when it appears,
+          rather than only being found by someone who happens to navigate back
+          to the field. */}
+      {error && <span id={errorId} role="alert" data-field-error={fieldKey} style={{ fontSize: 11, color: "var(--color-danger-600)" }}>{error}</span>}
     </div>
   );
 }

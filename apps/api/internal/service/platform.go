@@ -36,6 +36,7 @@ type PlatformService struct {
 	// thing that should ever exist twice.
 	orderService      *OrderService
 	fulfilmentService *FulfilmentService
+	bankMutations     *BankMutationService
 }
 
 // AttachFulfilment wires the two services this one needs to finish a review.
@@ -45,6 +46,70 @@ type PlatformService struct {
 func (s *PlatformService) AttachFulfilment(orders *OrderService, fulfilments *FulfilmentService) {
 	s.orderService = orders
 	s.fulfilmentService = fulfilments
+}
+
+// AttachBankMutations wires the reconciliation service.
+func (s *PlatformService) AttachBankMutations(mutations *BankMutationService) {
+	s.bankMutations = mutations
+}
+
+// ListBankMutations shows what arrived in the account.
+func (s *PlatformService) ListBankMutations(ctx context.Context, req *hajjv1.ListBankMutationsRequest) (*hajjv1.ListBankMutationsResponse, error) {
+	if _, err := s.requirePlatformAdmin(ctx); err != nil {
+		return nil, err
+	}
+	mutations, err := s.subscriptionRepository.ListMutations(ctx, req != nil && req.UnmatchedOnly)
+	if err != nil {
+		return nil, serviceError("PlatformService.ListBankMutations", err)
+	}
+	out := make([]*hajjv1.BankMutation, 0, len(mutations))
+	for _, m := range mutations {
+		out = append(out, &hajjv1.BankMutation{
+			Id: m.ID, ExternalId: m.ExternalID, Source: m.Source, AmountIdr: m.AmountIDR,
+			Description: m.Description, OccurredAt: timestamppb.New(m.OccurredAt),
+			Status: m.Status, MatchedInvoiceId: m.MatchedInvoiceID, Note: m.Note,
+		})
+	}
+	return &hajjv1.ListBankMutationsResponse{Mutations: out}, nil
+}
+
+// SettleInvoiceWithMutation is the per-invoice fallback: a person attaching a
+// credit that exists to the invoice it pays for.
+func (s *PlatformService) SettleInvoiceWithMutation(ctx context.Context, req *hajjv1.SettleInvoiceWithMutationRequest) (*hajjv1.SettleInvoiceWithMutationResponse, error) {
+	userID, err := s.requirePlatformAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req == nil || s.bankMutations == nil {
+		return nil, serviceError("PlatformService.SettleInvoiceWithMutation", apperror.ErrValidation)
+	}
+	if err := s.bankMutations.SettleManually(ctx, req.MutationId, req.InvoiceId, userID, req.Note); err != nil {
+		return nil, err
+	}
+	_ = s.auditRepository.Write(ctx, "", userID, "bank_mutation_settled", "subscription_invoice", req.InvoiceId,
+		"dicocokkan manual dengan mutasi "+req.MutationId+": "+strings.TrimSpace(req.Note))
+	return &hajjv1.SettleInvoiceWithMutationResponse{}, nil
+}
+
+// IgnoreBankMutation records that a credit was not a subscription payment.
+func (s *PlatformService) IgnoreBankMutation(ctx context.Context, req *hajjv1.IgnoreBankMutationRequest) (*hajjv1.IgnoreBankMutationResponse, error) {
+	userID, err := s.requirePlatformAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req == nil || !isUUID(req.MutationId) || strings.TrimSpace(req.Note) == "" {
+		return nil, serviceError("PlatformService.IgnoreBankMutation", apperror.ErrValidation)
+	}
+	if err := s.subscriptionRepository.IgnoreMutation(ctx, req.MutationId, userID, strings.TrimSpace(req.Note)); err != nil {
+		if errors.Is(err, apperror.ErrFailedPrecondition) {
+			return nil, connect.NewError(connect.CodeFailedPrecondition,
+				errors.New("mutasi ini sudah tidak terbuka"))
+		}
+		return nil, serviceError("PlatformService.IgnoreBankMutation", err)
+	}
+	_ = s.auditRepository.Write(ctx, "", userID, "bank_mutation_ignored", "bank_mutation", req.MutationId,
+		strings.TrimSpace(req.Note))
+	return &hajjv1.IgnoreBankMutationResponse{}, nil
 }
 
 func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, products *repository.ProductRepository, subscriptions *repository.SubscriptionRepository, kyc *repository.KYCRepository, audit *repository.AuditRepository) *PlatformService {

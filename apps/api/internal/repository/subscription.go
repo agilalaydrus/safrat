@@ -250,6 +250,22 @@ func (r *SubscriptionRepository) MarkPaid(ctx context.Context, invoiceID string)
 	if err != nil {
 		return err
 	}
+	if err := extendAccess(ctx, tx, operatorID, plan); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// extendAccess grants what a payment bought.
+//
+// Shared by both settlement paths — a person confirming an amount and the
+// matcher settling a bank credit — because they are the same event reached two
+// ways. Two copies would drift, and the half that drifted would be the one
+// granting access nobody paid for or withholding access somebody did.
+//
+// Extension is from whichever is later, now or the current expiry, so paying
+// early adds to the remaining time instead of discarding it.
+func extendAccess(ctx context.Context, tx pgx.Tx, operatorID, plan string) error {
 	operator, err := pgUUID(operatorID)
 	if err != nil {
 		return err
@@ -267,7 +283,7 @@ func (r *SubscriptionRepository) MarkPaid(ctx context.Context, invoiceID string)
 	if _, err := tx.Exec(ctx, `UPDATE operators SET plan = $2::plan WHERE id = $1`, operator, plan); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 // ExpireOverdueInvoices releases the amounts of invoices nobody paid, so those
@@ -475,4 +491,176 @@ func (r *SubscriptionRepository) ListPendingTransfers(ctx context.Context) ([]*P
 		transfers = append(transfers, &t)
 	}
 	return transfers, rows.Err()
+}
+
+// BankMutation is one credit that arrived in the account.
+type BankMutation struct {
+	ID           string
+	ExternalID   string
+	Source       string
+	AmountIDR    int64
+	Description  string
+	OccurredAt   time.Time
+	Status       string
+	MatchedInvoiceID string
+	Note         string
+}
+
+// RecordMutation stores an incoming credit and reports whether this call is the
+// one that stored it.
+//
+// ON CONFLICT DO NOTHING rather than a prior read: feeds redeliver and scrapers
+// re-read the same page, and two deliveries arriving together would both pass a
+// check-then-insert. The unique index is what makes redelivery a no-op, and a
+// no-op is the correct response — the caller gets the existing row.
+func (r *SubscriptionRepository) RecordMutation(ctx context.Context, m BankMutation) (*BankMutation, bool, error) {
+	if m.AmountIDR <= 0 || strings.TrimSpace(m.ExternalID) == "" {
+		return nil, false, apperror.ErrValidation
+	}
+	var stored BankMutation
+	err := r.pool.QueryRow(ctx, `
+		INSERT INTO bank_mutations (external_id, source, amount_idr, description, occurred_at)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (source, external_id) DO NOTHING
+		RETURNING id::text, external_id, source, amount_idr, description, occurred_at, status,
+		          COALESCE(matched_invoice_id::text, ''), note`,
+		strings.TrimSpace(m.ExternalID), m.Source, m.AmountIDR, m.Description, m.OccurredAt).
+		Scan(&stored.ID, &stored.ExternalID, &stored.Source, &stored.AmountIDR,
+			&stored.Description, &stored.OccurredAt, &stored.Status,
+			&stored.MatchedInvoiceID, &stored.Note)
+	if err == nil {
+		return &stored, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, err
+	}
+	existing, err := r.getMutationByExternalID(ctx, m.Source, strings.TrimSpace(m.ExternalID))
+	return existing, false, err
+}
+
+func (r *SubscriptionRepository) getMutationByExternalID(ctx context.Context, source, externalID string) (*BankMutation, error) {
+	var m BankMutation
+	err := r.pool.QueryRow(ctx, `
+		SELECT id::text, external_id, source, amount_idr, description, occurred_at, status,
+		       COALESCE(matched_invoice_id::text, ''), note
+		FROM bank_mutations WHERE source = $1 AND external_id = $2`, source, externalID).
+		Scan(&m.ID, &m.ExternalID, &m.Source, &m.AmountIDR, &m.Description,
+			&m.OccurredAt, &m.Status, &m.MatchedInvoiceID, &m.Note)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperror.ErrNotFound
+	}
+	return &m, err
+}
+
+// SettleInvoiceWithMutation ties a credit to an invoice and pays it, in one
+// transaction.
+//
+// One transaction because the two halves are the same fact: the money arrived
+// and it bought something. Split apart, a failure between them leaves either a
+// paid invoice no credit accounts for, or a credit marked spent on an invoice
+// still waiting.
+//
+// Both updates are conditional. Whoever moves the rows does the settlement;
+// a second attempt changes nothing and says so, which is what makes an
+// automatic matcher and a person clicking safe to run at the same time.
+func (r *SubscriptionRepository) SettleInvoiceWithMutation(ctx context.Context, mutationID, invoiceID, userID, note string) (bool, error) {
+	mutation, err := pgUUID(mutationID)
+	if err != nil {
+		return false, apperror.ErrValidation
+	}
+	invoice, err := pgUUID(invoiceID)
+	if err != nil {
+		return false, apperror.ErrValidation
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// The mutation moves first. It carries the unique index on
+	// matched_invoice_id, so this is the statement that makes two settlements
+	// of the same credit impossible.
+	tag, err := tx.Exec(ctx, `
+		UPDATE bank_mutations
+		SET status = 'MATCHED', matched_invoice_id = $2, matched_at = NOW(),
+		    matched_by_user_id = $3, note = $4, updated_at = NOW()
+		WHERE id = $1 AND status = 'UNMATCHED'`, mutation, invoice, userID, note)
+	if err != nil {
+		return false, databaseError(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return false, nil
+	}
+
+	var operatorID, plan string
+	err = tx.QueryRow(ctx, `
+		UPDATE subscription_invoices SET status = 'PAID', paid_at = NOW(), updated_at = NOW()
+		WHERE id = $1 AND status = 'PENDING'
+		RETURNING operator_id::text, plan::text`, invoice).Scan(&operatorID, &plan)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// The invoice was settled by something else between the two statements.
+		// Rolling back leaves the credit unmatched, which is the honest state:
+		// the money is still unaccounted for even though that invoice is paid.
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	if err := extendAccess(ctx, tx, operatorID, plan); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// ListMutations returns credits for the reconciliation screen.
+func (r *SubscriptionRepository) ListMutations(ctx context.Context, unmatchedOnly bool) ([]*BankMutation, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id::text, external_id, source, amount_idr, description, occurred_at, status,
+		       COALESCE(matched_invoice_id::text, ''), note
+		FROM bank_mutations
+		WHERE ($1::bool = false OR status = 'UNMATCHED')
+		ORDER BY occurred_at DESC
+		LIMIT 200`, unmatchedOnly)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	mutations := make([]*BankMutation, 0)
+	for rows.Next() {
+		var m BankMutation
+		if err := rows.Scan(&m.ID, &m.ExternalID, &m.Source, &m.AmountIDR, &m.Description,
+			&m.OccurredAt, &m.Status, &m.MatchedInvoiceID, &m.Note); err != nil {
+			return nil, err
+		}
+		mutations = append(mutations, &m)
+	}
+	return mutations, rows.Err()
+}
+
+// IgnoreMutation records that a credit is not a subscription payment.
+//
+// Not a delete: the money still arrived, and the record of it arriving has to
+// outlive the decision that it was something else.
+func (r *SubscriptionRepository) IgnoreMutation(ctx context.Context, mutationID, userID, note string) error {
+	id, err := pgUUID(mutationID)
+	if err != nil {
+		return apperror.ErrValidation
+	}
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE bank_mutations
+		SET status = 'IGNORED', matched_by_user_id = $2, note = $3, updated_at = NOW()
+		WHERE id = $1 AND status = 'UNMATCHED'`, id, userID, note)
+	if err != nil {
+		return databaseError(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperror.ErrFailedPrecondition
+	}
+	return nil
 }
