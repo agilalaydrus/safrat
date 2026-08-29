@@ -46,6 +46,15 @@ pnpm --filter @hajj-saas/web e2e --project=offline-pwa
 `pnpm --filter @hajj-saas/web e2e` runs all of them, which assumes every service
 above is up.
 
+> **Kill whatever is already on :3141 and :8141 before starting these.** Both
+> serve scripts fail with `EADDRINUSE` and exit, while the server from an
+> earlier session keeps answering — on a build whose chunk hashes no longer
+> exist on disk. Every `/_next/static/...` request then returns 400, the page
+> loads no JavaScript, and the worker never registers. The specs report an
+> empty precache, which looks like a service worker fault and is not one.
+> `ps -o lstart= -p $(lsof -ti tcp:3141)` shows when that server actually
+> started; if it predates your build, that is the whole problem.
+
 > **If `offline-pwa` fails, check that :8141 is really the API this script
 > started.** The Go server reads plain environment variables and loads no
 > `.env` of its own, so `e2e:pwa:api` sources `apps/api/.env` before overriding
