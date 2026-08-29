@@ -172,15 +172,25 @@ func (s *FulfilmentService) failDispatch(ctx context.Context, pending repository
 // fulfilment anyway, as NEEDS_REVIEW — the jamaah has paid either way, and a
 // paid order with no record of owing anything is precisely how a transaction
 // disappears.
-func (s *FulfilmentService) Open(ctx context.Context, orderID, operatorID string) {
+func (s *FulfilmentService) Open(ctx context.Context, orderID, operatorID, category string) {
 	if s == nil || s.fulfilments == nil {
 		return
 	}
-	supplierID := ""
-	if route, err := s.suppliers.RouteForOrder(ctx, orderID); err == nil {
-		supplierID = route.SupplierID
+	// Goods are handed over by a person; everything else is called out to a
+	// supplier. Deciding this from the category rather than from whether a
+	// route happens to exist is what keeps a parcel out of the supplier queue.
+	kind := "SUPPLIER"
+	if category == "EQUIPMENT" {
+		kind = "SHIPMENT"
 	}
-	created, err := s.fulfilments.Open(ctx, orderID, operatorID, supplierID)
+
+	supplierID := ""
+	if kind == "SUPPLIER" {
+		if route, err := s.suppliers.RouteForOrder(ctx, orderID); err == nil {
+			supplierID = route.SupplierID
+		}
+	}
+	created, err := s.fulfilments.Open(ctx, orderID, operatorID, supplierID, kind)
 	if err != nil {
 		sentry.CaptureException(fmt.Errorf("FulfilmentService.Open: %w", err))
 		return

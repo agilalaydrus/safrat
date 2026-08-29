@@ -388,7 +388,7 @@ func (s *OrderService) applyPaidSideEffects(ctx context.Context, product *domain
 	// Travel packages are excluded because nobody is buying them from a
 	// supplier — the operator fulfils those themselves.
 	if s.fulfilmentService != nil && product != nil && product.Category != "TRAVEL_PACKAGE" {
-		s.fulfilmentService.Open(ctx, order.ID, order.OperatorID)
+		s.fulfilmentService.Open(ctx, order.ID, order.OperatorID, product.Category)
 	}
 	if product == nil || product.Category != "TRAVEL_PACKAGE" || product.DefaultKloterID == "" || order.PilgrimID == "" {
 		return

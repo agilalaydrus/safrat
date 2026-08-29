@@ -204,6 +204,92 @@ test.describe("money screens render", () => {
   // The travel's own pricing screen. Every level of the price is shown here,
   // and the two buyer prices are computed by the server — so this is the one
   // place a person can see whether the layered pricing agrees with itself.
+  // Equipment is the one thing here that a person physically hands over, and
+  // until now the money was taken with nowhere to record doing it. The screen
+  // has to refuse what the database refuses — an address that can still be
+  // edited after the parcel has gone would make "where did this go?"
+  // unanswerable.
+  test("an equipment order can be addressed, sent and handed over", async ({ page }) => {
+    const operator = await operatorID();
+    const [season] = await query<{ id: string }>(
+      `SELECT id::text AS id FROM seasons WHERE operator_id = $1 LIMIT 1`, [operator]);
+    const [pilgrim] = await query<{ id: string }>(
+      `SELECT id::text AS id FROM pilgrims WHERE operator_id = $1 LIMIT 1`, [operator]);
+    if (!season || !pilgrim) throw new Error("fixture operator has no season/pilgrim — did setup run?");
+
+    const code = `E2E-KOPER-${Date.now().toString().slice(-6)}`;
+    // Whatever an earlier run left. Orders hold products with ON DELETE
+    // RESTRICT, so the product cannot go first — deleting it alone is what made
+    // this fail at the top of the test rather than at the cleanup.
+    await query(`
+      DO $$
+      BEGIN
+        PERFORM set_config('app.allow_ledger_purge', 'on', true);
+        DELETE FROM order_fulfilments WHERE order_id IN
+          (SELECT o.id FROM orders o JOIN products p ON p.id = o.product_id
+           WHERE p.code LIKE 'E2E-KOPER-%');
+        DELETE FROM orders WHERE product_id IN
+          (SELECT id FROM products WHERE code LIKE 'E2E-KOPER-%');
+        DELETE FROM products WHERE code LIKE 'E2E-KOPER-%';
+      END $$;
+    `);
+    const [product] = await query<{ id: string }>(
+      `INSERT INTO products (operator_id, season_id, name, category, code, price_idr, base_price_idr)
+       VALUES ($1,$2,'Koper E2E','EQUIPMENT',$3,500000,400000) RETURNING id::text AS id`,
+      [operator, season.id, code]);
+    const [order] = await query<{ id: string }>(
+      `INSERT INTO orders (operator_id, season_id, pilgrim_id, product_id, quantity,
+         unit_price_idr, total_price_idr, status, paid_at, paid_amount_idr)
+       VALUES ($1,$2,$3,$4,1,500000,500000,'PAID',NOW(),500000) RETURNING id::text AS id`,
+      [operator, season.id, pilgrim.id, product!.id]);
+    await query(
+      `INSERT INTO order_fulfilments (order_id, operator_id, kind, status)
+       VALUES ($1,$2,'SHIPMENT','PENDING') ON CONFLICT (order_id) DO NOTHING`,
+      [order!.id, operator]);
+
+    await page.goto("/dashboard/shipments");
+    await expect(page.getByRole("heading", { name: /Pengiriman Perlengkapan/i })).toBeVisible();
+    await expect(page.getByText("Koper E2E")).toBeVisible();
+
+    // Role-based and exact: label matching alone is ambiguous here, because a
+    // <label> wrapping the method <select> takes its option text into the
+    // accessible name and "Dikirim kurir" then also matches "Kurir".
+    await page.getByRole("textbox", { name: "Nama penerima", exact: true }).fill("Ahmad bin Ali");
+    await page.getByRole("textbox", { name: "Alamat lengkap", exact: true }).fill("Jl. Merdeka 1, Jakarta");
+    await page.getByRole("button", { name: /Simpan tujuan/ }).click();
+    await expect(page.getByText(/Tujuan disimpan/)).toBeVisible();
+
+    await page.getByRole("textbox", { name: "Kurir", exact: true }).fill("JNE");
+    await page.getByRole("textbox", { name: "Nomor resi", exact: true }).fill("JNE-E2E-1");
+    await page.getByRole("button", { name: /Tandai terkirim/ }).click();
+    await expect(page.getByText(/Ditandai terkirim/)).toBeVisible();
+
+    // Once it has gone, the address is a record rather than a field.
+    await expect(page.getByRole("textbox", { name: "Alamat lengkap", exact: true })).toHaveCount(0);
+    await expect(page.getByText(/JNE-E2E-1/)).toBeVisible();
+
+    await page.getByRole("textbox", { name: "Diterima oleh", exact: true }).fill("Ahmad bin Ali");
+    await page.getByRole("button", { name: /Catat serah terima/ }).click();
+    await expect(page.getByText(/Serah terima tercatat/)).toBeVisible();
+    await capture(page, "17-shipment-handover");
+
+    // One statement: the purge flag is session-scoped and the helper takes a
+    // fresh connection per call, so setting it separately lands on a different
+    // session and the append-only trigger refuses the delete — which is the
+    // trigger doing its job. Order matters too: orders hold the product with
+    // ON DELETE RESTRICT.
+    await query(`
+      DO $$
+      BEGIN
+        PERFORM set_config('app.allow_ledger_purge', 'on', true);
+        DELETE FROM order_fulfilments WHERE order_id IN
+          (SELECT id FROM orders WHERE product_id = '${product!.id}');
+        DELETE FROM orders WHERE product_id = '${product!.id}';
+        DELETE FROM products WHERE id = '${product!.id}';
+      END $$;
+    `);
+  });
+
   test("the pricing screen shows each level and both buyer prices", async ({ page }) => {
     await page.goto("/dashboard/products/harga");
     await expect(page.getByRole("heading", { name: /Harga & Markup/i })).toBeVisible();

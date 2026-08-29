@@ -147,7 +147,7 @@ func (f *fulfilmentFixture) status(t *testing.T) (string, string) {
 func TestCallbackDeliversAndLearnsTheCostIntegration(t *testing.T) {
 	f := newFulfilmentFixture(t)
 	ctx := context.Background()
-	f.service.Open(ctx, f.orderID, f.operatorID)
+	f.service.Open(ctx, f.orderID, f.operatorID, "PPOB_CREDIT")
 
 	if status, _ := f.status(t); status != "PENDING" {
 		t.Fatalf("status = %s after opening, want PENDING", status)
@@ -193,7 +193,7 @@ func TestCallbackDeliversAndLearnsTheCostIntegration(t *testing.T) {
 func TestCallbackIsIdempotentUnderConcurrencyIntegration(t *testing.T) {
 	f := newFulfilmentFixture(t)
 	ctx := context.Background()
-	f.service.Open(ctx, f.orderID, f.operatorID)
+	f.service.Open(ctx, f.orderID, f.operatorID, "PPOB_CREDIT")
 
 	const attempts = 6
 	var wg sync.WaitGroup
@@ -227,7 +227,7 @@ func TestCallbackIsIdempotentUnderConcurrencyIntegration(t *testing.T) {
 func TestUnreadableCallbackNeedsReviewRatherThanFailingIntegration(t *testing.T) {
 	f := newFulfilmentFixture(t)
 	ctx := context.Background()
-	f.service.Open(ctx, f.orderID, f.operatorID)
+	f.service.Open(ctx, f.orderID, f.operatorID, "PPOB_CREDIT")
 
 	result, err := f.service.ApplyCallback(ctx, f.token, f.orderID, "OK 4711")
 	if err != nil {
@@ -271,7 +271,7 @@ func TestUnreadableCallbackNeedsReviewRatherThanFailingIntegration(t *testing.T)
 func TestCallbackRejectsAnUnknownTokenIntegration(t *testing.T) {
 	f := newFulfilmentFixture(t)
 	ctx := context.Background()
-	f.service.Open(ctx, f.orderID, f.operatorID)
+	f.service.Open(ctx, f.orderID, f.operatorID, "PPOB_CREDIT")
 
 	if _, err := f.service.ApplyCallback(ctx, "not-a-real-token", f.orderID, `{"status":"OK","sn":"X","harga":1}`); err == nil {
 		t.Fatal("an unknown token settled a fulfilment")
@@ -303,7 +303,7 @@ func TestDispatchSendsAndSettlesIntegration(t *testing.T) {
 		WHERE id = $1`, f.supplierID, terminal.URL); err != nil {
 		t.Fatalf("configure supplier: %v", err)
 	}
-	f.service.Open(ctx, f.orderID, f.operatorID)
+	f.service.Open(ctx, f.orderID, f.operatorID, "PPOB_CREDIT")
 
 	pending, err := repository.NewSupplierRepository(f.pool).ListPendingDispatch(ctx, 10)
 	if err != nil {
@@ -370,7 +370,7 @@ func TestDispatchWithNoAnswerWaitsForAPersonIntegration(t *testing.T) {
 		WHERE id = $1`, f.supplierID, deadURL); err != nil {
 		t.Fatalf("configure supplier: %v", err)
 	}
-	f.service.Open(ctx, f.orderID, f.operatorID)
+	f.service.Open(ctx, f.orderID, f.operatorID, "PPOB_CREDIT")
 
 	pending, err := repository.NewSupplierRepository(f.pool).ListPendingDispatch(ctx, 10)
 	if err != nil {
@@ -412,7 +412,7 @@ func TestDispatchRefusesAnInternalSupplierAddressIntegration(t *testing.T) {
 		WHERE id = $1`, f.supplierID); err != nil {
 		t.Fatalf("configure supplier: %v", err)
 	}
-	f.service.Open(ctx, f.orderID, f.operatorID)
+	f.service.Open(ctx, f.orderID, f.operatorID, "PPOB_CREDIT")
 
 	pending, err := repository.NewSupplierRepository(f.pool).ListPendingDispatch(ctx, 10)
 	if err != nil {
@@ -465,7 +465,7 @@ func TestOpeningAFulfilmentSendsItImmediatelyIntegration(t *testing.T) {
 	sender := &recordingQueue{}
 	f.service.AttachQueue(sender)
 
-	f.service.Open(ctx, f.orderID, f.operatorID)
+	f.service.Open(ctx, f.orderID, f.operatorID, "PPOB_CREDIT")
 
 	if len(sender.enqueued) != 1 || sender.enqueued[0] != f.orderID {
 		t.Fatalf("enqueued %v, want exactly this order — otherwise it waits for the sweep", sender.enqueued)
@@ -480,7 +480,7 @@ func TestAFailedEnqueueStillLeavesTheFulfilmentRecordedIntegration(t *testing.T)
 	ctx := context.Background()
 	f.service.AttachQueue(&recordingQueue{fail: errors.New("redis unreachable")})
 
-	f.service.Open(ctx, f.orderID, f.operatorID)
+	f.service.Open(ctx, f.orderID, f.operatorID, "PPOB_CREDIT")
 
 	status, _ := f.status(t)
 	if status != "PENDING" {
@@ -519,7 +519,7 @@ func TestFastPathAndSweepCannotBothSendIntegration(t *testing.T) {
 		WHERE id = $1`, f.supplierID, terminal.URL); err != nil {
 		t.Fatalf("configure supplier: %v", err)
 	}
-	f.service.Open(ctx, f.orderID, f.operatorID)
+	f.service.Open(ctx, f.orderID, f.operatorID, "PPOB_CREDIT")
 
 	suppliers := repository.NewSupplierRepository(f.pool)
 	pending, err := suppliers.PendingDispatchFor(ctx, f.orderID)
@@ -574,7 +574,7 @@ func TestRefundIsRefusedOnceDeliveredIntegration(t *testing.T) {
 		return err
 	}
 
-	f.service.Open(ctx, f.orderID, f.operatorID)
+	f.service.Open(ctx, f.orderID, f.operatorID, "PPOB_CREDIT")
 
 	// Still out at the supplier: the answer is not known yet, so refunding now
 	// could easily be refunding something on its way.

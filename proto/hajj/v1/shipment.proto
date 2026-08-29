@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// ShipmentService is the travel's own delivery work: equipment a person hands
+// over, not a product called out to a supplier. It is operator-scoped for that
+// reason — the travel packs the bag and gives it to the jamaah.
+service ShipmentService {
+  // ListShipments is the queue of parcels owed. Delivered ones drop out of it,
+  // because a queue that keeps finished work stops being a queue.
+  rpc ListShipments(ListShipmentsRequest) returns (ListShipmentsResponse);
+
+  // SaveShipmentDestination records where it goes. Editable until the parcel
+  // leaves and refused afterwards: correcting an address read over the phone is
+  // ordinary work, rewriting where a sent parcel went is not.
+  rpc SaveShipmentDestination(SaveShipmentDestinationRequest) returns (Shipment);
+
+  // MarkShipmentSent requires a courier and a tracking number. A parcel with
+  // neither is one nobody can answer a question about.
+  rpc MarkShipmentSent(MarkShipmentSentRequest) returns (Shipment);
+
+  // MarkShipmentHandedOver records who actually received it. Delivery is
+  // evidence, not a status somebody clicked, which is why this takes a name.
+  rpc MarkShipmentHandedOver(MarkShipmentHandedOverRequest) returns (Shipment);
+}
+
+message Shipment {
+  string order_id = 1;
+  string receipt_number = 2;
+  string product_name = 3;
+  string buyer_name = 4;
+  int32 quantity = 5;
+  int64 total_price_idr = 6;
+
+  // PENDING, SENT, DELIVERED, FAILED.
+  string status = 7;
+  // SHIP, PICKUP, or empty when nobody has said yet.
+  string delivery_method = 8;
+
+  string recipient_name = 9;
+  string recipient_phone = 10;
+  string shipping_address = 11;
+
+  string courier = 12;
+  string tracking_number = 13;
+
+  string handover_recipient = 14;
+  string handover_note = 15;
+
+  google.protobuf.Timestamp paid_at = 16;
+  google.protobuf.Timestamp sent_at = 17;
+  google.protobuf.Timestamp delivered_at = 18;
+
+  // False once the parcel has left. The screen uses it to stop offering edits
+  // the database would refuse, rather than letting somebody type into a field
+  // that cannot be saved.
+  bool destination_editable = 19;
+}
+
+message ListShipmentsRequest {
+  // When false, delivered parcels are left out — the working queue. True is for
+  // looking something up after the fact.
+  bool include_delivered = 1;
+}
+message ListShipmentsResponse { repeated Shipment shipments = 1; }
+
+message SaveShipmentDestinationRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  // SHIP or PICKUP. A jamaah collecting at the office is the normal case here,
+  // and forcing an address on it would mean staff inventing one.
+  string delivery_method = 2 [(buf.validate.field).string = {in: ["SHIP", "PICKUP"]}];
+  string recipient_name = 3 [(buf.validate.field).string.max_len = 160];
+  string recipient_phone = 4 [(buf.validate.field).string.max_len = 40];
+  string shipping_address = 5 [(buf.validate.field).string.max_len = 1000];
+}
+
+message MarkShipmentSentRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  string courier = 2 [(buf.validate.field).string = {min_len: 1, max_len: 80}];
+  string tracking_number = 3 [(buf.validate.field).string = {min_len: 1, max_len: 120}];
+}
+
+message MarkShipmentHandedOverRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  // Who signed for it. Required: this is what a dispute is argued with.
+  string handover_recipient = 2 [(buf.validate.field).string = {min_len: 1, max_len: 160}];
+  string handover_note = 3 [(buf.validate.field).string.max_len = 500];
+}
