@@ -2884,3 +2884,63 @@ kegagalannya muncul sebagai `fixture sign-in failed (500)` — persis seperti bu
 autentikasi. Saya menabraknya **empat kali** meski sudah mendokumentasikannya.
 Sekarang ada `pnpm --filter @hajj-saas/web build:verify` yang membangun ke
 `distDir` sendiri. Pakai itu untuk verifikasi.
+
+---
+
+## Bukti foto, rekonsiliasi transfer, dan aria-describedby (2026-08-29)
+
+### Bukti foto serah terima
+
+Penyerahan dulu dibuktikan dengan nama yang diketik di kotak — catatan yang
+nyata, dan jenis yang paling lemah: tidak ada yang membedakan nama yang ditulis
+karena jamaah benar-benar menandatangani dari nama yang ditulis karena antrean
+perlu dibersihkan.
+
+**Fotonya disimpan privat**, bukan di jalur aset publik yang dipakai gambar
+storefront. Struk penerimaan memperlihatkan nama orang, tanda tangannya, dan
+sering pintu rumahnya. Dibaca lewat tautan bertanda tangan berumur lima menit,
+diambil saat dibutuhkan — daftar pengiriman tidak pernah membawa tautan ke
+pintu rumah orang.
+
+Kuncinya **diturunkan** dari operator dan order, bukan dikirim pemanggil, dan
+diverifikasi ke penyimpanan sebelum dicatat. Kunci yang menunjuk objek tak ada
+akan terbaca sebagai bukti atas sesuatu yang tidak pernah terjadi — lebih buruk
+daripada tanpa foto, karena barisnya mengaku terdokumentasi.
+
+Kalau penyimpanan belum dikonfigurasi, fotonya tidak ditawarkan dan penyerahan
+tetap bisa dicatat. Mencatat nama penerima tetap berharga sendirian.
+
+### Pencocokan transfer bank
+
+Kelas yang sama dengan antrean tinjau kemarin: **mesinnya ada, pemicunya
+tidak.** Setiap tagihan sudah membawa nominal unik sampai rupiah, dan
+`FindPayableByAmount` sudah ada untuk mencocokkannya — tanpa satu pun pemanggil.
+Jadi mekanismenya dibangun, disimpan, dan tak terjangkau; mengonfirmasi transfer
+berarti membuka database.
+
+Sekarang admin mengetik angkanya dari mutasi rekening, di tab **Transfer**.
+**Nominal yang dibulatkan tidak cocok** — itu benar, bukan kelonggaran yang
+perlu ditambahkan: salah mengkredit travel jauh lebih buruk daripada meminta
+orang membaca ulang angkanya.
+
+`FindPayableByAmount` sekarang mengembalikan nama travel dalam query yang sama.
+Mengambilnya setelah pelunasan tidak akan menemukan apa pun — invoice-nya sudah
+tidak PENDING lagi. Itu bug yang saya tulis dan tangkap sebelum terkirim.
+
+**Belum otomatis penuh.** Otomatisasi sejati butuh feed mutasi dari bank; ini
+menghapus langkah SQL-nya, bukan langkah manusianya.
+
+### aria-describedby
+
+Petunjuk di dalam `<label>` yang membungkus input ikut masuk ke nama aksesibel.
+Diperbaiki di `MovementFormDialog`, `KloterFormDialog`, `CatalogueTab`, dan
+`ShipmentsDashboard`.
+
+**`PilgrimFormDialog` masalahnya berbeda dan lebih besar**: labelnya `<span>`
+di dalam `<div>`, jadi tidak ada asosiasi terprogram sama sekali antara label
+dan input. Dicatat, bukan ditambal setengah — perbaikannya menyentuh banyak
+field sekaligus.
+
+### `.next-verify` diabaikan eslint
+
+`build:verify` membuat lint gagal dengan 86 error di output terkompilasi.
