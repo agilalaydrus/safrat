@@ -2698,13 +2698,14 @@ owner/admin memantau keduanya melalui **Refund & Saldo** di
   `https://tawafiqhub.id/webhooks/xendit/payout` dengan verification token yang
   sama pada `XENDIT_WEBHOOK_TOKEN`.
 - Pertahankan nilai `KYC_ENCRYPTION_KEY` yang sudah dipakai; kunci itu sekarang
-  juga membuka tujuan payout terenkripsi. `cmd/rotatekyc` belum merotasi tabel
-  payout, jadi jangan rotasi saat ada payout non-terminal dan jangan musnahkan
-  kunci lama sebelum dukungan rotasi tujuan payout tersedia.
+  juga membuka tujuan payout terenkripsi. Migration 120 dan `cmd/rotatekyc`
+  sekarang merotasi KYC serta tujuan payout, tetapi wajib dilakukan dalam
+  maintenance window dengan API/worker berhenti; lihat `DEPLOY.md` section 12c.
 - `XENDIT_WEBHOOK_ALLOWED_IPS` masih menunggu rentang resmi dari support
   Xendit. Token + API re-fetch sudah aktif, tetapi allowlist tetap perlu
   dilengkapi.
-- Commit ini belum di-push atau di-deploy.
+- Refund payout sudah dipush dan dideploy melalui commit `26b1e08` dan
+  fallback cash-only melalui `5301afe`.
 
 Validasi yang sudah lulus mencakup migration 119 up/down/up, Buf lint/generate,
 seluruh Go test/vet/build, frontend typecheck/lint/build, integration test
@@ -2720,3 +2721,26 @@ berada pada layer modal `70`, di atas topbar dan mobile navigation drawer.
 Regression test memeriksa `elementFromPoint` tepat di area overlap atas pada
 desktop 1280x800 dan mobile 390x844; judul serta tombol tutup juga wajib tetap
 terlihat. Kedua viewport sudah diverifikasi lewat screenshot Playwright.
+
+## Rotasi kunci mencakup tujuan payout (selesai lokal 2026-08-29)
+
+Migration 120 menambahkan `destination_key_fingerprint` pada payout non-tunai.
+Tulisan baru menyimpan ciphertext dan fingerprint kunci dalam satu INSERT;
+startup API/worker sekarang melaporkan fingerprint KYC serta payout dan memberi
+error keras bila data lama mengharapkan kunci berbeda atau belum memiliki
+stamp.
+
+`cmd/rotatekyc` sekarang merotasi dua kumpulan data: `kyc_records` dan tujuan
+rekening/e-wallet di `pilgrim_refund_payout_requests`. Jalur khusus trigger
+hanya membolehkan koneksi administratif mengganti ciphertext + fingerprint;
+nominal, penerima, metode, status, dan seluruh bukti transaksi harus identik.
+Role production `safrat_app` tidak dapat membuka jalur tersebut.
+
+Rotasi harus dilakukan dalam maintenance window: stop API + worker, jalankan
+tool sampai `still_on_old_key=0` dan `legacy_unstamped_payouts=0`, ganti env ke
+kunci baru, lalu restart. Kunci lama tetap disimpan sampai backup lama keluar
+dari masa retensi. Prosedur lengkap ada di `DEPLOY.md` section 12c.
+
+Validasi: migration 120 up/down/up; full Go test/vet/build; integration test
+PostgreSQL membuktikan perubahan biasa ditolak, ciphertext + fingerprint
+berpindah bersama, hasil tetap terbaca dengan kunci baru, dan rerun idempotent.

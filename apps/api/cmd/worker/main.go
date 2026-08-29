@@ -78,6 +78,23 @@ func main() {
 	ledgerRepository := repository.NewLedgerRepository(pool)
 	refundRepository := repository.NewRefundRepository(pool)
 	refundPayoutRepository := repository.NewRefundPayoutRepository(pool, kycSealer)
+	if kycSealer != nil {
+		payoutsInUse, fingerprintErr := refundPayoutRepository.DestinationKeyFingerprintsInUse(context.Background())
+		if fingerprintErr != nil {
+			logger.Error("read refund payout key fingerprints", "error", fingerprintErr)
+		} else {
+			logger.Info("refund payout encryption key loaded",
+				"fingerprint", kycSealer.Fingerprint(), "records_by_key", payoutsInUse)
+			for fingerprint, count := range payoutsInUse {
+				if fingerprint == "" || fingerprint != kycSealer.Fingerprint() {
+					logger.Error("refund payout destinations do not match the loaded key",
+						"their_fingerprint", fingerprint, "records", count,
+						"loaded_fingerprint", kycSealer.Fingerprint(),
+						"effect", "those payout destinations cannot be dispatched")
+				}
+			}
+		}
+	}
 	identityRepository := repository.NewIdentityRepository(queries, agentRepository)
 	agentService := service.NewAgentService(operatorRepository, agentRepository, auditRepository, pool)
 	journeyService := service.NewJourneyService(operatorRepository, journeyRepository, auditRepository)

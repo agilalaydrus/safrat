@@ -29,6 +29,8 @@ type refundPayoutFixture struct {
 	pilgrimCtx, ownerCtx         context.Context
 }
 
+const refundPayoutTestKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+
 func newRefundPayoutFixture(t *testing.T) *refundPayoutFixture {
 	t.Helper()
 	databaseURL := os.Getenv("STOREFRONT_TEST_DATABASE_URL")
@@ -87,7 +89,7 @@ func newRefundPayoutFixture(t *testing.T) *refundPayoutFixture {
 		t.Fatalf("credit balance: %v", err)
 	}
 	identity := repository.NewIdentityRepository(queries, repository.NewAgentRepository(queries))
-	sealer, err := appcrypto.NewSealer("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+	sealer, err := appcrypto.NewSealer(refundPayoutTestKey)
 	if err != nil {
 		t.Fatalf("sealer: %v", err)
 	}
@@ -322,6 +324,102 @@ func TestGatewayPayoutIsIdempotentEncryptedAndLedgerBackedIntegration(t *testing
 	if status != "REVERSED" || withdrawals != 1 || reversals != 1 || balance != 1_000_000 {
 		t.Fatalf("status/withdrawals/reversals/balance = %s/%d/%d/%d", status, withdrawals, reversals, balance)
 	}
+}
+
+func TestRefundPayoutDestinationKeyRotationIsStampedResumableAndReadableIntegration(t *testing.T) {
+	f := newRefundPayoutFixture(t)
+	f.service.xendit = payment.NewClientWithEndpoints("configured-for-rotation-test", "", "http://127.0.0.1")
+	var code string
+	if err := f.pool.QueryRow(f.pilgrimCtx, `SELECT app_access_code FROM pilgrims WHERE id=$1`, f.pilgrimID).Scan(&code); err != nil {
+		t.Fatal(err)
+	}
+	created, err := f.service.RequestRefundPayout(f.pilgrimCtx, &hajjv1.RequestRefundPayoutRequest{
+		AppAccessCode: code, AmountIdr: 250_000,
+		Method: hajjv1.RefundPayoutMethod_REFUND_PAYOUT_METHOD_BANK_TRANSFER, IdempotencyKey: uuid.NewString(),
+		DestinationChannel: "CENAIDJA", DestinationAccountHolder: "Jamaah Refund", DestinationAccountNumber: "1234567890",
+	})
+	if err != nil {
+		t.Fatalf("request: %v", err)
+	}
+
+	oldSealer, err := appcrypto.NewSealer(refundPayoutTestKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var oldCiphertext, oldFingerprint string
+	if err := f.pool.QueryRow(f.pilgrimCtx, `
+		SELECT destination_account_encrypted, destination_key_fingerprint
+		FROM pilgrim_refund_payout_requests WHERE id=$1`, created.Id).
+		Scan(&oldCiphertext, &oldFingerprint); err != nil {
+		t.Fatal(err)
+	}
+	if oldFingerprint != oldSealer.Fingerprint() {
+		t.Fatalf("fingerprint = %q, want %q", oldFingerprint, oldSealer.Fingerprint())
+	}
+	if _, err := f.pool.Exec(f.pilgrimCtx, `
+		UPDATE pilgrim_refund_payout_requests
+		SET destination_account_encrypted='v1.invalid'
+		WHERE id=$1`, created.Id); err == nil {
+		t.Fatal("ordinary update changed an immutable payout destination")
+	}
+
+	newKey := "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
+	rotator, err := appcrypto.NewRotator(refundPayoutTestKey, newKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rotated, err := f.payouts.RotateDestinationKey(f.pilgrimCtx, rotator, 100)
+	if err != nil {
+		t.Fatalf("rotate: %v", err)
+	}
+	if rotated != 1 {
+		t.Fatalf("rotated = %d, want 1", rotated)
+	}
+	if again, err := f.payouts.RotateDestinationKey(f.pilgrimCtx, rotator, 100); err != nil || again != 0 {
+		t.Fatalf("second rotation = %d, %v; want no work", again, err)
+	}
+
+	var newCiphertext, newFingerprint string
+	if err := f.pool.QueryRow(f.pilgrimCtx, `
+		SELECT destination_account_encrypted, destination_key_fingerprint
+		FROM pilgrim_refund_payout_requests WHERE id=$1`, created.Id).
+		Scan(&newCiphertext, &newFingerprint); err != nil {
+		t.Fatal(err)
+	}
+	if newCiphertext == oldCiphertext || newFingerprint != rotator.ToFingerprint() {
+		t.Fatalf("ciphertext/fingerprint did not move together: changed=%v fingerprint=%q", newCiphertext != oldCiphertext, newFingerprint)
+	}
+	counts, err := f.payouts.DestinationKeyFingerprintsInUse(f.pilgrimCtx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if counts[rotator.FromFingerprint()] != 0 || counts[rotator.ToFingerprint()] != 1 {
+		t.Fatalf("records by key = %v", counts)
+	}
+
+	newSealer, err := appcrypto.NewSealer(newKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newRepository := repository.NewRefundPayoutRepository(f.pool, newSealer)
+	requests, err := newRepository.ListForPilgrim(f.pilgrimCtx, f.pilgrimID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, request := range requests {
+		if request.ID != created.Id {
+			continue
+		}
+		account, err := newRepository.DestinationAccount(request)
+		if err != nil {
+			t.Fatalf("open rotated destination: %v", err)
+		}
+		if account != "1234567890" || request.AmountIDR != 250_000 || request.Status != "REQUESTED" {
+			t.Fatalf("rotated payout changed instruction: account=%q amount=%d status=%s", account, request.AmountIDR, request.Status)
+		}
+		return
+	}
+	t.Fatal("rotated payout disappeared")
 }
 
 func TestDatabaseRejectsOverReservationAndPaidWithoutWithdrawalIntegration(t *testing.T) {

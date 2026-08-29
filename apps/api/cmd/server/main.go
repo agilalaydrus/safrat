@@ -152,14 +152,31 @@ func main() {
 			if fingerprintErr != nil {
 				logger.Error("read KYC key fingerprints", "error", fingerprintErr)
 			}
+			payoutsInUse, payoutFingerprintErr := refundPayoutRepository.DestinationKeyFingerprintsInUse(context.Background())
+			if payoutFingerprintErr != nil {
+				logger.Error("read refund payout key fingerprints", "error", payoutFingerprintErr)
+			}
 			logger.Info("KYC encryption key loaded",
-				"fingerprint", kycSealer.Fingerprint(), "records_by_key", inUse)
+				"fingerprint", kycSealer.Fingerprint(), "kyc_records_by_key", inUse,
+				"refund_payouts_by_key", payoutsInUse)
 			for fingerprint, count := range inUse {
 				if fingerprint != "" && fingerprint != kycSealer.Fingerprint() {
 					logger.Error("stored identities were sealed with a different key",
 						"their_fingerprint", fingerprint, "records", count,
 						"loaded_fingerprint", kycSealer.Fingerprint(),
 						"effect", "those records cannot be read until that key is restored")
+				}
+			}
+			for fingerprint, count := range payoutsInUse {
+				if fingerprint == "" {
+					logger.Error("stored payout destinations have no key fingerprint",
+						"records", count, "loaded_fingerprint", kycSealer.Fingerprint(),
+						"effect", "run rotatekyc with the key that created these records before rotating it away")
+				} else if fingerprint != kycSealer.Fingerprint() {
+					logger.Error("stored payout destinations were sealed with a different key",
+						"their_fingerprint", fingerprint, "records", count,
+						"loaded_fingerprint", kycSealer.Fingerprint(),
+						"effect", "those payout destinations cannot be dispatched until that key is restored")
 				}
 			}
 		}

@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	appcrypto "github.com/hajj-saas/api/internal/crypto"
 	"github.com/hajj-saas/api/internal/domain"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -113,7 +115,7 @@ func (r *RefundPayoutRepository) CreateTx(ctx context.Context, tx pgx.Tx, p Crea
 		return nil, apperror.ErrValidation
 	}
 	account := strings.TrimSpace(p.DestinationAccountNumber)
-	encrypted, last4 := "", ""
+	encrypted, last4, keyFingerprint := "", "", ""
 	if p.Method != "CASH" {
 		if account == "" || strings.TrimSpace(p.DestinationChannel) == "" || strings.TrimSpace(p.DestinationAccountHolder) == "" {
 			return nil, apperror.ErrValidation
@@ -122,6 +124,7 @@ func (r *RefundPayoutRepository) CreateTx(ctx context.Context, tx pgx.Tx, p Crea
 		if err != nil {
 			return nil, err
 		}
+		keyFingerprint = r.sealer.Fingerprint()
 		if len(account) <= 4 {
 			last4 = account
 		} else {
@@ -131,7 +134,7 @@ func (r *RefundPayoutRepository) CreateTx(ctx context.Context, tx pgx.Tx, p Crea
 	return scanRefundPayout(tx.QueryRow(ctx, refundPayoutInsertReturning,
 		opID, p.BeneficiaryKind, pilgrimID, agentID, p.AmountIDR, p.Method, p.Note,
 		p.IdempotencyKey, p.RequestedByUserID, strings.TrimSpace(p.DestinationChannel),
-		strings.TrimSpace(p.DestinationAccountHolder), encrypted, last4))
+		strings.TrimSpace(p.DestinationAccountHolder), encrypted, last4, keyFingerprint))
 }
 
 func (r *RefundPayoutRepository) DestinationAccount(request *domain.RefundPayoutRequest) (string, error) {
@@ -139,6 +142,108 @@ func (r *RefundPayoutRepository) DestinationAccount(request *domain.RefundPayout
 		return "", apperror.ErrValidation
 	}
 	return r.sealer.Open(request.DestinationAccountEncrypted)
+}
+
+// DestinationKeyFingerprintsInUse reports every encryption key stamp attached
+// to a stored payout destination. An empty key is intentionally included: it
+// identifies encrypted rows created before migration 120, which must be
+// rotated and stamped before the old key can be retired.
+func (r *RefundPayoutRepository) DestinationKeyFingerprintsInUse(ctx context.Context) (map[string]int, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT destination_key_fingerprint, COUNT(*)
+		FROM pilgrim_refund_payout_requests
+		WHERE destination_account_encrypted <> ''
+		GROUP BY destination_key_fingerprint
+		ORDER BY COUNT(*) DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	counts := make(map[string]int)
+	for rows.Next() {
+		var fingerprint string
+		var count int
+		if err := rows.Scan(&fingerprint, &count); err != nil {
+			return nil, err
+		}
+		counts[fingerprint] = count
+	}
+	return counts, rows.Err()
+}
+
+// RotateDestinationKey re-seals one bounded batch of payout destinations.
+// Rows without a fingerprint are legacy migration-119 rows: the old key must
+// successfully open them before they receive the new stamp. Each ciphertext
+// and fingerprint changes in one guarded transaction, and a repeated run only
+// sees work that is still on the old (or legacy empty) stamp.
+func (r *RefundPayoutRepository) RotateDestinationKey(ctx context.Context, rotator *appcrypto.Rotator, limit int32) (int, error) {
+	if rotator == nil {
+		return 0, apperror.ErrValidation
+	}
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT id::text, destination_account_encrypted, destination_key_fingerprint
+		FROM pilgrim_refund_payout_requests
+		WHERE destination_account_encrypted <> ''
+		  AND destination_key_fingerprint IN ('', $1)
+		ORDER BY created_at ASC
+		LIMIT $2`, rotator.FromFingerprint(), limit)
+	if err != nil {
+		return 0, err
+	}
+	type pending struct{ id, encrypted, fingerprint string }
+	batch := make([]pending, 0)
+	for rows.Next() {
+		var item pending
+		if err := rows.Scan(&item.id, &item.encrypted, &item.fingerprint); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		batch = append(batch, item)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	rotated := 0
+	for _, item := range batch {
+		resealed, err := rotator.Reseal(item.encrypted)
+		if err != nil {
+			return rotated, fmt.Errorf("refund payout %s: %w", item.id, err)
+		}
+		id, err := pgUUID(item.id)
+		if err != nil {
+			return rotated, err
+		}
+		tx, err := r.pool.Begin(ctx)
+		if err != nil {
+			return rotated, err
+		}
+		if _, err = tx.Exec(ctx, `SELECT set_config('app.allow_payout_key_rotation', 'on', true)`); err == nil {
+			var tag pgconn.CommandTag
+			tag, err = tx.Exec(ctx, `
+				UPDATE pilgrim_refund_payout_requests
+				SET destination_account_encrypted=$2, destination_key_fingerprint=$3
+				WHERE id=$1 AND destination_account_encrypted=$4
+				  AND destination_key_fingerprint=$5`,
+				id, resealed, rotator.ToFingerprint(), item.encrypted, item.fingerprint)
+			if err == nil && tag.RowsAffected() == 1 {
+				err = tx.Commit(ctx)
+				if err == nil {
+					rotated++
+					continue
+				}
+			}
+		}
+		_ = tx.Rollback(ctx)
+		if err != nil {
+			return rotated, err
+		}
+	}
+	return rotated, nil
 }
 
 func (r *RefundPayoutRepository) ListForPilgrim(ctx context.Context, id string) ([]*domain.RefundPayoutRequest, error) {
@@ -291,8 +396,8 @@ const refundPayoutSelect = `
 
 const refundPayoutInsertReturning = `
 	WITH inserted AS (INSERT INTO pilgrim_refund_payout_requests
-	 (operator_id,beneficiary_kind,pilgrim_id,agent_id,amount_idr,method,note,idempotency_key,requested_by_user_id,destination_channel,destination_account_holder,destination_account_encrypted,destination_account_last4)
-	 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *)
+	 (operator_id,beneficiary_kind,pilgrim_id,agent_id,amount_idr,method,note,idempotency_key,requested_by_user_id,destination_channel,destination_account_holder,destination_account_encrypted,destination_account_last4,destination_key_fingerprint)
+	 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *)
 	SELECT inserted.id::text,inserted.operator_id::text,COALESCE(inserted.pilgrim_id::text,''),
 	 COALESCE(p.full_name,a.name,''),COALESCE(p.phone,a.phone,''),inserted.amount_idr,inserted.method,inserted.note,inserted.status,
 	 inserted.idempotency_key,inserted.requested_by_user_id,COALESCE(inserted.processed_by_user_id,''),inserted.resolution_note,

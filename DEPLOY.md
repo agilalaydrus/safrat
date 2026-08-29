@@ -833,10 +833,10 @@ The key is never printed, but a fingerprint of it is: eight hex characters of a
 SHA-256 over the key, which identify it without revealing it. Reversing that
 would mean breaking SHA-256.
 
-At every start the API logs:
+At every start the API logs both KYC and payout-destination usage:
 
 ```
-KYC encryption key loaded  fingerprint=a1b2c3d4  records_by_key=map[a1b2c3d4:317]
+KYC encryption key loaded  fingerprint=a1b2c3d4  kyc_records_by_key=map[a1b2c3d4:317] refund_payouts_by_key=map[a1b2c3d4:12]
 ```
 
 Keep that fingerprint in the password manager entry beside the key. Then:
@@ -857,18 +857,23 @@ To read the fingerprints the stored data expects, without the application:
 ```bash
 docker compose -f docker-compose.prod.yml --env-file .env.prod exec postgres \
   psql -U safrat -d safrat -Atc \
-  "SELECT key_fingerprint, COUNT(*) FROM kyc_records
-   WHERE nik_encrypted <> '' GROUP BY key_fingerprint;"
+  "SELECT 'KYC', key_fingerprint, COUNT(*) FROM kyc_records
+   WHERE nik_encrypted <> '' OR npwp_encrypted <> '' GROUP BY key_fingerprint
+   UNION ALL
+   SELECT 'PAYOUT', destination_key_fingerprint, COUNT(*)
+   FROM pilgrim_refund_payout_requests
+   WHERE destination_account_encrypted <> '' GROUP BY destination_key_fingerprint;"
 ```
 
 That query is safe to run and safe to share: a fingerprint is not a key.
 
 ### Rotating it
 
-`cmd/rotatekyc` re-seals every stored identity from one key to another. A
-separate command rather than a scheduled task on purpose: rotation needs both
-keys in one process, and a long-running server holding both would be one
-configuration mistake away from writing new data with the old key.
+`cmd/rotatekyc` re-seals every stored identity and refund payout destination
+from one key to another. A separate command rather than a scheduled task on
+purpose: rotation needs both keys in one process, and a long-running server
+holding both would be one configuration mistake away from writing new data
+with the old key.
 
 ```bash
 cd /home/deploy/safrat
@@ -879,18 +884,26 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm \
 ```
 
 It is **safe to run repeatedly**: it only touches records still stamped with
-the old key, so it resumes where it stopped and does nothing once finished. A
-record the old key cannot open **stops** the run rather than being skipped —
-leaving one stamped with a key that cannot read it would be worse than stopping.
+the old key (plus legacy payout rows that predate fingerprinting), so it resumes
+where it stopped and does nothing once finished. A record the old key cannot
+open **stops** the run rather than being skipped — leaving one stamped with a
+key that cannot read it would be worse than stopping.
 
-**Order matters.** Rotate first, change `KYC_ENCRYPTION_KEY` second:
+**A maintenance window is required.** A process loaded with the old key cannot
+read a row immediately after that row is rotated to the new key. Do not run the
+command while the API or worker is accepting work.
+
+**Order matters:**
 
 1. Generate the new key and store it in the password manager beside the old
    one. Keep both.
-2. Run the rotation until it reports `still_on_old_key=0`.
-3. Only then set `KYC_ENCRYPTION_KEY` to the new key and restart. The startup
-   log will show the new fingerprint and no mismatch.
-4. **Keep the old key for a while anyway** — long enough that any database
+2. Stop `api` and `worker`; keep PostgreSQL running.
+3. Run the rotation until it reports `still_on_old_key=0` and
+   `legacy_unstamped_payouts=0`. If it stops, fix the reported row and rerun it;
+   do not restart application traffic with a half-rotated dataset.
+4. Set `KYC_ENCRYPTION_KEY` to the new key, then start `api` and `worker`. The
+   startup logs must show the new fingerprint with no mismatch.
+5. **Keep the old key for a while anyway** — long enough that any database
    backup taken before the rotation is out of retention. Those backups still
    contain records only the old key opens.
 
