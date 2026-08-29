@@ -17,16 +17,21 @@ selamat dari `DROP TABLE` dan tidak selamat dari apa pun yang lain — disk mati
 
 ## 1. Buat kunci — sekali saja, dan BUKAN di VPS
 
-Jalankan di laptopmu:
-
 ```bash
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out backup-key.pem
-openssl req -x509 -new -key backup-key.pem -out backup-cert.pem \
-  -days 7300 -subj "/CN=safrat-backup"
+./deploy/backup/new-key.sh ~/safrat-backup-key
 ```
 
+Skrip itu menolak berjalan kalau mendeteksi jalur deploy produksi, memasang izin
+0400 pada kunci privat, dan **hanya mencetak sidik jarinya** — isinya tidak
+pernah muncul di layar, karena layar bisa saja sedang direkam, dibagikan, atau
+dibaca sesi agen.
+
+Jangan menjalankannya di dalam sesi agen atau screen share. Kunci ini membuka
+seluruh riwayat database.
+
 `openssl cms` meminta **sertifikat**, bukan kunci publik telanjang — itulah
-kenapa ada langkah `req -x509`. Sertifikat inilah "bagian publik"-nya.
+kenapa skripnya juga membuat sertifikat self-signed. Sertifikat inilah "bagian
+publik"-nya.
 
 - **`backup-cert.pem`** → salin ke VPS di `/home/deploy/backup-cert.pem`.
 - **`backup-key.pem`** → **jangan pernah** taruh di VPS. Simpan di Bitwarden
@@ -76,9 +81,20 @@ bukan oleh skrip — supaya tetap berjalan justru ketika VPS-nya yang mati:
   "Filter":{"Prefix":"safrat_"},"Expiration":{"Days":30}}]}
 ```
 
-Kunci R2 untuk backup sebaiknya **write-only** (`PutObject` + `HeadObject`)
-tanpa `DeleteObject`: server yang dibobol lalu bisa menghapus backup lama
-kehilangan justru hal yang dilindungi.
+Kunci R2 untuk backup harus **write-only**. Kebijakannya siap pakai di
+`r2-backup-policy.json`: `PutObject` + `HeadObject`, tanpa `DeleteObject` dan
+tanpa `GetObject`.
+
+- **Tanpa `DeleteObject`** — server yang dibobol lalu bisa menghapus backup lama
+  kehilangan justru hal yang dilindungi.
+- **Tanpa `GetObject`** — server tidak perlu membaca backup-nya sendiri. Yang
+  memulihkan adalah mesin yang memegang kunci privat.
+- **`HeadObject` tetap ada** karena skrip mencocokkan ukuran setelah unggah;
+  unggahan terpotong dari sisi pengirim terlihat identik dengan yang utuh.
+
+Aturan lifecycle-nya ada di `r2-lifecycle.json` — 30 hari, bukan 7, karena
+prosedur rotasi kunci (`DEPLOY.md` 12c) mensyaratkan kunci lama disimpan sampai
+backup yang mendahului rotasi habis retensinya.
 
 ## 4. Latihan restore — ini bagian yang tidak boleh dilewati
 

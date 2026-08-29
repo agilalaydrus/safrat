@@ -1,0 +1,22 @@
+{
+  "_comment": [
+    "Retensi 30 hari di sisi bucket, bukan di skrip.",
+    "",
+    "Skrip yang memangkas backup jarak jauh berhenti memangkas tepat ketika",
+    "mesinnya mati — dan mesin yang mati adalah keadaan yang membuat backup",
+    "jarak jauh ada. Aturan ini berjalan sendiri di R2.",
+    "",
+    "Tiga puluh hari, bukan tujuh: rotasi KYC dan kunci payout mensyaratkan",
+    "kunci lama disimpan sampai backup yang mendahului rotasi habis retensinya",
+    "(DEPLOY.md 12c). Jendela yang terlalu pendek membuat prosedur itu tidak",
+    "bisa dijalankan dengan tenang."
+  ],
+  "Rules": [
+    {
+      "ID": "safrat-backups-30d",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "safrat_" },
+      "Expiration": { "Days": 30 }
+    }
+  ]
+}

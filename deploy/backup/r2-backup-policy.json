@@ -1,0 +1,24 @@
+{
+  "_comment": [
+    "Kebijakan untuk token R2 yang dipakai backup-db.sh.",
+    "",
+    "Tidak ada DeleteObject, dan itu inti dari berkas ini: server yang dibobol",
+    "lalu bisa menghapus backup lama kehilangan justru hal yang sedang",
+    "dilindungi. Retensi diurus lifecycle rule di sisi bucket, yang tetap",
+    "berjalan ketika server itulah yang mati.",
+    "",
+    "Tidak ada GetObject juga. Server tidak perlu membaca backup-nya sendiri —",
+    "pemulihan dijalankan dari mesin yang memegang kunci privat. HeadObject",
+    "tetap ada karena skrip mencocokkan ukuran setelah unggah; unggahan",
+    "terpotong dari sisi pengirim terlihat identik dengan yang utuh."
+  ],
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BackupWriteOnly",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:HeadObject"],
+      "Resource": "arn:aws:s3:::safrat-backups/safrat_*"
+    }
+  ]
+}
