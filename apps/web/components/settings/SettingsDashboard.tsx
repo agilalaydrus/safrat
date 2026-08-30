@@ -27,5 +27,5 @@ const page: React.CSSProperties = { maxWidth: 800, margin: "0 auto", padding: "3
 const eyebrow: React.CSSProperties = { color: "var(--color-gold-800)", fontSize: 11, fontWeight: 700, letterSpacing: ".08em", margin: "4px 0 8px" };
 const title: React.CSSProperties = { fontSize: "clamp(32px,5vw,48px)", fontWeight: 500, margin: 0 };
 const tabBar: React.CSSProperties = { display: "flex", gap: 8, margin: "16px 0 24px" };
-const tabActive: React.CSSProperties = { minHeight: 44, border: 0, borderRadius: 8, background: "var(--color-emerald-900)", color: "white", fontWeight: 700, padding: "0 18px", display: "inline-flex", gap: 8, alignItems: "center" };
+const tabActive: React.CSSProperties = { minHeight: 44, border: "1px solid var(--color-gold-100)", borderRadius: 12, background: "var(--color-gold-50)", color: "var(--color-gold-600)", boxShadow: "0 0 0 4px color-mix(in srgb, var(--color-gold-500) 12%, transparent)", fontWeight: 700, padding: "0 18px", display: "inline-flex", gap: 8, alignItems: "center" };
 const tabInactive: React.CSSProperties = { minHeight: 44, border: "1px solid var(--color-cream-400)", borderRadius: 8, background: "var(--color-cream-200)", color: "var(--color-warm-700)", fontWeight: 600, padding: "0 18px", display: "inline-flex", gap: 8, alignItems: "center" };

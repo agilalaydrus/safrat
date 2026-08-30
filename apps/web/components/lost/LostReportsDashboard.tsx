@@ -68,6 +68,6 @@ const row: React.CSSProperties = { display: "flex", justifyContent: "space-betwe
 const actions: React.CSSProperties = { display: "flex", gap: 10, marginTop: 14 };
 const mapLink: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, color: "var(--color-emerald-900)", fontSize: 13, fontWeight: 600 };
 const noLocation: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, marginTop: 10, color: "var(--color-warm-400)", fontSize: 13 };
-const resolveButton: React.CSSProperties = { minHeight: 40, border: 0, borderRadius: 8, padding: "0 14px", background: "var(--color-emerald-900)", color: "#fff", fontWeight: 700 };
+const resolveButton: React.CSSProperties = { minHeight: 40, border: "1px solid var(--color-emerald-700)", borderRadius: 12, padding: "0 14px", background: "var(--color-emerald-50)", color: "var(--color-emerald-900)", fontWeight: 700 };
 const empty: React.CSSProperties = { minHeight: 280, display: "grid", placeItems: "center", alignContent: "center", gap: 12, border: "1px dashed var(--color-cream-400)", borderRadius: 12 };
 const badge: React.CSSProperties = { padding: "5px 10px", borderRadius: 99, background: "var(--color-danger-100)", color: "var(--color-danger-600)", fontSize: 12, fontWeight: 700 };
