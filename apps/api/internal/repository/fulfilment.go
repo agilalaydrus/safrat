@@ -510,3 +510,31 @@ func (r *FulfilmentRepository) MarkShipmentHandedOver(ctx context.Context, opera
 	}
 	return nil
 }
+
+// MarkShipmentLost closes out a parcel that never arrived.
+//
+// Reachable only from PENDING or SENT. A delivered parcel is not lost, and
+// letting DELIVERED move here would let a recorded handover be undone — the
+// handover is evidence somebody signed for it, and evidence should not be
+// erasable by a later click.
+func (r *FulfilmentRepository) MarkShipmentLost(ctx context.Context, operatorID, orderID, note, userID string) (bool, error) {
+	operator, err := pgUUID(operatorID)
+	if err != nil {
+		return false, apperror.ErrValidation
+	}
+	order, err := pgUUID(orderID)
+	if err != nil {
+		return false, apperror.ErrValidation
+	}
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE order_fulfilments
+		SET status = 'FAILED', last_error = $3, resolved_by_user_id = $4,
+		    resolution_note = $3, updated_at = NOW()
+		WHERE order_id = $2 AND operator_id = $1 AND kind = 'SHIPMENT'
+		  AND status IN ('PENDING', 'SENT')`,
+		operator, order, note, userID)
+	if err != nil {
+		return false, databaseError(err)
+	}
+	return tag.RowsAffected() == 1, nil
+}

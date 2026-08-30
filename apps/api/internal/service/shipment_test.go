@@ -80,7 +80,15 @@ func newShipmentFixture(t *testing.T) *shipmentFixture {
 
 	queries := db.New(pool)
 	fulfilments := repository.NewFulfilmentRepository(pool)
-	shipments := NewShipmentService(repository.NewOperatorRepository(queries), fulfilments, repository.NewAuditRepository(queries), nil)
+	// A real order service, because declaring a parcel lost refunds — and a nil
+	// one would let that path pass while doing nothing with the money.
+	orders := NewOrderService(
+		repository.NewOperatorRepository(queries), repository.NewPilgrimRepository(queries),
+		repository.NewProductRepository(queries, pool), repository.NewOrderRepository(queries, pool),
+		repository.NewAuditRepository(queries), repository.NewLedgerRepository(pool),
+		repository.NewRefundRepository(pool), repository.NewAgentRepository(queries),
+		repository.NewSeasonRepository(queries), pool, nil, "http://localhost:3000")
+	shipments := NewShipmentService(repository.NewOperatorRepository(queries), fulfilments, repository.NewAuditRepository(queries), nil, orders)
 
 	// Opened the way a paid order opens one.
 	if _, err := fulfilments.Open(ctx, orderID, operatorID, "", "SHIPMENT"); err != nil {
@@ -331,5 +339,105 @@ func TestAParcelInTransitIsNotAnAlarmIntegration(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("paket yang tiga minggu belum sampai tidak memicu perhatian")
+	}
+}
+
+// The fortnight alarm told somebody a parcel was lost and offered nothing to do
+// about it: it could not be marked delivered, because it was not, and could not
+// be marked lost at all. Money taken, alarm repeating, nothing to act on.
+func TestALostParcelCanBeClosedAndRefundsIntegration(t *testing.T) {
+	f := newShipmentFixture(t)
+	ctx := context.Background()
+
+	if _, err := f.shipments.SaveDestination(ctx, f.orgID, "staf", &hajjv1.SaveShipmentDestinationRequest{
+		OrderId: f.orderID, DeliveryMethod: "SHIP", RecipientName: "Ahmad",
+		ShippingAddress: "Jl. Merdeka 1",
+	}); err != nil {
+		t.Fatalf("tujuan: %v", err)
+	}
+	if _, err := f.shipments.MarkSent(ctx, f.orgID, "staf", &hajjv1.MarkShipmentSentRequest{
+		OrderId: f.orderID, Courier: "JNE", TrackingNumber: "JNE-1",
+	}); err != nil {
+		t.Fatalf("kirim: %v", err)
+	}
+
+	// Releasing money is confirmed by nothing outside the system, so the reason
+	// is the whole accountability trail for it.
+	if _, err := f.shipments.MarkLost(ctx, f.orgID, "staf", &hajjv1.MarkShipmentLostRequest{
+		OrderId: f.orderID, Note: "",
+	}); connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("tanpa alasan dikembalikan %v", err)
+	}
+
+	result, err := f.shipments.MarkLost(ctx, f.orgID, "staf", &hajjv1.MarkShipmentLostRequest{
+		OrderId: f.orderID, Note: "dilacak ke kurir, paket tidak ditemukan",
+	})
+	if err != nil {
+		t.Fatalf("tandai hilang: %v", err)
+	}
+	if !result.Refunded || result.RefundedIdr != 500_000 {
+		t.Fatalf("refund = %v senilai %d, mau true senilai 500000", result.Refunded, result.RefundedIdr)
+	}
+	if result.Shipment.Status != "FAILED" {
+		t.Fatalf("status = %s, mau FAILED", result.Shipment.Status)
+	}
+
+	// Exactly one refund, and a second click must not open another.
+	var refunds int
+	if err := f.pool.QueryRow(ctx,
+		`SELECT count(*) FROM order_refunds WHERE order_id = $1`, f.orderID).Scan(&refunds); err != nil {
+		t.Fatalf("read refunds: %v", err)
+	}
+	if refunds != 1 {
+		t.Fatalf("%d refund tercatat", refunds)
+	}
+	if _, err := f.shipments.MarkLost(ctx, f.orgID, "staf", &hajjv1.MarkShipmentLostRequest{
+		OrderId: f.orderID, Note: "klik kedua",
+	}); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("klik kedua dikembalikan %v, mau failed precondition", err)
+	}
+
+	// And it leaves the alarm queue, which is the point of having a way out.
+	waiting, err := repository.NewFulfilmentRepository(f.pool).ListNeedingAttention(ctx, time.Hour, 100)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	for _, item := range waiting {
+		if item.OrderID == f.orderID {
+			t.Fatal("paket yang sudah ditutup masih memicu perhatian")
+		}
+	}
+}
+
+// A recorded handover is evidence that somebody signed for the parcel. Letting
+// it be undone by a later click would make that evidence erasable.
+func TestADeliveredParcelCannotBeDeclaredLostIntegration(t *testing.T) {
+	f := newShipmentFixture(t)
+	ctx := context.Background()
+
+	if _, err := f.shipments.SaveDestination(ctx, f.orgID, "staf", &hajjv1.SaveShipmentDestinationRequest{
+		OrderId: f.orderID, DeliveryMethod: "PICKUP", RecipientName: "Ahmad",
+	}); err != nil {
+		t.Fatalf("tujuan: %v", err)
+	}
+	if _, err := f.shipments.MarkHandedOver(ctx, f.orgID, "staf", &hajjv1.MarkShipmentHandedOverRequest{
+		OrderId: f.orderID, HandoverRecipient: "Ahmad bin Ali",
+	}); err != nil {
+		t.Fatalf("serah terima: %v", err)
+	}
+
+	if _, err := f.shipments.MarkLost(ctx, f.orgID, "staf", &hajjv1.MarkShipmentLostRequest{
+		OrderId: f.orderID, Note: "coba batalkan",
+	}); connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("paket yang sudah diserahkan dapat dinyatakan hilang: %v", err)
+	}
+
+	var refunds int
+	if err := f.pool.QueryRow(ctx,
+		`SELECT count(*) FROM order_refunds WHERE order_id = $1`, f.orderID).Scan(&refunds); err != nil {
+		t.Fatalf("read refunds: %v", err)
+	}
+	if refunds != 0 {
+		t.Fatal("uang dikembalikan untuk paket yang sudah diterima")
 	}
 }

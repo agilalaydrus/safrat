@@ -80,3 +80,14 @@ func (h *ShipmentHandler) GetHandoverProofUrl(ctx context.Context, req *connect.
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *ShipmentHandler) MarkShipmentLost(ctx context.Context, req *connect.Request[hajjv1.MarkShipmentLostRequest]) (*connect.Response[hajjv1.MarkShipmentLostResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.shipmentService.MarkLost(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

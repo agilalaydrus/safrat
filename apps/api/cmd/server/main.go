@@ -285,7 +285,7 @@ func main() {
 		transportHandler := handler.NewTransportHandler(transportService)
 		productHandler := handler.NewProductHandler(productService)
 		shipmentHandler := handler.NewShipmentHandler(
-			service.NewShipmentService(operatorRepository, fulfilmentRepository, auditRepository, objectStorage))
+			service.NewShipmentService(operatorRepository, fulfilmentRepository, auditRepository, objectStorage, orderService))
 		agentHandler := handler.NewAgentHandler(agentService)
 		groupHandler := handler.NewGroupHandler(groupService)
 		pilgrimAppHandler := handler.NewPilgrimAppHandler(pilgrimAppService)

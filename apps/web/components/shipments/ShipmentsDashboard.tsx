@@ -107,6 +107,8 @@ function ShipmentCard({ shipment, onSaved, onNotice }: {
   const [proofUrl, setProofUrl] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [declaringLost, setDeclaringLost] = useState(false);
+  const [lostNote, setLostNote] = useState("");
 
   const run = async (label: string, action: () => Promise<Shipment>, done: string) => {
     setBusy(label);
@@ -123,6 +125,10 @@ function ShipmentCard({ shipment, onSaved, onNotice }: {
 
   const editable = shipment.destinationEditable;
   const delivered = shipment.status === "DELIVERED";
+  const failed = shipment.status === "FAILED";
+  // Offered once a parcel has actually left. Before that it is not lost, it is
+  // simply not sent yet, and the way out of that is to send it.
+  const canDeclareLost = shipment.status === "SENT";
 
   // Uploaded straight to storage with a one-shot link, so the photo never
   // passes through this app. The key is returned by the server, not chosen
@@ -159,7 +165,11 @@ function ShipmentCard({ shipment, onSaved, onNotice }: {
 
       {error && <p style={{ color: "var(--color-danger-600)", margin: 0, fontSize: 13 }}>{error}</p>}
 
-      {delivered ? (
+      {failed ? (
+        <p style={{ margin: 0, color: "var(--color-danger-600)", fontWeight: 700, fontSize: 14 }}>
+          Tidak sampai — dana sudah dikembalikan ke jamaah.
+        </p>
+      ) : delivered ? (
         <p style={{ margin: 0, display: "flex", gap: 6, alignItems: "center", color: "var(--color-emerald-900)", fontWeight: 700, fontSize: 14 }}>
           <IconCheck size={17} />
           Diterima oleh {shipment.handoverRecipient}
@@ -228,6 +238,44 @@ function ShipmentCard({ shipment, onSaved, onNotice }: {
                 {busy === "sent" ? "Menyimpan…" : "Tandai terkirim"}
               </button>
             </div>
+          )}
+
+          {canDeclareLost && (
+            declaringLost ? (
+              <div style={{ display: "grid", gap: 8, padding: 12, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8 }}>
+                <strong style={{ fontSize: 13 }}>Nyatakan paket tidak sampai</strong>
+                <p style={{ ...muted, margin: 0, fontSize: 12 }}>
+                  Dana akan dikembalikan penuh ke jamaah. Alasannya wajib — pelepasan uang ini
+                  tidak dikonfirmasi oleh apa pun di luar sistem.
+                </p>
+                <input
+                  value={lostNote}
+                  onChange={(e) => setLostNote(e.target.value)}
+                  style={input}
+                  placeholder="Mis. dilacak ke kurir, paket tidak ditemukan"
+                  aria-label="Alasan paket tidak sampai"
+                />
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    style={{ ...primary, background: "var(--color-danger-600)" }}
+                    disabled={busy !== "" || !lostNote.trim()}
+                    onClick={() => run("lost", async () => {
+                      const result = await shipmentClient.markShipmentLost({
+                        orderId: shipment.orderId, note: lostNote.trim(),
+                      });
+                      return result.shipment!;
+                    }, "Paket ditandai tidak sampai dan dana dikembalikan.")}
+                  >
+                    {busy === "lost" ? "Menyimpan…" : "Tandai tidak sampai & kembalikan dana"}
+                  </button>
+                  <button style={ghost} onClick={() => setDeclaringLost(false)}>Batal</button>
+                </div>
+              </div>
+            ) : (
+              <button style={ghost} onClick={() => setDeclaringLost(true)}>
+                Paket tidak sampai
+              </button>
+            )
           )}
 
           <div style={grid}>

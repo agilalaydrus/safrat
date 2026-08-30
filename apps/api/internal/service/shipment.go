@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"connectrpc.com/connect"
@@ -20,14 +21,76 @@ type ShipmentService struct {
 	operatorRepository   *repository.OperatorRepository
 	fulfilmentRepository *repository.FulfilmentRepository
 	auditRepository      *repository.AuditRepository
+	// Refunds when a parcel is declared lost. Composed rather than
+	// reimplemented — a second copy of the refund path is the last thing that
+	// should ever exist twice.
+	orders *OrderService
 	// Nil when object storage is unconfigured. Photo proof then simply is not
 	// offered, rather than the whole delivery workflow failing to start —
 	// recording a handover by name is still worth doing.
 	objectStorage *storage.Store
 }
 
-func NewShipmentService(operators *repository.OperatorRepository, fulfilments *repository.FulfilmentRepository, audit *repository.AuditRepository, objects *storage.Store) *ShipmentService {
-	return &ShipmentService{operatorRepository: operators, fulfilmentRepository: fulfilments, auditRepository: audit, objectStorage: objects}
+func NewShipmentService(operators *repository.OperatorRepository, fulfilments *repository.FulfilmentRepository, audit *repository.AuditRepository, objects *storage.Store, orders *OrderService) *ShipmentService {
+	return &ShipmentService{operatorRepository: operators, fulfilmentRepository: fulfilments, auditRepository: audit, objectStorage: objects, orders: orders}
+}
+
+// MarkLost closes out a parcel that never arrived, and returns the money.
+//
+// The order of operations matters. The fulfilment moves first: that update is
+// conditional on the parcel still being open, so it is what stops two clicks
+// becoming two refunds. Refunding first would leave a window where the money is
+// gone and the record still says the parcel is on its way.
+func (s *ShipmentService) MarkLost(ctx context.Context, orgID, userID string, req *hajjv1.MarkShipmentLostRequest) (*hajjv1.MarkShipmentLostResponse, error) {
+	if req == nil || !isUUID(req.OrderId) || strings.TrimSpace(req.Note) == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument,
+			errors.New("sertakan alasan: menyatakan paket hilang melepaskan uang, dan tidak ada yang mengonfirmasinya di luar sistem"))
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("ShipmentService.MarkLost", err)
+	}
+
+	note := strings.TrimSpace(req.Note)
+	moved, err := s.fulfilmentRepository.MarkShipmentLost(ctx, op.ID, req.OrderId, note, userID)
+	if err != nil {
+		return nil, serviceError("ShipmentService.MarkLost", err)
+	}
+	if !moved {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("paket ini sudah tidak dalam perjalanan; mungkin sudah diserahkan atau sudah ditandai hilang"))
+	}
+
+	_ = s.auditRepository.Write(ctx, op.ID, userID, "shipment_lost", "order", req.OrderId, note)
+
+	response := &hajjv1.MarkShipmentLostResponse{}
+	if s.orders != nil {
+		// Derived from the order rather than random, so a retry after a network
+		// error settles the same refund instead of opening a second one.
+		refund, refundErr := s.orders.RefundOrderForOperator(ctx, op.ID, userID, &hajjv1.RefundOrderRequest{
+			OrderId:        req.OrderId,
+			Reason:         "Paket tidak sampai: " + note,
+			IdempotencyKey: "shipment-lost-" + req.OrderId,
+		})
+		if refundErr != nil {
+			// The parcel is already FAILED and the money is not back. Said
+			// plainly: somebody has to finish it by hand, and a generic error
+			// would hide which half succeeded.
+			return nil, connect.NewError(connect.CodeInternal,
+				fmt.Errorf("paket sudah ditandai hilang tetapi refund belum berhasil; selesaikan refund order %s secara manual: %w", req.OrderId, refundErr))
+		}
+		response.Refunded = true
+		if refund.Refund != nil {
+			response.RefundedIdr = refund.Refund.AmountIdr
+		}
+	}
+
+	shipment, err := s.read(ctx, op.ID, req.OrderId, "ShipmentService.MarkLost")
+	if err != nil {
+		return nil, err
+	}
+	response.Shipment = shipment
+	return response, nil
 }
 
 // CreateProofUpload hands back a one-shot link for the receipt photo.
@@ -234,9 +297,9 @@ func shipmentMessage(shipment *repository.Shipment) *hajjv1.Shipment {
 		Status: shipment.Status, DeliveryMethod: shipment.DeliveryMethod,
 		RecipientName: shipment.RecipientName, RecipientPhone: shipment.RecipientPhone,
 		ShippingAddress: shipment.ShippingAddress, Courier: shipment.Courier,
-		TrackingNumber: shipment.TrackingNumber,
+		TrackingNumber:    shipment.TrackingNumber,
 		HandoverRecipient: shipment.HandoverRecipient, HandoverNote: shipment.HandoverNote,
-		HasHandoverProof:  shipment.HandoverProofKey != "",
+		HasHandoverProof:    shipment.HandoverProofKey != "",
 		DestinationEditable: shipment.DestinationEditable(),
 	}
 	if shipment.PaidAt != nil {

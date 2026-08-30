@@ -28,6 +28,18 @@ service ShipmentService {
   // evidence, not a status somebody clicked, which is why this takes a name.
   rpc MarkShipmentHandedOver(MarkShipmentHandedOverRequest) returns (Shipment);
 
+  // MarkShipmentLost closes out a parcel that never arrived, and refunds.
+  //
+  // The stuck-parcel alarm fires after a fortnight and, until this existed,
+  // offered nothing to do about it: an operator could not mark it delivered
+  // because it was not, and could not mark it lost at all. Money taken, alarm
+  // repeating, nothing to act on.
+  //
+  // Refunds, because a parcel that never arrived is a jamaah who paid for
+  // nothing. Marking it lost and keeping the money would be worse than the
+  // alarm it silences.
+  rpc MarkShipmentLost(MarkShipmentLostRequest) returns (MarkShipmentLostResponse);
+
   // CreateHandoverProofUpload returns a one-shot link for the receipt photo.
   // The key is derived from the order rather than supplied, so an upload cannot
   // be aimed at another tenant's prefix.
@@ -109,6 +121,20 @@ message MarkShipmentHandedOverRequest {
   // stored, because a key recorded for an object that does not exist would read
   // as evidence of something that never happened.
   string handover_proof_key = 4 [(buf.validate.field).string.max_len = 400];
+}
+
+message MarkShipmentLostRequest {
+  string order_id = 1 [(buf.validate.field).string.uuid = true];
+  // Required. Declaring a parcel lost releases money, and nothing outside the
+  // system confirms it — the reason is the whole accountability trail.
+  string note = 2 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+}
+message MarkShipmentLostResponse {
+  Shipment shipment = 1;
+  // Reported rather than implied, so the screen can say what happened to the
+  // money instead of leaving the operator to assume.
+  bool refunded = 2;
+  int64 refunded_idr = 3;
 }
 
 message CreateHandoverProofUploadRequest {
