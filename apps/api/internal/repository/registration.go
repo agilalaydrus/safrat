@@ -44,7 +44,11 @@ func (r *RegistrationRepository) List(ctx context.Context, operatorID, seasonID 
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListPilgrimRegistrations(ctx, db.ListPilgrimRegistrationsParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListPilgrimRegistrations(ctx, db.ListPilgrimRegistrationsParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +75,11 @@ func (r *RegistrationRepository) Get(ctx context.Context, operatorID, registrati
 	if err != nil {
 		return nil, err
 	}
-	row, err := r.queries.GetPilgrimRegistration(ctx, db.GetPilgrimRegistrationParams{ID: regUUID, OperatorID: opUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.queries.GetPilgrimRegistration(ctx, db.GetPilgrimRegistrationParams{ID: regUUID, OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -87,7 +95,11 @@ func (r *RegistrationRepository) UpdateStatus(ctx context.Context, operatorID, r
 	if err != nil {
 		return nil, err
 	}
-	row, err := r.queries.UpdateRegistrationStatus(ctx, db.UpdateRegistrationStatusParams{ID: regUUID, OperatorID: opUUID, Status: status, Notes: notes})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.queries.UpdateRegistrationStatus(ctx, db.UpdateRegistrationStatusParams{ID: regUUID, OperatorID: opUUID, Status: status, Notes: notes, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}

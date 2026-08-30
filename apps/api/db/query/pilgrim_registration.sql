@@ -1,23 +1,37 @@
 -- name: CreatePilgrimRegistration :one
 INSERT INTO pilgrim_registrations
   (operator_id, season_id, product_id, full_name, passport_number,
-   date_of_birth, gender, phone, email, nationality, address, agent_id)
-VALUES ($1, $2, NULLIF($3::text, '')::uuid, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+   date_of_birth, gender, phone, email, nationality, address, agent_id, branch_id)
+SELECT $1, $2, NULLIF($3::text, '')::uuid, $4, $5, $6, $7, $8, $9, $10, $11,
+       (
+         SELECT a.id FROM agents a
+         WHERE a.id = sqlc.narg(agent_id)::uuid
+           AND a.operator_id = $1
+       ),
+       (
+         SELECT a.branch_id FROM agents a
+         WHERE a.id = sqlc.narg(agent_id)::uuid
+           AND a.operator_id = $1
+       )
 RETURNING *;
 
 -- name: ListPilgrimRegistrations :many
 SELECT r.*, COALESCE(a.name, '') AS agent_name FROM pilgrim_registrations r
 LEFT JOIN agents a ON a.id = r.agent_id
 WHERE r.operator_id = $1 AND r.season_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR r.branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY r.created_at DESC;
 
 -- name: GetPilgrimRegistration :one
-SELECT * FROM pilgrim_registrations WHERE id = $1 AND operator_id = $2;
+SELECT * FROM pilgrim_registrations
+WHERE id = $1 AND operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: UpdateRegistrationStatus :one
 UPDATE pilgrim_registrations
 SET status = $3, notes = $4, updated_at = NOW()
 WHERE id = $1 AND operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid)
 RETURNING *;
 
 -- name: GetOperatorSeasonForRegistration :one
