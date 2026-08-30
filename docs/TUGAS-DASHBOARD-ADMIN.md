@@ -128,7 +128,7 @@ Sembilan nada mereka dipadatkan — lebih sedikit, lebih konsisten.
       muncul 9 kali, lawan `ghost` 112 dan `outline` 106. Inilah sebabnya layar
       mereka tenang meski padat. (`b6b39a2`, `98aa32f`, `4e1ab35`, `4251601`)
 - [x] **Setiap grafik menjelaskan sumbunya** di subjudul (`82746fb`)
-- [x] **Setiap angka membawa satuan** (`04deac7`)
+- [x] **Setiap angka membawa satuan** (`bbfe4a7`, `c33b784`)
       Aturan yang dipakai: satuan ditambahkan hanya bila **label belum menyebut
       benda yang dihitung**. "Kapasitas 34/40" ambigu → diberi satuan;
       "Total Grup 12" dan "Jamaah 34/40" sudah jelas → dibiarkan, karena
@@ -146,7 +146,7 @@ Tanpa modul baru; datanya sudah ada.
 - [x] **T1.1** Jamaah — paspor <6 bulan, berkas kurang, belum ada kloter/grup (`c33b784`)
 - [x] **T1.2** Arus kas — vendor lewat jatuh tempo, defisit 30 hari, jamaah belum lunas (`363f46e`)
 - [x] **T1.3** Monitoring — SOS, kesehatan berat, grup tanpa muttawwif, grup basi (`d0d8d6e`)
-- [x] **T1.4** Dokumen — paspor/vaksin/pasfoto kurang, dihitung per jamaah (`6e1cbe1`)
+- [x] **T1.4** Dokumen — paspor/vaksin/pasfoto kurang, dihitung per jamaah (`ed2d2e2`)
 
 Setiap butir **wajib** menyebut nilainya dalam rupiah dan akibat kalau
 diabaikan. Contoh nada dari mereka:
@@ -174,9 +174,10 @@ tempat membuat keduanya berhenti dibaca.
 
 ## T2.1 — Hierarki cabang 🔴 paling mahal kalau ditunda
 
-- [ ] Migrasi: tabel `branches` (operator_id, nama, kota, target_jamaah,
-      target_revenue, kepala, rekening)
-- [ ] `branch_id` nullable di `pilgrims`, `registrations`, `agents`, `orders`
+- [x] Migrasi: tabel `branches` (operator_id, nama, kota, target_jamaah,
+      target_revenue, kepala, rekening) (`f3d6c38`, pengaman tenant `c85733e`)
+- [x] `branch_id` nullable di `pilgrims`, `registrations`, `agents`, `orders`
+      (`f3d6c38`)
 - [ ] Peran `BRANCH_HEAD` di enum `user_role`
 - [ ] **Penyaringan dipaksakan di lapisan repository, bukan handler**
 - [ ] Agregasi laporan per cabang
