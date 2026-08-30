@@ -193,8 +193,10 @@ tempat membuat keduanya berhenti dibaca.
 
 **Kemajuan scoping repository.** Vertical jamaah sudah dipaksa di query untuk
 baca/list/statistik, mutasi, substitusi, dokumen, asuransi, roster kloter, dan
-create yang otomatis mewarisi cabang aktor (`6af60db`). Kotak penyaringan utama
-tetap terbuka sampai registration, agent, dan order memakai batas yang sama.
+create yang otomatis mewarisi cabang aktor (`6af60db`). Inbox registrasi juga
+sudah terisolasi; registrasi publik mewarisi cabang agen referral dan agent ID
+lintas tenant ditolak oleh query (`dfb2e62`). Kotak penyaringan utama tetap
+terbuka sampai agent dan order memakai batas yang sama.
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
