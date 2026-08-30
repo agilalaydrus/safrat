@@ -664,3 +664,69 @@ func (r *SubscriptionRepository) IgnoreMutation(ctx context.Context, mutationID,
 	}
 	return nil
 }
+
+// RenewalDue is a subscription approaching its expiry with nothing billed for
+// the next period.
+type RenewalDue struct {
+	OperatorID string
+	Plan       string
+}
+
+// ListDueForRenewal finds subscriptions that need an invoice.
+//
+// Access already runs out on its own — the sweep marks those PAST_DUE — but
+// nothing ever billed for the next period, so a subscription simply stopped
+// and nobody was asked to pay. Revenue ending quietly is worse than a customer
+// declining to renew, because nobody notices either way.
+//
+// Excludes operators that already have a pending invoice. Only one may be
+// outstanding at a time: two would put two unique amounts in play for the same
+// operator, and a transfer against the older one would arrive looking
+// unmatched.
+//
+// Cancelled subscriptions are left alone. Somebody who has cancelled should not
+// receive a bill.
+func (r *SubscriptionRepository) ListDueForRenewal(ctx context.Context, within time.Duration) ([]RenewalDue, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT s.operator_id::text, s.plan::text
+		FROM subscriptions s
+		WHERE s.status IN ('ACTIVE', 'PAST_DUE')
+		  AND s.cancelled_at IS NULL
+		  AND s.access_until < NOW() + make_interval(secs => $1::int)
+		  AND NOT EXISTS (
+		    SELECT 1 FROM subscription_invoices i
+		    WHERE i.operator_id = s.operator_id AND i.status = 'PENDING'
+		  )
+		ORDER BY s.access_until ASC
+		LIMIT 200`, int32(within.Seconds()))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	due := make([]RenewalDue, 0)
+	for rows.Next() {
+		var item RenewalDue
+		if err := rows.Scan(&item.OperatorID, &item.Plan); err != nil {
+			return nil, err
+		}
+		due = append(due, item)
+	}
+	return due, rows.Err()
+}
+
+// CountStaleUnmatched reports credits that have sat unaccounted for too long.
+//
+// Money arrived and nothing claimed it. That usually means a travel paid an
+// amount nobody is expecting — a stale invoice, a typo, a fee deducted in
+// transit — and every day it sits is a day that travel believes they have paid
+// and the system disagrees.
+func (r *SubscriptionRepository) CountStaleUnmatched(ctx context.Context, olderThan time.Duration) (int, int64, error) {
+	var count int
+	var total int64
+	err := r.pool.QueryRow(ctx, `
+		SELECT count(*), COALESCE(sum(amount_idr), 0)
+		FROM bank_mutations
+		WHERE status = 'UNMATCHED' AND occurred_at < NOW() - make_interval(secs => $1::int)`,
+		int32(olderThan.Seconds())).Scan(&count, &total)
+	return count, total, err
+}

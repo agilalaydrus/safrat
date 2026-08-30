@@ -4,11 +4,12 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
-	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	db "github.com/hajj-saas/api/internal/gen/db"
+	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -271,5 +272,64 @@ func TestHandoverProofKeyIsNeverTakenOnTrustIntegration(t *testing.T) {
 	}
 	if view.ViewUrl != "" {
 		t.Fatalf("URL diberikan padahal tidak ada foto: %q", view.ViewUrl)
+	}
+}
+
+// A courier takes days. Applying the supplier timescale to parcels would raise
+// an alarm on every one in transit, every sweep, until it arrived — and an
+// alarm that fires constantly is one people stop reading, which would cost the
+// digital fulfilments it was built for.
+func TestAParcelInTransitIsNotAnAlarmIntegration(t *testing.T) {
+	f := newShipmentFixture(t)
+	ctx := context.Background()
+
+	if _, err := f.shipments.SaveDestination(ctx, f.orgID, "staf", &hajjv1.SaveShipmentDestinationRequest{
+		OrderId: f.orderID, DeliveryMethod: "SHIP", RecipientName: "Ahmad",
+		ShippingAddress: "Jl. Merdeka 1",
+	}); err != nil {
+		t.Fatalf("tujuan: %v", err)
+	}
+	if _, err := f.shipments.MarkSent(ctx, f.orgID, "staf", &hajjv1.MarkShipmentSentRequest{
+		OrderId: f.orderID, Courier: "JNE", TrackingNumber: "JNE-1",
+	}); err != nil {
+		t.Fatalf("kirim: %v", err)
+	}
+
+	// Two days in transit: entirely normal.
+	if _, err := f.pool.Exec(ctx,
+		`UPDATE order_fulfilments SET sent_at = NOW() - INTERVAL '2 days' WHERE order_id = $1`,
+		f.orderID); err != nil {
+		t.Fatalf("age it: %v", err)
+	}
+
+	fulfilments := repository.NewFulfilmentRepository(f.pool)
+	waiting, err := fulfilments.ListNeedingAttention(ctx, time.Hour, 100)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	for _, item := range waiting {
+		if item.OrderID == f.orderID {
+			t.Fatal("paket yang baru dua hari di jalan sudah dianggap macet")
+		}
+	}
+
+	// Three weeks is not in transit any more, it is lost.
+	if _, err := f.pool.Exec(ctx,
+		`UPDATE order_fulfilments SET sent_at = NOW() - INTERVAL '21 days' WHERE order_id = $1`,
+		f.orderID); err != nil {
+		t.Fatalf("age it: %v", err)
+	}
+	waiting, err = fulfilments.ListNeedingAttention(ctx, time.Hour, 100)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	var found bool
+	for _, item := range waiting {
+		if item.OrderID == f.orderID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("paket yang tiga minggu belum sampai tidak memicu perhatian")
 	}
 }

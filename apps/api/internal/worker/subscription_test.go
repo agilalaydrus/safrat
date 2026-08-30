@@ -6,6 +6,9 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
+
+	"github.com/hajj-saas/api/internal/repository"
 
 	"github.com/hibiken/asynq"
 )
@@ -14,6 +17,13 @@ type fakeSubscriptionSweeper struct {
 	expired, lapsed         int64
 	expireErr, lapseErr     error
 	expireCalls, lapseCalls int
+
+	due        []repository.RenewalDue
+	dueErr     error
+	issued     []string
+	issueErr   error
+	staleCount int
+	staleTotal int64
 }
 
 func (f *fakeSubscriptionSweeper) ExpireOverdueInvoices(context.Context) (int64, error) {
@@ -24,6 +34,58 @@ func (f *fakeSubscriptionSweeper) ExpireOverdueInvoices(context.Context) (int64,
 func (f *fakeSubscriptionSweeper) MarkLapsed(context.Context) (int64, error) {
 	f.lapseCalls++
 	return f.lapsed, f.lapseErr
+}
+
+func (f *fakeSubscriptionSweeper) ListDueForRenewal(context.Context, time.Duration) ([]repository.RenewalDue, error) {
+	return f.due, f.dueErr
+}
+
+func (f *fakeSubscriptionSweeper) IssueBankTransferInvoice(_ context.Context, operatorID, plan string) (repository.Invoice, error) {
+	if f.issueErr != nil {
+		return repository.Invoice{}, f.issueErr
+	}
+	f.issued = append(f.issued, operatorID+"/"+plan)
+	return repository.Invoice{Amount: 1_500_007}, nil
+}
+
+func (f *fakeSubscriptionSweeper) CountStaleUnmatched(context.Context, time.Duration) (int, int64, error) {
+	return f.staleCount, f.staleTotal, nil
+}
+
+// Nothing billed for the next period: the sweep expired invoices and marked
+// subscriptions lapsed, and never asked anybody to pay. A subscription simply
+// stopped and revenue ended without anybody deciding it should.
+func TestSweepIssuesRenewalInvoices(t *testing.T) {
+	sweeper := &fakeSubscriptionSweeper{due: []repository.RenewalDue{
+		{OperatorID: "op-1", Plan: "STARTER"},
+		{OperatorID: "op-2", Plan: "GROWTH"},
+	}}
+	handler := &SubscriptionHandler{logger: slog.New(slog.NewTextHandler(io.Discard, nil)), sweeper: sweeper}
+
+	if err := handler.HandleSweep(context.Background(), asynq.NewTask(TaskSubscriptionSweep, nil)); err != nil {
+		t.Fatalf("HandleSweep: %v", err)
+	}
+	if len(sweeper.issued) != 2 {
+		t.Fatalf("%d tagihan diterbitkan, mau 2: %v", len(sweeper.issued), sweeper.issued)
+	}
+}
+
+// One operator failing must not stop the rest — every one skipped is one
+// nobody is billing.
+func TestOneFailedRenewalDoesNotStopTheSweep(t *testing.T) {
+	sweeper := &fakeSubscriptionSweeper{
+		due:      []repository.RenewalDue{{OperatorID: "op-1", Plan: "STARTER"}},
+		issueErr: errors.New("gagal"),
+		expired:  1,
+	}
+	handler := &SubscriptionHandler{logger: slog.New(slog.NewTextHandler(io.Discard, nil)), sweeper: sweeper}
+
+	if err := handler.HandleSweep(context.Background(), asynq.NewTask(TaskSubscriptionSweep, nil)); err != nil {
+		t.Fatalf("penerbitan yang gagal menghentikan sweep: %v", err)
+	}
+	if sweeper.lapseCalls != 1 {
+		t.Fatal("sisa sweep tidak berjalan setelah satu penerbitan gagal")
+	}
 }
 
 func TestSubscriptionSweepReleasesAmountsAndMarksLapsed(t *testing.T) {

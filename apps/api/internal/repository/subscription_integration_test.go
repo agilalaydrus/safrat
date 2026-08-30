@@ -406,3 +406,71 @@ func TestBankMutationsSettleOnceAndKeepWhatDidNotMatchIntegration(t *testing.T) 
 		t.Fatal("mutasi tak cocok hilang dari antrean")
 	}
 }
+
+// Renewal has to be issued before access runs out, and exactly once. Two
+// outstanding invoices would put two unique amounts in play for one operator,
+// and a transfer against the older one would arrive looking unmatched.
+func TestRenewalIsIssuedOnceAndNotForTheCancelledIntegration(t *testing.T) {
+	pool := subscriptionTestPool(t)
+	ctx := context.Background()
+	subscriptions := NewSubscriptionRepository(pool)
+
+	operatorID := newTestOperator(t, pool, "STARTER")
+	if err := subscriptions.EnsureForOperator(ctx, operatorID); err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+	// Access running out in three days: inside the billing lead time.
+	if _, err := pool.Exec(ctx,
+		`UPDATE subscriptions SET status = 'ACTIVE', access_until = NOW() + INTERVAL '3 days'
+		 WHERE operator_id = $1`, operatorID); err != nil {
+		t.Fatalf("set access: %v", err)
+	}
+
+	contains := func(due []RenewalDue, id string) bool {
+		for _, item := range due {
+			if item.OperatorID == id {
+				return true
+			}
+		}
+		return false
+	}
+
+	due, err := subscriptions.ListDueForRenewal(ctx, 7*24*time.Hour)
+	if err != nil {
+		t.Fatalf("list due: %v", err)
+	}
+	if !contains(due, operatorID) {
+		t.Fatal("langganan yang hampir habis tidak masuk daftar tagih")
+	}
+
+	if _, err := subscriptions.IssueBankTransferInvoice(ctx, operatorID, "STARTER"); err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+
+	// Now billed, so the next sweep must leave it alone.
+	due, err = subscriptions.ListDueForRenewal(ctx, 7*24*time.Hour)
+	if err != nil {
+		t.Fatalf("list due: %v", err)
+	}
+	if contains(due, operatorID) {
+		t.Fatal("langganan yang sudah punya tagihan tertagih lagi")
+	}
+
+	// Somebody who cancelled should not receive a bill.
+	cancelled := newTestOperator(t, pool, "STARTER")
+	if err := subscriptions.EnsureForOperator(ctx, cancelled); err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`UPDATE subscriptions SET status = 'ACTIVE', access_until = NOW() + INTERVAL '1 day',
+		 cancelled_at = NOW() WHERE operator_id = $1`, cancelled); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+	due, err = subscriptions.ListDueForRenewal(ctx, 7*24*time.Hour)
+	if err != nil {
+		t.Fatalf("list due: %v", err)
+	}
+	if contains(due, cancelled) {
+		t.Fatal("langganan yang sudah dibatalkan tetap ditagih")
+	}
+}

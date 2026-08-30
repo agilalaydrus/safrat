@@ -193,6 +193,11 @@ func (r *FulfilmentRepository) FindOrderByReference(ctx context.Context, supplie
 
 // ListNeedingAttention returns fulfilments a human has to look at: a supplier
 // said something unreadable, or never answered at all.
+// shipmentStuckAfter is when a parcel stops being "in transit" and starts
+// being lost. Domestic couriers here deliver within a week; a fortnight without
+// a handover recorded means somebody needs to chase it.
+const shipmentStuckAfter = 14 * 24 * time.Hour
+
 func (r *FulfilmentRepository) ListNeedingAttention(ctx context.Context, stuckAfter time.Duration, limit int32) ([]*Fulfilment, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
@@ -208,10 +213,20 @@ func (r *FulfilmentRepository) ListNeedingAttention(ctx context.Context, stuckAf
 		LEFT JOIN pilgrims pil ON pil.id = o.pilgrim_id
 		LEFT JOIN agents buyer ON buyer.id = o.buyer_agent_id
 		LEFT JOIN suppliers s ON s.id = f.supplier_id
+		-- Two timescales, because the two kinds of delivery have nothing in
+		-- common but a status column. A supplier answers in seconds, so an
+		-- hour of silence is a fault. A courier takes days, so the same
+		-- threshold would raise an alarm on every parcel in transit — every
+		-- sweep, until it arrived — and an alarm that fires constantly is one
+		-- people stop reading, which would cost the digital fulfilments it was
+		-- built for.
 		WHERE f.status = 'NEEDS_REVIEW'
-		   OR (f.status = 'SENT' AND f.sent_at < NOW() - make_interval(secs => $1::int))
+		   OR (f.status = 'SENT' AND f.kind = 'SUPPLIER'
+		       AND f.sent_at < NOW() - make_interval(secs => $1::int))
+		   OR (f.status = 'SENT' AND f.kind = 'SHIPMENT'
+		       AND f.sent_at < NOW() - make_interval(secs => $2::int))
 		ORDER BY f.created_at ASC
-		LIMIT $2`, int32(stuckAfter.Seconds()), limit)
+		LIMIT $3`, int32(stuckAfter.Seconds()), int32(shipmentStuckAfter.Seconds()), limit)
 	if err != nil {
 		return nil, err
 	}
