@@ -1268,40 +1268,53 @@ A single character turns up in random base64 often enough to fail on its own.
 Short values are now round-tripped without that check, and the property that
 actually matters is asserted against the decoded bytes instead.
 
-#### Queued — restyle to the Cashplus.id taste (owner, 2026-08-27)
+#### Design reference — SUPERSEDED, and the Cashplus note was wrong (2026-08-30)
 
-> *"Saya ingin taste UI Dashboard-side, users-side, admin-side nya mirip
-> Cashplus.id, yang seperti file UI1.png s/d UI6.png."* Owner explicitly placed
-> this **after** the current work queue.
+> The owner replaced the Cashplus.id direction outright: *"reference nya bukan
+> cashplus lagi sekarang."* The previous entry described a white sidebar, vivid
+> blue accent and breadcrumbs. **None of that applies.** It is removed rather
+> than left with a note, because a stale reference reads exactly like a current
+> one to whoever opens this next.
 
-References are `UI1.png`–`UI6.png` in the repository root. From actually
-looking at UI1 rather than guessing at the name:
+Current references live in the repository root:
 
-- **White sidebar**, not the dark emerald one we have. Nav items carry a
-  rounded-square icon tile, and are grouped under plain section headings
-  (Agents, History, Recap) rather than running as one list.
-- **Vivid blue as the primary accent**, on a near-white ground. Our palette is
-  emerald and gold on cream — this is a different language, not a tint change.
-- **Stat cards with coloured icon tiles** — green for success, amber for
-  pending, red for failed — which maps almost directly onto states we already
-  have and currently render as text badges.
-- **Breadcrumbs** above the page title. We have none.
-- Pill-shaped primary buttons, soft card borders, generous whitespace.
+- `landing-page-refference1.jpeg` … `4.jpeg` — SafarGo. Near-black hero with an
+  Islamic geometric pattern, **warm orange as the accent**, heavy display type
+  with one word picked out in orange, 3D Kaaba render, floating pill badges
+  around the hero, then a white body: certification logo strip, stat cards with
+  one filled orange, numbered `01`–`05` service list, dark testimonial card,
+  dark footer.
+- `PWA-and-Mobile-UI_refference.jpeg` — deep green header, white rounded cards
+  on a light ground, circular icon tiles, a dotted timeline, and a bottom sheet
+  with rounded top corners.
 
-**Worth deciding before starting**, because they change the size of the job:
+Two different languages on purpose: the marketing site is dramatic, the app is
+calm.
 
-1. Is this a re-skin (tokens, cards, sidebar) or a re-layout (breadcrumbs,
-   grouped nav, dashboard charts)? UI1 implies both.
-2. Does the jamaah PWA follow? It is a phone-first surface with a bottom tab
-   bar and no sidebar, so "the same taste" means something different there.
-3. Our palette is used in the storefront the jamaah sees, which is a travel
-   brand's public face. Changing the dashboard need not change that, and
-   probably should not.
+**Where the landing page actually stands** (read from the rendered page, not
+from the code): its *structure* already matches the reference — dark hero,
+light body, bento product grid, one highlighted pricing card, FAQ accordion,
+dark CTA and footer. What differs is the treatment:
 
-The existing design has one property worth preserving deliberately: **money
-states are colour-coded consistently** — amber for anything held or waiting,
-red for refunded or failed, emerald for settled. Cashplus uses the same three
-for the same meanings, so this survives the restyle if it is done on purpose.
+1. accent is green, reference is orange;
+2. hero uses a photograph, reference uses a 3D render with a pattern and
+   floating pill badges;
+3. three sections are missing — the certification strip (for a PPIU this is
+   credibility, not decoration), the numbered `01`–`05` list, and the
+   testimonial;
+4. eyebrows are plain capitals, reference uses small pill badges.
+
+So this is roughly a third of a job, not a rewrite.
+
+**Undecided, and it changes what can be built:** photography or 3D. The current
+page uses real photographs of jamaah, which is arguably stronger for an
+Indonesian PPIU than a render. Matching the reference exactly needs 3D assets
+that do not exist in the repository.
+
+**Division of work while both agents are running:** design belongs to Codex.
+Anything under `apps/web/components/landing/` and the `.landing-*` block of
+`globals.css` is theirs. Feature work stays out of both.
+
 
 #### Done — PR 24: account management, identity access, and an audit trail that was not there
 
