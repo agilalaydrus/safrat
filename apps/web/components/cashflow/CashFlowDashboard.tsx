@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { IconAlertTriangle, IconPlus, IconTrash } from "@tabler/icons-react";
+import { useEffect, useMemo, useState } from "react";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { VendorPayment, MonthlyProjectionEntry, CashFlowSummary } from "@hajj-saas/proto-gen/hajj/v1/cashflow_pb";
 import { cashFlowClient, seasonClient } from "@/lib/rpc";
+import { ActionCenter, type ActionCenterItem } from "@/components/ui/ActionCenter";
 import { RoleGate } from "@/components/auth/RoleGate";
 
 const CATEGORY_LABEL: Record<string, string> = { HOTEL: "Hotel", TRANSPORT: "Transportasi", CATERING: "Katering", VISA: "Visa", INSURANCE: "Asuransi", OTHER: "Lainnya" };
@@ -52,6 +53,47 @@ export default function CashFlowDashboard() {
   const netPosition = summary ? Number(summary.netPositionIdr) : 0;
   const dueNext30 = summary ? Number(summary.dueNext30DaysIdr) : 0;
   const isDangerZone = summary ? netPosition < dueNext30 : false;
+  const overdue = summary ? Number(summary.totalOverdueIdr) : 0;
+  const unpaidPilgrims = summary ? Number(summary.unpaidPilgrimCount) : 0;
+  // Ordered by how far the money has already slipped: a payment past its due
+  // date is a broken commitment, a shortfall is a forecast, and an unpaid
+  // jamaah is the inflow both of those depend on.
+  const actionItems = useMemo<ActionCenterItem[]>(() => {
+    if (!summary) return [];
+    const items: ActionCenterItem[] = [];
+
+    if (overdue > 0) items.push({
+      id: "overdue",
+      title: "Pembayaran vendor lewat jatuh tempo",
+      description: "Kontrak hotel dan transportasi bisa dibatalkan sepihak saat pembayaran terlambat, dan blokir kamar yang hilang di musim ramai hampir tidak bisa diganti.",
+      financialImpact: formatIDR(overdue),
+      actionHref: "#pembayaran-vendor",
+      actionLabel: "Lihat pembayaran",
+      tone: "danger",
+    });
+
+    if (isDangerZone) items.push({
+      id: "deficit",
+      title: "Kas tidak cukup untuk 30 hari ke depan",
+      description: `Kewajiban ${formatIDR(dueNext30)} jatuh tempo dalam 30 hari, sementara posisi bersih ${formatIDR(netPosition)}. Kekurangannya perlu ditutup dari pelunasan jamaah atau ditunda lewat negosiasi vendor.`,
+      financialImpact: formatIDR(dueNext30 - netPosition),
+      actionHref: "#proyeksi-bulanan",
+      actionLabel: "Lihat proyeksi",
+      tone: "danger",
+    });
+
+    if (unpaidPilgrims > 0) items.push({
+      id: "unpaid",
+      title: `${unpaidPilgrims} jamaah belum lunas`,
+      description: "Pelunasan jamaah adalah sumber kas yang membayar vendor. Selama belum masuk, jadwal pembayaran di atas bergantung pada dana talangan.",
+      financialImpact: `${unpaidPilgrims} jamaah`,
+      actionHref: "/dashboard/pilgrims",
+      actionLabel: "Lihat jamaah",
+      tone: "warning",
+    });
+
+    return items;
+  }, [summary, overdue, unpaidPilgrims, isDangerZone, dueNext30, netPosition]);
   const maxObligation = Math.max(1, ...months.map((m) => Number(m.vendorObligationsIdr)));
 
   const addPayment = async () => {
@@ -115,12 +157,15 @@ export default function CashFlowDashboard() {
         <div style={statCard}><span style={statLabel}>Jatuh Tempo 30 Hari</span><strong style={{ ...statValue, color: "var(--color-gold-800)" }}>{formatIDR(dueNext30)}</strong></div>
       </section>
 
-      {isDangerZone && <div style={dangerBanner}>
-        <IconAlertTriangle size={20} style={{ flexShrink: 0 }} />
-        <span>Dana tidak cukup untuk pembayaran vendor dalam 30 hari ke depan. Defisit: <strong>{formatIDR(dueNext30 - netPosition)}</strong></span>
-      </div>}
+      <ActionCenter
+        items={actionItems}
+        subtitle="Dihitung dari komitmen vendor dan pelunasan jamaah musim berjalan"
+        cleanTitle="Arus kas sehat"
+        cleanDescription="Tidak ada pembayaran vendor yang terlambat, kas menutup kewajiban 30 hari ke depan, dan seluruh jamaah sudah lunas."
+        className="tw-action-center--inline"
+      />
 
-      {months.length > 0 && <section style={card}>
+      {months.length > 0 && <section id="proyeksi-bulanan" style={card}>
         <h2 style={{ margin: 0 }}>Proyeksi Bulanan</h2>
         <p style={{ margin: "6px 0 16px", color: "var(--color-warm-500)", fontSize: 13 }}>Sumbu horizontal menunjukkan bulan. Tinggi batang menunjukkan komitmen vendor dalam rupiah.</p>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 12, height: 160, overflowX: "auto", padding: "0 4px" }}>
@@ -152,7 +197,7 @@ export default function CashFlowDashboard() {
         <button disabled={saving} onClick={addPayment} style={{ ...emerald, marginTop: 12 }}>{saving ? "Menyimpan..." : "Simpan Pembayaran"}</button>
       </section>}
 
-      <section style={card}>
+      <section id="pembayaran-vendor" style={card}>
         <h2 style={{ margin: "0 0 12px" }}>Daftar Pembayaran Vendor</h2>
         {payments.length ? <div style={{ overflowX: "auto" }}>
           <table style={table}>
@@ -192,7 +237,6 @@ const statGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "r
 const statCard: React.CSSProperties = { border: "1px solid var(--color-cream-400)", borderRadius: 12, background: "white", padding: "16px 20px", display: "grid", gap: 6 };
 const statLabel: React.CSSProperties = { fontSize: 12, color: "var(--color-warm-500)", textTransform: "uppercase", letterSpacing: ".05em" };
 const statValue: React.CSSProperties = { fontSize: 22, fontWeight: 700 };
-const dangerBanner: React.CSSProperties = { display: "flex", alignItems: "center", gap: 10, background: "var(--color-danger-100)", border: "1px solid var(--color-danger-600)", borderRadius: 10, padding: "14px 18px", marginBottom: 20, color: "var(--color-danger-600)", fontWeight: 600, fontSize: 14 };
 const card: React.CSSProperties = { background: "white", border: "1px solid var(--color-cream-400)", borderRadius: 12, padding: 20, marginBottom: 20 };
 const formGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 };
 const field: React.CSSProperties = { display: "grid", gap: 6, color: "var(--color-warm-500)", fontSize: 14 };
