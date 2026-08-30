@@ -118,7 +118,7 @@ Sembilan nada mereka dipadatkan — lebih sedikit, lebih konsisten.
 
 ## T0.5 — Sapu 27 layar yang sudah ada
 
-- [ ] **Subjudul hidup** di setiap layar — yang **menghitung**, bukan menjelaskan
+- [x] **Subjudul hidup** di setiap layar — yang **menghitung**, bukan menjelaskan (`15bcace`)
       konsep. Contoh nyata: `docs/referensi/meeqot/judul-subjudul.md`
 - [ ] **Keadaan kosong yang mengajar** — sebutkan sebabnya dan langkah
       berikutnya beserta tempatnya
