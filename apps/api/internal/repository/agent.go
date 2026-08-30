@@ -23,7 +23,11 @@ func (r *AgentRepository) Create(ctx context.Context, operatorID, name, phone, e
 	if err != nil {
 		return nil, err
 	}
-	agent, err := r.queries.CreateAgent(ctx, db.CreateAgentParams{OperatorID: opUUID, Name: name, Phone: phone, Email: email, CommissionRate: commissionRate, Notes: notes, IsActive: true})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	agent, err := r.queries.CreateAgent(ctx, db.CreateAgentParams{OperatorID: opUUID, Name: name, Phone: phone, Email: email, CommissionRate: commissionRate, Notes: notes, IsActive: true, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -48,6 +52,10 @@ func (r *AgentRepository) UpdateKYC(ctx context.Context, operatorID, agentID str
 	if err != nil {
 		return nil, err
 	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
 	// Sealed before it reaches the database, so the plaintext exists only in
 	// this process's memory and never in a table, a dump or a replica.
 	sealedNIK, err := sealKYC(input.NIK)
@@ -62,7 +70,7 @@ func (r *AgentRepository) UpdateKYC(ctx context.Context, operatorID, agentID str
 		ID: agentUUID, OperatorID: opUUID, Nik: sealedNIK, Npwp: sealedNPWP, Address: input.Address,
 		DateOfBirth: pgDate(input.DateOfBirth), PassportNumber: input.PassportNumber, PassportExpiryDate: pgDate(input.PassportExpiryDate),
 		BankName: input.BankName, BankAccountNumber: input.BankAccountNumber, BankAccountHolder: input.BankAccountHolder,
-		KycStatus: "PENDING_REVIEW", KycSource: kycSource,
+		KycStatus: "PENDING_REVIEW", KycSource: kycSource, BranchScope: scope,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -79,12 +87,16 @@ func (r *AgentRepository) VerifyKYC(ctx context.Context, operatorID, agentID, ve
 	if err != nil {
 		return nil, err
 	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
 	status := "VERIFIED"
 	if !approve {
 		status = "REJECTED"
 	}
 	row, err := r.queries.VerifyAgentKyc(ctx, db.VerifyAgentKycParams{
-		ID: agentUUID, OperatorID: opUUID, KycStatus: status, KycVerifiedBy: verifiedBy, KycRejectionReason: rejectionReason,
+		ID: agentUUID, OperatorID: opUUID, KycStatus: status, KycVerifiedBy: verifiedBy, KycRejectionReason: rejectionReason, BranchScope: scope,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -101,8 +113,12 @@ func (r *AgentRepository) CreateDocument(ctx context.Context, operatorID, agentI
 	if err != nil {
 		return nil, err
 	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
 	row, err := r.queries.CreateAgentDocument(ctx, db.CreateAgentDocumentParams{
-		AgentID: agentUUID, OperatorID: opUUID, DocType: docType, FileUrl: fileURL, FileName: fileName, UploadedBy: uploadedBy,
+		AgentID: agentUUID, OperatorID: opUUID, DocType: docType, FileUrl: fileURL, FileName: fileName, UploadedBy: uploadedBy, BranchScope: scope,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -110,12 +126,20 @@ func (r *AgentRepository) CreateDocument(ctx context.Context, operatorID, agentI
 	return toAgentDocument(row), nil
 }
 
-func (r *AgentRepository) ListDocuments(ctx context.Context, agentID string) ([]*domain.AgentDocument, error) {
+func (r *AgentRepository) ListDocuments(ctx context.Context, operatorID, agentID string) ([]*domain.AgentDocument, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
 	agentUUID, err := pgUUID(agentID)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListAgentDocuments(ctx, agentUUID)
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListAgentDocuments(ctx, db.ListAgentDocumentsParams{AgentID: agentUUID, OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -150,7 +174,11 @@ func (r *AgentRepository) EnsureAgentForLeader(ctx context.Context, operatorID, 
 	if err != nil {
 		return err
 	}
-	_, err = r.queries.CreateAgentForLeader(ctx, db.CreateAgentForLeaderParams{OperatorID: opUUID, Name: user.Name, Phone: "", Email: user.Email, LinkedUserID: userIDText})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return err
+	}
+	_, err = r.queries.CreateAgentForLeader(ctx, db.CreateAgentForLeaderParams{OperatorID: opUUID, Name: user.Name, Phone: "", Email: user.Email, LinkedUserID: userIDText, BranchScope: scope})
 	return err
 }
 
@@ -163,9 +191,13 @@ func (r *AgentRepository) GetByID(ctx context.Context, operatorID, agentID strin
 	if err != nil {
 		return nil, err
 	}
-	agent, err := r.queries.GetAgent(ctx, db.GetAgentParams{ID: agentUUID, OperatorID: opUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
 	if err != nil {
 		return nil, err
+	}
+	agent, err := r.queries.GetAgent(ctx, db.GetAgentParams{ID: agentUUID, OperatorID: opUUID, BranchScope: scope})
+	if err != nil {
+		return nil, databaseError(err)
 	}
 	return toAgent(agent, 0), nil
 }
@@ -175,7 +207,11 @@ func (r *AgentRepository) ListByOperatorID(ctx context.Context, operatorID strin
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListAgentsWithPilgrimCount(ctx, opUUID)
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListAgentsWithPilgrimCount(ctx, db.ListAgentsWithPilgrimCountParams{OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -554,9 +590,13 @@ func (r *AgentRepository) Update(ctx context.Context, operatorID, agentID, name,
 	if err != nil {
 		return nil, err
 	}
-	agent, err := r.queries.UpdateAgent(ctx, db.UpdateAgentParams{ID: agentUUID, OperatorID: opUUID, Name: name, Phone: phone, Email: email, CommissionRate: commissionRate, Notes: notes, IsActive: isActive})
+	scope, err := branchScope(ctx, r.queries, opUUID)
 	if err != nil {
 		return nil, err
+	}
+	agent, err := r.queries.UpdateAgent(ctx, db.UpdateAgentParams{ID: agentUUID, OperatorID: opUUID, Name: name, Phone: phone, Email: email, CommissionRate: commissionRate, Notes: notes, IsActive: isActive, BranchScope: scope})
+	if err != nil {
+		return nil, databaseError(err)
 	}
 	return toAgent(agent, 0), nil
 }
@@ -614,7 +654,11 @@ func (r *AgentRepository) Delete(ctx context.Context, operatorID, agentID string
 	if err != nil {
 		return err
 	}
-	return r.queries.DeleteAgent(ctx, db.DeleteAgentParams{ID: agentUUID, OperatorID: opUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return err
+	}
+	return r.queries.DeleteAgent(ctx, db.DeleteAgentParams{ID: agentUUID, OperatorID: opUUID, BranchScope: scope})
 }
 
 func toAgent(agent db.Agent, pilgrimCount int32) *domain.Agent {

@@ -84,7 +84,7 @@ func NewAgentDocumentUploadHandler(pool *pgxpool.Pool, agentService *service.Age
 			http.Error(w, "missing bearer token", http.StatusUnauthorized)
 			return
 		}
-		_, authenticatedOrgID, _, err := middleware.ResolveStaffSession(r.Context(), pool, token)
+		userID, authenticatedOrgID, _, err := middleware.ResolveStaffSession(r.Context(), pool, token)
 		if err != nil {
 			http.Error(w, "invalid or expired session", http.StatusUnauthorized)
 			return
@@ -125,7 +125,8 @@ func NewAgentDocumentUploadHandler(pool *pgxpool.Pool, agentService *service.Age
 		}
 
 		fileURL := "/uploads/documents/" + safeName
-		document, err := agentService.CreateDocument(r.Context(), authenticatedOrgID, agentID, docType, fileURL, header.Filename)
+		staffCtx := middleware.ContextWithIdentity(r.Context(), userID, authenticatedOrgID)
+		document, err := agentService.CreateDocument(staffCtx, authenticatedOrgID, agentID, docType, fileURL, header.Filename)
 		if err != nil {
 			_ = os.Remove(filepath.Join(uploadDir, safeName))
 			http.Error(w, "invalid upload request", http.StatusBadRequest)
@@ -188,7 +189,8 @@ func NewAgentSelfDocumentUploadHandler(pool *pgxpool.Pool, agentService *service
 		}
 
 		fileURL := "/uploads/documents/" + safeName
-		document, err := agentService.CreateDocumentSelf(r.Context(), authenticatedOrgID, userID, docType, fileURL, header.Filename)
+		staffCtx := middleware.ContextWithIdentity(r.Context(), userID, authenticatedOrgID)
+		document, err := agentService.CreateDocumentSelf(staffCtx, authenticatedOrgID, userID, docType, fileURL, header.Filename)
 		if err != nil {
 			_ = os.Remove(filepath.Join(uploadDir, safeName))
 			http.Error(w, "invalid upload request", http.StatusBadRequest)

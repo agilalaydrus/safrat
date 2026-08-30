@@ -671,10 +671,11 @@ func (s *AgentService) ListDocuments(ctx context.Context, authenticatedOrgID str
 	if req == nil || req.AgentId == "" {
 		return nil, serviceError("AgentService.ListDocuments", apperror.ErrValidation)
 	}
-	if _, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID); err != nil {
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
 		return nil, serviceError("AgentService.ListDocuments", err)
 	}
-	documents, err := s.agentRepository.ListDocuments(ctx, req.AgentId)
+	documents, err := s.agentRepository.ListDocuments(ctx, op.ID, req.AgentId)
 	if err != nil {
 		return nil, serviceError("AgentService.ListDocuments", err)
 	}
@@ -696,7 +697,7 @@ func (s *AgentService) ListMyDocuments(ctx context.Context, orgID, userID string
 	if err != nil {
 		return nil, serviceError("AgentService.ListMyDocuments", err)
 	}
-	documents, err := s.agentRepository.ListDocuments(ctx, self.ID)
+	documents, err := s.agentRepository.ListDocuments(ctx, op.ID, self.ID)
 	if err != nil {
 		return nil, serviceError("AgentService.ListMyDocuments", err)
 	}
