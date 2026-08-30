@@ -174,6 +174,152 @@ Aturan untuk kita: **satu `primary` per layar.** Sisanya `outline` atau `ghost`.
 
 ---
 
+## 2b. Kenapa punya kita terasa kaku — dan angkanya
+
+Ini bagian yang paling bisa diukur, jadi saya ukur dulu sebelum menyimpulkan.
+
+### Hitungan sebenarnya
+
+| | Meeqot (`admmeeqt`) | TawafiqHub (`/dashboard`) |
+|---|---|---|
+| `rounded-*` | **1.216 pemakaian** (xl 498 · full 326 · 2xl 173 · lg 168) | **2** |
+| `shadow-*` | **337** (`lift` 69 · `soft` 44 · `glow` 20 · sisanya token) | **0** |
+| `transition-*` | **400** (`all` 215 · `colors` 156) | **0** |
+| `animate-*` | **130** (`fade-up` 88 · `fade-in` 18 · `ping` 10) | **0** |
+| `ring-*` | **211** (`ring-brand-100` 62 · `ring-4` 54) | **0** |
+| `hover:*` | **±450** | **0** |
+
+Bukan soal selera. Elemen berwarna kita memang tidak bergerak, tidak
+mengambang, dan tidak menanggapi kursor sama sekali.
+
+### Penyebab strukturalnya
+
+`apps/web/components/ui/Button.tsx` dan `StatCard.tsx` ditulis dengan
+**inline style object**. Inline style **tidak bisa menyatakan `:hover`,
+`:focus-visible`, atau `:active`** — jadi bukan tombolnya lupa diberi hover,
+melainkan bentuk penulisannya membuat hover mustahil.
+
+Nilai sekarang: Button `borderRadius: 8`, tanpa bayangan, transisi hanya
+`opacity .15s, transform .1s` yang tidak pernah terpicu. StatCard
+`borderRadius: 10`, `border: 1px solid rgba(224,212,176,.6)` — garis krem sisa
+tema lama yang tidak lagi ada di palet Emerald — tanpa bayangan, tanpa hover.
+
+**Perbaikannya bukan menambah kelas, melainkan memindahkan ketiga primitif ini
+ke CSS berkelas** (`.tw-btn`, `.tw-card`, `.tw-stat` di `globals.css`, senapas
+dengan `.dashboard-*` dan `.tenant-*` yang sudah ada). Setelah itu barulah
+hover, focus ring, dan transisi bisa ditulis.
+
+### Resep "tidak kaku", dengan angka mereka
+
+**Sudut.** `rounded-xl` (12px) sebagai bawaan hampir segalanya — kartu, tombol,
+input, panel. `rounded-full` untuk lencana, pil status, dan avatar.
+`rounded-2xl` (16px) untuk kartu besar dan modal. Hampir tidak pernah ada sudut
+tajam. Nilai 8–10px kita sekarang terbaca kaku justru karena setengah jalan.
+
+**Bayangan — beri nama, jangan pakai bawaan.** Mereka memakai bayangan
+bernama, bukan `shadow-md`. Tiga sudah cukup:
+
+```css
+--shadow-soft: 0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.05);
+--shadow-lift: 0 2px 4px rgba(15,23,42,.05), 0 12px 32px rgba(15,23,42,.09);
+--shadow-glow: 0 8px 28px color-mix(in srgb, var(--tenant-brand) 22%, transparent);
+```
+
+`soft` untuk kartu diam · `lift` saat hover · `glow` hanya untuk elemen brand
+(tombol primary, kartu terpilih). Bayangan sangat lebar dan sangat tipis —
+itulah yang membuat kartu terasa mengambang, bukan bergaris.
+
+**Cincin, bukan garis.** Temuan paling khas: `ring-brand-100` 62× dengan
+`ring-4` 54×. Halo lebar 4px berwarna merek sangat muda menggantikan garis
+keras — untuk fokus, untuk baris terpilih, untuk kartu aktif. Terjemahannya:
+`box-shadow: 0 0 0 4px color-mix(in srgb, var(--tenant-brand) 12%, transparent)`.
+
+Ini juga menjawab aksesibilitas: cincin fokus 4px jauh lebih terbaca daripada
+outline 1px, dan tidak menggeser tata letak.
+
+**Transisi di hampir semuanya.** `transition-all` 215× dan `transition-colors`
+156×. Durasi: **150–200 ms** untuk warna dan hover, **300 ms** untuk transformasi,
+**700 ms** untuk bilah kemajuan dan grafik — cukup lambat untuk terbaca sebagai
+perubahan, bukan kedipan. Selalu `ease-out` untuk masuk.
+
+**Hover = pergeseran rona, bukan pergantian warna.** Dari data mereka:
+`hover:border-brand-300` 69× · `hover:text-brand-700` 48× ·
+`hover:bg-brand-50` 40× · `hover:brightness-110` 11×. Tidak ada satu pun yang
+mengganti warna secara drastis. Aturannya: **naik satu langkah pada skala yang
+sama**, plus `soft → lift` pada bayangan. Untuk tombol berisi penuh,
+`brightness(1.08)` lebih rapi daripada mendefinisikan warna hover kedua.
+
+**Animasi masuk.** `animate-fade-up` 88× — hampir setiap kartu dan baris masuk
+dengan naik pendek sambil memudar. Ini sebagian besar alasan produk mereka
+terasa "hidup".
+
+```css
+@keyframes fade-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.tw-enter { animation: fade-up 260ms ease-out both; }
+```
+
+Beri jeda bertingkat pada daftar (`animation-delay: calc(var(--i) * 28ms)`),
+maksimal delapan butir pertama supaya tabel panjang tidak terasa lambat.
+
+**Wajib:** bungkus seluruhnya dalam
+`@media (prefers-reduced-motion: reduce) { animation: none; transition: none; }`.
+Mereka tidak melakukannya. Kita harus.
+
+**Denyut untuk yang benar-benar hidup.** `animate-ping` 10× dan `pulse` 6× —
+hanya untuk titik status rombongan yang sedang berjalan dan SOS. Jangan lebih
+dari itu; gerakan yang tidak berarti apa-apa membuat yang berarti ikut
+diabaikan.
+
+**Gradien: sedikit sekali.** Ini mengejutkan — hanya 7 pemakaian di seluruh
+bundle 3,3 MB, dan semuanya pada elemen merek (`brand-600 → brand-500`,
+`gold-200 → gold-400`). Jadi kesan "tidak kaku" mereka **bukan** datang dari
+gradien. Untuk kita: satu gradien merek untuk header dan tombol primary, dan
+itu saja.
+
+**Bola cahaya kabur di latar.** `blur-3xl` 18× dan `blur-2xl` 8× — lingkaran
+besar berwarna merek dengan opasitas rendah di belakang header, jauh di bawah
+konten. Murah, dan menghilangkan kesan "kotak putih di atas abu-abu".
+Cukup di header modul, jangan di seluruh halaman.
+
+**Lapisan tembus.** Opasitas `/70`, `/50`, `/40` dipakai berulang untuk latar
+kartu di atas latar berpola. Sekat yang tembus terasa lebih ringan daripada
+sekat pekat.
+
+### Warna pada grafik
+
+Grafik mereka memakai `tone` yang sama dengan sisa UI — bukan palet chart
+terpisah. Aturan untuk kita:
+
+- **Deret tunggal** → `--tenant-brand`, dengan area gradien merek yang memudar
+  ke transparan di bawah garisnya.
+- **Deret ganda** → merek + `--color-cyan-600`; jangan lebih dari empat warna
+  dalam satu grafik.
+- **Kategorikal** → urutan tetap: brand → cyan → teal → warning → danger → warm.
+  Urutan yang sama di setiap grafik, supaya warna berarti hal yang sama di
+  seluruh dashboard.
+- **Sumbu dan kisi** `--color-warm-200`, tipis, tanpa garis sumbu penuh.
+- Titik aktif membesar dengan transisi 700 ms.
+- Batang dan area: `rounded` di ujung atas, jangan siku.
+
+### Ringkas — yang harus diikuti
+
+1. `rounded-xl` bawaan · `rounded-full` untuk lencana · `rounded-2xl` untuk kartu besar
+2. Tiga bayangan bernama: `soft` diam, `lift` hover, `glow` merek saja
+3. Cincin 4px merek-muda menggantikan garis keras, termasuk untuk fokus
+4. Transisi 150 ms warna · 300 ms transform · 700 ms bilah & grafik · `ease-out`
+5. Hover menaikkan satu langkah skala, tidak mengganti warna
+6. `fade-up` 260 ms saat masuk, bertingkat, maksimal 8 butir
+7. Denyut hanya untuk yang benar-benar hidup
+8. Satu gradien merek saja; bola kabur di header untuk kedalaman
+9. Grafik memakai `tone` yang sama, urutan warna tetap
+10. `prefers-reduced-motion` mematikan semuanya
+
+**Prasyarat:** `Button.tsx`, `StatCard.tsx`, dan `PageHero.tsx` dipindah dari
+inline style ke CSS berkelas lebih dulu. Selama masih inline, sembilan poin
+pertama tidak bisa ditulis sama sekali.
+
+---
+
 ## 3. Anatomi halaman baku
 
 Setiap layar dashboard mengikuti kerangka yang sama. Ini yang membuat produk
@@ -386,9 +532,15 @@ Sebelum modul apa pun. Sekali dibuat, dipakai seluruh dashboard.
 ## 6. Urutan
 
 **Tahap 0 — fondasi (tidak menyentuh backend, bisa mulai hari ini)**
-1. Tambahkan trio warna `warning` ke `globals.css`
-2. Bangun 11 komponen di atas
-3. Terapkan ke 27 layar yang sudah ada: subjudul hidup, keadaan kosong yang
+1. **Pindahkan `Button.tsx`, `StatCard.tsx`, `PageHero.tsx` dari inline style ke
+   CSS berkelas.** Prasyarat mutlak — inline style tidak bisa menyatakan
+   `:hover` atau `:focus-visible`, jadi selama masih begitu seluruh resep di
+   §2b tidak bisa ditulis.
+2. Tambahkan ke `globals.css`: trio warna `warning`, tiga bayangan bernama
+   (`soft`/`lift`/`glow`), keyframe `fade-up`, dan blok
+   `prefers-reduced-motion`.
+3. Bangun 11 komponen di §5.
+4. Terapkan ke 27 layar yang sudah ada: subjudul hidup, keadaan kosong yang
    mengajar, placeholder pencarian deskriptif, satu primary per layar
 
 Tahap 0 saja sudah menutup sebagian besar jarak yang terasa, tanpa satu pun
