@@ -23,13 +23,40 @@ import (
 // which it will, because it is reading somebody else's HTML — a person reads
 // the statement and settles the invoice by hand. Automation removes the routine
 // case; it does not remove the fallback.
+// OperatorNotifier tells a travel's staff something happened. An interface
+// rather than the pusher itself, so settlement does not depend on Firebase
+// being configured — with no notifier the money still moves.
+type OperatorNotifier interface {
+	NotifyOperatorStaff(ctx context.Context, operatorID, title, body string) error
+}
+
 type BankMutationService struct {
 	subscriptions *repository.SubscriptionRepository
 	audit         *repository.AuditRepository
+	notifier      OperatorNotifier
 }
 
-func NewBankMutationService(subscriptions *repository.SubscriptionRepository, audit *repository.AuditRepository) *BankMutationService {
-	return &BankMutationService{subscriptions: subscriptions, audit: audit}
+func NewBankMutationService(subscriptions *repository.SubscriptionRepository, audit *repository.AuditRepository, notifier OperatorNotifier) *BankMutationService {
+	return &BankMutationService{subscriptions: subscriptions, audit: audit, notifier: notifier}
+}
+
+// tellOperator says a transfer landed.
+//
+// Until this existed a travel transferred money and then waited with no signal
+// at all — and with automatic matching, an invoice can now settle at three in
+// the morning with nobody watching. Silence after a payment reads as a payment
+// that did not arrive.
+//
+// Failures are logged by the pusher and never returned. The money has already
+// moved and the access is already granted; refusing to finish that because a
+// notification could not be delivered would undo a settlement over a message.
+func (s *BankMutationService) tellOperator(ctx context.Context, operatorID string, amountIDR int64) {
+	if s.notifier == nil || operatorID == "" {
+		return
+	}
+	_ = s.notifier.NotifyOperatorStaff(ctx, operatorID,
+		"Pembayaran diterima",
+		"Transfer "+rupiah(amountIDR)+" sudah kami terima dan langganan Anda diperpanjang.")
 }
 
 // IngestResult says what happened to one credit, in the words the feed's
@@ -103,6 +130,7 @@ func (s *BankMutationService) Ingest(ctx context.Context, source, externalID str
 
 	_ = s.audit.Write(ctx, operatorID, "system", "bank_transfer_matched", "subscription_invoice", invoiceID,
 		"cocok otomatis dengan mutasi "+externalID+" dari "+source)
+	s.tellOperator(ctx, operatorID, amountIDR)
 
 	result.Matched = true
 	result.InvoiceID = invoiceID
@@ -116,6 +144,18 @@ func (s *BankMutationService) Ingest(ctx context.Context, source, externalID str
 // numbered two entries the same. A person decides, and the decision is tied to
 // a credit that actually exists rather than to a number somebody typed —
 // which is what separates this from confirming by amount alone.
+// SettleManuallyFor is SettleManually with the operator known, so the travel
+// can be told. Split out because the caller already looked the operator up and
+// a second lookup after settlement would find nothing — the invoice is no
+// longer pending by then.
+func (s *BankMutationService) SettleManuallyFor(ctx context.Context, mutationID, invoiceID, userID, note, operatorID string, amountIDR int64) error {
+	if err := s.SettleManually(ctx, mutationID, invoiceID, userID, note); err != nil {
+		return err
+	}
+	s.tellOperator(ctx, operatorID, amountIDR)
+	return nil
+}
+
 func (s *BankMutationService) SettleManually(ctx context.Context, mutationID, invoiceID, userID, note string) error {
 	if !isUUID(mutationID) || !isUUID(invoiceID) || strings.TrimSpace(note) == "" {
 		return connect.NewError(connect.CodeInvalidArgument,

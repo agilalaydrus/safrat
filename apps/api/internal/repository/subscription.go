@@ -730,3 +730,22 @@ func (r *SubscriptionRepository) CountStaleUnmatched(ctx context.Context, olderT
 		int32(olderThan.Seconds())).Scan(&count, &total)
 	return count, total, err
 }
+
+// PendingInvoiceSubject reads who an invoice belongs to and for how much.
+//
+// Read before settling, never after: once the invoice is PAID it is no longer
+// pending, and a lookup that ran afterwards would find nothing — which is a
+// mistake already made once in this file's callers.
+func (r *SubscriptionRepository) PendingInvoiceSubject(ctx context.Context, invoiceID string) (operatorID string, amountIDR int64, err error) {
+	id, err := pgUUID(invoiceID)
+	if err != nil {
+		return "", 0, apperror.ErrValidation
+	}
+	err = r.pool.QueryRow(ctx, `
+		SELECT operator_id::text, amount_idr FROM subscription_invoices
+		WHERE id = $1 AND status = 'PENDING'`, id).Scan(&operatorID, &amountIDR)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", 0, apperror.ErrNotFound
+	}
+	return operatorID, amountIDR, err
+}

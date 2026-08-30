@@ -83,10 +83,17 @@ func (s *PlatformService) SettleInvoiceWithMutation(ctx context.Context, req *ha
 	if req == nil || s.bankMutations == nil {
 		return nil, serviceError("PlatformService.SettleInvoiceWithMutation", apperror.ErrValidation)
 	}
-	if err := s.bankMutations.SettleManually(ctx, req.MutationId, req.InvoiceId, userID, req.Note); err != nil {
+	// Read before settling. Afterwards the invoice is no longer pending and
+	// this finds nothing — the same trap that bit the confirm-by-amount path.
+	operatorID, amountIDR, subjectErr := s.subscriptionRepository.PendingInvoiceSubject(ctx, req.InvoiceId)
+	if subjectErr != nil {
+		return nil, serviceError("PlatformService.SettleInvoiceWithMutation", subjectErr)
+	}
+
+	if err := s.bankMutations.SettleManuallyFor(ctx, req.MutationId, req.InvoiceId, userID, req.Note, operatorID, amountIDR); err != nil {
 		return nil, err
 	}
-	_ = s.auditRepository.Write(ctx, "", userID, "bank_mutation_settled", "subscription_invoice", req.InvoiceId,
+	_ = s.auditRepository.Write(ctx, operatorID, userID, "bank_mutation_settled", "subscription_invoice", req.InvoiceId,
 		"dicocokkan manual dengan mutasi "+req.MutationId+": "+strings.TrimSpace(req.Note))
 	return &hajjv1.SettleInvoiceWithMutationResponse{}, nil
 }
@@ -498,6 +505,11 @@ func (s *PlatformService) ConfirmBankTransfer(ctx context.Context, req *hajjv1.C
 
 	_ = s.auditRepository.Write(ctx, operatorID, userID, "bank_transfer_confirmed", "subscription_invoice", invoiceID,
 		"transfer masuk "+rupiah(req.AmountIdr))
+	// The same signal as the automatic path. A travel should not learn whether
+	// they were told based on which route settled their payment.
+	if s.bankMutations != nil {
+		s.bankMutations.tellOperator(ctx, operatorID, req.AmountIdr)
+	}
 
 	return &hajjv1.ConfirmBankTransferResponse{
 		InvoiceId: invoiceID, OperatorName: operatorName, AmountIdr: req.AmountIdr,

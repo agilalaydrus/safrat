@@ -474,3 +474,43 @@ func TestRenewalIsIssuedOnceAndNotForTheCancelledIntegration(t *testing.T) {
 		t.Fatal("langganan yang sudah dibatalkan tetap ditagih")
 	}
 }
+
+// The travel has to be told, and by the same signal whichever route settled
+// their payment — automatic matching, an attached credit, or an amount typed
+// off the statement. Learning whether you were notified based on which path ran
+// is not a design, it is an accident.
+//
+// The subject is read before settling, because afterwards the invoice is no
+// longer pending and the lookup finds nothing.
+func TestInvoiceSubjectIsReadableOnlyWhilePendingIntegration(t *testing.T) {
+	pool := subscriptionTestPool(t)
+	ctx := context.Background()
+	subscriptions := NewSubscriptionRepository(pool)
+	operatorID := newTestOperator(t, pool, "STARTER")
+	if err := subscriptions.EnsureForOperator(ctx, operatorID); err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+	invoice, err := subscriptions.IssueBankTransferInvoice(ctx, operatorID, "GROWTH")
+	if err != nil {
+		t.Fatalf("issue: %v", err)
+	}
+
+	subject, amount, err := subscriptions.PendingInvoiceSubject(ctx, invoice.ID)
+	if err != nil {
+		t.Fatalf("subject: %v", err)
+	}
+	if subject != operatorID || amount != invoice.Amount {
+		t.Fatalf("subjek = %s/%d, mau %s/%d", subject, amount, operatorID, invoice.Amount)
+	}
+
+	if err := subscriptions.MarkPaid(ctx, invoice.ID); err != nil {
+		t.Fatalf("mark paid: %v", err)
+	}
+
+	// This is the trap the ordering exists to avoid: after settlement there is
+	// nothing left to read, so a caller that looked it up afterwards would
+	// silently notify nobody.
+	if _, _, err := subscriptions.PendingInvoiceSubject(ctx, invoice.ID); !errors.Is(err, apperror.ErrNotFound) {
+		t.Fatalf("tagihan yang sudah lunas masih terbaca sebagai pending: %v", err)
+	}
+}

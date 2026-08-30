@@ -312,7 +312,7 @@ func main() {
 		// The platform review queue refunds when it resolves a failure, so it
 		// needs both — composed after construction because the order service is
 		// built later and takes the fulfilment service itself.
-		bankMutationService := service.NewBankMutationService(subscriptionRepository, auditRepository)
+		bankMutationService := service.NewBankMutationService(subscriptionRepository, auditRepository, firebasePusher)
 		platformService.AttachFulfilment(orderService, fulfilmentService)
 		platformService.AttachBankMutations(bankMutationService)
 		orderHandler := handler.NewOrderHandler(orderService)
