@@ -109,9 +109,9 @@ bayangan lebar-tipis, cincin, dan gerakan.
 - [ ] `DataTable` (pencarian deskriptif, filter, ekspor, klik baris → panel)
 - [ ] `DetailDrawer` (panel samping, mempertahankan konteks daftar)
 - [ ] `Wizard` (langkah bernomor + skor kesiapan + validasi silang)
-- [ ] `ChartFrame` (judul + subjudul penjelas sumbu — **wajib**)
-- [ ] `ProgressBar` (transisi ±700 ms)
-- [ ] `MethodologyNote`
+- [x] `ChartFrame` (judul + subjudul penjelas sumbu — **wajib**) (`758097d`)
+- [x] `ProgressBar` (transisi ±700 ms) (`758097d`)
+- [x] `MethodologyNote` (`758097d`)
 
 Enam `tone`: `success` `info` `brand` `warning` `danger` `neutral`.
 Sembilan nada mereka dipadatkan — lebih sedikit, lebih konsisten.
