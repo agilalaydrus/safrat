@@ -3143,3 +3143,35 @@ preview semuanya lulus.
 karena browser terintegrasi tidak tersedia pada sesi ini. Production belum
 diubah; redesign baru ada di repository lokal sampai commit ini didorong dan
 dideploy.
+
+---
+
+## Paket hilang akhirnya punya jalan keluar (2026-08-30)
+
+Alarm dua minggu yang saya tambahkan kemarin memberi tahu bahwa paket tidak
+sampai, **dan tidak menawarkan apa pun untuk menutupnya**. Tidak bisa ditandai
+diserahkan karena memang belum; tidak bisa ditandai hilang sama sekali. Uang
+sudah diambil, alarm berulang tiap sweep, tidak ada yang bisa dilakukan.
+
+Itu cacat yang sama persis dengan yang saya perbaiki untuk fulfilment supplier
+dua hari sebelumnya — **diperkenalkan lagi dengan menambah alarm tanpa pintu
+keluar**. Pola yang layak diingat: setiap alarm baru harus datang bersama cara
+menutupnya.
+
+### Yang berlaku sekarang
+
+- Menyatakan paket hilang **mengembalikan uang**. Tanpa itu ini lebih buruk
+  daripada alarm yang dibungkamnya: catatannya berkata perkara selesai
+  sementara jamaah tetap kehilangan uangnya.
+- **Fulfilment dipindahkan lebih dulu**, dan update itu bersyarat pada paket
+  masih terbuka — itu yang mencegah dua klik jadi dua refund.
+- **Paket yang sudah diserahkan tidak bisa dinyatakan hilang.** Serah terima
+  yang tercatat adalah bukti seseorang menandatanganinya, dan bukti tidak boleh
+  bisa dihapus oleh klik berikutnya.
+- Tombolnya baru muncul setelah paket benar-benar dikirim. Sebelum itu ia bukan
+  hilang, melainkan belum dikirim — dan jalan keluarnya adalah mengirimnya.
+
+### Masih terbuka
+
+Notifikasi ke travel saat pembayaran diakui. Dengan pencocokan otomatis, sebuah
+tagihan bisa lunas tengah malam tanpa siapa pun tahu.
