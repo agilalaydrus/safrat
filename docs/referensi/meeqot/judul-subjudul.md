@@ -1,0 +1,315 @@
+# Judul + subjudul tiap bagian layar — admmeeqt
+
+Pola paling penting untuk ditiru: subjudul selalu menghitung isi layar.
+`${...}` adalah nilai hidup dari data, bukan teks statis.
+
+- **Jakarta → Jeddah** — Kumpul di Terminal 3 Soekarno-Hatta, penerbangan menuju Jeddah, perjalanan darat ke Makkah.
+- **Miqat & Niat Ihram di Masjid Aisyah** — Rombongan berkumpul di Masjid Aisyah (Tan'im) untuk mengambil miqat dan berniat umroh sebelum menuju Masjidil Haram.
+- **Thawaf Ifadah 7 Putaran** — Mengelilingi Ka'bah 7 putaran dibimbing muthawwif, dimulai dari Hajar Aswad.
+- **Sa'i Shafa–Marwah & Tahallul** — Sa'i 7 kali antara bukit Shafa dan Marwah, ditutup tahallul (potong rambut) — umroh selesai.
+- **Ibadah di Masjidil Haram** — Shalat berjamaah, thawaf sunnah, kajian ba'da Subuh bersama pembimbing.
+- **Berangkat City Tour — Jabal Tsur** — Berangkat naik bus dari hotel menuju Jabal Tsur, mendengar kisah hijrah Rasulullah ﷺ.
+- **Ziarah Arafah & Muzdalifah** — Mengunjungi padang Arafah dan Muzdalifah, mendengar penjelasan muthawwif tentang wukuf & mabit.
+- **Mina & Jabal Nur** — Melihat tenda-tenda Mina dan Jabal Nur (Gua Hira) dari kejauhan, kembali ke hotel sebelum Zuhur.
+- **Makkah → Madinah** — Perjalanan menuju Madinah, check-in hotel, shalat di Masjid Nabawi.
+- **Raudhah & Ziarah** — Shalat di Raudhah (dengan tasreh), ziarah makam Rasulullah ﷺ dan Baqi'.
+- **City Tour Madinah** — Masjid Quba, Jabal Uhud, Kebun Kurma, dan Masjid Qiblatain.
+- **Madinah → Jeddah** — Perjalanan ke Jeddah, city tour Corniche & Masjid Terapung, menuju bandara.
+- **Tiba di Jakarta** — Penerbangan pulang, tiba di Tanah Air. Semoga menjadi umroh yang mabrur.
+- **Bangunkan jamaah** — Broadcast morning call + ketuk pintu kamar lansia & kursi roda.
+- **Subuh berjamaah di Masjidil Haram** — Berangkat bersama dari lobi, masuk lewat Gate 1 King Abdul Aziz.
+- **Sarapan di hotel** — Restoran lantai 2, menu Indonesia. Pastikan jamaah diabetes dapat menu khusus.
+- **City tour Makkah** — Jabal Tsur, Arafah, Muzdalifah, Mina, dan Jabal Nur. 2 bus, air mineral & payung dibagikan.
+- **Kembali ke hotel & makan siang** — Rombongan istirahat, jamaah lansia diminta tidur siang sebelum agenda sore.
+- **Ashar berjamaah** — Jadwal bebas — jamaah dianjurkan thawaf sunnah bila kondisi memungkinkan.
+- **Briefing persiapan Madinah** — Penjelasan rute darat 6 jam, aturan koper, tasreh Raudhah, dan pembagian kamar Madinah.
+- **Maghrib berjamaah + kajian** — Kajian singkat ba'da Maghrib: adab ziarah Madinah & keutamaan Raudhah.
+- **Check koper & label bus** — Koper besar diletakkan di depan kamar, ditimbang & ditempel label bus untuk check-out.
+- **Laporan harian ke kantor pusat** — Rekap kehadiran, kondisi kesehatan, insiden, dan kesiapan perjalanan Madinah.
+- **Istirahat malam** — Jamaah kembali ke kamar. Piket malam oleh muthawwif di posko lobi.
+- **Jeddah → Istanbul** — Penerbangan menuju Istanbul, check-in hotel kawasan Sultanahmet.
+- **Istanbul Heritage** — Hagia Sophia, Blue Mosque, Topkapi Palace, dan Grand Bazaar.
+- **Bursa Day Trip** — Masjid Agung Bursa, kereta gantung Uludağ, dan pusat sutra.
+- **Istanbul → Jakarta** — Penerbangan pulang ke Tanah Air.
+- **Pendaftar vs Keberangkatan** — 12 bulan terakhir
+- **Pendapatan Bulanan** — Total pembayaran diterima per bulan
+- **Pipeline Jamaah** — Sebaran jamaah per tahap
+- **Agenda Terdekat** — Jadwal 5 kegiatan berikutnya
+- **Notifikasi Terbaru** — Aktivitas sistem & lapangan
+- **Paket Perjalanan** — ${oe.activeCount} paket aktif dari ${a.length} total — kelola harga, kuota, dan rundown
+- **Okupansi Kursi per Paket** — Kursi terisi vs tersedia — paket aktif
+- **Pendapatan per Paket** — Total pembayaran terverifikasi per paket
+- **Tidak ada paket yang cocok** — Coba ubah kata kunci pencarian atau atur ulang filter tipe dan status.
+- **Paket tidak ditemukan** — Tidak ada paket dengan ID 
+- **Harga per Tipe Kamar** — Termasuk tiket, hotel, visa, & handling
+- **Kursi Eksekutif** — Add-on berbayar untuk semua penerbangan paket ini
+- **Kurikulum Manasik** — Dipraseleksi otomatis saat buat rombongan dari paket ini
+- **Layanan Tambahan** — Berlaku untuk semua paket · dikelola di menu Layanan Tambahan
+- **Perjalanan** — Rangkaian keberangkatan yang memakai paket ini
+- **Jamaah Terdaftar (${q.length})** — Klik baris untuk membuka profil jamaah
+- **Data Jamaah** — ${kt.length} jamaah terdaftar · ${yt.aktif} aktif dalam pipeline · ${ze(yt.terkumpul)} dana terkumpul
+- **Tren Pendaftaran** — ${it.length} jamaah sesuai filter · Jan–Jul 2026
+- **Sebaran per Cabang** — Klik untuk memfilter daftar
+- **Rencana Pembayaran** — Klik untuk memfilter daftar
+- **Tidak ada jamaah** — Tidak ada jamaah yang cocok dengan filter aktif.
+- **Paket ini belum punya keberangkatan** — Buat keberangkatan dulu dari halaman Detail Paket atau menu Keberangkatan, lalu jamaah ini bisa dimasukkan ke dalamnya.
+- **Tidak ada rombongan tujuan yang tersedia** — Keberangkatan lain pada paket ini sudah berjalan, lewat tanggal, atau kursinya penuh. Buat keberangkatan baru dulu bila ${n.name} perlu dipindahkan.
+- **Data Diri** — Identitas & berkas
+- **Paket & Kamar** — Perjalanan + jamaah
+- **Pembayaran** — Skema & simulasi
+- **Konfirmasi** — Tinjau & kirim
+- **Pendaftaran Jamaah Baru** — Empat langkah terpandu — identitas, paket, pembayaran, konfirmasi.
+- **Identitas Calon Jamaah** — Tulis persis seperti yang tertera di KTP & paspor
+- **Kelengkapan Berkas** — Klik kartu untuk mengubah status: belum ada → diproses → lengkap
+- **Konfigurasi — ${ye.name}** — Tipe kamar, jumlah jamaah, dan rombongan keberangkatan (opsional)
+- **Tinjau Data Pendaftaran** — Periksa sekali lagi sebelum dikirim
+- **Ringkasan Live** — Diperbarui otomatis
+- **Jamaah tidak ditemukan** — Tidak ada jamaah dengan ID 
+- **Tahapan Perjalanan Jamaah** — Pipeline 8 tahap dari pendaftaran hingga alumni
+- **Paket yang Dimiliki** — ${ae.length} paket terdaftar atas NIK yang sama
+- **Kelengkapan Dokumen** — 6 dokumen wajib perjalanan
+- **Kelebihan Bayar** — Muncul dari reprice (Pindah Paket/Kursi Eksekutif) yang lebih murah dari yang sudah dibayar
+- **Identitas** — Data diri & kontak
+- **Detail Tambahan** — Alamat & preferensi
+- **Edit Data — ${o.name}** — Tiga langkah: identitas, detail tambahan, konfirmasi.
+- **Pilih Paket** — Paket tujuan
+- **Keberangkatan & Kamar** — Rombongan & tier
+- **Tidak Bisa Pindah Paket** — Jamaah ini sudah berstatus 
+- **Pindah Paket — ${p.name}** — Saat ini: ${X?.name??p.packageId} · ${p.roomType}
+- **Pilih Paket Tujuan** — Paket lain bertipe ${X?.type===
+- **Tidak ada paket lain** — Tidak ada paket lain dengan tipe yang sama untuk dipindahkan.
+- **Pilih Keberangkatan** — Rombongan milik ${ae.name} — minimal ${vT} hari dari sekarang
+- **Belum ada keberangkatan** — Paket ini belum punya jadwal keberangkatan.
+- **Arus Kas Masuk** — Nominal per ${zt.gran===
+- **Umur Piutang (Aging)** — Sebaran cicilan belum dibayar menurut jatuh tempo
+- **Kanal Pembayaran** — Distribusi nominal — ${zt.label.toLowerCase()}
+- **Kolektibilitas per Cabang** — Rasio pembayaran terkumpul terhadap nilai kontrak
+- **Rencana Bayar & Ketepatan** — Kolektibilitas tiap skema dan porsi tagihan jatuh tempo yang lunas tepat waktu
+- **Antrean bersih** — ${ie.size>0?
+- **Tagihan Jatuh Tempo & Tunggakan** — Cicilan belum dibayar hingga 30 hari ke depan, diurutkan dari paling mendesak
+- **Buku Piutang per Jamaah** — Rekapitulasi sisa tagihan, progres pembayaran, dan status risiko tiap jamaah
+- **Keberangkatan ${p.id}** — ${l.name} · ${b?.code??
+- **Kepulangan ${p.id}** — ${l.name} · ${p.pax} jamaah
+- **Linimasa Operasional** — Keberangkatan & kepulangan terdekat
+- **Perjalanan & Manajemen Trip** — ${n.length} rombongan · ${ae.liveDeps} live di Tanah Suci · tim petugas, manifes, roomlist, dan tracking perjalanan
+- **Tidak ada rombongan ditemukan** — Coba ubah kata kunci pencarian atau reset filter.
+- **Hotel — ${a(e.hotelId)}** — ${e.city} · ${e.checkIn} → ${e.checkOut}
+- **${f5e[i.mode]} ${i.code} — ${i.operator}** — ${i.from} → ${i.to} · ${i.date} · ${i.departAt}–${i.arriveAt} · dialokasikan ${e.allocatedSeats} kursi
+- **Paket** — Pilih satu paket yang memakai Perjalanan ini
+- **Rangkaian Perjalanan** — Urut sesuai ditambahkan — mulai & akhiri dengan Transportasi
+- **Belum ada segmen** — Tambahkan segmen transportasi & hotel secara berurutan lewat tombol di bawah.
+- **Belum ada rundown** — Tambahkan rundown harian lewat tombol di bawah, atau lewati — bisa dilengkapi belakangan.
+- **Tambah Perjalanan** — Susun rangkaian transportasi & hotel untuk satu rombongan baru
+- **${P5e[i.mode]} ${i.code} — ${i.operator}** — ${i.from} → ${i.to} · ${i.date} · ${i.departAt}–${i.arriveAt} · dialokasikan ${e.allocatedSeats} kursi
+- **Checklist Persiapan Trip** — Klik item untuk menandai selesai — tersimpan per rombongan
+- **Tim Petugas** — Pendamping resmi rombongan ini
+- **Kesiapan Dokumen** — Rekap manifes · ${e.length} jamaah
+- **Petugas belum mengirim momen** — Foto, video singkat, dan catatan kabar dikirim tim pendamping lewat aplikasi petugas.
+- **Rundown belum disusun** — Rundown harian untuk paket ini belum tersedia.
+- **Rundown Perjalanan** — ${o.duration} hari · ${o.name}
+- **Belum ada riwayat absensi** — Absensi tercatat otomatis dari aplikasi mobileadmin saat aktivitas berlangsung.
+- **Riwayat Absensi** — ${b.length} aktivitas tercatat · ${E.length} hari
+- **Belum ada kurikulum manasik** — Terapkan template dari katalog Template Manasik — sesinya akan otomatis tercatat di menu Agenda.
+- **Armada Bus** — Assign jamaah ke bus, tervalidasi terhadap segmen Bus di tab Rangkaian
+- **Belum ada segmen Bus di Rangkaian Perjalanan** — Tambahkan segmen Bus di tab Rangkaian sebelum mengelola armada.
+- **Roomlist Hotel** — Assign jamaah ke kamar, dikelompokkan per kota/hotel di tab Rangkaian
+- **Belum ada segmen Hotel di Rangkaian Perjalanan** — Tambahkan segmen Hotel di tab Rangkaian sebelum mengelola kamar.
+- **Rombongan tidak ditemukan** — Tidak ada rombongan dengan ID 
+- **Rombongan ${Ae.id}** — ${$e.name}${tt.length>0?
+- **Manifes Jamaah (${Me.length})** — Klik baris untuk membuka profil jamaah
+- **Timeline Penugasan** — Mei – November 2026 · klik bar untuk membuka rombongan
+- **Petugas tidak ditemukan** — Coba ubah kata kunci atau filter peran.
+- **Hotel** — ${e.length} hotel terdaftar · ${l} Makkah · ${b} Madinah
+- **Belum ada hotel** — Tambahkan hotel pertama lewat tombol 'Tambah Hotel' di atas.
+- **Transportasi** — ${e.length} entri terdaftar · ${l} pesawat · ${b} bus · ${v} kereta
+- **Belum ada transportasi** — Tambahkan entri pertama lewat tombol 'Tambah Transportasi' di atas.
+- **Belum ada layanan tambahan** — Tambahkan layanan pertama lewat tombol 'Tambah Layanan' di atas.
+- **Template Manasik** — ${e.length} kurikulum tersedia — dipilih admin saat membuat rombongan baru
+- **Belum ada template manasik** — Tambahkan kurikulum pertama lewat tombol 'Tambah Template' di atas.
+- **Pencairan Komisi** — ${T.length} permintaan menunggu persetujuan — total ${ze(z)} untuk ${$} agen
+- **Kelebihan Bayar Jamaah** — ${v.length} jamaah menunggu dicairkan — total ${ze(P)}
+- **Pengaturan** — Pusat konfigurasi ${Ad.name} — profil, tim, template, integrasi, keamanan & langganan
+- **Identitas Perusahaan** — Dipakai pada invoice, e-ticket, kontrak jamaah, dan aplikasi mobile
+- **Dokumen Legal & Perizinan** — Masa berlaku dipantau otomatis — pengingat dikirim H-90
+- **Cabang Terdaftar** — ${i.length} kantor aktif — pengaturan berlaku ke seluruh cabang
+- **Branding & Tampilan** — Warna diterapkan ke portal jamaah dan dokumen cetak
+- **Regional & Format** — Berlaku untuk seluruh tampilan dan ekspor data
+- **Anggota Tim** — Klik baris untuk melihat rincian akses
+- **Tidak ada anggota** — Coba ubah kata kunci atau filter peran.
+- **Matriks Hak Akses** — Klik sel untuk mengubah level: — → Lihat → Ubah → Penuh
+- **Daftar Template** — ${e.templates.filter(ae=>ae.active).length}/${e.templates.length} aktif
+- **Pratinjau Jamaah** — Contoh isi variabel dari data jamaah nyata
+- **Performa Template** — Akumulasi 90 hari terakhir
+- **Kunci API & Webhook** — Untuk integrasi kustom dengan sistem internal
+- **Status Layanan** — Pemantauan 24 jam terakhir
+- **Matriks Notifikasi** — Tentukan kanal pengiriman untuk setiap event operasional
+- **Jadwal Pengingat Cicilan** — Pilih hari pengiriman sebelum jatuh tempo
+- **Jam kirim otomatis** — Waktu default pengiriman notifikasi terjadwal
+- **Jam Tenang** — Notifikasi non-darurat ditahan pada rentang ini
+- **Aturan Eskalasi** — Tindakan otomatis saat kondisi tertentu
+- **Kebijakan Keamanan** — Berlaku untuk seluruh akun dashboard dan aplikasi petugas
+- **Verifikasi 2 langkah (2FA) wajib** — Setiap akun admin wajib memasukkan kode dari aplikasi autentikator saat login.
+- **Pembatasan IP kantor** — Login peran Super Admin & Keuangan hanya dari alamat IP terdaftar.
+- **Batasi satu perangkat per akun** — Sesi lama otomatis diakhiri ketika akun login dari perangkat baru.
+- **Keluar otomatis saat tidak aktif** — Sesi berakhir setelah periode tidak ada aktivitas.
+- **Kebijakan kata sandi** — Aturan minimum panjang dan kombinasi karakter untuk seluruh pengguna.
+- **Pencadangan otomatis harian** — Salinan basis data terenkripsi disimpan 30 hari di wilayah Jakarta.
+- **Retensi log audit** — Lama penyimpanan jejak perubahan konfigurasi dan akses data.
+- **Sesi Aktif** — Perangkat yang sedang masuk ke akun perusahaan
+- **Log Audit** — Riwayat perubahan · retensi ${i.auditRetention} bulan
+- **Pemakaian Kuota** — Reset setiap tanggal 1 · perhitungan real-time
+- **Riwayat Tagihan** — 5 periode terakhir
+- **Add-on** — Aktifkan sesuai kebutuhan — tagihan prorata
+- **Dukungan Prioritas** — Tim Meeqot siap 24/7
+- **Pencapaian target** — Periode tahun berjalan 2026
+- **Tren omzet & jamaah** — 12 bulan terakhir
+- **Perolehan jamaah bulanan** — Jumlah jamaah baru per bulan
+- **Posisi terhadap cabang lain** — Skor kinerja gabungan (70% omzet · 30% jamaah)
+- **Pipeline jamaah aktif** — ${b.length} jamaah berjalan di cabang ini
+- **Belum ada jamaah aktif** — Cabang ini belum memiliki jamaah pada portofolio berjalan.
+- **Kesiapan dokumen** — Jamaah dengan dokumen lengkap
+- **Daftar jamaah** — Klik untuk membuka profil
+- **Jatuh tempo terdekat** — 6 cicilan paling mendesak
+- **Tidak ada tagihan tertunda** — Seluruh cicilan jamaah cabang ini sudah lunas.
+- **Jaringan Cabang** — ${a.length} cabang · ${ce.agents} agen aktif · ${ce.achievedJamaah} jamaah terealisasi tahun ini
+- **Cabang tidak ditemukan** — Ubah kata kunci pencarian atau pilih wilayah lain.
+- **Kinerja seluruh cabang** — Menampilkan ${Ae.length} dari ${a.length} cabang · klik baris untuk membuka panel detail
+- **Peta sebaran jaringan** — Ukuran titik = omzet · warna = skor kinerja · klik untuk memilih
+- **Analitik jaringan** — Perbandingan, tren, dan matriks produktivitas antar cabang
+- **Papan Peringkat** — Skor gabungan omzet & jamaah
+- **Pusat Aksi** — ${re.length} rekomendasi otomatis
+- **Sebaran wilayah** — Kontribusi omzet per wilayah
+- **Penawaran #PN-114 dikirim** — 2 opsi kamar (Quad Rp 114 jt / Triple Rp 124 jt) untuk 4 pax, keberangkatan 15 Desember 2026.
+- **Proposal korporat #PN-098 dikirim** — 8 pax Umroh VIP Executive dengan diskon korporat 5% + branding seragam perusahaan.
+- **Penawaran grup #PN-088 dikirim** — 15 pax Ramadhan I'tikaf, diskon grup 7% + 1 seat pembimbing gratis.
+- **Pertemuan pengurus di masjid** — Disepakati mekanisme pembayaran kolektif via bendahara pengajian, DP 30% awal Agustus.
+- **Deal disepakati** — Umroh VIP Executive 2 pax, total Rp 110 jt. DP 30% dijadwalkan 25 Juli 2026.
+- **Penawaran resmi dikirim** — ${e.pax} pax — ${mc(e).name}, estimasi nilai ${Math.round(e.value/1e6)} jt.
+- **Kesepakatan tercapai** — Lead berpindah ke tahap Closing — menunggu/menerima DP.
+- **CRM Leads** — ${ct.aktif.length} prospek aktif dari ${_t.length} kanal pemasaran · diperbarui ${Mt(na,
+- **Corong Konversi** — Berapa lead yang mencapai tiap tahap
+- **Sumber Lead** — Klik kanal untuk memfilter papan
+- **Performa Kanal Pemasaran** — Belanja iklan bulan berjalan ${ze(CP)} · CPL gabungan ${ze(BT)}
+- **Papan Peringkat PIC** — Klik nama untuk memfilter papan lead
+- **Minat Paket** — Nilai pipeline per produk
+- **Umur Lead Aktif** — Semakin tua, semakin dingin
+- **Pusat Tindakan** — ${ct.perhatian} lead butuh perhatian tim hari ini
+- **Tidak ada lead yang cocok** — Coba ubah kata kunci atau reset filter.
+- **${Pe.name} di bawah minimum** — Sisa ${Pe.stock}/${Pe.minStock} ${Pe.unit} · cukup ${Pe.cover} hari lagi
+- **${Pe.id} melewati ETA** — ${Kc(Pe.vendorId).name} · ETA ${Mt(Pe.eta)} · ${HT(Pe)} unit tertahan
+- **${Pe.dep.id} kekurangan ${Pe.kurang} unit** — ${Pe.dep.packageName} · berangkat ${Mt(Pe.dep.date)} (H-${Pe.hari})
+- **Selisih opname ${yg(Pe.itemId).name}** — Sistem ${Pe.system} vs fisik ${Pe.physical} ${yg(Pe.itemId).unit} · ${Pe.by}
+- **${Pe.name} mepet lead time vendor** — Ketahanan ${Pe.cover} hari, pengiriman ${Kc(Pe.vendorId).name} butuh ${Pe.leadTime} hari
+- **${Pe.name} melebihi kapasitas rak** — ${Pe.stock} ${Pe.unit} vs ideal ${Pe.maxStock} · tahan pemesanan berikutnya
+- **Inventaris Perlengkapan** — ${D2.name} — stok koper, ihram, seragam, dan atribut rombongan · sinkron ${D2.lastSync}
+- **Arus Stok Gudang** — Barang masuk vs keluar per bulan, dengan nilai persediaan akhir bulan
+- **Radar Kesiapan Keberangkatan** — Kebutuhan perlengkapan tiap kloter, dialokasikan dari stok yang ada
+- **Pusat Tindakan Gudang** — Hal yang perlu ditindaklanjuti hari ini
+- **Ketahanan Stok** — Perkiraan berapa lama stok bertahan pada laju pemakaian saat ini
+- **Perputaran Stok** — Rasio pemakaian setahun terhadap stok saat ini
+- **Performa Vendor** — Ketepatan kirim & nilai pesanan 12 bulan
+- **Tidak ada perlengkapan yang cocok** — Ubah kata kunci atau kombinasi filter di atas.
+- **Tidak ada mutasi** — Ubah kata kunci atau jenis mutasi.
+- **Agenda & Jadwal** — Kalender kegiatan — manasik, keberangkatan, kepulangan, dan acara internal
+- **Tidak ada agenda** — Tidak ditemukan agenda yang cocok dengan filter atau kata kunci ini.
+- **Ringkasan Kategori** — Komposisi seluruh agenda
+- **7 Hari ke Depan** — ${Me.length} kegiatan terdekat
+- **Momen Jamaah** — Kiriman foto, video & catatan dari tim pendamping untuk keluarga jamaah
+- **Per Rombongan** — Klik rombongan untuk membuka detail perjalanannya
+- **Tidak ada rombongan di kategori ini** — Coba pilih tab lain.
+- **Broadcast Pesan** — Susun, jadwalkan, dan ukur performa pesan massal ke jamaah, keluarga, dan alumni
+- **1 · Pilih Audiens** — Segmen dihitung langsung dari data jamaah terkini
+- **2 · Kanal Pengiriman** — Jangkauan dihitung dari ketersediaan kontak tiap jamaah
+- **3 · Susun Pesan** — Gunakan variabel agar pesan terasa personal
+- **4 · Jadwal & Estimasi Biaya** — Atur waktu kirim dan tinjau pemakaian kredit
+- **Pratinjau Langsung** — Tampilan pesan di perangkat jamaah
+- **Skor Kesiapan** — Periksa sebelum pesan dilepas ke ribuan kontak
+- **Tidak ada broadcast cocok** — Ubah kata kunci atau filter untuk melihat riwayat lainnya.
+- **Tren Pengiriman & Tingkat Baca** — 30 hari terakhir
+- **Corong Interaksi** — Akumulasi 30 hari seluruh kanal
+- **Peta Jam Emas** — Rata-rata tingkat baca per hari & jam kirim
+- **Performa per Kanal** — 30 hari terakhir
+- **Broadcast Berperforma Terbaik** — Diurutkan berdasarkan tingkat baca
+- **${Sv} tagihan lewat jatuh tempo** — Nilai ${ze(A8)} dari ${iTe} jamaah. Setiap Rp 100 jt tertagih menambah laba bersih ±${ze(1e8*Ib)}.
+- **${Et.length} transaksi belum diverifikasi** — Senilai ${ze(Et.reduce((ye,Fe)=>ye+Fe.amount,0))} belum diakui dalam rekonsiliasi kas periode ${ut}.
+- **${Aa.n} cicilan jatuh tempo ≤ 7 hari** — Potensi kas masuk ${ze(Aa.amt)} pekan ini. Kirim pengingat otomatis agar tidak bergeser ke bucket menunggak.
+- **Laporan Keuangan** — Konsolidasi ${_l.length} cabang — periode ${ut} · data per ${Mt(na,
+- **Indikator Kunci** — Terhadap target & portofolio ${ut}
+- **Insight Otomatis** — Dibaca dari data periode aktif — ikut berubah saat periode diganti
+- **Peta Profitabilitas Paket** — Sumbu X nilai kontrak · sumbu Y marjin kotor · ukuran gelembung = kursi terisi
+- **Kontribusi Laba per Paket** — Laba kotor estimasi ${ze(YT)} dari kontrak berjalan
+- **Kinerja Keuangan Cabang** — Realisasi terhadap target tahunan masing-masing kantor
+- **Arus Kas Masuk Mingguan** — 10 pekan terakhir dari pembayaran jamaah yang sudah tercatat
+- **Pusat Tindakan Keuangan** — Prioritas aksi yang paling berdampak pada laporan periode berikutnya
+- **Catatan Metodologi** — Agar angka pada laporan ini dibaca dengan konteks yang tepat
+- **Monitoring Trip** — Pusat kendali rombongan di Tanah Suci
+- **Tidak ada rombongan yang sedang berjalan** — Monitoring live aktif otomatis saat ada rombongan berstatus berangkat hingga perjalanan pulang.
+- **Peta Posisi — ${$e.city}** — Scroll untuk zoom, geser untuk menjelajah · klik titik untuk detail, klik zona untuk memfilter
+- **Petugas Lapangan** — Klik kartu untuk menyorot posisinya di peta
+- **Live Feed** — Kejadian terbaru dari lapangan
+- **Posisi Jamaah — ${tt.id} (${_t.length})** — Klik baris untuk membuka profil jamaah · ikon target di kolom Peta untuk menyorot & memperbesar posisinya
+- **Support Meeqot** — Ajukan kendala teknis, pertanyaan billing, atau permintaan bantuan lain langsung ke tim Meeqot.
+- **Belum ada tiket** — Ajukan tiket baru bila Anda mengalami kendala teknis atau butuh bantuan tim Meeqot.
+- **Keranjang masih kosong** — Jelajahi etalase Meeqot Market dan tambahkan kebutuhan operasional travel Anda.
+- **Tidak ada produk yang cocok** — Coba longgarkan filter harga, jenis, atau penjual — atau hapus kata kunci pencarian.
+- **Produk tidak ditemukan** — Listing dengan ID 
+- **Pesanan dibuat** — 38 pax × 8 hari dikirim ke dapur Aziziyah
+- **Penjual mengonfirmasi ketersediaan** — Kuota dapur tersedia untuk periode 12–19 Agu
+- **Menunggu pembayaran** — Virtual Account escrow aktif 1×24 jam
+- **Pembayaran diterima** — Rp 462.000.000 masuk escrow Meeqot
+- **Blockseat dikunci maskapai** — PNR grup: SV/8QK2LM — 40 seat terkonfirmasi
+- **Menunggu name list final** — 32 dari 40 nama sudah terisi dari modul Jamaah
+- **Produksi dimulai** — Emboss logo disetujui via mockup digital
+- **Paket diserahkan ke kurir** — 12 koli — resi JT-882714
+- **Dalam perjalanan** — Transit hub Cakung, estimasi tiba 27 Jul
+- **Berkas diverifikasi** — 12 paspor lolos pengecekan biometrik
+- **eVisa terbit** — 12 dari 12 visa aktif — tersinkron ke modul Dokumen
+- **Dana dilepas ke penjual** — Escrow selesai otomatis setelah dokumen terverifikasi
+- **QR eSIM diterbitkan** — 43 QR aktif, kedaluwarsa 90 hari
+- **Auto-push ke aplikasi jamaah** — Terjadwal H-3 keberangkatan
+- **Paket dikirim** — 4 koli — resi SC-4471290
+- **Pesanan diterima** — Terlambat 1 hari dari SLA — kendala cuaca kargo
+- **Berkas masuk muassasah** — 38 paspor + biometrik lengkap
+- **Visa terbit** — 38 visa selesai dalam 4 hari kerja
+- **Pesanan selesai** — Dana dilepas ke penjual
+- **Bayar ${Ye.id} — ${ze(Ye.total)}** — ${Ye.sellerName} · ${ir[Ye.id].extra.dueAt?
+- **Konfirmasi penerimaan ${Ye.id}** — ${Ye.productName.slice(0,46)}… · ${At.courier?
+- **${At} dokumen ${Ye.id} belum terbit** — ${ir[Ye.id].extra.sla} · PIC ${ir[Ye.id].extra.pic.name}
+- **Beri ulasan untuk ${Ye.sellerName}** — ${Ye.id} · selesai ${Mt(Ye.date)} — ulasan membantu travel lain memilih penjual.
+- **Pesanan Saya** — Pusat pengadaan B2B Al-Hijrah Travel — pembayaran, pelacakan, escrow, dan kinerja penjual
+- **Tren Belanja Pengadaan** — Nilai PO per bulan & jumlah pesanan — arahkan kursor untuk detail
+- **Pusat Tindakan Pengadaan** — Hal yang perlu ditindaklanjuti hari ini
+- **Perlindungan Escrow** — Dana Anda ditahan Meeqot sampai pesanan diterima
+- **Tidak ada pesanan yang cocok** — Ubah kata kunci atau kombinasi filter status, penjual, dan kategori.
+- **Tidak ada pesanan berjalan** — Semua PO sudah selesai. Lanjut belanja untuk kebutuhan keberangkatan berikutnya.
+- **Tidak ada faktur** — Sesuaikan pencarian atau reset filter.
+- **Pertanyaan baru dari Multazam Travel** — Menanyakan kapasitas produksi 500 pcs seragam batik
+- **Pertanyaan baru dari Hijaz Utama** — Minimal order cover custom buku manasik
+- **Pesanan baru SO-26-0455** — Thawaf Andalan · 60 pcs seragam batik · Rp 12.600.000
+- **Pesanan SO-26-0449 dibayar** — Dana Rp 25.200.000 ditahan Meeqot Escrow, siap diproses
+- **Pesanan SO-26-0441 dikirim** — 200 buku manasik ke Cahaya Baitullah — resi JT-771902
+- **Pesanan SO-26-0427 selesai** — Dana Rp 6.703.125 diteruskan ke saldo toko
+- **Pencairan PY-26-0142 berhasil** — Rp 57.330.000 masuk ke BCA •••• 4471
+- **Siap dikirim: ${pt.id}** — ${pt.buyerName} · ${Qn(pt.qty)} ${pt.unit} · ${bt(pt.total)}
+- **Menunggu pembayaran: ${pt.id}** — ${pt.buyerName} · ${bt(pt.total)} · dibuat ${Mt(pt.date)}
+- **Stok menipis: ${pt.name}** — Sisa ${Qn(pt.stock??0)} ${pt.unit} · ${pt.stat.kapasitas}
+- **Listing dijeda: ${pt.name}** — Tidak tampil di etalase — aktifkan kembali bila stok siap
+- **${bt(_t)} siap dicairkan** — Dana pesanan selesai sudah rilis dari Meeqot Escrow
+- **Seller Center** — Kelola etalase, pesanan masuk, performa, dan pencairan dana Al-Hijrah Travel di Meeqot Market
+- **Komposisi Omzet per Listing** — Estimasi 12 bulan pada harga dasar — arahkan kursor ke segmen
+- **Pusat Tindakan Toko** — Pesanan, stok, pesan pembeli, dan dana yang butuh perhatian Anda
+- **Toko bersih 🎉** — Tidak ada pesanan, ulasan, atau stok yang perlu ditindaklanjuti.
+- **Aktivitas Toko Terbaru** — Riwayat kejadian di Seller Center
+- **Target Omzet Juli** — Target internal ${ze(Av)}/bulan
+- **Corong Konversi Juli** — Dari impresi etalase sampai pesanan terbit
+- **Ringkasan Pesanan** — Status seluruh penjualan toko
+- **Skor Performa Toko** — Dibanding target minimum penjual Meeqot Market
+- **Trafik & Konversi Etalase** — Kunjungan halaman produk vs persentase yang menjadi pesanan
+- **Produk Terlaris** — Berdasarkan omzet penjualan aktual di Market
+- **Benchmark Kategori Perlengkapan** — Estimasi GMV listing seluruh penjual di kategori yang sama
+- **Sebaran Kota Pembeli** — Omzet 12 bulan menurut kota travel pembeli
+- **Rating Toko** — ${Qn(ge)} ulasan sepanjang waktu
+- **Tanya Pembeli** — Pertanyaan calon pembeli sebelum memesan — makin cepat dibalas, makin tinggi konversi
+- **Tidak ada ulasan pada filter ini** — Ubah filter bintang atau tampilkan semua ulasan.
+- **Ringkasan Komisi** — Take rate platform 2,5% dari nilai transaksi
+- **Dana Bersih vs Komisi per Bulan** — Bagian yang diterima toko setelah potongan platform
