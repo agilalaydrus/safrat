@@ -196,7 +196,9 @@ baca/list/statistik, mutasi, substitusi, dokumen, asuransi, roster kloter, dan
 create yang otomatis mewarisi cabang aktor (`6af60db`). Inbox registrasi juga
 sudah terisolasi; registrasi publik mewarisi cabang agen referral dan agent ID
 lintas tenant ditolak oleh query (`dfb2e62`). Kotak penyaringan utama tetap
-terbuka sampai agent dan order memakai batas yang sama.
+terbuka. Profil, KYC, dokumen, create, dan aplikasi referral agen sudah memakai
+batas yang sama (`822b895`); payout agen dan order masih harus ditutup sebelum
+kotak penyaringan utama boleh dicentang.
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
