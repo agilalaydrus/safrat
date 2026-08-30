@@ -168,7 +168,7 @@ export default function InsuranceDashboard() {
             </tr>)}
           </tbody>
         </table>
-        {!claims.length && <p style={{ color: "var(--color-warm-500)", marginTop: 16 }}>Belum ada klaim asuransi.</p>}
+        {!claims.length && <p style={{ color: "var(--color-warm-500)", marginTop: 16 }}>Belum ada klaim karena belum ada kejadian yang diajukan. Owner atau admin dapat memakai Ajukan Klaim Baru di atas saat dokumen kejadian sudah siap.</p>}
       </div>}
     </div>}
 

@@ -130,7 +130,7 @@ export default function RegistrationsDashboard() {
             <button disabled={workingId === registration.id} onClick={() => reject(registration)} style={rejectBtn}>Konfirmasi Penolakan</button>
           </div>}
         </article>)}
-      </div> : <div style={empty}><IconClipboardList size={48} color="var(--color-warm-400)" /><p style={{ color: "var(--color-warm-500)" }}>Tidak ada pendaftaran dengan status ini.</p></div>}
+      </div> : <div style={empty}><IconClipboardList size={48} color="var(--color-warm-400)" /><p style={{ color: "var(--color-warm-500)" }}>Tidak ada pendaftaran pada status yang dipilih. Pilih status lain atau bagikan tautan formulir pendaftaran yang tersedia di atas.</p></div>}
     </section>
   </main>;
 }

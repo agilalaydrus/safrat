@@ -63,7 +63,7 @@ export default function MuttawwifDashboard() {
         </div>
         {m.agentId && <button style={{ ...kycBadge(m.kycStatus), border: 0, marginTop: 10, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600 }} onClick={() => openKyc(m.agentId)}><IconShieldCheck size={14} />KYC: {KYC_LABEL[m.kycStatus] ?? "Belum Diisi"}</button>}
       </article>)}
-    </div> : <div style={empty}><IconUserCheck size={48} color="var(--color-warm-400)" /><p style={{ color: "var(--color-warm-500)" }}>Belum ada Muttawwif yang ditugaskan ke grup manapun.</p></div>}
+    </div> : <div style={empty}><IconUserCheck size={48} color="var(--color-warm-400)" /><p style={{ color: "var(--color-warm-500)" }}>Belum ada Muttawwif karena belum ada anggota yang ditugaskan sebagai ketua grup. Buka menu Grup, lalu pilih atau undang Muttawwif pada grup yang dituju.</p></div>}
     <AgentKycDialog open={!!kycTarget} agent={kycTarget} onClose={() => setKycTarget(undefined)} onUpdated={(updated) => { setKycTarget(updated); void refresh(); }} />
   </main>;
 }

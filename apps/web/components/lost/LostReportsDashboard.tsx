@@ -33,7 +33,7 @@ export default function LostReportsDashboard() {
     <div className="gold-divider" />
     {notice && <p style={{ color: "var(--color-gold-800)" }}>{notice}</p>}
     {!active.length ? (
-      <section style={empty}><IconMapPinExclamation size={48} color="var(--color-warm-400)" /><h2 style={{ margin: 0 }}>Tidak ada laporan jamaah tersesat aktif</h2></section>
+      <section style={empty}><IconMapPinExclamation size={48} color="var(--color-warm-400)" /><h2 style={{ margin: 0 }}>Tidak ada laporan jamaah terpisah aktif</h2><p style={{ margin: 0, color: "var(--color-warm-500)", textAlign: "center" }}>Semua jamaah terpantau. Laporan baru dari aplikasi jamaah akan muncul otomatis di sini beserta lokasi terakhirnya.</p></section>
     ) : (
       <div style={list}>
         {active.map((report) => <article key={report.id} style={card}>

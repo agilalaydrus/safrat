@@ -157,7 +157,7 @@ export default function MonitoringDashboard() {
                   </div>
                 ))}
               </div>
-            ) : <p style={{ color: "var(--color-warm-400)", fontSize: 13 }}>Belum ada grup dengan data lokasi untuk musim ini.</p>}
+            ) : <p style={{ color: "var(--color-warm-400)", fontSize: 13 }}>Belum ada grup yang mengirim lokasi untuk musim ini. Pastikan grup dan Muttawwif sudah ditetapkan, lalu minta Muttawwif memperbarui posisi dari aplikasi.</p>}
           </section>
 
           <section style={{ marginTop: 28 }}>
@@ -180,7 +180,7 @@ export default function MonitoringDashboard() {
                   );
                 })}
               </div>
-            ) : <p style={{ color: "var(--color-warm-400)", fontSize: 13 }}>Tidak ada kloter yang dijadwalkan pulang dalam 7 hari ke depan.</p>}
+            ) : <p style={{ color: "var(--color-warm-400)", fontSize: 13 }}>Tidak ada kepulangan dalam 7 hari karena belum ada jadwal yang masuk rentang ini. Jadwal kepulangan dapat diperiksa atau diubah melalui menu Transportasi.</p>}
           </section>
         </>
       )}

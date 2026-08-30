@@ -111,7 +111,7 @@ export default function StaffScheduleDashboard() {
         </div>
         {summary.staffNames && <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--color-warm-400)" }}>{summary.staffNames}</p>}
       </button>)}
-      {!summaries.length && <p style={{ color: "var(--color-warm-500)" }}>Belum ada kloter untuk musim ini.</p>}
+      {!summaries.length && <p style={{ color: "var(--color-warm-500)" }}>Belum ada jadwal tim karena musim ini belum memiliki kloter. Buat kloter melalui menu Kloter, lalu kembali ke sini untuk menugaskan staf.</p>}
     </div>}
 
     {drawerKloter && <div role="dialog" aria-modal="true" style={overlay} onClick={() => setDrawerKloter(undefined)}>
@@ -127,7 +127,7 @@ export default function StaffScheduleDashboard() {
             <div><strong>{staff.staffName}</strong><span style={{ display: "block", fontSize: 12, color: "var(--color-warm-400)" }}>{ROLE_LABEL[staff.role] ?? staff.role}{staff.duties ? ` · ${staff.duties}` : ""}</span></div>
             <RoleGate require={["owner", "admin"]}><button onClick={() => removeStaff(staff)} aria-label={`Hapus ${staff.staffName}`} style={deleteBtn}><IconTrash size={14} /></button></RoleGate>
           </div>)}
-          {!drawerStaff.length && <p style={{ color: "var(--color-warm-400)", fontSize: 13 }}>Belum ada staf ditugaskan.</p>}
+          {!drawerStaff.length && <p style={{ color: "var(--color-warm-400)", fontSize: 13 }}>Belum ada staf yang ditugaskan ke kloter ini. Pilih anggota dan perannya pada formulir Penugasan Staf di bawah.</p>}
         </div>
         <RoleGate require={["owner", "admin"]}>
           <h3 style={{ margin: "0 0 10px" }}>Tugaskan Staf</h3>

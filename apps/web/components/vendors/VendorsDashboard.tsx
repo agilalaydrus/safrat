@@ -183,7 +183,7 @@ export default function VendorsDashboard() {
           {contract.confirmationDeadline && <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--color-warm-500)" }}>Batas: {contract.confirmationDeadline}</p>}
           <p style={{ margin: "4px 0 0", fontSize: 13, color: contract.depositPaid ? "var(--color-emerald-800)" : "var(--color-danger-600)" }}>{contract.depositPaid ? "Deposit lunas" : "Deposit belum lunas"}</p>
         </div>)}
-        {!slaContracts.length && <p style={{ color: "var(--color-warm-500)" }}>Belum ada kontrak vendor untuk musim ini.</p>}
+        {!slaContracts.length && <p style={{ color: "var(--color-warm-500)" }}>Belum ada kontrak yang dapat dipantau pada musim ini. Gunakan Tambah Kontrak di kanan atas untuk mulai mengukur komitmen dan tenggat vendor.</p>}
       </div>}
 
       {tab === "contracts" && <section style={card}>
@@ -214,7 +214,7 @@ export default function VendorsDashboard() {
               </tr>)}
             </tbody>
           </table>
-        </div> : <p style={{ color: "var(--color-warm-500)" }}>Belum ada kontrak vendor untuk musim ini.</p>}
+        </div> : <p style={{ color: "var(--color-warm-500)" }}>Belum ada kontrak vendor pada musim ini. Gunakan Tambah Kontrak di kanan atas untuk mencatat vendor pertama.</p>}
       </section>}
 
       {tab === "events" && <section style={card}>
@@ -225,7 +225,7 @@ export default function VendorsDashboard() {
             <p style={{ margin: "2px 0 0" }}>{event.description}</p>
             <span style={{ fontSize: 12, color: "var(--color-warm-400)" }}>{event.createdAt?.toDate().toLocaleString("id-ID") ?? ""}</span>
           </div>)}
-        </div> : <p style={{ color: "var(--color-warm-500)" }}>Belum ada peristiwa tercatat untuk kontrak ini.</p>)}
+        </div> : <p style={{ color: "var(--color-warm-500)" }}>Belum ada perubahan pada kontrak ini. Ubah unit terkonfirmasi, deposit, atau status di tab Daftar Kontrak agar riwayat tercatat di sini.</p>)}
       </section>}
     </>}
   </main>;

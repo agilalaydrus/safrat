@@ -124,7 +124,7 @@ export default function RefundPayoutDashboard() {
       {notice && <p role="status" style={noticeStyle}>{notice}</p>}
 
       {loading ? <p style={empty}>Memuat antrean pencairan...</p> : requests.length === 0 ? (
-        <section style={empty}><IconWallet size={38} /><strong>Tidak ada permintaan pada status ini</strong></section>
+        <section style={empty}><IconWallet size={38} /><strong>Tidak ada permintaan pada status ini</strong><span>Penyaringan ini tidak memiliki hasil. Pilih status lain di atas atau muat ulang untuk mengambil antrean terbaru.</span></section>
       ) : (
         <section style={list}>
           {requests.map((request) => {

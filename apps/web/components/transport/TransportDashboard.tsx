@@ -206,7 +206,7 @@ export default function TransportDashboard() {
           </div>
         </section>
       )) : (
-        <section style={empty}><IconBus size={48} /><h2>Belum ada jadwal perjalanan</h2><button onClick={() => setOpen(true)} style={gold}>Tambah Jadwal</button></section>
+        <section style={empty}><IconBus size={48} /><h2>Belum ada jadwal perjalanan</h2><p style={{ margin: 0, color: "var(--color-warm-500)", textAlign: "center" }}>Musim atau filter kloter ini belum memiliki pergerakan. Tambahkan satu jadwal atau gunakan templat dari kontrol di kanan atas.</p><button onClick={() => setOpen(true)} style={gold}>Tambah Jadwal</button></section>
       )}
       <MovementFormDialog open={open} seasonId={season} onClose={() => setOpen(false)} onSaved={() => { setNotice("Jadwal berhasil ditambahkan"); refresh(); }} />
     </main>

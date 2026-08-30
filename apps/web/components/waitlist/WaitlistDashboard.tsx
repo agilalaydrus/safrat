@@ -130,7 +130,7 @@ export default function WaitlistDashboard() {
             </tr>)}
           </tbody>
         </table>
-      </div> : <div style={empty}><IconClock size={48} color="var(--color-warm-400)" /><p style={{ color: "var(--color-warm-500)" }}>Belum ada yang masuk daftar tunggu untuk musim ini.</p></div>}
+      </div> : <div style={empty}><IconClock size={48} color="var(--color-warm-400)" /><p style={{ color: "var(--color-warm-500)" }}>Belum ada pendaftar karena tautan daftar tunggu ini belum menerima isian. Salin dan bagikan tautan di atas; pendaftar baru akan muncul otomatis.</p></div>}
     </section>
   </main>;
 }

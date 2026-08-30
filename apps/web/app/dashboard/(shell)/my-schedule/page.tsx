@@ -38,7 +38,7 @@ export default function MySchedulePage() {
           {item.duties && <p style={{ margin: "8px 0 0" }}>{item.duties}</p>}
         </div>
       </div>)}
-      {!assignments.length && <p style={{ color: "var(--color-warm-500)" }}>Belum ada penugasan jadwal untuk Anda.</p>}
+      {!assignments.length && <p style={{ color: "var(--color-warm-500)" }}>Belum ada penugasan karena Anda belum ditempatkan pada kloter. Minta owner atau admin menugaskan Anda melalui menu Jadwal Tim.</p>}
     </div>}
   </main>;
 }

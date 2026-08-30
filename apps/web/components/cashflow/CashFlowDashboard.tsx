@@ -174,7 +174,7 @@ export default function CashFlowDashboard() {
               </tr>)}
             </tbody>
           </table>
-        </div> : <p style={{ color: "var(--color-warm-500)" }}>Belum ada pembayaran vendor untuk musim ini.</p>}
+        </div> : <p style={{ color: "var(--color-warm-500)" }}>Belum ada pembayaran karena komitmen vendor belum dicatat untuk musim ini. Gunakan Tambah Pembayaran Vendor di kanan atas untuk memasukkan tagihan pertama.</p>}
       </section>
     </>}
   </main>;

@@ -67,7 +67,7 @@ export default function SOSDashboard() {
       <div className="gold-divider" />
       {notice && <p style={{ color: "var(--color-gold-800)" }}>{notice}</p>}
       {!active.length ? (
-        <section style={empty}><IconSos size={48} color="var(--color-warm-400)" /><h2 style={{ margin: 0 }}>Tidak ada notifikasi SOS aktif</h2></section>
+        <section style={empty}><IconSos size={48} color="var(--color-warm-400)" /><h2 style={{ margin: 0 }}>Tidak ada notifikasi SOS aktif</h2><p style={{ margin: 0, color: "var(--color-warm-500)", textAlign: "center" }}>Semua permintaan darurat sudah tertangani. SOS baru dari aplikasi jamaah akan muncul otomatis dan memicu notifikasi yang diaktifkan di atas.</p></section>
       ) : (
         <div style={list}>
           {active.map((alert) => (

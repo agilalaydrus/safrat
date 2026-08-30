@@ -69,7 +69,7 @@ export default function ShipmentsDashboard() {
       {loading ? (
         <p style={muted}>Memuat…</p>
       ) : shipments.length === 0 ? (
-        <p style={muted}>Tidak ada pengiriman yang menunggu.</p>
+        <p style={muted}>Antrean pengiriman bersih. Pesanan perlengkapan yang sudah dibayar akan muncul otomatis di sini; aktifkan opsi di atas untuk melihat yang sudah diterima.</p>
       ) : (
         <div style={{ display: "grid", gap: 12 }}>
           {shipments.map((shipment) => (

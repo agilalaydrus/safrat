@@ -181,7 +181,7 @@ export default function DocumentsDashboard() {
             </tr>)}
           </tbody>
         </table>
-      </div> : <div style={empty}><IconFiles size={48} color="var(--color-warm-400)" /><h2 style={{ margin: 0 }}>Belum ada dokumen</h2><p style={{ color: "var(--color-warm-500)" }}>Unggah dokumen jamaah untuk musim ini.</p></div>}
+      </div> : <div style={empty}><IconFiles size={48} color="var(--color-warm-400)" /><h2 style={{ margin: 0 }}>Belum ada dokumen</h2><p style={{ color: "var(--color-warm-500)" }}>Belum ada berkas yang diunggah untuk musim atau filter ini. Gunakan Upload Dokumen di kanan atas untuk memilih jamaah dan jenis berkas.</p></div>}
     </section>
   </main>;
 }

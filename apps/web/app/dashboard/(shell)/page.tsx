@@ -198,7 +198,7 @@ export default function DashboardPage() {
                   </div>
                 );
               }) : (
-                <p className="dashboard-activity-empty">Belum ada aktivitas tercatat.</p>
+                <p className="dashboard-activity-empty">Belum ada aktivitas karena belum ada perubahan data pada musim ini. Mulai dari Aksi Cepat di atas; riwayat akan muncul otomatis.</p>
               )}
             </div>
           </div>

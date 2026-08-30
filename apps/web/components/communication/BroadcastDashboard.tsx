@@ -86,7 +86,7 @@ export default function BroadcastDashboard() {
           </div>
           <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--color-warm-400)" }}>{b.createdAt?.toDate().toLocaleString("id-ID") ?? ""}</p>
         </article>)}
-      </div> : <p style={{ color: "var(--color-warm-500)" }}>Belum ada pengumuman untuk musim ini.</p>}
+      </div> : <p style={{ color: "var(--color-warm-500)" }}>Belum ada pengumuman yang dikirim untuk musim ini. Isi formulir Kirim Pengumuman Baru di atas; riwayat pengiriman akan muncul di sini.</p>}
     </section>
   </main>;
 }
