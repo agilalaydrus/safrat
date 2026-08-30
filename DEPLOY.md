@@ -764,8 +764,7 @@ what the application authenticates as.
      "ALTER ROLE safrat_app LOGIN PASSWORD 'PASTE_A_LONG_RANDOM_PASSWORD';"
    ```
 
-2. **Check it can do the work before trusting it with the work.** Run this as
-   the new role; it should report `INSERT,SELECT` for all four money tables:
+2. **Check it can do the work before trusting it with the work.**
    ```bash
    docker compose -f docker-compose.prod.yml --env-file .env.prod exec postgres \
      psql -U safrat -d safrat -Atc \
@@ -773,9 +772,30 @@ what the application authenticates as.
       FROM information_schema.table_privileges
       WHERE grantee = 'safrat_app'
         AND table_name IN ('agent_commission_entries','pilgrim_balance_entries',
-                           'order_refunds','supplier_cost_observations')
+                           'order_refunds','supplier_cost_observations',
+                           'audit_logs','kyc_records',
+                           'daily_digital_spend','bank_mutations',
+                           'pilgrim_refund_payout_requests')
       GROUP BY table_name ORDER BY table_name;"
    ```
+
+   Expected, and each line means something different:
+
+   | Table | Expected | Why |
+   |---|---|---|
+   | `agent_commission_entries` | `INSERT,SELECT` | append-only ledger |
+   | `pilgrim_balance_entries` | `INSERT,SELECT` | append-only ledger |
+   | `order_refunds` | `INSERT,SELECT` | a refund is not editable after the fact |
+   | `supplier_cost_observations` | `INSERT,SELECT` | what a supplier charged, as recorded |
+   | `audit_logs` | `INSERT,SELECT` | evidence. A credential that can erase its own reads makes the 72-hour breach question unanswerable |
+   | `kyc_records` | `INSERT,SELECT,UPDATE` | UPDATE is needed for key rotation and verification status; DELETE is not |
+   | `daily_digital_spend` | `INSERT,SELECT,UPDATE` | a counter, not a ledger — a refund gives headroom back. DELETE would hand out a fresh daily limit |
+   | `bank_mutations` | `INSERT,SELECT,UPDATE` | a credit that turns out not to be a payment is IGNORED, never deleted |
+   | `pilgrim_refund_payout_requests` | `INSERT,SELECT,UPDATE` | the lifecycle moves; the record does not disappear |
+
+   **Anything with DELETE that is not listed above is a finding, not a
+   detail.** This list was four tables long when it was written and the schema
+   moved past it — which is how a cutover verifies a subset and reports success.
 
 3. **Point only the application at it.** Add these to `.env.prod`, using the
    same password assigned in step 1:
