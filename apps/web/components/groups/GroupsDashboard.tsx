@@ -17,7 +17,7 @@ export default function GroupsDashboard(){
   useEffect(()=>{seasonClient.listSeasons({}).then(r=>{setSeasons(r.seasons);setSeasonId(r.seasons.find(s=>s.isActive)?.id??r.seasons[0]?.id??"")}).catch(()=>setNotice("Gagal memuat data musim."))},[]);
   useEffect(()=>{void load()},[load]);
   return <main style={page}>
-    <header style={header}><div><p style={eyebrow}>OPERASIONAL / GRUP</p><h1 style={title}>Grup</h1></div>
+    <header style={header}><div><p style={eyebrow}>OPERASIONAL / GRUP</p><h1 style={title}>Grup</h1><p style={{color:"var(--color-warm-500)",margin:0}}>{groups.length} grup · {groups.reduce((total,group)=>total+group.pilgrimCount,0)} jamaah terkelompok</p></div>
       <div style={actions}><select value={seasonId} onChange={e=>setSeasonId(e.target.value)} style={select}>{seasons.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select><button style={emerald} onClick={()=>{setEdit(undefined);setOpen(true)}}><IconPlus size={18}/>Tambah Grup</button></div>
     </header>
     <div className="gold-divider"/>

@@ -20,6 +20,7 @@ export default function MySchedulePage() {
     <header>
       <p style={eyebrow}>TIM SAYA</p>
       <h1 style={title}>Jadwal Saya</h1>
+      <p style={{ color: "var(--color-warm-500)", margin: 0 }}>{assignments.length} penugasan kloter</p>
     </header>
     <div className="gold-divider" />
     {notice && <p role="status" style={{ color: "var(--color-gold-800)" }}>{notice}</p>}

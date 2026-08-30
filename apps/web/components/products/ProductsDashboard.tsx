@@ -80,6 +80,7 @@ export default function ProductsDashboard() {
         <div>
           <p style={eyebrow}>OPERASIONAL / PRODUK</p>
           <h1 style={title}>Produk & Layanan</h1>
+          <p style={{ color: "var(--color-warm-500)", margin: 0 }}>{products.length} produk · {active.length} aktif</p>
         </div>
         <div style={actions}>
           <select

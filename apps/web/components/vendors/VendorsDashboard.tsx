@@ -131,7 +131,7 @@ export default function VendorsDashboard() {
 
   return <main style={page}>
     <header style={header}>
-      <div><p style={eyebrow}>OPERASIONAL / VENDOR</p><h1 style={title}>Vendor &amp; Kontrak</h1><p style={{ color: "var(--color-warm-500)", margin: 0 }}>{activeName}</p></div>
+      <div><p style={eyebrow}>OPERASIONAL / VENDOR</p><h1 style={title}>Vendor &amp; Kontrak</h1><p style={{ color: "var(--color-warm-500)", margin: 0 }}>{contracts.length} kontrak · {slaContracts.length} dalam pantauan SLA · {activeName}</p></div>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
         <select aria-label="Musim" value={seasonId} onChange={(e) => setSeasonId(e.target.value)} style={select}>
           {seasons.length ? seasons.map((s) => <option key={s.id} value={s.id}>{s.name}{s.isActive ? " · Aktif" : ""}</option>) : <option>{activeName}</option>}

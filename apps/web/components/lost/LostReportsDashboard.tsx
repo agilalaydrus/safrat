@@ -28,6 +28,7 @@ export default function LostReportsDashboard() {
     <header>
       <p style={eyebrow}>OPERASIONAL / JAMAAH TERSESAT</p>
       <h1 style={title}>Jamaah Terpisah</h1>
+      <p style={{ color: "var(--color-warm-500)", margin: 0 }}>{active.length} laporan aktif · diperbarui setiap 10 detik</p>
     </header>
     <div className="gold-divider" />
     {notice && <p style={{ color: "var(--color-gold-800)" }}>{notice}</p>}

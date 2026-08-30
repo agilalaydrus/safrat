@@ -58,7 +58,7 @@ export default function SOSDashboard() {
   return (
     <main style={page}>
       <header style={head}>
-        <div><p style={ey}>OPERASIONAL / SOS</p><h1 style={title}>Notifikasi SOS</h1></div>
+        <div><p style={ey}>OPERASIONAL / SOS</p><h1 style={title}>Notifikasi SOS</h1><p style={{color:"var(--color-warm-500)",margin:0}}>{active.length} SOS aktif · {alerts.length - active.length} selesai</p></div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button style={alarmEnabled ? enabledButton : ghostButton} onClick={enableAlarm} disabled={alarmEnabled}>{alarmEnabled ? <IconBell size={18} /> : <IconBellOff size={18} />}{alarmEnabled ? "Notifikasi & suara aktif" : "Aktifkan notifikasi & suara"}</button>
           <button style={pushEnabled ? enabledButton : ghostButton} onClick={enablePush} disabled={pushEnabled}>{pushEnabled ? <IconBell size={18} /> : <IconBellOff size={18} />}{pushEnabled ? "Push latar belakang aktif" : "Aktifkan push latar belakang"}</button>

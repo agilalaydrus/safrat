@@ -48,11 +48,7 @@ export default function ShipmentsDashboard() {
       <div>
         <p style={eyebrow}>OPERASIONAL / PENGIRIMAN</p>
         <h1 style={{ margin: 0, fontSize: 22 }}>Pengiriman Perlengkapan</h1>
-        <p style={muted}>
-          Perlengkapan yang sudah dibayar dan menunggu diserahkan. Barang yang sudah
-          berangkat tidak dapat diubah tujuannya — catatan pengiriman adalah bukti,
-          bukan formulir.
-        </p>
+        <p style={muted}>{shipments.length} pengiriman ditampilkan · {waiting} menunggu diproses</p>
       </div>
 
       {waiting > 0 && (

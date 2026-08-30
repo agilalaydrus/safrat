@@ -67,7 +67,7 @@ export default function AccommodationDashboard() {
         <div>
           <p style={eyebrow}>OPERASIONAL / AKOMODASI</p>
           <h1 style={title}>Akomodasi</h1>
-          <p style={{ margin: 0, color: "var(--color-warm-500)" }}>Kelola ketersediaan kamar dan penempatan jamaah di setiap lokasi.</p>
+          <p style={{ margin: 0, color: "var(--color-warm-500)" }}>{hotels.length} hotel · {Object.values(summaries).reduce((total, summary) => total + summary.rooms, 0)} kamar · {seasons.find((season) => season.id === seasonId)?.name ?? "Pilih musim"}</p>
         </div>
         <div style={actions}>
           <select aria-label="Musim" value={seasonId} onChange={(event) => setSeasonId(event.target.value)} style={select}>

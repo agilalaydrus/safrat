@@ -93,7 +93,7 @@ export default function StaffScheduleDashboard() {
 
   return <main style={page}>
     <header style={header}>
-      <div><p style={eyebrow}>OPERASIONAL / JADWAL TIM</p><h1 style={title}>Jadwal Tim</h1><p style={{ color: "var(--color-warm-500)", margin: 0 }}>{activeName}</p></div>
+      <div><p style={eyebrow}>OPERASIONAL / JADWAL TIM</p><h1 style={title}>Jadwal Tim</h1><p style={{ color: "var(--color-warm-500)", margin: 0 }}>{summaries.length} kloter · {summaries.reduce((total, summary) => total + summary.staffCount, 0)} penugasan staf · {activeName}</p></div>
       <select aria-label="Musim" value={seasonId} onChange={(e) => setSeasonId(e.target.value)} style={select}>
         {seasons.length ? seasons.map((s) => <option key={s.id} value={s.id}>{s.name}{s.isActive ? " · Aktif" : ""}</option>) : <option>{activeName}</option>}
       </select>

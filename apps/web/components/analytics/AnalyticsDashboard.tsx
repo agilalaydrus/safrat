@@ -33,7 +33,7 @@ export default function AnalyticsDashboard() {
   return (
     <main style={page}>
       <header style={header}>
-        <div><p style={eyebrow}>OPERASIONAL / ANALITIK</p><h1 style={title}>Dashboard Analitik</h1><p style={{ color: "var(--color-warm-500)", margin: 0 }}>Seluruh angka di bawah dihitung langsung dari data operasional musim ini — bukan estimasi.</p></div>
+        <div><p style={eyebrow}>OPERASIONAL / ANALITIK</p><h1 style={title}>Dashboard Analitik</h1><p style={{ color: "var(--color-warm-500)", margin: 0 }}>{total} jamaah · {analytics?.orderCount ?? 0} pesanan · {seasons.find((season) => season.id === seasonId)?.name ?? "Pilih musim"}</p></div>
         <select aria-label="Musim" value={seasonId} onChange={(e) => setSeasonId(e.target.value)} style={select}>
           {seasons.map((s) => <option key={s.id} value={s.id}>{s.name}{s.isActive ? " · Aktif" : ""}</option>)}
         </select>

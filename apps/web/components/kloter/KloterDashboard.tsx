@@ -51,7 +51,7 @@ export default function KloterDashboard() {
   return (
     <main style={page}>
       <header style={header}>
-        <div><p style={eyebrow}>OPERASIONAL / KLOTER</p><h1 style={title}>Kloter Keberangkatan</h1></div>
+        <div><p style={eyebrow}>OPERASIONAL / KLOTER</p><h1 style={title}>Kloter Keberangkatan</h1><p style={meta}>{kloters.length} kloter · {kloters.reduce((total, kloter) => total + kloter.pilgrimCount, 0)} jamaah terjadwal</p></div>
         <div style={actions}>
           <select value={seasonId} onChange={(e) => setSeasonId(e.target.value)} style={select}>
             {seasons.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}

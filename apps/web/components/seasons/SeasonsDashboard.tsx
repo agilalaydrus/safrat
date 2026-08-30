@@ -51,7 +51,7 @@ export default function SeasonsDashboard() {
   return (
     <main style={page}>
       <header style={header}>
-        <div><p style={eyebrow}>OPERASIONAL / MUSIM</p><h1 style={title}>Musim</h1></div>
+        <div><p style={eyebrow}>OPERASIONAL / MUSIM</p><h1 style={title}>Musim</h1><p style={{ color: "var(--color-warm-500)", margin: 0 }}>{seasons.length} musim · {seasons.filter((season) => season.isActive).length} aktif</p></div>
         <button style={gold} onClick={() => { setEdit(undefined); setOpen(true); }}><IconPlus size={18} />Tambah Musim</button>
       </header>
       <div className="gold-divider" />

@@ -92,6 +92,7 @@ export default function SubscriptionPage() {
       <header style={{ marginTop: 18 }}>
         <p style={eyebrow}>LANGGANAN</p>
         <h1 style={title}>Langganan TawafiqHub</h1>
+        <p style={muted}>{subscription ? `Paket ${subscription.plan} · ${Math.max(remaining, 0)} hari akses tersisa` : "Memuat status paket…"}</p>
       </header>
 
       {subscription && <section style={locked ? statusCardLocked : trialing ? statusCardTrial : statusCardActive}>

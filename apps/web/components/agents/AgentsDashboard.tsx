@@ -90,7 +90,7 @@ export default function AgentsDashboard() {
   return (
     <main style={page}>
       <header style={head}>
-        <div><p style={ey}>OPERASIONAL / TOUR LEADER</p><h1 style={title}>Tour Leader</h1></div>
+        <div><p style={ey}>OPERASIONAL / TOUR LEADER</p><h1 style={title}>Tour Leader</h1><p style={{color:"var(--color-warm-500)",margin:0}}>{activeAgents.length} aktif · {pending.length} menunggu · {rupiah(totalOwed)} komisi tertunda</p></div>
         <button style={emerald} onClick={() => { setEdit(undefined); setOpen(true); }}><IconPlus size={18} />Tambah Tour Leader</button>
       </header>
       <div className="gold-divider" />

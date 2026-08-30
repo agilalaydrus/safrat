@@ -106,6 +106,7 @@ export default function InsuranceDashboard() {
     <header>
       <p style={eyebrow}>PERLINDUNGAN / ASURANSI</p>
       <h1 style={title}>Klaim Asuransi</h1>
+      <p style={{ color: "var(--color-warm-500)", margin: 0 }}>{claims.length} klaim · {claims.filter((claim) => !["SETTLED", "REJECTED"].includes(claim.status)).length} belum selesai</p>
     </header>
     <div className="gold-divider" />
     {notice && <p role="status" style={{ color: "var(--color-gold-800)" }}>{notice}</p>}

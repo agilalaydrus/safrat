@@ -103,6 +103,7 @@ export default function MonitoringDashboard() {
         <div>
           <p style={eyebrow}>OPERASIONAL / MONITORING</p>
           <h1 style={title}>Monitoring Real-time</h1>
+          <p style={{ color: "var(--color-warm-500)", margin: 0 }}>{snapshot?.groups.length ?? 0} grup · {sosCount} SOS aktif · {connected ? "data live" : "menghubungkan"}</p>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <span style={{ ...connBadge, color: connected ? "var(--color-emerald-800)" : "var(--color-warm-400)" }}>

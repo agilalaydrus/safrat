@@ -154,7 +154,7 @@ export default function TransportDashboard() {
         <div>
           <p style={eyebrow}>OPERASIONAL / TRANSPORTASI</p>
           <h1 style={title}>Transportasi</h1>
-          <p style={subtitle}>Koordinasikan jadwal perjalanan, kendaraan, dan manifest penumpang.</p>
+          <p style={subtitle}>{filteredMoves.length} jadwal ditampilkan · {kloters.length} kloter · {seasons.find((item) => item.id === season)?.name ?? "Pilih musim"}</p>
         </div>
         <div style={actions}>
           <select value={season} onChange={(event) => setSeason(event.target.value)} style={input}>

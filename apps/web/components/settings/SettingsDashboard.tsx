@@ -10,7 +10,7 @@ export default function SettingsDashboard() {
   const [tab, setTab] = useState<"profil" | "tim" | "domain">("profil");
 
   return <main style={page}>
-    <header><p style={eyebrow}>PENGATURAN</p><h1 style={title}>Pengaturan</h1><p style={{ color: "var(--color-warm-500)", margin: 0 }}>Kelola profil operator dan anggota tim Anda.</p></header>
+    <header><p style={eyebrow}>PENGATURAN</p><h1 style={title}>Pengaturan</h1><p style={{ color: "var(--color-warm-500)", margin: 0 }}>3 area pengaturan · {tab === "profil" ? "Profil Operator" : tab === "tim" ? "Tim & Anggota" : "Domain"} sedang dibuka</p></header>
     <div className="gold-divider" />
     <div style={tabBar}>
       <button onClick={() => setTab("profil")} style={tab === "profil" ? tabActive : tabInactive}><IconBuilding size={18} />Profil Operator</button>

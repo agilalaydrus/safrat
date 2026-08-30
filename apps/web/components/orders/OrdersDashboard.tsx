@@ -63,7 +63,7 @@ export default function OrdersDashboard() {
   return (
     <main style={page}>
       <header style={header}>
-        <div><p style={eyebrow}>OPERASIONAL / PESANAN</p><h1 style={title}>Pesanan Produk Digital</h1></div>
+        <div><p style={eyebrow}>OPERASIONAL / PESANAN</p><h1 style={title}>Pesanan Produk Digital</h1><p style={{color:"var(--color-warm-500)",margin:0}}>{total} pesanan musim ini · {orders.length} tampil di halaman</p></div>
         <div style={actions}>
           <select value={seasonId} onChange={(e) => setSeasonId(e.target.value)} style={select}>
             {seasons.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
