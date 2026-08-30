@@ -92,6 +92,7 @@ export default function AnalyticsDashboard() {
           {analytics.paymentTimeline.length > 0 && (
             <section style={{ ...progressCard, marginTop: 20 }}>
               <h3 style={cardTitle}>Tren Pendaftaran &amp; Pembayaran per Bulan</h3>
+              <p style={chartSubtitle}>Sumbu horizontal menunjukkan bulan. Panjang bilah menunjukkan proporsi jamaah menurut status pembayaran.</p>
               <div style={{ display: "grid", gap: 10 }}>
                 {analytics.paymentTimeline.map((m) => {
                   const monthTotal = Number(m.paidCount) + Number(m.dpCount) + Number(m.unpaidCount);
@@ -121,6 +122,7 @@ export default function AnalyticsDashboard() {
             {analytics.kloterFill.length > 0 && (
               <section style={progressCard}>
                 <h3 style={cardTitle}>Tingkat Isi Kloter</h3>
+                <p style={chartSubtitle}>Setiap bilah menunjukkan persentase kursi terisi terhadap kapasitas kloter.</p>
                 <div style={{ display: "grid", gap: 10 }}>
                   {analytics.kloterFill.map((k) => {
                     const fillPct = k.capacity > 0 ? Math.round((k.pilgrimCount / k.capacity) * 100) : 0;
@@ -142,6 +144,7 @@ export default function AnalyticsDashboard() {
             {analytics.hotelOccupancy.length > 0 && (
               <section style={progressCard}>
                 <h3 style={cardTitle}>Okupansi Hotel</h3>
+                <p style={chartSubtitle}>Setiap bilah menunjukkan persentase tempat tidur terisi terhadap kapasitas hotel.</p>
                 <div style={{ display: "grid", gap: 10 }}>
                   {analytics.hotelOccupancy.map((h) => {
                     const occPct = h.capacity > 0 ? Math.round((h.allocated / h.capacity) * 100) : 0;
@@ -217,5 +220,6 @@ const statValue: React.CSSProperties = { margin: 0, fontSize: 24, fontWeight: 70
 const twoCol: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(340px,1fr))", gap: 16, marginTop: 20 };
 const progressCard: React.CSSProperties = { background: "white", border: "1px solid var(--color-cream-400)", borderRadius: 12, padding: 24 };
 const cardTitle: React.CSSProperties = { margin: "0 0 20px", fontSize: 16, fontWeight: 700 };
+const chartSubtitle: React.CSSProperties = { margin: "-12px 0 16px", fontSize: 13, lineHeight: 1.5, color: "var(--color-warm-500)" };
 const th: React.CSSProperties = { textAlign: "left", padding: "10px 12px", fontSize: 11, color: "var(--color-warm-400)", background: "var(--color-cream-100)" };
 const td: React.CSSProperties = { padding: "10px 12px", color: "var(--color-warm-700)" };

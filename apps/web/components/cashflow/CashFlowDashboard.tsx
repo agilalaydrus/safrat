@@ -121,7 +121,8 @@ export default function CashFlowDashboard() {
       </div>}
 
       {months.length > 0 && <section style={card}>
-        <h2 style={{ margin: "0 0 16px" }}>Proyeksi Bulanan</h2>
+        <h2 style={{ margin: 0 }}>Proyeksi Bulanan</h2>
+        <p style={{ margin: "6px 0 16px", color: "var(--color-warm-500)", fontSize: 13 }}>Sumbu horizontal menunjukkan bulan. Tinggi batang menunjukkan komitmen vendor dalam rupiah.</p>
         <div style={{ display: "flex", alignItems: "flex-end", gap: 12, height: 160, overflowX: "auto", padding: "0 4px" }}>
           {months.map((m) => {
             const value = Number(m.vendorObligationsIdr);
