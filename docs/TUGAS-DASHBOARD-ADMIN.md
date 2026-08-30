@@ -124,10 +124,10 @@ Sembilan nada mereka dipadatkan — lebih sedikit, lebih konsisten.
       berikutnya beserta tempatnya (`1a54a2d`)
 - [x] **Placeholder pencarian menyebut isinya** — *"Cari nama, ID, kota, paket,
       PIC, atau tag…"*, bukan *"Cari…"* (`e5e60fc`)
-- [ ] **Satu tombol `primary` per layar.** Di dashboard mereka `primary` hanya
+- [x] **Satu tombol `primary` per layar.** Di dashboard mereka `primary` hanya
       muncul 9 kali, lawan `ghost` 112 dan `outline` 106. Inilah sebabnya layar
-      mereka tenang meski padat.
-- [ ] **Setiap grafik menjelaskan sumbunya** di subjudul
+      mereka tenang meski padat. (`b6b39a2`, `98aa32f`, `4e1ab35`, `4251601`)
+- [x] **Setiap grafik menjelaskan sumbunya** di subjudul (`82746fb`)
 - [ ] **Setiap angka membawa satuan**
 
 Daftar 27 layar ada di `apps/web/app/dashboard/(shell)/layout.tsx:49`.
