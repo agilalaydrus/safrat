@@ -100,7 +100,7 @@ export default function CashFlowDashboard() {
           {seasons.length ? seasons.map((s) => <option key={s.id} value={s.id}>{s.name}{s.isActive ? " · Aktif" : ""}</option>) : <option>{activeName}</option>}
         </select>
         <RoleGate require={["owner", "admin"]}>
-          <button onClick={() => setFormOpen((v) => !v)} style={emerald}><IconPlus size={18} />Tambah Pembayaran Vendor</button>
+          <button onClick={() => setFormOpen((v) => !v)} style={outline}><IconPlus size={18} />Tambah Pembayaran Vendor</button>
         </RoleGate>
       </div>
     </header>
@@ -186,6 +186,7 @@ const eyebrow: React.CSSProperties = { color: "var(--color-gold-800)", fontSize:
 const title: React.CSSProperties = { fontSize: "clamp(32px,5vw,48px)", fontWeight: 500, margin: 0 };
 const select: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 12px", background: "var(--color-cream-200)", font: "inherit", color: "var(--color-warm-900)" };
 const emerald: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, background: "var(--color-emerald-900)", color: "white", fontWeight: 700, padding: "0 18px", display: "inline-flex", gap: 8, alignItems: "center" };
+const outline: React.CSSProperties = { ...emerald, border: "1px solid var(--color-emerald-700)", borderRadius: 12, background: "transparent", color: "var(--color-emerald-900)" };
 const statGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, margin: "20px 0" };
 const statCard: React.CSSProperties = { border: "1px solid var(--color-cream-400)", borderRadius: 12, background: "white", padding: "16px 20px", display: "grid", gap: 6 };
 const statLabel: React.CSSProperties = { fontSize: 12, color: "var(--color-warm-500)", textTransform: "uppercase", letterSpacing: ".05em" };
@@ -199,5 +200,5 @@ const table: React.CSSProperties = { width: "100%", borderCollapse: "collapse", 
 const th: React.CSSProperties = { background: "var(--color-cream-200)", padding: "12px 16px", textAlign: "start", fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--color-warm-400)" };
 const tr: React.CSSProperties = { borderTop: "1px solid var(--color-cream-300)" };
 const td: React.CSSProperties = { padding: "12px 16px", fontSize: 14 };
-const markPaidBtn: React.CSSProperties = { minHeight: 32, border: 0, borderRadius: 8, background: "var(--color-emerald-900)", color: "white", fontWeight: 700, padding: "0 12px", fontSize: 12 };
+const markPaidBtn: React.CSSProperties = { minHeight: 32, border: "1px solid var(--color-emerald-700)", borderRadius: 12, background: "var(--color-emerald-50)", color: "var(--color-emerald-900)", fontWeight: 700, padding: "0 12px", fontSize: 12 };
 const deleteBtn: React.CSSProperties = { minHeight: 32, minWidth: 32, border: "1px solid var(--color-danger-600)", borderRadius: 8, background: "transparent", color: "var(--color-danger-600)", display: "grid", placeItems: "center" };

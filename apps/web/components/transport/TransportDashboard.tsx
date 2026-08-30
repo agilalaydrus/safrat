@@ -206,7 +206,7 @@ export default function TransportDashboard() {
           </div>
         </section>
       )) : (
-        <section style={empty}><IconBus size={48} /><h2>Belum ada jadwal perjalanan</h2><p style={{ margin: 0, color: "var(--color-warm-500)", textAlign: "center" }}>Musim atau filter kloter ini belum memiliki pergerakan. Tambahkan satu jadwal atau gunakan templat dari kontrol di kanan atas.</p><button onClick={() => setOpen(true)} style={gold}>Tambah Jadwal</button></section>
+        <section style={empty}><IconBus size={48} /><h2>Belum ada jadwal perjalanan</h2><p style={{ margin: 0, color: "var(--color-warm-500)", textAlign: "center" }}>Musim atau filter kloter ini belum memiliki pergerakan. Tambahkan satu jadwal atau gunakan templat dari kontrol di kanan atas.</p><button onClick={() => setOpen(true)} style={ghost}>Tambah Jadwal</button></section>
       )}
       <MovementFormDialog open={open} seasonId={season} onClose={() => setOpen(false)} onSaved={() => { setNotice("Jadwal berhasil ditambahkan"); refresh(); }} />
     </main>
@@ -243,7 +243,6 @@ const subtitle: React.CSSProperties = { color: "var(--color-warm-500)" };
 const input: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 12px", background: "var(--color-cream-200)", color: "var(--color-warm-900)" };
 const emerald: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, padding: "0 18px", display: "inline-flex", alignItems: "center", gap: 8, background: "var(--color-emerald-900)", color: "var(--color-cream-100)", fontWeight: 700 };
 const ghost: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-cream-500)", borderRadius: 8, padding: "0 18px", display: "inline-flex", alignItems: "center", gap: 8, background: "transparent", color: "var(--color-warm-700)", fontWeight: 700 };
-const gold: React.CSSProperties = { ...emerald, background: "var(--color-gold-500)", color: "#fff" };
 const grid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(270px,1fr))", gap: 16 };
 const card: React.CSSProperties = { display: "grid", gap: 12, background: "white", border: "1px solid var(--color-cream-400)", borderRadius: 12, padding: 20, color: "var(--color-warm-900)", textDecoration: "none" };
 const bar: React.CSSProperties = { height: 8, borderRadius: 8, overflow: "hidden", background: "var(--color-emerald-200)" };

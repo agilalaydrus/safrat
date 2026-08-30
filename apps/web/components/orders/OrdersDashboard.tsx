@@ -120,7 +120,7 @@ export default function OrdersDashboard() {
           <IconShoppingCart size={48} color="var(--color-warm-400)" />
           <h2 style={{ margin: 0 }}>Belum ada pesanan</h2>
           <p style={{ color: "var(--color-warm-500)" }}>Buat pesanan untuk jamaah, atau tunggu jamaah checkout sendiri lewat Pilgrim App.</p>
-          <button style={gold} onClick={() => setOpen(true)} disabled={!seasonId}>Buat Pesanan</button>
+          <button style={emptyAction} onClick={() => setOpen(true)} disabled={!seasonId}>Buat Pesanan</button>
         </section>
       )}
       <ResolveHeldOrderDialog order={reviewing} onClose={() => setReviewing(null)} onResolved={(message) => { setNotice(message); void load(); }} />
@@ -146,5 +146,6 @@ const td: React.CSSProperties = { padding: 14, color: "var(--color-warm-700)", w
 const badge: React.CSSProperties = { padding: "4px 8px", borderRadius: 99, fontSize: 11, fontWeight: 700 };
 const riskNote: React.CSSProperties = { display: "flex", gap: 4, alignItems: "flex-start", marginTop: 7, maxWidth: 240, whiteSpace: "normal", color: "#b45309", fontSize: 11, lineHeight: 1.35 };
 const ghost: React.CSSProperties = { border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "4px 8px", background: "transparent", display: "inline-flex", alignItems: "center", gap: 4, color: "var(--color-emerald-900)", fontSize: 12 };
+const emptyAction: React.CSSProperties = { ...ghost, minHeight: 44, padding: "0 16px", borderRadius: 12, fontWeight: 700 };
 const pagination: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 16, padding: 16, color: "var(--color-warm-500)", alignItems: "center", flexWrap: "wrap" };
 const empty: React.CSSProperties = { minHeight: 280, display: "grid", placeItems: "center", alignContent: "center", gap: 12, border: "1px dashed var(--color-cream-400)", borderRadius: 12 };

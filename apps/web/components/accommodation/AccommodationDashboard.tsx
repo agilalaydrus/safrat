@@ -102,7 +102,7 @@ function HotelCard({ hotel, summary }: { hotel: Hotel; summary?: Summary }) {
 }
 
 function Empty({ onAdd }: { onAdd: () => void }) {
-  return <section style={empty}><IconBuilding size={48} color="var(--color-warm-400)" /><h2 style={{ margin: 0 }}>Belum ada hotel untuk musim ini</h2><p style={{ margin: 0, color: "var(--color-warm-500)", maxWidth: 380 }}>Tambahkan hotel pertama Anda untuk mulai mengatur kamar dan penempatan jamaah.</p><button onClick={onAdd} style={gold}><IconPlus size={18} />Tambah Hotel</button></section>;
+  return <section style={empty}><IconBuilding size={48} color="var(--color-warm-400)" /><h2 style={{ margin: 0 }}>Belum ada hotel untuk musim ini</h2><p style={{ margin: 0, color: "var(--color-warm-500)", maxWidth: 380 }}>Tambahkan hotel pertama Anda untuk mulai mengatur kamar dan penempatan jamaah.</p><button onClick={onAdd} style={outline}><IconPlus size={18} />Tambah Hotel</button></section>;
 }
 
 function roomSummary(rooms: Room[]): Summary {
@@ -120,7 +120,7 @@ const eyebrow: React.CSSProperties = { color: "var(--color-gold-800)", fontSize:
 const title: React.CSSProperties = { fontSize: "clamp(32px,5vw,48px)", fontWeight: 500, margin: 0 };
 const select: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 12px", background: "var(--color-cream-200)", color: "var(--color-warm-900)", font: "inherit" };
 const emerald: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, padding: "0 18px", display: "inline-flex", gap: 8, alignItems: "center", background: "var(--color-emerald-900)", color: "var(--color-cream-100)", fontWeight: 700 };
-const gold: React.CSSProperties = { ...emerald, background: "var(--color-gold-500)", color: "#fff" };
+const outline: React.CSSProperties = { ...emerald, border: "1px solid var(--color-emerald-700)", background: "transparent", color: "var(--color-emerald-900)" };
 const searchInput: React.CSSProperties = { minHeight: 44, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 14px", background: "var(--color-cream-200)", font: "inherit", color: "var(--color-warm-900)", width: "100%", maxWidth: 360, margin: "16px 0 0" };
 const cityHeader: React.CSSProperties = { marginBottom: 16 };
 const sectionEyebrow: React.CSSProperties = { margin: "0 0 5px", color: "var(--color-gold-800)", fontSize: 11, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase" };

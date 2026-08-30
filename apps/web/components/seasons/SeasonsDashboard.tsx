@@ -94,7 +94,7 @@ export default function SeasonsDashboard() {
           <IconCalendar size={48} color="var(--color-warm-400)" />
           <h2 style={{ margin: 0 }}>Belum ada musim</h2>
           <p style={{ color: "var(--color-warm-500)" }}>Buat musim untuk mulai mengelola jamaah, grup, dan operasional lainnya.</p>
-          <button style={gold} onClick={() => setOpen(true)}>Tambah Musim</button>
+          <button style={ghost} onClick={() => setOpen(true)}>Tambah Musim</button>
         </section>
       )}
       <SeasonFormDialog open={open} initial={edit} onClose={() => setOpen(false)} onSaved={(name) => { setNotice(`${name} berhasil disimpan.`); void load(); }} />

@@ -100,7 +100,7 @@ export default function KloterDashboard() {
           <IconPlane size={48} color="var(--color-warm-400)" />
           <h2 style={{ margin: 0 }}>Belum ada kloter</h2>
           <p style={{ margin: 0, color: "var(--color-warm-500)" }}>Buat kloter untuk mengelompokkan jamaah berdasarkan jadwal keberangkatan.</p>
-          <button style={gold} onClick={() => setOpen(true)}>Tambah Kloter</button>
+          <button style={outline} onClick={() => setOpen(true)}>Tambah Kloter</button>
         </section>
       )}
       <KloterFormDialog open={open} seasonId={seasonId} initial={edit} onClose={() => setOpen(false)} onSaved={(code) => { setNotice(`Kloter ${code} berhasil disimpan.`); void load(); }} />
@@ -115,7 +115,7 @@ const title: React.CSSProperties = { fontSize: "clamp(32px,5vw,48px)", fontWeigh
 const actions: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap" };
 const select: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 12px", background: "#fff", maxWidth: 220 };
 const emerald: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, padding: "0 18px", display: "inline-flex", alignItems: "center", gap: 8, background: "var(--color-emerald-900)", color: "var(--color-cream-100)", fontWeight: 700 };
-const gold: React.CSSProperties = { ...emerald, background: "var(--color-gold-500)", color: "#fff" };
+const outline: React.CSSProperties = { ...emerald, border: "1px solid var(--color-emerald-700)", background: "transparent", color: "var(--color-emerald-900)" };
 const grid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 16 };
 const card: React.CSSProperties = { background: "white", border: "1px solid var(--color-cream-400)", borderRadius: 12, padding: 20, display: "grid", gap: 8 };
 const row: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 };

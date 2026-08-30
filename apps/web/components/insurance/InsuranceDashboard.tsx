@@ -118,7 +118,7 @@ export default function InsuranceDashboard() {
 
     {tab === "claims" && <div style={{ marginTop: 20 }}>
       <RoleGate require={["owner", "admin"]}>
-        <button onClick={() => setShowClaimForm((v) => !v)} style={{ ...emerald, marginBottom: 16 }}>{showClaimForm ? "Batal" : "+ Ajukan Klaim Baru"}</button>
+        <button onClick={() => setShowClaimForm((v) => !v)} style={{ ...ghost, minHeight: 44, marginBottom: 16 }}>{showClaimForm ? "Batal" : "+ Ajukan Klaim Baru"}</button>
       </RoleGate>
       {showClaimForm && <section style={{ ...card, marginBottom: 20 }}>
         <label style={field}>Cari jamaah

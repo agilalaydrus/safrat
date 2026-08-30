@@ -266,7 +266,7 @@ export default function ProductsDashboard() {
           <IconShoppingCart size={48} color="var(--color-warm-400)" />
           <h2 style={{ margin: 0 }}>Belum ada produk</h2>
           <p style={{ margin: 0, color: "var(--color-warm-500)", textAlign: "center" }}>Belum ada paket atau layanan pada musim ini. Tambahkan produk pertama agar dapat dipilih saat membuat pesanan.</p>
-          <button style={gold} onClick={() => setOpen(true)}>
+          <button style={ghost} onClick={() => setOpen(true)}>
             Tambah Produk
           </button>
         </section>
@@ -327,11 +327,6 @@ const emerald: React.CSSProperties = {
   background: "var(--color-emerald-900)",
   color: "var(--color-cream-100)",
   fontWeight: 700,
-};
-const gold: React.CSSProperties = {
-  ...emerald,
-  background: "var(--color-gold-500)",
-  color: "#fff",
 };
 const stats: React.CSSProperties = {
   display: "grid",

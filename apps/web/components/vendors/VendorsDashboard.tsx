@@ -137,7 +137,7 @@ export default function VendorsDashboard() {
           {seasons.length ? seasons.map((s) => <option key={s.id} value={s.id}>{s.name}{s.isActive ? " · Aktif" : ""}</option>) : <option>{activeName}</option>}
         </select>
         <RoleGate require={["owner", "admin"]}>
-          <button onClick={() => setFormOpen((v) => !v)} style={emerald}><IconPlus size={18} />Tambah Kontrak</button>
+          <button onClick={() => setFormOpen((v) => !v)} style={outline}><IconPlus size={18} />Tambah Kontrak</button>
         </RoleGate>
       </div>
     </header>
@@ -237,6 +237,7 @@ const eyebrow: React.CSSProperties = { color: "var(--color-gold-800)", fontSize:
 const title: React.CSSProperties = { fontSize: "clamp(32px,5vw,48px)", fontWeight: 500, margin: 0 };
 const select: React.CSSProperties = { minHeight: 48, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 12px", background: "var(--color-cream-200)", font: "inherit", color: "var(--color-warm-900)" };
 const emerald: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, background: "var(--color-emerald-900)", color: "white", fontWeight: 700, padding: "0 18px", display: "inline-flex", gap: 8, alignItems: "center" };
+const outline: React.CSSProperties = { ...emerald, border: "1px solid var(--color-emerald-700)", borderRadius: 12, background: "transparent", color: "var(--color-emerald-900)" };
 const tabBar: React.CSSProperties = { display: "flex", gap: 8, margin: "16px 0 20px" };
 const tabActive: React.CSSProperties = { minHeight: 44, border: 0, borderRadius: 8, background: "var(--color-emerald-900)", color: "white", fontWeight: 700, padding: "0 18px" };
 const tabInactive: React.CSSProperties = { minHeight: 44, border: "1px solid var(--color-cream-400)", borderRadius: 8, background: "var(--color-cream-200)", color: "var(--color-warm-700)", fontWeight: 600, padding: "0 18px" };

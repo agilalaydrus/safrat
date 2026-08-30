@@ -128,7 +128,7 @@ export default function AgentsDashboard() {
                   </div>
                 ) : (
                   <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                    <button disabled={workingRequestId === r.id} onClick={() => void approveRequest(r)} style={emerald}><IconCheck size={15} />{workingRequestId === r.id ? "Memproses..." : "Setujui & Bayar"}</button>
+                    <button disabled={workingRequestId === r.id} onClick={() => void approveRequest(r)} style={ghost}><IconCheck size={15} />{workingRequestId === r.id ? "Memproses..." : "Setujui & Bayar"}</button>
                     <button disabled={workingRequestId === r.id} onClick={() => setRejectingId(r.id)} style={ghostDanger}><IconX size={15} />Tolak</button>
                   </div>
                 )}
@@ -147,7 +147,7 @@ export default function AgentsDashboard() {
                 <div style={row}><h2 style={{ margin: 0, fontSize: 18 }}>{x.name}</h2></div>
                 <p style={info}><IconPhone size={15} />{x.phone || "Tanpa telepon"}</p>
                 <p style={info}><IconMail size={15} />{x.email || "Tanpa email"}</p>
-                <button style={emerald} onClick={() => void approveAgent(x)}><IconCheck size={15} />Setujui</button>
+                <button style={ghost} onClick={() => void approveAgent(x)}><IconCheck size={15} />Setujui</button>
               </article>
             ))}
           </div>
@@ -177,7 +177,7 @@ export default function AgentsDashboard() {
                       <button style={{ ...ghost, color: "var(--color-danger-600)" }} onClick={async () => { if (window.confirm(`Hapus tour leader ${x.name}? Tindakan ini tidak dapat dibatalkan.`)) { await agentClient.deleteAgent({ agentId: x.id }); void load(); } }}><IconTrash size={15} />Hapus</button>
                     </RoleGate>
                   </span>
-                  <button style={emerald} onClick={() => setPayoutTarget(x)} disabled={!Number(payout?.outstandingIdr ?? 0)}><IconUserDollar size={15} />Bayar</button>
+                  <button style={ghost} onClick={() => setPayoutTarget(x)} disabled={!Number(payout?.outstandingIdr ?? 0)}><IconUserDollar size={15} />Bayar</button>
                 </div>
               </article>
             );
@@ -188,7 +188,7 @@ export default function AgentsDashboard() {
           <IconUserDollar size={48} color="var(--color-warm-400)" />
           <h2 style={{ margin: 0 }}>Belum ada tour leader</h2>
           <p>Undang tour leader rujukan untuk melacak jamaah yang mereka referensikan.</p>
-          <button style={gold} onClick={() => setOpen(true)}>Tambah Tour Leader</button>
+          <button style={ghost} onClick={() => setOpen(true)}>Tambah Tour Leader</button>
         </section>
       )}
 
@@ -204,7 +204,6 @@ const head: React.CSSProperties = { display: "flex", justifyContent: "space-betw
 const ey: React.CSSProperties = { color: "var(--color-gold-800)", fontSize: 11, fontWeight: 700, letterSpacing: ".08em", margin: "4px 0 8px" };
 const title: React.CSSProperties = { fontSize: "clamp(32px,5vw,48px)", fontWeight: 500, margin: 0 };
 const emerald: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, padding: "0 18px", display: "inline-flex", alignItems: "center", gap: 8, background: "var(--color-emerald-900)", color: "var(--color-cream-100)", fontWeight: 700 };
-const gold: React.CSSProperties = { ...emerald, background: "var(--color-gold-500)", color: "#fff" };
 const stats: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 14, margin: "24px 0" };
 const stat: React.CSSProperties = { display: "grid", gap: 6, padding: 18, background: "#fff", border: "1px solid var(--color-cream-400)", borderRadius: 10 };
 const grid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))", gap: 16 };
