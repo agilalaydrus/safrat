@@ -900,14 +900,18 @@ set -a
 source .env.prod
 set +a
 export PGPASSWORD="$POSTGRES_PASSWORD"
-docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm \
+# Maintenance must use the exact deployed commit tag. A locally cached
+# `latest` may still point at the preceding release even when the live service
+# already runs the new immutable tag.
+export IMAGE_TAG="$(git rev-parse HEAD)"
+docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm --no-deps \
   -e PGUSER=safrat \
   -e PGPASSWORD \
   -e KYC_ROTATE_FROM \
   -e KYC_ROTATE_TO \
   api /rotatekyc
 
-unset KYC_ROTATE_FROM KYC_ROTATE_TO POSTGRES_PASSWORD PGPASSWORD
+unset KYC_ROTATE_FROM KYC_ROTATE_TO POSTGRES_PASSWORD PGPASSWORD IMAGE_TAG
 ```
 
 The explicit owner connection is intentional: the least-privilege application
