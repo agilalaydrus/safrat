@@ -9,7 +9,7 @@ interface PageHeroProps {
 
 export function PageHero({ eyebrow, title, subtitle, actions }: PageHeroProps) {
   return (
-    <header className="tw-page-hero">
+    <header className="tw-page-hero tw-enter">
       <div className="tw-page-hero__row">
         <div className="tw-page-hero__copy">
           <p className="section-eyebrow">{eyebrow}</p>

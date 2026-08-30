@@ -9,7 +9,7 @@ interface StatCardProps {
 }
 
 export function StatCard({ label, value, sub, accent = "gold", className }: StatCardProps) {
-  const classes = ["tw-card", "tw-stat", `tw-stat--${accent}`, className]
+  const classes = ["tw-card", "tw-stat", "tw-enter", `tw-stat--${accent}`, className]
     .filter(Boolean)
     .join(" ");
 

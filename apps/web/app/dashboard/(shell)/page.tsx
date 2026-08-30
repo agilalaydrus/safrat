@@ -137,10 +137,10 @@ export default function DashboardPage() {
         subtitle={seasonName ? `Musim: ${seasonName}` : "Memuat data..."}
         actions={
           <>
-            <select aria-label="Filter musim" value={seasonId} onChange={(e) => setSeasonId(e.target.value)} style={filterSelect}>
+            <select className="dashboard-filter-select" aria-label="Filter musim" value={seasonId} onChange={(e) => setSeasonId(e.target.value)}>
               {seasons.map((s) => <option key={s.id} value={s.id}>{s.name}{s.isActive ? " · Aktif" : ""}</option>)}
             </select>
-            <select aria-label="Filter kloter keberangkatan" value={kloterId} onChange={(e) => setKloterId(e.target.value)} style={filterSelect}>
+            <select className="dashboard-filter-select" aria-label="Filter kloter keberangkatan" value={kloterId} onChange={(e) => setKloterId(e.target.value)}>
               <option value="">Semua Kloter</option>
               {kloters.map((k) => <option key={k.id} value={k.id}>{k.code}</option>)}
             </select>
@@ -148,11 +148,11 @@ export default function DashboardPage() {
         }
       />
 
-      <div style={body}>
+      <div className="dashboard-home">
         <ProfileShareBanner />
-        {error && <p role="alert" style={errorBanner}>{error}</p>}
+        {error && <p role="alert" className="dashboard-error-banner">{error}</p>}
 
-        <div style={statsGrid}>
+        <div className="dashboard-stats-grid tw-stagger">
           {stats ? (
             <>
               <StatCard label="Total Jamaah" value={stats.total} accent="gold" />
@@ -162,69 +162,48 @@ export default function DashboardPage() {
               <StatCard label="Belum Ada Kloter" value={stats.unassignedKloter} accent="gold" />
             </>
           ) : (
-            Array.from({ length: 5 }, (_, index) => <div key={index} style={skeletonCard} />)
+            Array.from({ length: 5 }, (_, index) => <div key={index} className="dashboard-skeleton-card" />)
           )}
         </div>
 
-        <section style={{ marginBottom: 32 }}>
+        <section className="dashboard-home-section">
           <p className="section-eyebrow">Aksi Cepat</p>
-          <h2 style={sectionTitle}>Kelola Operasional</h2>
-          <p style={sectionSub}>Tindakan umum untuk operasional harian</p>
-          <div style={cardsGrid}>
+          <h2 className="dashboard-section-title">Kelola Operasional</h2>
+          <p className="dashboard-section-subtitle">Tindakan umum untuk operasional harian</p>
+          <div className="dashboard-quick-grid tw-stagger">
             {QUICK_ACTIONS.map(({ icon: Icon, title, desc, href }) => (
-              <Link key={title} href={href} style={featureCard}>
-                <div style={iconWrap}><Icon size={18} color="var(--color-emerald-800)" aria-hidden /></div>
-                <p style={cardTitle}>{title}</p>
-                <p style={cardDesc}>{desc}</p>
-                <span style={cardArrow}>Mulai <IconArrowRight size={12} aria-hidden /></span>
+              <Link key={title} href={href} className="tw-card tw-card--large tw-enter dashboard-quick-card">
+                <div className="dashboard-quick-icon"><Icon size={18} aria-hidden /></div>
+                <p className="dashboard-quick-title">{title}</p>
+                <p className="dashboard-quick-description">{desc}</p>
+                <span className="dashboard-quick-arrow">Mulai <IconArrowRight size={12} aria-hidden /></span>
               </Link>
             ))}
           </div>
         </section>
 
         <section>
-          <div style={actCard}>
-            <div style={actHead}>
-              <p style={actTitle}>Aktivitas Terbaru</p>
+          <div className="tw-card tw-card--large tw-enter dashboard-activity">
+            <div className="dashboard-activity-head">
+              <p className="dashboard-activity-title">Aktivitas Terbaru</p>
             </div>
-            {activity.length ? activity.map((log) => {
-              const Icon = ACTIVITY_ICON[log.entityType] ?? IconUser;
-              return (
-                <div key={log.id} style={actRow}>
-                  <div style={actIcon}><Icon size={14} aria-hidden /></div>
-                  <p style={actText}>{log.description}{log.actorName ? <span style={actActor}> · oleh {log.actorName}</span> : null}</p>
-                  <p style={actTime}>{log.createdAt ? relativeTime(log.createdAt) : ""}</p>
-                </div>
-              );
-            }) : (
-              <p style={emptyActivity}>Belum ada aktivitas tercatat.</p>
-            )}
+            <div className="tw-stagger">
+              {activity.length ? activity.map((log) => {
+                const Icon = ACTIVITY_ICON[log.entityType] ?? IconUser;
+                return (
+                  <div key={log.id} className="dashboard-activity-row tw-enter">
+                    <div className="dashboard-activity-icon"><Icon size={14} aria-hidden /></div>
+                    <p className="dashboard-activity-text">{log.description}{log.actorName ? <span className="dashboard-activity-actor"> · oleh {log.actorName}</span> : null}</p>
+                    <p className="dashboard-activity-time">{log.createdAt ? relativeTime(log.createdAt) : ""}</p>
+                  </div>
+                );
+              }) : (
+                <p className="dashboard-activity-empty">Belum ada aktivitas tercatat.</p>
+              )}
+            </div>
           </div>
         </section>
       </div>
     </div>
   );
 }
-
-const body: React.CSSProperties = { padding: "28px 32px" };
-const statsGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12, marginBottom: 32 };
-const skeletonCard: React.CSSProperties = { background: "var(--color-cream-200)", borderRadius: 10, height: 88, animation: "pulse 1.5s ease-in-out infinite" };
-const filterSelect: React.CSSProperties = { minHeight: 44, maxWidth: 200, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 12px", background: "#fff", font: "inherit" };
-const errorBanner: React.CSSProperties = { color: "var(--color-danger-600)", fontSize: 13, marginBottom: 16 };
-const sectionTitle: React.CSSProperties = { fontSize: 20, fontWeight: 500, margin: "4px 0 2px" };
-const sectionSub: React.CSSProperties = { fontSize: 12, color: "var(--color-warm-400)", marginBottom: 16 };
-const cardsGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 };
-const featureCard: React.CSSProperties = { background: "#fff", border: "1px solid var(--color-cream-400)", borderRadius: 10, padding: "18px 18px 16px", display: "block" };
-const iconWrap: React.CSSProperties = { width: 36, height: 36, borderRadius: "50%", background: "var(--color-emerald-50)", border: "1px solid var(--color-emerald-100)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 };
-const cardTitle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: "var(--color-warm-900)", marginBottom: 4 };
-const cardDesc: React.CSSProperties = { fontSize: 11, color: "var(--color-warm-400)", lineHeight: 1.5 };
-const cardArrow: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 4, marginTop: 10, fontSize: 11, fontWeight: 600, color: "var(--color-gold-600)" };
-const actCard: React.CSSProperties = { background: "#fff", border: "1px solid var(--color-cream-400)", borderRadius: 10, overflow: "hidden" };
-const actHead: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderBottom: "1px solid var(--color-cream-300)" };
-const actTitle: React.CSSProperties = { fontSize: 13, fontWeight: 600 };
-const actActor: React.CSSProperties = { color: "var(--color-warm-400)" };
-const actRow: React.CSSProperties = { display: "flex", alignItems: "center", gap: 12, padding: "10px 18px", borderBottom: "1px solid rgba(237,229,212,.5)" };
-const actIcon: React.CSSProperties = { width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: "var(--color-emerald-50)", color: "var(--color-emerald-800)" };
-const actText: React.CSSProperties = { flex: 1, fontSize: 12, color: "var(--color-warm-700)", lineHeight: 1.4 };
-const actTime: React.CSSProperties = { fontSize: 10, color: "var(--color-warm-400)", flexShrink: 0 };
-const emptyActivity: React.CSSProperties = { padding: "24px 18px", fontSize: 13, color: "var(--color-warm-400)", textAlign: "center" };
