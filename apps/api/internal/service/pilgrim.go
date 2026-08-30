@@ -74,7 +74,28 @@ func (s *PilgrimService) Get(ctx context.Context, authenticatedOrgID string, req
 	if err != nil {
 		return nil, serviceError("PilgrimService.Get", err)
 	}
+	// A single record, so the exact subject is recorded. This is the precise
+	// answer a breach notification needs, and the one nothing else can supply
+	// after the fact.
+	s.recordRead(ctx, operator.ID, "pilgrim_read", request.PilgrimId, "")
 	return pilgrimMessage(pilgrim), nil
+}
+
+// recordRead writes an access trail for personal data.
+//
+// Failure is swallowed on purpose. This runs on a read path: refusing to show a
+// jamaah their own record because an audit row could not be written would break
+// the application to protect a log, which is the wrong way round. A missing
+// entry weakens a future investigation; a failed read breaks today's work.
+//
+// The trade is worth stating rather than assuming, because it means the trail
+// is best-effort and a breach report should say so.
+func (s *PilgrimService) recordRead(ctx context.Context, operatorID, action, entityID, note string) {
+	if s.auditRepository == nil {
+		return
+	}
+	_ = s.auditRepository.Write(ctx, operatorID, middleware.UserIDFromCtx(ctx),
+		action, "pilgrim", entityID, note)
 }
 
 func (s *PilgrimService) List(ctx context.Context, authenticatedOrgID string, request *hajjv1.ListPilgrimsRequest) (*hajjv1.ListPilgrimsResponse, error) {
@@ -95,6 +116,19 @@ func (s *PilgrimService) List(ctx context.Context, authenticatedOrgID string, re
 	if err != nil {
 		return nil, serviceError("PilgrimService.List", err)
 	}
+	// Recorded because of what has to be answerable within 72 hours of a
+	// breach (UU PDP art. 46): not "some data may have been exposed" but
+	// "these records, read by this account, at this time". Without a read
+	// trail the only honest answer is "everyone", and every jamaah has to be
+	// notified.
+	//
+	// One row per request carrying the scope and the count, not one per
+	// pilgrim. The season plus the count is enough to enumerate who was
+	// reachable, and a per-pilgrim log would multiply volume by twenty while
+	// making the access log itself a more sensitive thing to hold.
+	s.recordRead(ctx, operator.ID, "pilgrims_listed", request.SeasonId,
+		fmt.Sprintf("%d catatan dibaca", len(pilgrims)))
+
 	count, err := s.pilgrimRepository.CountBySeason(ctx, operator.ID, request.SeasonId)
 	if err != nil {
 		return nil, serviceError("PilgrimService.List", err)
