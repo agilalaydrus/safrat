@@ -890,11 +890,28 @@ with the old key.
 
 ```bash
 cd /home/deploy/safrat
+
+# Read both keys without putting either value in shell history or process args.
+read -rsp "Old KYC key: " KYC_ROTATE_FROM; printf '\n'
+read -rsp "New KYC key: " KYC_ROTATE_TO; printf '\n'
+export KYC_ROTATE_FROM KYC_ROTATE_TO
+
+set -a
+source .env.prod
+set +a
+export PGPASSWORD="$POSTGRES_PASSWORD"
 docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm \
-  -e KYC_ROTATE_FROM="<old base64 key>" \
-  -e KYC_ROTATE_TO="<new base64 key>" \
-  api /app/rotatekyc
+  -e PGUSER=safrat \
+  -e PGPASSWORD \
+  -e KYC_ROTATE_FROM \
+  -e KYC_ROTATE_TO \
+  api /rotatekyc
+
+unset KYC_ROTATE_FROM KYC_ROTATE_TO POSTGRES_PASSWORD PGPASSWORD
 ```
+
+The explicit owner connection is intentional: the least-privilege application
+role is forbidden from rotating encrypted payout destinations.
 
 It is **safe to run repeatedly**: it only touches records still stamped with
 the old key (plus legacy payout rows that predate fingerprinting), so it resumes

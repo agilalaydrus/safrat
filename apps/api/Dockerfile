@@ -19,6 +19,7 @@ RUN cd /app/apps/api && sqlc generate
 
 RUN cd apps/api && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /server ./cmd/server
 RUN cd apps/api && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /worker ./cmd/worker
+RUN cd apps/api && CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /rotatekyc ./cmd/rotatekyc
 # One-time maintenance job, run manually against a running deployment
 # (`docker compose run --rm api /storefront-backfill`). Shipped in the same
 # image so it always matches the schema the deployed API expects.
@@ -28,6 +29,7 @@ RUN mkdir -p /app/uploads/documents
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /server /server
 COPY --from=build /worker /worker
+COPY --from=build /rotatekyc /rotatekyc
 COPY --from=build /storefront-backfill /storefront-backfill
 # Seed the named production volume with a directory owned by distroless'
 # nonroot user. Without this, uploads target / in a read-only/non-writable

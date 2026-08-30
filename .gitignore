@@ -1,6 +1,10 @@
 .env
 .env.local
 .env.*.local
+# Production environment files and ad-hoc copies must never become Git
+# candidates. The deployed checkout keeps .env.prod beside the Compose file;
+# backup/save suffixes are covered too.
+.env.prod*
 node_modules
 .turbo
 .next

@@ -7,7 +7,7 @@
 // key. This exists for as long as the rotation takes, then stops.
 //
 //	KYC_ROTATE_FROM=<old base64 key> KYC_ROTATE_TO=<new base64 key> \
-//	  DATABASE_URL=... go run ./cmd/rotatekyc
+//	  PGHOST=... PGUSER=... PGDATABASE=... go run ./cmd/rotatekyc
 //
 // Safe to run repeatedly: it only touches records still stamped with the old
 // key, so it resumes where it stopped and does nothing once finished. The API
@@ -34,10 +34,6 @@ func main() {
 	ctx := context.Background()
 
 	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
-	if databaseURL == "" {
-		logger.Error("DATABASE_URL is required")
-		os.Exit(1)
-	}
 	rotator, err := crypto.NewRotator(
 		strings.TrimSpace(os.Getenv("KYC_ROTATE_FROM")),
 		strings.TrimSpace(os.Getenv("KYC_ROTATE_TO")),
@@ -47,6 +43,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	// An empty DATABASE_URL deliberately falls back to libpq's PGHOST,
+	// PGPORT, PGUSER, PGPASSWORD and PGDATABASE variables. Production Compose
+	// uses those variables because database passwords are not safe to embed in
+	// URLs, and the maintenance command must use the same connection model.
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
 		logger.Error("connect", "error", err)
