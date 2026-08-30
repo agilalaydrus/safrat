@@ -1066,6 +1066,9 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-seri
 .tw-empty-state__next { margin-top: 7px; color: var(--color-warm-700); font-size: 12px; }
 
 .tw-action-center { overflow: hidden; }
+/* Placed between a screen's stat grid and its toolbar, where the surrounding
+   sections carry no vertical margin of their own. */
+.tw-action-center--inline { margin: 20px 0; }
 .tw-action-center__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--color-cream-300); padding: 18px 20px; }
 .tw-action-center__title { margin: 0; font-size: 16px; font-weight: 700; }
 .tw-action-center__subtitle { margin-top: 3px; color: var(--color-warm-400); font-size: 11px; }

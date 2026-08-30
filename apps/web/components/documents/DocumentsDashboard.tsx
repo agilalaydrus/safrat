@@ -124,7 +124,7 @@ export default function DocumentsDashboard() {
     {notice && <p role="status" style={{ color: "var(--color-gold-800)" }}>{notice}</p>}
 
     <section style={statGrid}>
-      {DOC_TYPES.map((d) => <div key={d.value} style={statCard}><span style={statLabel}>{d.label}</span><strong style={statValue}>{counts[d.value] ?? 0}</strong></div>)}
+      {DOC_TYPES.map((d) => <div key={d.value} style={statCard}><span style={statLabel}>{d.label}</span><strong style={statValue}>{counts[d.value] ?? 0} <span className="tw-stat__unit">berkas</span></strong></div>)}
     </section>
 
     {uploadOpen && <section style={uploadCard}>

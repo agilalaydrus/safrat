@@ -51,9 +51,9 @@ export default function SeasonFinancialSummary({ seasonId }: { seasonId: string 
       </div>
       <h3 style={{ margin: "20px 0 4px", display: "flex", alignItems: "center", gap: 8, fontSize: 16 }}><IconReceipt2 size={18} />Status Pembayaran Jamaah</h3>
       <div style={grid}>
-        <div style={card}><span style={label}>Belum Bayar</span><strong style={{ ...value, color: "var(--color-danger-600)" }}>{summary.paymentCounts.UNPAID}</strong></div>
-        <div style={card}><span style={label}>DP</span><strong style={{ ...value, color: "var(--color-gold-800)" }}>{summary.paymentCounts.DP}</strong></div>
-        <div style={card}><span style={label}>Lunas</span><strong style={{ ...value, color: "var(--color-emerald-900)" }}>{summary.paymentCounts.PAID}</strong></div>
+        <div style={card}><span style={label}>Belum Bayar</span><strong style={{ ...value, color: "var(--color-danger-600)" }}>{summary.paymentCounts.UNPAID} <span className="tw-stat__unit">jamaah</span></strong></div>
+        <div style={card}><span style={label}>DP</span><strong style={{ ...value, color: "var(--color-gold-800)" }}>{summary.paymentCounts.DP} <span className="tw-stat__unit">jamaah</span></strong></div>
+        <div style={card}><span style={label}>Lunas</span><strong style={{ ...value, color: "var(--color-emerald-900)" }}>{summary.paymentCounts.PAID} <span className="tw-stat__unit">jamaah</span></strong></div>
       </div>
     </>}
   </section>;
