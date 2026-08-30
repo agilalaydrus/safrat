@@ -39,8 +39,12 @@
   --color-cream-100: #f8fafc; --color-cream-200: #f1f5f9; --color-cream-300: #e2e8f0; --color-cream-400: #cbd5e1; --color-cream-500: #94a3b8;
   --color-warm-900: #0f172a; --color-warm-700: #334155; --color-warm-500: #475569; --color-warm-400: #64748b; --color-warm-200: #cbd5e1; --color-warm-100: #f1f5f9;
   --color-danger-600: #e11d48; --color-danger-100: #ffe4e6; --color-success-600: #059669; --color-success-50: #ecfdf5;
+  --color-warning-700: #b45309; --color-warning-600: #d97706; --color-warning-200: #fde68a; --color-warning-50: #fffbeb;
   --color-teal-600: #0d9488; --color-cyan-600: #0891b2;
   --teal: var(--color-teal-600); --gold: var(--color-gold-500);
+  --shadow-soft: 0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.05);
+  --shadow-lift: 0 2px 4px rgba(15,23,42,.05), 0 12px 32px rgba(15,23,42,.09);
+  --shadow-glow: 0 8px 28px color-mix(in srgb, var(--tenant-brand, var(--color-gold-500)) 22%, transparent);
 }
 @media print { .no-print { display: none !important; } }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1000,6 +1004,13 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-seri
 .tw-page-hero__subtitle { margin: 2px 0 0; color: var(--color-warm-400); font-size: 12px; }
 .tw-page-hero__actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 4px; }
 .tw-page-hero__divider { margin: 18px 0 0; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.tw-enter { animation: fade-up 260ms ease-out both; }
+
 @media (min-width: 768px) {
   [data-desktop-sidebar] { display: block !important; }
   .dashboard-menu-button,
@@ -1015,6 +1026,17 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-seri
   .tw-page-hero { padding: 22px 16px 0; }
   .tw-page-hero__row { display: grid; }
   .tw-page-hero__actions { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-shell *,
+  .dashboard-shell *::before,
+  .dashboard-shell *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+  .dashboard-shell .tw-enter { opacity: 1; transform: none; }
 }
 ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--color-cream-400); border-radius: 3px; }
 
