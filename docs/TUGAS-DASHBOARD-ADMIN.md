@@ -120,7 +120,7 @@ Sembilan nada mereka dipadatkan — lebih sedikit, lebih konsisten.
 
 - [x] **Subjudul hidup** di setiap layar — yang **menghitung**, bukan menjelaskan (`15bcace`)
       konsep. Contoh nyata: `docs/referensi/meeqot/judul-subjudul.md`
-- [ ] **Keadaan kosong yang mengajar** — sebutkan sebabnya dan langkah
+- [x] **Keadaan kosong yang mengajar** — sebutkan sebabnya dan langkah (`1a54a2d`)
       berikutnya beserta tempatnya
 - [ ] **Placeholder pencarian menyebut isinya** — *"Cari nama, ID, kota, paket,
       PIC, atau tag…"*, bukan *"Cari…"*
