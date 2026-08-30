@@ -3206,3 +3206,47 @@ pembacanya harus mengecek sendiri.
   pending dan lookup-nya menemukan nol — kesalahan yang saya buat di jalur
   konfirmasi-nominal minggu lalu. Sekarang ada tes yang gagal kalau urutannya
   ditukar.
+
+---
+
+## Form publik: sisi jamaah (2026-08-30)
+
+**Koreksi dulu.** Sapuan saya sebelumnya menyebut tujuh komponen punya label
+tak terhubung. Itu terlalu kasar: form-form ini membungkus input di dalam
+`<label>`, jadi asosiasinya sudah benar. Pola yang benar-benar rusak adalah
+`<span>` di dalam `<div>` tanpa elemen `<label>` sama sekali — dan itu hanya
+`PilgrimFormDialog`, yang sudah diperbaiki.
+
+Yang sapuan itu munculkan justru celah lain, dan lebih langsung terasa
+konsumen. Form pendaftaran publik diisi jamaah, biasanya di ponsel, sering oleh
+orang yang tidak nyaman dengan formulir — dan ia membuka **keyboard qwerty
+penuh untuk nomor telepon**.
+
+### Yang berubah
+
+- `type="tel"` + `inputMode` → papan angka yang terbuka, bukan qwerty
+- Email: `autocapitalize="none"`, `autocorrect="off"` — kapitalisasi otomatis
+  adalah cara `Budi@` sampai ke server
+- `autoComplete` di setiap field yang bisa diisi otomatis → form panjang jadi
+  beberapa ketukan
+- Nomor paspor dikapitalkan saat diketik, bukan ditolak sesudahnya
+- Tanggal lahir dibatasi sampai hari ini. Ulang tahun di masa depan itu salah
+  ketik, dan pemilihnya bisa menolaknya di tempat kesalahan dibuat
+
+### Yang ternyata lebih baik dari rencana saya
+
+Menambahkan `required` membuat **browser sendiri** yang menolak pengiriman dan
+memfokuskan field yang kosong. Itu lebih baik daripada pesan kustom yang saya
+hampir tulis tesnya: satu kalimat di atas form yang sudah di-scroll lewat tidak
+memberi tahu field mana yang salah.
+
+Tes saya semula memeriksa jalur kustom itu dan **salah premis**. Sekarang ia
+memeriksa perilaku yang sebenarnya.
+
+Pesan kustom tetap ada untuk kegagalan server — dan itu diumumkan serta
+mengambil fokus. Di ponsel tombol kirim ada di bawah form panjang, jadi pesan
+yang dirender diam-diam di atasnya tidak akan terlihat. Layar berhasil juga
+memindahkan fokus ke judulnya, karena ia mengganti seluruh form dan tanpa itu
+fokus tertinggal di tombol yang sudah tidak ada.
+
+`ApplyAsAgentForm` dapat perlakuan sama — ia juga publik.
