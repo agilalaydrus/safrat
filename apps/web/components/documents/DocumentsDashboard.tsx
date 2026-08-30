@@ -5,6 +5,7 @@ import { IconFile, IconFiles, IconSearch, IconTrash, IconUpload } from "@tabler/
 import { Pilgrim, PilgrimDocument } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { pilgrimClient, seasonClient } from "@/lib/rpc";
 import { getBearerToken } from "@/lib/transport";
+import { ActionCenter, type ActionCenterItem } from "@/components/ui/ActionCenter";
 
 const DOC_TYPES = [
   { value: "PASSPORT", label: "Paspor" },
@@ -14,6 +15,13 @@ const DOC_TYPES = [
 ];
 const DOC_LABEL: Record<string, string> = Object.fromEntries(DOC_TYPES.map((d) => [d.value, d.label]));
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+// Passport, photo and meningitis certificate are the three Saudi will not
+// process a visa without. OTHER is supporting paper, so it is not counted.
+const REQUIRED_DOC_TYPES = [
+  { value: "PASSPORT", label: "paspor", consequence: "Tanpa paspor terunggah, pengajuan visa tidak bisa dikirim sama sekali dan jamaah tidak masuk manifes muassasah." },
+  { value: "VACCINE", label: "sertifikat vaksin meningitis", consequence: "Saudi menolak masuk tanpa sertifikat meningitis, dan jadwal vaksinasi butuh waktu — ini tidak bisa diurus di pekan terakhir." },
+  { value: "PHOTO", label: "pasfoto", consequence: "Pasfoto dipakai untuk visa dan kartu identitas jamaah; tanpa itu berkas tertahan di meja verifikasi." },
+];
 
 export default function DocumentsDashboard() {
   const [seasons, setSeasons] = useState<{ id: string; name: string; isActive: boolean }[]>([]);
@@ -59,6 +67,31 @@ export default function DocumentsDashboard() {
     for (const doc of documents) if (doc.docType in result) result[doc.docType] = (result[doc.docType] ?? 0) + 1;
     return result;
   }, [documents]);
+
+  const actionItems = useMemo<ActionCenterItem[]>(() => {
+    if (!pilgrims.length) return [];
+    // Count jamaah missing a type, not files — someone who uploaded three
+    // photos and no passport is still blocked.
+    const held = new Map<string, Set<string>>();
+    for (const doc of documents) {
+      const set = held.get(doc.pilgrimId) ?? new Set<string>();
+      set.add(doc.docType);
+      held.set(doc.pilgrimId, set);
+    }
+    return REQUIRED_DOC_TYPES.flatMap(({ value, label, consequence }) => {
+      const missing = pilgrims.filter((pilgrim) => !held.get(pilgrim.id)?.has(value)).length;
+      if (missing === 0) return [];
+      return [{
+        id: `missing-${value}`,
+        title: `${missing} jamaah belum mengunggah ${label}`,
+        description: consequence,
+        financialImpact: `${missing} jamaah`,
+        actionHref: "/dashboard/pilgrims",
+        actionLabel: "Lihat jamaah",
+        tone: value === "PASSPORT" ? "danger" : "warning",
+      } satisfies ActionCenterItem];
+    });
+  }, [pilgrims, documents]);
 
   const filtered = useMemo(() => documents.filter((doc) => {
     const matchesType = typeFilter === "all" || doc.docType === typeFilter;
@@ -122,6 +155,14 @@ export default function DocumentsDashboard() {
     </header>
     <div className="gold-divider" />
     {notice && <p role="status" style={{ color: "var(--color-gold-800)" }}>{notice}</p>}
+
+    <ActionCenter
+      items={actionItems}
+      subtitle="Dihitung per jamaah, bukan per berkas — satu jenis yang hilang tetap menahan pengajuan visa"
+      cleanTitle="Berkas lengkap"
+      cleanDescription="Setiap jamaah musim ini sudah mengunggah paspor, sertifikat vaksin, dan pasfoto."
+      className="tw-action-center--inline"
+    />
 
     <section style={statGrid}>
       {DOC_TYPES.map((d) => <div key={d.value} style={statCard}><span style={statLabel}>{d.label}</span><strong style={statValue}>{counts[d.value] ?? 0} <span className="tw-stat__unit">berkas</span></strong></div>)}

@@ -143,10 +143,10 @@ Daftar 27 layar ada di `apps/web/app/dashboard/(shell)/layout.tsx:49`.
 
 Tanpa modul baru; datanya sudah ada.
 
-- [ ] **T1.1** Jamaah — dokumen belum lengkap, paspor mendekati kedaluwarsa
-- [ ] **T1.2** Arus kas — tagihan telat, transaksi belum diverifikasi
-- [ ] **T1.3** Monitoring — rombongan berjalan tanpa petugas, SOS terbuka
-- [ ] **T1.4** Dokumen — berkas kurang per rombongan
+- [x] **T1.1** Jamaah — paspor <6 bulan, berkas kurang, belum ada kloter/grup (`c33b784`)
+- [x] **T1.2** Arus kas — vendor lewat jatuh tempo, defisit 30 hari, jamaah belum lunas (`363f46e`)
+- [x] **T1.3** Monitoring — SOS, kesehatan berat, grup tanpa muttawwif, grup basi (`d0d8d6e`)
+- [x] **T1.4** Dokumen — paspor/vaksin/pasfoto kurang, dihitung per jamaah (`6e1cbe1`)
 
 Setiap butir **wajib** menyebut nilainya dalam rupiah dan akibat kalau
 diabaikan. Contoh nada dari mereka:
@@ -155,6 +155,18 @@ diabaikan. Contoh nada dari mereka:
 > *"15 cicilan jatuh tempo ≤ 7 hari — Potensi kas masuk Rp 41 jt pekan ini. Kirim pengingat otomatis agar tidak bergeser ke bucket menunggak."*
 
 Kalau kosong, tampilkan keadaan bersih yang menenangkan, bukan kartu kosong.
+
+**Catatan pelaksanaan.** Rupiah dipakai di tempat datanya memang ada — arus kas
+punya nominal vendor sungguhan. Di layar jamaah, dokumen, dan monitoring tidak
+ada harga per jamaah di basis data, jadi lencana dampak memakai satuan yang
+benar (`n jamaah`, `n grup`) dan akibatnya ditulis di deskripsi. Menurunkan
+rupiah dari pendapatan pesanan akan menghasilkan angka karangan yang terlihat
+presisi.
+
+Tiga layar ternyata sudah punya peringatan sendiri yang tidak bisa ditindak —
+banner defisit di arus kas dan deretan pil di monitoring. Keduanya dilipat ke
+Pusat Tindakan, bukan dibiarkan berdampingan: peringatan yang sama di dua
+tempat membuat keduanya berhenti dibaca.
 
 ---
 
