@@ -3062,3 +3062,41 @@ gunanya bagi fulfilment digital yang jadi alasan ia dibangun.
 
 Paket sekarang diberi **dua minggu** — saat sebuah paket berhenti "di jalan" dan
 mulai "hilang".
+
+---
+
+## Remediasi environment + rotasi KYC production (2026-08-30)
+
+Audit menemukan delapan salinan `.env.prod` lama/salah nama di checkout VPS;
+satu nama file bahkan membawa nilai KYC key. Semuanya sudah dihapus dengan
+guard yang mempertahankan tepat `.env.prod` aktif, mode `0600`. Pola
+`.env.prod*` sekarang diabaikan Git, dan semua environment lokal/production
+dikeluarkan dari Docker build context. Sekalian, artefak `.next-verify`, pnpm
+store, dan workspace referensi dikeluarkan sehingga context API turun dari
+lebih dari 1 GB menjadi sekitar 27 MB.
+
+Runbook rotasi sebelumnya tidak bisa dijalankan sungguhan: image tidak membawa
+binary `rotatekyc`, command mengharuskan `DATABASE_URL` sementara production
+memakai variabel `PG*`, dan maintenance shell dapat diam-diam memilih cache tag
+`latest` lama. Ketiganya diperbaiki. Maintenance sekarang memakai binary
+`/rotatekyc`, koneksi libpq `PG*`, owner database secara eksplisit, `--no-deps`,
+dan immutable tag dari `git rev-parse HEAD`.
+
+Sebelum rotasi, dump production dibuat terenkripsi di laptop dengan private key
+yang tidak pernah masuk VPS. Restore rehearsal membuktikan checksum, migration
+122, dan row count. Private key kemudian dikunci AES-256 dengan passphrase acak
+yang disimpan sebagai Generic Password di macOS Keychain; arsip dibuka ulang
+dengan key terkunci dan checksum kembali cocok.
+
+Production berotasi dari fingerprint `3b5847c7` ke `da3a6362`. Saat maintenance
+tidak ada KYC atau tujuan payout terenkripsi, tetapi rotator tetap dijalankan
+dan melaporkan `still_on_old_key=0` serta `legacy_unstamped_payouts=0` sebelum
+env diganti secara atomik. Audit akhir: hanya satu file `.env.prod`, tidak ada
+temp rotation, fingerprint env `da3a6362`, API/ready/web semuanya HTTP 200.
+
+**Yang masih harus dilakukan owner:** salin `backup-key.locked.pem` dan arsip
+pre-rotasi ke media kedua/off-device (misalnya iCloud Drive atau flash disk),
+uji bahwa salinannya ada, lalu hapus `backup-key.pem` asli yang belum terkunci.
+Recurring R2 backup juga belum dipasang di VPS; backup ini satu kali, bukan
+pengganti cron off-site. `BANK_FEED_SECRET` masih belum diset dan tetap
+menghasilkan warning Compose.
