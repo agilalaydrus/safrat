@@ -74,12 +74,18 @@ adalah cara membuat kesalahan yang lalu masuk ke notifikasi resmi.
 **Akun staf dibobol — apa yang dibacanya, dan milik siapa:**
 
 ```sql
-SELECT created_at, action, entity_id, message
+SELECT created_at, action, entity_id, COALESCE(metadata->>'message', '')
 FROM audit_logs
 WHERE user_id = :user_id
   AND created_at BETWEEN :mulai AND :selesai
 ORDER BY created_at;
 ```
+
+> Catatannya ada di `metadata->>'message'`, **bukan** kolom `message`. Versi
+> pertama dokumen ini menulis `message` dan gagal saat dijalankan. Itu jenis
+> kesalahan yang baru ketahuan di jam ke-12 sebuah insiden nyata — alasan
+> setiap kueri di sini sekarang sudah dijalankan sungguhan, bukan ditulis dari
+> ingatan atas skema.
 
 `pilgrim_read` menyebut satu jamaah di `entity_id`. `pilgrims_listed` menyebut
 musim di `entity_id` dan jumlahnya di `message` — jamaah yang terjangkau adalah
@@ -159,5 +165,22 @@ Dicatat supaya jujur, bukan disembunyikan:
 - **`audit_logs` tumbuh tanpa batas dan tanpa retensi.** Ia sendiri berisi data
   yang sensitif — siapa membaca catatan siapa.
 - **Jejak baca baru ada sejak 30 Agustus 2026.**
-- **Belum pernah dilatih.** Prosedur yang belum pernah dijalankan adalah
-  asumsi, sama seperti backup yang belum pernah dipulihkan.
+- **Alurnya belum pernah dilatih utuh.** Kueri-kuerinya sudah, prosedurnya
+  belum: siapa memutuskan, berapa lama mengumpulkan bukti, apakah CS siap.
+  Prosedur yang belum pernah dijalankan adalah asumsi, sama seperti backup yang
+  belum pernah dipulihkan.
+
+---
+
+## Lampiran: latihan kueri
+
+Jalankan sekali sebulan, dan setelah setiap perubahan skema. Butuh kurang dari
+satu menit, dan menangkap persis kegagalan yang tidak boleh ditemukan saat
+insiden:
+
+```bash
+./scripts/latihan-insiden.sh
+```
+
+Ia hanya membaca — tidak mengubah apa pun. Kalau ada kueri yang gagal, skema
+sudah bergeser dan dokumen ini harus ikut diperbarui **sebelum** dibutuhkan.
