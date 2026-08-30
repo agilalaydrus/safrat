@@ -183,12 +183,18 @@ tempat membuat keduanya berhenti dibaca.
 - [ ] **Penyaringan dipaksakan di lapisan repository, bukan handler**
 - [ ] Agregasi laporan per cabang
 - [ ] Layar `/dashboard/cabang` sesuai §4.2 DESAIN
-- [ ] Uji **dua arah**: kepala cabang Bandung **bisa** melihat jamaahnya, dan
-      **tidak bisa** melihat jamaah Medan
+- [x] Uji **dua arah**: kepala cabang Bandung **bisa** melihat jamaahnya, dan
+      **tidak bisa** melihat jamaah Medan (`6af60db`, integration test langsung
+      di lapisan repository)
 
 > **Bahaya:** kalau penyaringan `branch_id` hanya ada di handler, kepala cabang
 > Bandung akan bisa membaca data jamaah Medan. Itu **pelanggaran UU PDP**, bukan
 > bug tampilan. Lihat `docs/INSIDEN-DATA-PRIBADI.md`.
+
+**Kemajuan scoping repository.** Vertical jamaah sudah dipaksa di query untuk
+baca/list/statistik, mutasi, substitusi, dokumen, asuransi, roster kloter, dan
+create yang otomatis mewarisi cabang aktor (`6af60db`). Kotak penyaringan utama
+tetap terbuka sampai registration, agent, dan order memakai batas yang sama.
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
