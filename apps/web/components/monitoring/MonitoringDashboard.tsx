@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { IconAlertTriangle, IconHeartbeat, IconMoonStars, IconPlaneDeparture, IconSos, IconWifi, IconWifiOff, IconX } from "@tabler/icons-react";
+import { IconMoonStars, IconPlaneDeparture, IconSos, IconWifi, IconWifiOff, IconX } from "@tabler/icons-react";
 import { monitoringClient, seasonClient } from "@/lib/rpc";
+import { ActionCenter, type ActionCenterItem } from "@/components/ui/ActionCenter";
 import { MonitoringSnapshot, GroupMonitoringCard } from "@hajj-saas/proto-gen/hajj/v1/monitoring_pb";
 
 const CITY_ORDER = ["MAKKAH", "MADINAH", "ARAFAH", "MUZDALIFAH", "MINA", "TRANSIT", "INDONESIA", "DEPARTED"] as const;
@@ -91,6 +92,54 @@ export default function MonitoringDashboard() {
   const sosCount = snapshot?.activeSos.length ?? 0;
   const beratReports = snapshot?.openHealthReports.filter((h) => h.severity === "BERAT") ?? [];
   const staleGroups = snapshot?.groups.filter((g) => hoursSince(g.lastUpdate?.toDate()) >= STALE_HOURS) ?? [];
+  const leaderlessGroups = snapshot?.groups.filter((g) => !g.leaderName) ?? [];
+  // A field screen, so the stake is people rather than money. Ordered by how
+  // fast harm compounds: someone who pressed the button is waiting now.
+  const actionItems = useMemo<ActionCenterItem[]>(() => {
+    const items: ActionCenterItem[] = [];
+
+    if (sosCount > 0) items.push({
+      id: "sos",
+      title: `${sosCount} SOS aktif`,
+      description: "Jamaah menekan tombol darurat dan belum ada yang menandai penanganannya. Setiap menit tanpa tanggapan adalah menit jamaah menunggu sendirian.",
+      financialImpact: `${sosCount} jamaah`,
+      actionHref: "/dashboard/sos",
+      actionLabel: "Tangani SOS",
+      tone: "danger",
+    });
+
+    if (beratReports.length > 0) items.push({
+      id: "health",
+      title: `${beratReports.length} laporan kesehatan berat`,
+      description: "Kondisi berat bisa memburuk dalam hitungan jam di cuaca Tanah Suci. Pastikan muttawwif sudah mendampingi dan rujukan klinik disiapkan.",
+      financialImpact: `${beratReports.length} jamaah`,
+      actionHref: "/dashboard/monitoring",
+      actionLabel: "Lihat laporan",
+      tone: "danger",
+    });
+
+    if (leaderlessGroups.length > 0) items.push({
+      id: "leaderless",
+      title: `${leaderlessGroups.length} grup tanpa muttawwif`,
+      description: "Grup yang berjalan tanpa pendamping resmi tidak punya siapa pun di lapangan yang bertanggung jawab saat jamaah terpisah atau sakit.",
+      financialImpact: `${leaderlessGroups.length} grup`,
+      actionHref: "/dashboard/groups",
+      actionLabel: "Tunjuk muttawwif",
+      tone: "warning",
+    });
+
+    if (staleGroups.length > 0) items.push({
+      id: "stale",
+      title: `${staleGroups.length} grup belum mengirim kabar >${STALE_HOURS} jam`,
+      description: "Tanpa kabar terbaru, posisi dan kondisi grup ini tidak diketahui — dan keluarga di rumah menanyakannya ke kantor, bukan ke lapangan.",
+      financialImpact: `${staleGroups.length} grup`,
+      actionHref: "/dashboard/communication",
+      actionLabel: "Hubungi muttawwif",
+      tone: "warning",
+    });
+
+    return items;
+  }, [sosCount, beratReports.length, leaderlessGroups.length, staleGroups.length]);
 
   const cityBuckets = CITY_ORDER.map((city) => ({
     city,
@@ -117,13 +166,13 @@ export default function MonitoringDashboard() {
       </header>
       <div className="gold-divider" />
 
-      {(sosCount > 0 || staleGroups.length > 0 || beratReports.length > 0) && (
-        <div style={alertBar}>
-          {sosCount > 0 && <span style={{ ...alertPill, background: "var(--color-danger-100)", color: "var(--color-danger-600)" }}><IconSos size={15} />{sosCount} SOS aktif</span>}
-          {staleGroups.length > 0 && <span style={{ ...alertPill, background: "var(--color-gold-50)", color: "var(--color-gold-800)" }}><IconAlertTriangle size={15} />{staleGroups.length} grup belum update &gt;{STALE_HOURS} jam</span>}
-          {beratReports.length > 0 && <span style={{ ...alertPill, background: "#fdece1", color: "#c2410c" }}><IconHeartbeat size={15} />{beratReports.length} laporan kesehatan BERAT</span>}
-        </div>
-      )}
+      <ActionCenter
+        items={actionItems}
+        subtitle="Dari data lapangan langsung — diperbarui otomatis selama ada rombongan berjalan"
+        cleanTitle="Lapangan aman"
+        cleanDescription="Tidak ada SOS terbuka, tidak ada laporan kesehatan berat, dan setiap grup punya muttawwif serta kabar terbaru."
+        className="tw-action-center--inline"
+      />
 
       {!snapshot && <p style={{ color: "var(--color-warm-400)" }}>Memuat data monitoring...</p>}
 
@@ -224,8 +273,6 @@ const eyebrow: React.CSSProperties = { color: "var(--color-gold-800)", fontSize:
 const title: React.CSSProperties = { fontSize: "clamp(28px,5vw,44px)", fontWeight: 500, margin: 0 };
 const connBadge: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700 };
 const select: React.CSSProperties = { minHeight: 44, border: "1px solid var(--color-cream-400)", borderRadius: 8, padding: "0 12px", background: "#fff" };
-const alertBar: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap", margin: "16px 0" };
-const alertPill: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 99, fontSize: 13, fontWeight: 700 };
 const sectionTitle: React.CSSProperties = { fontSize: 17, margin: "0 0 12px" };
 const cityLabel: React.CSSProperties = { margin: "0 0 8px", fontSize: 14, fontWeight: 700, color: "var(--color-emerald-900)" };
 const cityCount: React.CSSProperties = { fontWeight: 400, color: "var(--color-warm-400)" };
