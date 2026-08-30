@@ -22,6 +22,12 @@ Bukti, berurutan dari yang paling sulit dibantah:
   dengan lima cabang fiktif.
 - Daftar "pelanggan" di panel SaaS mereka adalah array hardcoded lengkap dengan
   nilai MRR.
+- **Admin Pusat (`admmeeqt`) terbuka tanpa login sama sekali.** Bukan kebocoran —
+  memang tidak ada yang menjaganya, karena tidak ada yang bisa menjaga.
+- `saasmeeqot.dul.co.id` menyediakan halaman `/login` dengan akun dummy yang
+  dibagikan terbuka. Bundle-nya identik dengan situs pemasaran ditambah satu
+  rute, tanpa chunk tambahan, **dan nol pemakaian `localStorage`** — login yang
+  sungguhan menyimpan token; yang ini tidak menyimpan apa pun.
 
 Artinya Meeqot adalah **prototipe klik-able beresolusi tinggi**, bukan sistem
 yang berjalan. Itu tidak membuatnya tidak relevan — justru sebaliknya. Sebagai
