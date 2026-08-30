@@ -6,6 +6,7 @@ SET insurance_provider = $2, insurance_policy_no = $3, insurance_class = $4,
     insurance_beneficiary_name = $10, insurance_beneficiary_relation = $11,
     updated_at = NOW()
 WHERE id = $1 AND operator_id = $12
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid)
 RETURNING *;
 
 -- name: CreateInsuranceClaim :one

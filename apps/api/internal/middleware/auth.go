@@ -389,6 +389,7 @@ func (a *authInterceptor) authenticate(ctx context.Context, procedure string, he
 	ctx = context.WithValue(ctx, ctxKeyOperatorID, organizationID)
 	ctx = context.WithValue(ctx, ctxKeyUserName, userName)
 	ctx = context.WithValue(ctx, ctxKeyOrgRole, orgRole)
+	ctx = repository.ContextWithStaffActor(ctx, userID)
 	return ctx, nil
 }
 
@@ -472,7 +473,8 @@ func OrgRoleFromCtx(ctx context.Context) string {
 // Production requests receive the same values from NewAuthInterceptor.
 func ContextWithIdentity(ctx context.Context, userID, operatorID string) context.Context {
 	ctx = context.WithValue(ctx, ctxKeyUserID, userID)
-	return context.WithValue(ctx, ctxKeyOperatorID, operatorID)
+	ctx = context.WithValue(ctx, ctxKeyOperatorID, operatorID)
+	return repository.ContextWithStaffActor(ctx, userID)
 }
 
 // ContextWithStaffIdentity is the test/in-process counterpart for operations

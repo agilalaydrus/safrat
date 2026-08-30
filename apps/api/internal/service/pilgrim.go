@@ -421,7 +421,7 @@ func (s *PilgrimService) ListDocuments(ctx context.Context, authenticatedOrgID s
 	if _, err := s.pilgrimRepository.Get(ctx, operator.ID, req.PilgrimId); err != nil {
 		return nil, serviceError("PilgrimService.ListDocuments", err)
 	}
-	documents, err := s.pilgrimRepository.ListDocuments(ctx, req.PilgrimId)
+	documents, err := s.pilgrimRepository.ListDocuments(ctx, operator.ID, req.PilgrimId)
 	if err != nil {
 		return nil, serviceError("PilgrimService.ListDocuments", err)
 	}

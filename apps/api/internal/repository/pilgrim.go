@@ -28,6 +28,10 @@ func (r *PilgrimRepository) Create(ctx context.Context, operatorID string, input
 	if err != nil {
 		return nil, err
 	}
+	scope, err := branchScope(ctx, r.queries, operatorUUID)
+	if err != nil {
+		return nil, err
+	}
 	seasonUUID, err := pgUUID(input.SeasonID)
 	if err != nil {
 		return nil, err
@@ -48,6 +52,7 @@ func (r *PilgrimRepository) Create(ctx context.Context, operatorID string, input
 		PassportNumber:         sealedPassport,
 		PassportNumberBlind:    passportBlind,
 		PassportKeyFingerprint: passportKey,
+		BranchScope:            scope,
 		Nationality:            input.Nationality,
 		DateOfBirth:            pgTimestamp(input.DateOfBirth),
 		Gender:                 input.Gender,
@@ -77,7 +82,11 @@ func (r *PilgrimRepository) Get(ctx context.Context, operatorID, pilgrimID strin
 	if err != nil {
 		return nil, err
 	}
-	pilgrim, err := r.queries.GetPilgrim(ctx, db.GetPilgrimParams{ID: pilgrimUUID, OperatorID: operatorUUID})
+	scope, err := branchScope(ctx, r.queries, operatorUUID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrim, err := r.queries.GetPilgrim(ctx, db.GetPilgrimParams{ID: pilgrimUUID, OperatorID: operatorUUID, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -100,9 +109,14 @@ func (r *PilgrimRepository) GetByPassport(ctx context.Context, operatorID, seaso
 	if err != nil {
 		return nil, err
 	}
+	scope, err := branchScope(ctx, r.queries, operatorUUID)
+	if err != nil {
+		return nil, err
+	}
 	pilgrim, err := r.queries.GetPilgrimByPassport(ctx, db.GetPilgrimByPassportParams{
 		OperatorID:    operatorUUID,
 		SeasonID:      seasonUUID,
+		BranchScope:   scope,
 		PassportBlind: blind,
 		PassportRaw:   passportNumber,
 	})
@@ -121,7 +135,11 @@ func (r *PilgrimRepository) List(ctx context.Context, operatorID, seasonID strin
 	if err != nil {
 		return nil, err
 	}
-	pilgrims, err := r.queries.ListPilgrims(ctx, db.ListPilgrimsParams{OperatorID: operatorUUID, SeasonID: seasonUUID, Limit: limit, Offset: offset})
+	scope, err := branchScope(ctx, r.queries, operatorUUID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrims, err := r.queries.ListPilgrims(ctx, db.ListPilgrimsParams{OperatorID: operatorUUID, SeasonID: seasonUUID, Limit: limit, Offset: offset, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -141,6 +159,10 @@ func (r *PilgrimRepository) Update(ctx context.Context, operatorID, pilgrimID st
 	if err != nil {
 		return nil, err
 	}
+	scope, err := branchScope(ctx, r.queries, operatorUUID)
+	if err != nil {
+		return nil, err
+	}
 	// The same sealing as create. Two write paths storing the field two ways
 	// would leave half the table searchable and half not, silently.
 	sealedPassport, passportBlind, passportKey, err := sealPassport(input.PassportNumber)
@@ -156,6 +178,7 @@ func (r *PilgrimRepository) Update(ctx context.Context, operatorID, pilgrimID st
 		PassportNumber:         sealedPassport,
 		PassportNumberBlind:    passportBlind,
 		PassportKeyFingerprint: passportKey,
+		BranchScope:            scope,
 		Nationality:            input.Nationality,
 		DateOfBirth:            pgTimestamp(input.DateOfBirth),
 		Gender:                 input.Gender,
@@ -184,7 +207,11 @@ func (r *PilgrimRepository) MarkSubstituted(ctx context.Context, operatorID, pil
 	if err != nil {
 		return err
 	}
-	if err := r.queries.MarkSubstituted(ctx, db.MarkSubstitutedParams{ID: pilgrimUUID, OperatorID: operatorUUID}); err != nil {
+	scope, err := branchScope(ctx, r.queries, operatorUUID)
+	if err != nil {
+		return err
+	}
+	if err := r.queries.MarkSubstituted(ctx, db.MarkSubstitutedParams{ID: pilgrimUUID, OperatorID: operatorUUID, BranchScope: scope}); err != nil {
 		return databaseError(err)
 	}
 	return nil
@@ -199,7 +226,11 @@ func (r *PilgrimRepository) RegenerateAccessCode(ctx context.Context, operatorID
 	if err != nil {
 		return err
 	}
-	if err := r.queries.RegenerateAccessCode(ctx, db.RegenerateAccessCodeParams{ID: pilgrimUUID, OperatorID: operatorUUID}); err != nil {
+	scope, err := branchScope(ctx, r.queries, operatorUUID)
+	if err != nil {
+		return err
+	}
+	if err := r.queries.RegenerateAccessCode(ctx, db.RegenerateAccessCodeParams{ID: pilgrimUUID, OperatorID: operatorUUID, BranchScope: scope}); err != nil {
 		return databaseError(err)
 	}
 	return nil
@@ -214,7 +245,12 @@ func (r *PilgrimRepository) GetTx(ctx context.Context, tx pgx.Tx, operatorID, pi
 	if err != nil {
 		return nil, err
 	}
-	pilgrim, err := r.queries.WithTx(tx).GetPilgrim(ctx, db.GetPilgrimParams{ID: pilgrimUUID, OperatorID: operatorUUID})
+	txQueries := r.queries.WithTx(tx)
+	scope, err := branchScope(ctx, txQueries, operatorUUID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrim, err := txQueries.GetPilgrim(ctx, db.GetPilgrimParams{ID: pilgrimUUID, OperatorID: operatorUUID, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -234,7 +270,12 @@ func (r *PilgrimRepository) SubstitutePilgrimTx(ctx context.Context, tx pgx.Tx, 
 	if err != nil {
 		return err
 	}
-	return databaseError(r.queries.WithTx(tx).SubstitutePilgrim(ctx, db.SubstitutePilgrimParams{ID: originalUUID, SubstitutedByID: replacementUUID, OperatorID: operatorUUID, SubstitutionReason: reason}))
+	txQueries := r.queries.WithTx(tx)
+	scope, err := branchScope(ctx, txQueries, operatorUUID)
+	if err != nil {
+		return err
+	}
+	return databaseError(txQueries.SubstitutePilgrim(ctx, db.SubstitutePilgrimParams{ID: originalUUID, SubstitutedByID: replacementUUID, OperatorID: operatorUUID, SubstitutionReason: reason, BranchScope: scope}))
 }
 
 func (r *PilgrimRepository) ListSubstitutions(ctx context.Context, operatorID, seasonID string) ([]*domain.Substitution, error) {
@@ -246,7 +287,11 @@ func (r *PilgrimRepository) ListSubstitutions(ctx context.Context, operatorID, s
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListSubstitutions(ctx, db.ListSubstitutionsParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListSubstitutions(ctx, db.ListSubstitutionsParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -278,7 +323,12 @@ func (r *PilgrimRepository) TransferPilgrimGroupTx(ctx context.Context, tx pgx.T
 	if err != nil {
 		return err
 	}
-	return databaseError(r.queries.WithTx(tx).TransferPilgrimGroup(ctx, db.TransferPilgrimGroupParams{ID: pilgrimUUID, GroupID: groupUUID, OperatorID: operatorUUID}))
+	txQueries := r.queries.WithTx(tx)
+	scope, err := branchScope(ctx, txQueries, operatorUUID)
+	if err != nil {
+		return err
+	}
+	return databaseError(txQueries.TransferPilgrimGroup(ctx, db.TransferPilgrimGroupParams{ID: pilgrimUUID, GroupID: groupUUID, OperatorID: operatorUUID, BranchScope: scope}))
 }
 
 func (r *PilgrimRepository) WriteAuditLogTx(ctx context.Context, tx pgx.Tx, operatorID, userID, action, entityID, message string) error {
@@ -298,7 +348,11 @@ func (r *PilgrimRepository) CountBySeason(ctx context.Context, operatorID, seaso
 	if err != nil {
 		return 0, err
 	}
-	count, err := r.queries.CountPilgrimsBySeason(ctx, db.CountPilgrimsBySeasonParams{OperatorID: operatorUUID, SeasonID: seasonUUID})
+	scope, err := branchScope(ctx, r.queries, operatorUUID)
+	if err != nil {
+		return 0, err
+	}
+	count, err := r.queries.CountPilgrimsBySeason(ctx, db.CountPilgrimsBySeasonParams{OperatorID: operatorUUID, SeasonID: seasonUUID, BranchScope: scope})
 	if err != nil {
 		return 0, databaseError(err)
 	}
@@ -314,7 +368,11 @@ func (r *PilgrimRepository) GetStats(ctx context.Context, operatorID, seasonID s
 	if err != nil {
 		return domain.PilgrimStats{}, err
 	}
-	stats, err := r.queries.GetPilgrimStats(ctx, db.GetPilgrimStatsParams{OperatorID: operatorUUID, SeasonID: seasonUUID})
+	scope, err := branchScope(ctx, r.queries, operatorUUID)
+	if err != nil {
+		return domain.PilgrimStats{}, err
+	}
+	stats, err := r.queries.GetPilgrimStats(ctx, db.GetPilgrimStatsParams{OperatorID: operatorUUID, SeasonID: seasonUUID, BranchScope: scope})
 	if err != nil {
 		return domain.PilgrimStats{}, databaseError(err)
 	}
@@ -334,7 +392,11 @@ func (r *PilgrimRepository) GetStatsByKloter(ctx context.Context, operatorID, se
 	if err != nil {
 		return domain.PilgrimStats{}, err
 	}
-	stats, err := r.queries.GetPilgrimStatsByKloter(ctx, db.GetPilgrimStatsByKloterParams{OperatorID: operatorUUID, SeasonID: seasonUUID, KloterID: kloterUUID})
+	scope, err := branchScope(ctx, r.queries, operatorUUID)
+	if err != nil {
+		return domain.PilgrimStats{}, err
+	}
+	stats, err := r.queries.GetPilgrimStatsByKloter(ctx, db.GetPilgrimStatsByKloterParams{OperatorID: operatorUUID, SeasonID: seasonUUID, KloterID: kloterUUID, BranchScope: scope})
 	if err != nil {
 		return domain.PilgrimStats{}, databaseError(err)
 	}
@@ -350,8 +412,12 @@ func (r *PilgrimRepository) UpdatePayment(ctx context.Context, operatorID, pilgr
 	if err != nil {
 		return nil, err
 	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
 	pilgrim, err := r.queries.UpdatePilgrimPayment(ctx, db.UpdatePilgrimPaymentParams{
-		ID: pilgrimUUID, OperatorID: opUUID, PaymentStatus: paymentStatus, PaymentNotes: notes,
+		ID: pilgrimUUID, OperatorID: opUUID, PaymentStatus: paymentStatus, PaymentNotes: notes, BranchScope: scope,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -368,11 +434,16 @@ func (r *PilgrimRepository) UpdateDocuments(ctx context.Context, operatorID, pil
 	if err != nil {
 		return nil, err
 	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
 	pilgrim, err := r.queries.UpdatePilgrimDocuments(ctx, db.UpdatePilgrimDocumentsParams{
 		ID: pilgrimUUID, OperatorID: opUUID, DocumentsPassport: input.Passport, DocumentsPhoto: input.Photo, DocumentsVaccine: input.Vaccine,
 		PassportExpiryDate: pgDate(input.PassportExpiry), VaccineMeningitisDate: pgDate(input.VaccineDate),
 		DocumentsKtp: input.KTP, DocumentsKk: input.KK, DocumentsMahramProof: input.MahramProof,
 		DocumentsVisa: input.Visa, VisaNumber: input.VisaNumber, VisaExpiryDate: pgDate(input.VisaExpiry),
+		BranchScope: scope,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -389,8 +460,12 @@ func (r *PilgrimRepository) UpdateEmergencyContact(ctx context.Context, operator
 	if err != nil {
 		return nil, err
 	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
 	pilgrim, err := r.queries.UpdatePilgrimEmergencyContact(ctx, db.UpdatePilgrimEmergencyContactParams{
-		ID: pilgrimUUID, OperatorID: opUUID, EmergencyContactName: name, EmergencyContactPhone: phone,
+		ID: pilgrimUUID, OperatorID: opUUID, EmergencyContactName: name, EmergencyContactPhone: phone, BranchScope: scope,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -407,11 +482,16 @@ func (r *PilgrimRepository) UpdateInsurance(ctx context.Context, operatorID, pil
 	if err != nil {
 		return nil, err
 	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
 	pilgrim, err := r.queries.UpdatePilgrimInsurance(ctx, db.UpdatePilgrimInsuranceParams{
 		ID: pilgrimUUID, OperatorID: opUUID, InsuranceProvider: input.Provider, InsurancePolicyNo: input.PolicyNo,
 		InsuranceClass: input.Class, BloodType: input.BloodType, ChronicConditions: input.ChronicConditions, CurrentMedications: input.CurrentMedications,
 		InsuranceStartDate: pgDate(input.StartDate), InsuranceEndDate: pgDate(input.EndDate),
 		InsuranceBeneficiaryName: input.BeneficiaryName, InsuranceBeneficiaryRelation: input.BeneficiaryRelation,
+		BranchScope: scope,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -428,7 +508,11 @@ func (r *PilgrimRepository) CheckInHotel(ctx context.Context, operatorID, pilgri
 	if err != nil {
 		return nil, err
 	}
-	pilgrim, err := r.queries.CheckInPilgrimHotel(ctx, db.CheckInPilgrimHotelParams{ID: pilgrimUUID, OperatorID: opUUID, HotelCheckedIn: checkedIn})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrim, err := r.queries.CheckInPilgrimHotel(ctx, db.CheckInPilgrimHotelParams{ID: pilgrimUUID, OperatorID: opUUID, HotelCheckedIn: checkedIn, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -444,8 +528,12 @@ func (r *PilgrimRepository) ListWithExpiringPassports(ctx context.Context, opera
 	if err != nil {
 		return nil, err
 	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := r.queries.ListPilgrimsWithExpiringPassports(ctx, db.ListPilgrimsWithExpiringPassportsParams{
-		OperatorID: opUUID, SeasonID: seasonUUID, PassportExpiryDate: pgtype.Date{Time: before, Valid: true},
+		OperatorID: opUUID, SeasonID: seasonUUID, PassportExpiryDate: pgtype.Date{Time: before, Valid: true}, BranchScope: scope,
 	})
 	if err != nil {
 		return nil, err
@@ -466,8 +554,12 @@ func (r *PilgrimRepository) CreateDocument(ctx context.Context, operatorID, pilg
 	if err != nil {
 		return nil, err
 	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
 	row, err := r.queries.CreatePilgrimDocument(ctx, db.CreatePilgrimDocumentParams{
-		PilgrimID: pilgrimUUID, OperatorID: opUUID, DocType: docType, FileUrl: fileURL, FileName: fileName, UploadedBy: uploadedBy,
+		PilgrimID: pilgrimUUID, OperatorID: opUUID, DocType: docType, FileUrl: fileURL, FileName: fileName, UploadedBy: uploadedBy, BranchScope: scope,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -488,10 +580,14 @@ func (r *PilgrimRepository) UpdateKYC(ctx context.Context, operatorID, pilgrimID
 	if err != nil {
 		return nil, err
 	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
 	row, err := r.queries.UpdatePilgrimKyc(ctx, db.UpdatePilgrimKycParams{
 		ID: pilgrimUUID, OperatorID: opUUID, Nik: input.NIK, Address: input.Address,
 		PlaceOfBirth: input.PlaceOfBirth, MaritalStatus: input.MaritalStatus, Occupation: input.Occupation, FatherName: input.FatherName,
-		KycStatus: "PENDING_REVIEW", KycSource: kycSource,
+		KycStatus: "PENDING_REVIEW", KycSource: kycSource, BranchScope: scope,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -508,12 +604,16 @@ func (r *PilgrimRepository) VerifyKYC(ctx context.Context, operatorID, pilgrimID
 	if err != nil {
 		return nil, err
 	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
 	status := "VERIFIED"
 	if !approve {
 		status = "REJECTED"
 	}
 	row, err := r.queries.VerifyPilgrimKyc(ctx, db.VerifyPilgrimKycParams{
-		ID: pilgrimUUID, OperatorID: opUUID, KycStatus: status, KycVerifiedBy: verifiedBy, KycRejectionReason: rejectionReason,
+		ID: pilgrimUUID, OperatorID: opUUID, KycStatus: status, KycVerifiedBy: verifiedBy, KycRejectionReason: rejectionReason, BranchScope: scope,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -521,12 +621,20 @@ func (r *PilgrimRepository) VerifyKYC(ctx context.Context, operatorID, pilgrimID
 	return toPilgrim(row), nil
 }
 
-func (r *PilgrimRepository) ListDocuments(ctx context.Context, pilgrimID string) ([]*domain.PilgrimDocument, error) {
+func (r *PilgrimRepository) ListDocuments(ctx context.Context, operatorID, pilgrimID string) ([]*domain.PilgrimDocument, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
 	pilgrimUUID, err := pgUUID(pilgrimID)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListPilgrimDocuments(ctx, pilgrimUUID)
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListPilgrimDocuments(ctx, db.ListPilgrimDocumentsParams{PilgrimID: pilgrimUUID, OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -546,7 +654,11 @@ func (r *PilgrimRepository) ListSeasonDocuments(ctx context.Context, operatorID,
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListSeasonDocuments(ctx, db.ListSeasonDocumentsParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListSeasonDocuments(ctx, db.ListSeasonDocumentsParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -576,7 +688,11 @@ func (r *PilgrimRepository) DeleteDocument(ctx context.Context, operatorID, docu
 	if err != nil {
 		return err
 	}
-	return databaseError(r.queries.DeletePilgrimDocument(ctx, db.DeletePilgrimDocumentParams{ID: docUUID, OperatorID: opUUID}))
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return err
+	}
+	return databaseError(r.queries.DeletePilgrimDocument(ctx, db.DeletePilgrimDocumentParams{ID: docUUID, OperatorID: opUUID, BranchScope: scope}))
 }
 
 func toPilgrimDocument(value db.PilgrimDocument) *domain.PilgrimDocument {
@@ -725,7 +841,11 @@ func (r *PilgrimRepository) AssignKloterIfUnset(ctx context.Context, operatorID,
 	if err != nil {
 		return err
 	}
-	return r.queries.AssignKloterIfUnset(ctx, db.AssignKloterIfUnsetParams{ID: pilgrimUUID, OperatorID: opUUID, KloterID: kloterUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return err
+	}
+	return r.queries.AssignKloterIfUnset(ctx, db.AssignKloterIfUnsetParams{ID: pilgrimUUID, OperatorID: opUUID, KloterID: kloterUUID, BranchScope: scope})
 }
 
 func nullableUUIDString(value pgtype.UUID) string {

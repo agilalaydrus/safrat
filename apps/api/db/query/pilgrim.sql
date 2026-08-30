@@ -3,12 +3,12 @@ INSERT INTO pilgrims (
   season_id, operator_id, group_id, full_name, passport_number, nationality,
   date_of_birth, gender, photo_url, phone, emergency_contact, preferred_lang,
   medical_notes, requires_wheelchair, mahram_id, kloter_id, email, agent_id,
-  passport_number_blind, passport_key_fingerprint
+  passport_number_blind, passport_key_fingerprint, branch_id
 ) SELECT
   $1, $2, NULLIF($3::text, '')::uuid, $4, $5, $6,
   $7, $8, NULLIF($9, ''), NULLIF($10, ''), NULLIF($11, ''), $12,
   NULLIF($13, ''), $14, NULLIF($15::text, '')::uuid, NULLIF($16::text, '')::uuid, NULLIF($17, ''), NULLIF($18::text, '')::uuid,
-  sqlc.arg(passport_number_blind), sqlc.arg(passport_key_fingerprint)
+  sqlc.arg(passport_number_blind), sqlc.arg(passport_key_fingerprint), sqlc.narg(branch_scope)::uuid
 WHERE EXISTS (
   SELECT 1 FROM seasons WHERE id = $1 AND operator_id = $2
 )
@@ -16,7 +16,8 @@ RETURNING *;
 
 -- name: GetPilgrim :one
 SELECT * FROM pilgrims
-WHERE id = $1 AND operator_id = $2;
+WHERE id = $1 AND operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: GetPilgrimByAppAccessCode :one
 SELECT * FROM pilgrims
@@ -36,6 +37,7 @@ WHERE app_access_code = $1 AND is_substituted = false;
 -- holds ciphertext, and ciphertext never equals what somebody typed.
 SELECT * FROM pilgrims
 WHERE operator_id = $1 AND season_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid)
   AND (
     (passport_number_blind <> '' AND passport_number_blind = sqlc.arg(passport_blind))
     OR (passport_number_blind = '' AND passport_number = sqlc.arg(passport_raw))
@@ -44,6 +46,7 @@ WHERE operator_id = $1 AND season_id = $2
 -- name: ListPilgrims :many
 SELECT * FROM pilgrims
 WHERE operator_id = $1 AND season_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY full_name ASC
 LIMIT $3 OFFSET $4;
 
@@ -68,6 +71,7 @@ SET group_id = NULLIF($3::text, '')::uuid,
     email = NULLIF($17, ''),
     updated_at = NOW()
 WHERE id = $1 AND operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid)
 RETURNING *;
 
 -- name: MarkSubstituted :exec
@@ -75,16 +79,24 @@ UPDATE pilgrims
 SET is_substituted = TRUE,
     substituted_by_id = NULL,
     updated_at = NOW()
-WHERE id = $1 AND operator_id = $2;
+WHERE id = $1 AND operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: SubstitutePilgrim :exec
-UPDATE pilgrims
+UPDATE pilgrims AS original
 SET is_substituted = TRUE,
     substituted_by_id = $2,
     substitution_reason = $4,
     substituted_at = NOW(),
     updated_at = NOW()
-WHERE id = $1 AND operator_id = $3;
+WHERE original.id = $1 AND original.operator_id = $3
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR original.branch_id = sqlc.narg(branch_scope)::uuid)
+  AND EXISTS (
+    SELECT 1 FROM pilgrims replacement
+    WHERE replacement.id = $2
+      AND replacement.operator_id = $3
+      AND (sqlc.narg(branch_scope)::uuid IS NULL OR replacement.branch_id = sqlc.narg(branch_scope)::uuid)
+  );
 
 -- name: ListSubstitutions :many
 SELECT
@@ -99,6 +111,8 @@ FROM pilgrims original
 JOIN pilgrims replacement ON replacement.id = original.substituted_by_id
 WHERE original.operator_id = $1
   AND original.season_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR original.branch_id = sqlc.narg(branch_scope)::uuid)
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR replacement.branch_id = sqlc.narg(branch_scope)::uuid)
   AND original.is_substituted
 ORDER BY original.substituted_at DESC NULLS LAST;
 
@@ -106,16 +120,20 @@ ORDER BY original.substituted_at DESC NULLS LAST;
 UPDATE pilgrims
 SET app_access_code = gen_random_uuid()::text,
     updated_at = NOW()
-WHERE id = $1 AND operator_id = $2;
+WHERE id = $1 AND operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: TransferPilgrimGroup :exec
 UPDATE pilgrims
 SET group_id = $2,
     updated_at = NOW()
-WHERE id = $1 AND operator_id = $3;
+WHERE id = $1 AND operator_id = $3
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: CountPilgrimsBySeason :one
-SELECT COUNT(*) FROM pilgrims WHERE operator_id = $1 AND season_id = $2;
+SELECT COUNT(*) FROM pilgrims
+WHERE operator_id = $1 AND season_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: GetPilgrimStats :one
 -- Substituted pilgrims are replaced/inactive — every other roster count in
@@ -129,7 +147,8 @@ SELECT
   COUNT(*) FILTER (WHERE NOT is_substituted AND group_id IS NULL)::int AS unassigned_group,
   COUNT(*) FILTER (WHERE NOT is_substituted AND kloter_id IS NULL)::int AS unassigned_kloter
 FROM pilgrims
-WHERE operator_id = $1 AND season_id = $2;
+WHERE operator_id = $1 AND season_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: GetPilgrimStatsByKloter :one
 -- Same shape as GetPilgrimStats, scoped to one kloter — powers the Operator
@@ -141,12 +160,14 @@ SELECT
   COUNT(*) FILTER (WHERE NOT is_substituted AND group_id IS NULL)::int AS unassigned_group,
   0::int AS unassigned_kloter
 FROM pilgrims
-WHERE operator_id = $1 AND season_id = $2 AND kloter_id = $3;
+WHERE operator_id = $1 AND season_id = $2 AND kloter_id = $3
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: UpdatePilgrimPayment :one
 UPDATE pilgrims
 SET payment_status = $3, payment_notes = $4, updated_at = NOW()
 WHERE id = $1 AND operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid)
 RETURNING *;
 
 -- name: UpdatePilgrimDocuments :one
@@ -158,6 +179,7 @@ SET documents_passport = $3, documents_photo = $4,
     documents_visa = $11, visa_number = $12, visa_expiry_date = $13,
     updated_at = NOW()
 WHERE id = $1 AND operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid)
 RETURNING *;
 
 -- name: UpdatePilgrimKyc :one
@@ -166,12 +188,14 @@ SET nik = $3, address = $4, place_of_birth = $5, marital_status = $6, occupation
     kyc_status = $9, kyc_source = $10,
     kyc_verified_by = '', kyc_verified_at = NULL, kyc_rejection_reason = '', updated_at = NOW()
 WHERE id = $1 AND operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid)
 RETURNING *;
 
 -- name: VerifyPilgrimKyc :one
 UPDATE pilgrims
 SET kyc_status = $3, kyc_verified_by = $4, kyc_verified_at = NOW(), kyc_rejection_reason = $5, updated_at = NOW()
 WHERE id = $1 AND operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid)
 RETURNING *;
 
 -- name: UpdatePilgrimEmergencyContact :one
@@ -179,18 +203,21 @@ UPDATE pilgrims
 SET emergency_contact_name = $3,
     emergency_contact_phone = $4, updated_at = NOW()
 WHERE id = $1 AND operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid)
 RETURNING *;
 
 -- name: CheckInPilgrimHotel :one
 UPDATE pilgrims
 SET hotel_checked_in = $3, updated_at = NOW()
 WHERE id = $1 AND operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid)
 RETURNING *;
 
 -- name: ListPilgrimsWithExpiringPassports :many
 SELECT * FROM pilgrims
 WHERE operator_id = $1
   AND season_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid)
   AND passport_expiry_date IS NOT NULL
   AND passport_expiry_date < $3
   AND NOT is_substituted
@@ -202,6 +229,7 @@ ORDER BY passport_expiry_date ASC;
 -- before calling this.
 SELECT * FROM pilgrims
 WHERE operator_id = $1 AND kloter_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY full_name ASC;
 
 -- name: AssignKloterIfUnset :exec
@@ -210,7 +238,8 @@ ORDER BY full_name ASC;
 -- set (manually or from an earlier package), only fills an empty one.
 UPDATE pilgrims
 SET kloter_id = $3, updated_at = NOW()
-WHERE id = $1 AND operator_id = $2 AND kloter_id IS NULL;
+WHERE id = $1 AND operator_id = $2 AND kloter_id IS NULL
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: ListLegacyPassports :many
 -- Rows whose passport predates encryption. Selected by the absence of a blind

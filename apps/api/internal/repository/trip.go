@@ -41,7 +41,11 @@ func (r *TripRepository) ListRoster(ctx context.Context, operatorID, kloterID st
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListPilgrimsForKloter(ctx, db.ListPilgrimsForKloterParams{OperatorID: opUUID, KloterID: kloterUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListPilgrimsForKloter(ctx, db.ListPilgrimsForKloterParams{OperatorID: opUUID, KloterID: kloterUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}

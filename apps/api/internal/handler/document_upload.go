@@ -29,7 +29,7 @@ func NewDocumentUploadHandler(pool *pgxpool.Pool, pilgrimService *service.Pilgri
 			http.Error(w, "missing bearer token", http.StatusUnauthorized)
 			return
 		}
-		_, authenticatedOrgID, _, err := middleware.ResolveStaffSession(r.Context(), pool, token)
+		userID, authenticatedOrgID, _, err := middleware.ResolveStaffSession(r.Context(), pool, token)
 		if err != nil {
 			http.Error(w, "invalid or expired session", http.StatusUnauthorized)
 			return
@@ -71,7 +71,8 @@ func NewDocumentUploadHandler(pool *pgxpool.Pool, pilgrimService *service.Pilgri
 		}
 
 		fileURL := "/uploads/documents/" + safeName
-		document, err := pilgrimService.CreateDocument(r.Context(), authenticatedOrgID, pilgrimID, docType, fileURL, header.Filename)
+		staffCtx := middleware.ContextWithIdentity(r.Context(), userID, authenticatedOrgID)
+		document, err := pilgrimService.CreateDocument(staffCtx, authenticatedOrgID, pilgrimID, docType, fileURL, header.Filename)
 		if err != nil {
 			_ = os.Remove(filepath.Join(uploadDir, safeName))
 			http.Error(w, "invalid upload request", http.StatusBadRequest)
