@@ -3000,3 +3000,65 @@ itu harus hidup lebih lama daripada keputusan tentangnya.
 `BANK_FEED_SECRET` di `.env.prod`. Poller/scraper-nya sendiri belum ditulis —
 kontraknya ada di `apps/api/internal/handler/bank_feed.go`, dan formatnya JSON
 sederhana dengan header `X-Signature`.
+
+---
+
+## Poller bank & penagihan perpanjangan (2026-08-30)
+
+### `cmd/bankpoller`
+
+Endpoint feed sudah ada dan tidak ada yang mengirim ke sana, jadi otomatisasinya
+**siap tapi belum bekerja**. Ini pengirimnya.
+
+Proses terpisah, bukan task worker: pembaca mutasi adalah bagian paling rapuh di
+sistem ini, dan mungkin perlu berjalan di jaringan atau mesin lain. Di luar
+proses API, kegagalannya tidak menjatuhkan API.
+
+Sumbernya antarmuka dua method dengan satu implementasi nyata: **CSV**. Bukan
+placeholder — setiap bank Indonesia bisa mengekspor mutasi, jadi ini bekerja
+hari ini tanpa akses API. API bank sungguhan tinggal mengisi `bankfeed.Source`.
+
+**Dibuktikan ujung ke ujung** terhadap API yang berjalan: satu kredit cocok
+otomatis, debit dilewati, satu kredit tersisa di antrean, tagihan jadi PAID dan
+operatornya **benar-benar mendapat paket GROWTH**. Impor ulang: nol baris baru.
+
+Dua bug tertangkap saat membangun:
+- pemisah angka — `1,500,000` terbaca 1500. Rp1,5 juta jadi Rp1.500, tidak cocok
+  dengan tagihan mana pun, terbaca persis seperti pelanggan yang tidak bayar;
+- laporan mencetak `belum_cocok=-1` pada impor ulang. Angka negatif di log yang
+  seharusnya ditindaklanjuti lebih buruk daripada tidak ada angka.
+
+**Batasan yang didokumentasikan, bukan disembunyikan**: tanpa kolom referensi,
+id diturunkan dari isi baris, jadi dua transfer identik di hari yang sama
+dianggap satu. Mengurangi hitungan, bukan melunasi dua kali.
+
+### Tagihan perpanjangan akhirnya diterbitkan
+
+Sweep dulu hanya **mengedaluwarsakan** tagihan dan menandai langganan lewat
+masa — tidak pernah menagih periode berikutnya. Langganan berhenti begitu saja
+dan pendapatan berakhir tanpa ada yang memutuskan.
+
+Diterbitkan **seminggu di muka**, supaya transfer sempat datang dan dicocokkan
+sebelum akses habis. Satu per operator, dijaga di query bukan di Go. Langganan
+yang sudah dibatalkan dilewati.
+
+### Kredit menganggur kini masuk log
+
+Sebelumnya hanya terlihat oleh yang membuka tab admin. Kredit yang duduk dua
+hari berarti ada travel yang percaya sudah membayar sementara sistem tidak
+setuju — itu layak WARN, tempat alerting membaca.
+
+### Cacat yang saya buat sendiri di migrasi 122
+
+Alarm fulfilment macet **sudah ada** — catatan saya kemarin yang bilang belum
+ada itu salah. Tapi query-nya tidak membedakan jenis, dan SHIPMENT baru ada
+minggu lalu.
+
+Supplier menjawab dalam hitungan detik, jadi diam satu jam adalah cacat. Kurir
+butuh berhari-hari — ambang yang sama akan memicu alarm untuk **setiap paket
+yang sedang di jalan, setiap sweep, sampai tiba**. Itu akan membanjiri alarm
+dalam hitungan hari dan melatih semua orang mengabaikannya, sehingga merusak
+gunanya bagi fulfilment digital yang jadi alasan ia dibangun.
+
+Paket sekarang diberi **dua minggu** — saat sebuah paket berhenti "di jalan" dan
+mulai "hilang".
