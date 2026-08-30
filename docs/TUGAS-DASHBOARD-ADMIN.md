@@ -56,9 +56,9 @@ modul baru pun. **Kerjakan ini dulu.**
 
 ## T0.1 — Pindahkan primitif dari inline style ke CSS berkelas 🔴 PEMBLOKIR
 
-- [ ] `apps/web/components/ui/Button.tsx`
-- [ ] `apps/web/components/ui/StatCard.tsx`
-- [ ] `apps/web/components/ui/PageHero.tsx`
+- [x] `apps/web/components/ui/Button.tsx` (`696397d`)
+- [x] `apps/web/components/ui/StatCard.tsx` (`696397d`)
+- [x] `apps/web/components/ui/PageHero.tsx` (`696397d`)
 
 **Kenapa memblokir:** ketiganya ditulis sebagai inline style object. Inline
 style **tidak bisa menyatakan `:hover`, `:focus-visible`, atau `:active`.**
