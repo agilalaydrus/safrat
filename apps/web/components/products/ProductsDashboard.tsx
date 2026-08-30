@@ -115,7 +115,7 @@ export default function ProductsDashboard() {
       <div style={stats}>
         {[
           ["Total Produk", products.length],
-          ["Aktif", active.length],
+          ["Produk Aktif", active.length],
           [
             "Total Nilai Paket Aktif",
             money(active.reduce((sum, p) => sum + p.priceIdr, BigInt(0))),

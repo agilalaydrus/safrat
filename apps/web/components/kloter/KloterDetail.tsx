@@ -138,9 +138,9 @@ export default function KloterDetail({ id }: { id: string }) {
 
       <div style={statGrid}>
         <div style={statCard}><span style={statLabel}>Jamaah</span><strong style={statValue}>{roster.length}{kloter.capacity ? `/${kloter.capacity}` : ""}</strong></div>
-        <div style={statCard}><span style={statLabel}>Jadwal Pergerakan</span><strong style={statValue}>{itinerary.length}</strong></div>
+        <div style={statCard}><span style={statLabel}>Jadwal Pergerakan</span><strong style={statValue}>{itinerary.length} <span className="tw-stat__unit">segmen</span></strong></div>
         <div style={statCard}><span style={statLabel}>Hotel</span><strong style={statValue}>{hotelBreakdown.filter(([label]) => label !== "Belum Ditempatkan").length}</strong></div>
-        <div style={statCard}><span style={statLabel}>Kursi Roda</span><strong style={statValue}>{wheelchairCount}</strong></div>
+        <div style={statCard}><span style={statLabel}>Kursi Roda</span><strong style={statValue}>{wheelchairCount} <span className="tw-stat__unit">jamaah</span></strong></div>
       </div>
 
       <section style={{ ...card, marginTop: 16 }}>

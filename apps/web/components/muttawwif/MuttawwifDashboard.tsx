@@ -59,7 +59,7 @@ export default function MuttawwifDashboard() {
           </div>
         </div>
         <div style={groupsRow}>
-          {m.groups.map((g) => <span key={g.id} style={groupChip}><IconUsersGroup size={13} />{g.name} · {g.pilgrimCount}/{g.capacity}</span>)}
+          {m.groups.map((g) => <span key={g.id} style={groupChip}><IconUsersGroup size={13} />{g.name} · {g.pilgrimCount}/{g.capacity} jamaah</span>)}
         </div>
         {m.agentId && <button style={{ ...kycBadge(m.kycStatus), border: 0, marginTop: 10, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600 }} onClick={() => openKyc(m.agentId)}><IconShieldCheck size={14} />KYC: {KYC_LABEL[m.kycStatus] ?? "Belum Diisi"}</button>}
       </article>)}

@@ -128,7 +128,12 @@ Sembilan nada mereka dipadatkan — lebih sedikit, lebih konsisten.
       muncul 9 kali, lawan `ghost` 112 dan `outline` 106. Inilah sebabnya layar
       mereka tenang meski padat. (`b6b39a2`, `98aa32f`, `4e1ab35`, `4251601`)
 - [x] **Setiap grafik menjelaskan sumbunya** di subjudul (`82746fb`)
-- [ ] **Setiap angka membawa satuan**
+- [x] **Setiap angka membawa satuan** (`04deac7`)
+      Aturan yang dipakai: satuan ditambahkan hanya bila **label belum menyebut
+      benda yang dihitung**. "Kapasitas 34/40" ambigu → diberi satuan;
+      "Total Grup 12" dan "Jamaah 34/40" sudah jelas → dibiarkan, karena
+      mengulang jadi derau. Satuan ditulis dengan `<span class="tw-stat__unit">`
+      supaya tampil kecil dan redup, bukan ikut besar-tebal seperti angkanya.
 
 Daftar 27 layar ada di `apps/web/app/dashboard/(shell)/layout.tsx:49`.
 

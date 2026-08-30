@@ -157,12 +157,12 @@ export default function GroupDetail({ id }: { id: string }) {
       <div className="gold-divider" />
 
       <div style={statGrid}>
-        <div style={statCard}><span style={statLabel}>Kapasitas</span><strong style={statValue}>{group.pilgrimCount}/{group.capacity}</strong></div>
-        <div style={statCard}><span style={statLabel}>Terkonfirmasi</span><strong style={{ ...statValue, color: "var(--color-emerald-900)" }}>{confirmedCount}</strong></div>
-        <div style={statCard}><span style={statLabel}>Belum Bayar</span><strong style={{ ...statValue, color: "var(--color-danger-600)" }}>{paymentBreakdown.UNPAID}</strong></div>
-        <div style={statCard}><span style={statLabel}>DP</span><strong style={{ ...statValue, color: "var(--color-gold-800)" }}>{paymentBreakdown.DP}</strong></div>
-        <div style={statCard}><span style={statLabel}>Lunas</span><strong style={{ ...statValue, color: "var(--color-emerald-900)" }}>{paymentBreakdown.PAID}</strong></div>
-        <div style={statCard}><span style={statLabel}>Kursi Roda</span><strong style={statValue}>{wheelchairCount}</strong></div>
+        <div style={statCard}><span style={statLabel}>Kapasitas</span><strong style={statValue}>{group.pilgrimCount}/{group.capacity} <span className="tw-stat__unit">jamaah</span></strong></div>
+        <div style={statCard}><span style={statLabel}>Terkonfirmasi</span><strong style={{ ...statValue, color: "var(--color-emerald-900)" }}>{confirmedCount} <span className="tw-stat__unit">jamaah</span></strong></div>
+        <div style={statCard}><span style={statLabel}>Belum Bayar</span><strong style={{ ...statValue, color: "var(--color-danger-600)" }}>{paymentBreakdown.UNPAID} <span className="tw-stat__unit">jamaah</span></strong></div>
+        <div style={statCard}><span style={statLabel}>DP</span><strong style={{ ...statValue, color: "var(--color-gold-800)" }}>{paymentBreakdown.DP} <span className="tw-stat__unit">jamaah</span></strong></div>
+        <div style={statCard}><span style={statLabel}>Lunas</span><strong style={{ ...statValue, color: "var(--color-emerald-900)" }}>{paymentBreakdown.PAID} <span className="tw-stat__unit">jamaah</span></strong></div>
+        <div style={statCard}><span style={statLabel}>Kursi Roda</span><strong style={statValue}>{wheelchairCount} <span className="tw-stat__unit">jamaah</span></strong></div>
       </div>
 
       <div style={twoCol}>
@@ -189,7 +189,7 @@ export default function GroupDetail({ id }: { id: string }) {
                 {ritualItems.map((item) => (
                   <div key={item.ritualId} style={breakdownRow}>
                     <span>{item.name}</span>
-                    <span style={breakdownCount}>{item.completedCount}/{item.totalPilgrims}</span>
+                    <span style={breakdownCount}>{item.completedCount}/{item.totalPilgrims} jamaah</span>
                   </div>
                 ))}
               </div>

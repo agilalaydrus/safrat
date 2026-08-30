@@ -333,7 +333,7 @@ export default function PilgrimFormDialog({ open, onClose, seasonId, pilgrims, o
               <Field fieldKey="groupId" label="Grup" hint="Biarkan kosong untuk ditentukan nanti dari halaman Grup.">
                 <select className="safrat-input" value={form.groupId} onChange={(event) => update("groupId", event.target.value)} style={input}>
                   <option value="">Belum ditentukan</option>
-                  {groups.map((group) => <option key={group.id} value={group.id}>{group.name} ({group.pilgrimCount}/{group.capacity})</option>)}
+                  {groups.map((group) => <option key={group.id} value={group.id}>{group.name} ({group.pilgrimCount}/{group.capacity} jamaah)</option>)}
                 </select>
               </Field>
               <Field fieldKey="mahramId" label="Mahram" hint="Untuk jamaah wanita: pilih wali/mahram laki-laki" error={fieldErrors.mahramId}>

@@ -122,7 +122,7 @@ export default function ChecklistPanel({ seasonId }: { seasonId: string }) {
           return <div key={s.templateId} style={card}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <strong>{s.title}{s.isRequired && <span style={reqBadge}>Wajib</span>}</strong>
-              <span style={{ color: "var(--color-warm-500)", fontSize: 13 }}>{s.completedCount}/{s.totalPilgrims} ({pct}%)</span>
+              <span style={{ color: "var(--color-warm-500)", fontSize: 13 }}>{s.completedCount}/{s.totalPilgrims} jamaah ({pct}%)</span>
             </div>
             <div style={barTrack}><div style={{ ...barFill, width: `${pct}%` }} /></div>
           </div>;

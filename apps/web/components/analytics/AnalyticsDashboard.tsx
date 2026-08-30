@@ -129,7 +129,7 @@ export default function AnalyticsDashboard() {
                     return (
                       <div key={k.kloterCode}>
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-                          <span>{k.kloterCode}</span><span style={{ fontWeight: 700 }}>{k.pilgrimCount}/{k.capacity || "-"}</span>
+                          <span>{k.kloterCode}</span><span style={{ fontWeight: 700 }}>{k.pilgrimCount}/{k.capacity || "-"} jamaah</span>
                         </div>
                         <div style={{ height: 8, background: "var(--color-cream-300)", borderRadius: 4, overflow: "hidden" }}>
                           <div style={{ width: `${Math.min(fillPct, 100)}%`, height: "100%", background: fillPct >= 100 ? "var(--color-danger-600)" : "var(--color-emerald-800)" }} />
@@ -151,7 +151,7 @@ export default function AnalyticsDashboard() {
                     return (
                       <div key={h.hotelName}>
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
-                          <span>{h.hotelName} <span style={{ color: "var(--color-warm-400)" }}>({h.city})</span></span><span style={{ fontWeight: 700 }}>{h.allocated}/{h.capacity || "-"}</span>
+                          <span>{h.hotelName} <span style={{ color: "var(--color-warm-400)" }}>({h.city})</span></span><span style={{ fontWeight: 700 }}>{h.allocated}/{h.capacity || "-"} tempat tidur</span>
                         </div>
                         <div style={{ height: 8, background: "var(--color-cream-300)", borderRadius: 4, overflow: "hidden" }}>
                           <div style={{ width: `${Math.min(occPct, 100)}%`, height: "100%", background: "var(--color-gold-500)" }} />
