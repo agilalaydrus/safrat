@@ -87,13 +87,13 @@ garis krem sisa tema lama yang **tidak ada lagi** di palet Emerald. Ganti ke
 
 ## T0.3 — Terapkan resep visual §2b
 
-- [ ] `rounded-xl` (12px) bawaan · `rounded-full` lencana · `rounded-2xl` kartu besar
-- [ ] Bayangan: `soft` diam → `lift` saat hover · `glow` hanya elemen merek
-- [ ] Cincin 4px merek-muda menggantikan garis keras, **termasuk untuk fokus**
-- [ ] Transisi 150 ms warna · 300 ms transform · 700 ms bilah & grafik, `ease-out`
-- [ ] Hover **naik satu langkah pada skala yang sama**, jangan ganti warna
-- [ ] `fade-up` 260 ms saat masuk, bertingkat 28 ms, maksimal 8 butir
-- [ ] Denyut **hanya** untuk rombongan berjalan dan SOS
+- [x] `rounded-xl` (12px) bawaan · `rounded-full` lencana · `rounded-2xl` kartu besar (`96004e7`)
+- [x] Bayangan: `soft` diam → `lift` saat hover · `glow` hanya elemen merek (`96004e7`)
+- [x] Cincin 4px merek-muda menggantikan garis keras, **termasuk untuk fokus** (`96004e7`)
+- [x] Transisi 150 ms warna · 300 ms transform · 700 ms bilah & grafik, `ease-out` (`96004e7`)
+- [x] Hover **naik satu langkah pada skala yang sama**, jangan ganti warna (`96004e7`)
+- [x] `fade-up` 260 ms saat masuk, bertingkat 28 ms, maksimal 8 butir (`96004e7`)
+- [x] Denyut **hanya** untuk rombongan berjalan dan SOS (`96004e7`)
 
 Jangan tambahkan gradien di mana-mana — di bundle mereka gradien cuma dipakai
 7 kali dari 3,3 MB, semuanya pada elemen merek. Kelembutan datang dari radius,
