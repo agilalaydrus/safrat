@@ -228,7 +228,11 @@ func (r *AgentRepository) ListPayouts(ctx context.Context, operatorID string) ([
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListAgentPayouts(ctx, opUUID)
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListAgentPayouts(ctx, db.ListAgentPayoutsParams{OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -261,9 +265,13 @@ func (r *AgentRepository) payoutSummary(ctx context.Context, q *db.Queries, oper
 	if err != nil {
 		return nil, err
 	}
-	row, err := q.GetAgentPayoutSummary(ctx, db.GetAgentPayoutSummaryParams{OperatorID: opUUID, ID: agentUUID})
+	scope, err := branchScope(ctx, q, opUUID)
 	if err != nil {
 		return nil, err
+	}
+	row, err := q.GetAgentPayoutSummary(ctx, db.GetAgentPayoutSummaryParams{OperatorID: opUUID, ID: agentUUID, BranchScope: scope})
+	if err != nil {
+		return nil, databaseError(err)
 	}
 	return &domain.AgentPayout{
 		AgentID:              uuid.UUID(row.AgentID.Bytes).String(),
@@ -300,6 +308,10 @@ func (r *AgentRepository) recordPayout(ctx context.Context, q *db.Queries, opera
 	if err != nil {
 		return err
 	}
+	scope, err := branchScope(ctx, q, opUUID)
+	if err != nil {
+		return err
+	}
 	_, err = q.RecordAgentPayout(ctx, db.RecordAgentPayoutParams{
 		OperatorID:   opUUID,
 		AgentID:      agentUUID,
@@ -308,8 +320,9 @@ func (r *AgentRepository) recordPayout(ctx context.Context, q *db.Queries, opera
 		Method:       method,
 		PaidByUserID: paidByUserID,
 		Column7:      requestID,
+		BranchScope:  scope,
 	})
-	return err
+	return databaseError(err)
 }
 
 // GetByLinkedUser resolves the agent record for a Better Auth identity —
@@ -356,12 +369,20 @@ func (r *AgentRepository) ListMyPilgrims(ctx context.Context, operatorID, agentI
 
 // ListCommissionEntries returns the agent's commission ledger, newest first.
 // Earnings and reversals both appear, so the list accounts for the balance.
-func (r *AgentRepository) ListCommissionEntries(ctx context.Context, agentID string) ([]*domain.CommissionEntry, error) {
+func (r *AgentRepository) ListCommissionEntries(ctx context.Context, operatorID, agentID string) ([]*domain.CommissionEntry, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
 	agentUUID, err := pgUUID(agentID)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListCommissionEntriesForAgent(ctx, agentUUID)
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListCommissionEntriesForAgent(ctx, db.ListCommissionEntriesForAgentParams{AgentID: agentUUID, OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -390,8 +411,12 @@ func (r *AgentRepository) ListReferredCustomerRecap(ctx context.Context, operato
 	if err != nil {
 		return nil, err
 	}
+	scope, err := branchScope(ctx, r.queries, operatorUUID)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := r.queries.ListReferredCustomerRecapForAgent(ctx, db.ListReferredCustomerRecapForAgentParams{
-		OperatorID: operatorUUID, AgentID: agentUUID,
+		OperatorID: operatorUUID, AgentID: agentUUID, BranchScope: scope,
 	})
 	if err != nil {
 		return nil, err
@@ -408,12 +433,20 @@ func (r *AgentRepository) ListReferredCustomerRecap(ctx context.Context, operato
 	return result, nil
 }
 
-func (r *AgentRepository) SumPendingRequests(ctx context.Context, agentID string) (int64, error) {
+func (r *AgentRepository) SumPendingRequests(ctx context.Context, operatorID, agentID string) (int64, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return 0, err
+	}
 	agentUUID, err := pgUUID(agentID)
 	if err != nil {
 		return 0, err
 	}
-	return r.queries.SumPendingPayoutRequests(ctx, agentUUID)
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return 0, err
+	}
+	return r.queries.SumPendingPayoutRequests(ctx, db.SumPendingPayoutRequestsParams{AgentID: agentUUID, OperatorID: opUUID, BranchScope: scope})
 }
 
 // The Tx variants let the caller hold a lock across the balance read and the
@@ -423,12 +456,21 @@ func (r *AgentRepository) GetPayoutSummaryTx(ctx context.Context, tx pgx.Tx, ope
 	return r.payoutSummary(ctx, r.queries.WithTx(tx), operatorID, agentID)
 }
 
-func (r *AgentRepository) SumPendingRequestsTx(ctx context.Context, tx pgx.Tx, agentID string) (int64, error) {
+func (r *AgentRepository) SumPendingRequestsTx(ctx context.Context, tx pgx.Tx, operatorID, agentID string) (int64, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return 0, err
+	}
 	agentUUID, err := pgUUID(agentID)
 	if err != nil {
 		return 0, err
 	}
-	return r.queries.WithTx(tx).SumPendingPayoutRequests(ctx, agentUUID)
+	txQueries := r.queries.WithTx(tx)
+	scope, err := branchScope(ctx, txQueries, opUUID)
+	if err != nil {
+		return 0, err
+	}
+	return txQueries.SumPendingPayoutRequests(ctx, db.SumPendingPayoutRequestsParams{AgentID: agentUUID, OperatorID: opUUID, BranchScope: scope})
 }
 
 func (r *AgentRepository) CreatePayoutRequestTx(ctx context.Context, tx pgx.Tx, operatorID, agentID string, amountIDR int64, note string) (*domain.PayoutRequest, error) {
@@ -448,9 +490,13 @@ func (r *AgentRepository) createPayoutRequest(ctx context.Context, q *db.Queries
 	if err != nil {
 		return nil, err
 	}
-	row, err := q.CreatePayoutRequest(ctx, db.CreatePayoutRequestParams{OperatorID: opUUID, AgentID: agentUUID, AmountIdr: amountIDR, Note: note})
+	scope, err := branchScope(ctx, q, opUUID)
 	if err != nil {
 		return nil, err
+	}
+	row, err := q.CreatePayoutRequest(ctx, db.CreatePayoutRequestParams{OperatorID: opUUID, AgentID: agentUUID, AmountIdr: amountIDR, Note: note, BranchScope: scope})
+	if err != nil {
+		return nil, databaseError(err)
 	}
 	return toPayoutRequest(row, ""), nil
 }
@@ -464,9 +510,13 @@ func (r *AgentRepository) GetPayoutRequest(ctx context.Context, operatorID, requ
 	if err != nil {
 		return nil, err
 	}
-	row, err := r.queries.GetPayoutRequest(ctx, db.GetPayoutRequestParams{ID: reqUUID, OperatorID: opUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
 	if err != nil {
 		return nil, err
+	}
+	row, err := r.queries.GetPayoutRequest(ctx, db.GetPayoutRequestParams{ID: reqUUID, OperatorID: opUUID, BranchScope: scope})
+	if err != nil {
+		return nil, databaseError(err)
 	}
 	return &domain.PayoutRequest{
 		ID: uuid.UUID(row.ID.Bytes).String(), AgentID: uuid.UUID(row.AgentID.Bytes).String(), AgentName: row.AgentName,
@@ -492,7 +542,11 @@ func (r *AgentRepository) ListPayoutRequests(ctx context.Context, operatorID, ag
 			return nil, err
 		}
 	}
-	rows, err := r.queries.ListPayoutRequests(ctx, db.ListPayoutRequestsParams{OperatorID: opUUID, AgentID: agentFilter})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListPayoutRequests(ctx, db.ListPayoutRequestsParams{OperatorID: opUUID, AgentID: agentFilter, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -519,8 +573,13 @@ func (r *AgentRepository) ApprovePayoutRequestTx(ctx context.Context, tx pgx.Tx,
 	if err != nil {
 		return err
 	}
-	_, err = r.queries.WithTx(tx).ApprovePayoutRequestTx(ctx, db.ApprovePayoutRequestTxParams{ID: reqUUID, OperatorID: opUUID, ResolvedByUserID: pgtype.Text{String: resolvedByUserID, Valid: true}})
-	return err
+	txQueries := r.queries.WithTx(tx)
+	scope, err := branchScope(ctx, txQueries, opUUID)
+	if err != nil {
+		return err
+	}
+	_, err = txQueries.ApprovePayoutRequestTx(ctx, db.ApprovePayoutRequestTxParams{ID: reqUUID, OperatorID: opUUID, ResolvedByUserID: pgtype.Text{String: resolvedByUserID, Valid: true}, BranchScope: scope})
+	return databaseError(err)
 }
 
 func (r *AgentRepository) RejectPayoutRequest(ctx context.Context, operatorID, requestID, resolvedByUserID, note string) (*domain.PayoutRequest, error) {
@@ -532,9 +591,13 @@ func (r *AgentRepository) RejectPayoutRequest(ctx context.Context, operatorID, r
 	if err != nil {
 		return nil, err
 	}
-	row, err := r.queries.RejectPayoutRequest(ctx, db.RejectPayoutRequestParams{ID: reqUUID, OperatorID: opUUID, ResolvedByUserID: pgtype.Text{String: resolvedByUserID, Valid: true}, ResolutionNote: note})
+	scope, err := branchScope(ctx, r.queries, opUUID)
 	if err != nil {
 		return nil, err
+	}
+	row, err := r.queries.RejectPayoutRequest(ctx, db.RejectPayoutRequestParams{ID: reqUUID, OperatorID: opUUID, ResolvedByUserID: pgtype.Text{String: resolvedByUserID, Valid: true}, ResolutionNote: note, BranchScope: scope})
+	if err != nil {
+		return nil, databaseError(err)
 	}
 	return toPayoutRequest(row, ""), nil
 }
@@ -563,7 +626,11 @@ func (r *AgentRepository) ListPayoutHistory(ctx context.Context, operatorID, age
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListAgentPayoutHistory(ctx, db.ListAgentPayoutHistoryParams{AgentID: agentUUID, OperatorID: opUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListAgentPayoutHistory(ctx, db.ListAgentPayoutHistoryParams{AgentID: agentUUID, OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}

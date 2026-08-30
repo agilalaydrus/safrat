@@ -133,6 +133,7 @@ LEFT JOIN agent_commission_state st ON st.agent_id = a.id
 LEFT JOIN (SELECT agent_id, COUNT(*) AS paid_count FROM orders WHERE status = 'PAID' GROUP BY agent_id) ord ON ord.agent_id = a.id
 LEFT JOIN (SELECT agent_id, SUM(amount_idr) AS total FROM agent_payouts GROUP BY agent_id) disb ON disb.agent_id = a.id
 WHERE a.operator_id = $1
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR a.branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY total_commission_idr DESC;
 
 -- name: GetAgentPayoutSummary :one
@@ -158,18 +159,26 @@ FROM agents a
 LEFT JOIN agent_commission_state st ON st.agent_id = a.id
 LEFT JOIN (SELECT agent_id, COUNT(*) AS paid_count FROM orders WHERE status = 'PAID' GROUP BY agent_id) ord ON ord.agent_id = a.id
 LEFT JOIN (SELECT agent_id, SUM(amount_idr) AS total FROM agent_payouts GROUP BY agent_id) disb ON disb.agent_id = a.id
-WHERE a.id = $2 AND a.operator_id = $1;
+WHERE a.id = $2 AND a.operator_id = $1
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR a.branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: RecordAgentPayout :one
 INSERT INTO agent_payouts (operator_id, agent_id, amount_idr, note, paid_by_user_id, method, request_id)
-VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7::text, '')::uuid)
+SELECT $1, $2, $3, $4, $5, $6, NULLIF($7::text, '')::uuid
+WHERE EXISTS (
+  SELECT 1 FROM agents a
+  WHERE a.id = $2 AND a.operator_id = $1
+    AND (sqlc.narg(branch_scope)::uuid IS NULL OR a.branch_id = sqlc.narg(branch_scope)::uuid)
+)
 RETURNING *;
 
 -- name: ListAgentPayoutHistory :many
 SELECT p.id, p.amount_idr, p.note, p.method, p.created_at, u.name AS paid_by_name
 FROM agent_payouts p
 JOIN "user" u ON u.id = p.paid_by_user_id
+JOIN agents a ON a.id = p.agent_id
 WHERE p.agent_id = $1 AND p.operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR a.branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY p.created_at DESC;
 
 -- name: ListCommissionEntriesForAgent :many
@@ -185,7 +194,9 @@ SELECT e.id, e.amount_idr, e.kind, e.note, e.created_at,
 FROM agent_commission_entries e
 LEFT JOIN orders o ON o.id = e.order_id
 LEFT JOIN products pr ON pr.id = o.product_id
-WHERE e.agent_id = $1
+JOIN agents a ON a.id = e.agent_id
+WHERE e.agent_id = $1 AND a.operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR a.branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY e.created_at DESC;
 
 -- name: ListReferredCustomerRecapForAgent :many
@@ -210,6 +221,12 @@ SELECT
 FROM pilgrims p
 LEFT JOIN order_payments op ON op.pilgrim_id = p.id AND op.agent_id = $2
 WHERE p.operator_id = $1
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
+  AND EXISTS (
+    SELECT 1 FROM agents a
+    WHERE a.id = $2 AND a.operator_id = $1
+      AND (sqlc.narg(branch_scope)::uuid IS NULL OR a.branch_id = sqlc.narg(branch_scope)::uuid)
+  )
 GROUP BY p.id, p.full_name
 ORDER BY MAX(op.created_at) DESC;
 
@@ -241,19 +258,27 @@ WHERE pilgrim_id = $1;
 
 -- name: SumPendingPayoutRequests :one
 SELECT COALESCE(SUM(amount_idr), 0)::bigint AS total
-FROM agent_payout_requests
-WHERE agent_id = $1 AND status = 'PENDING';
+FROM agent_payout_requests r
+JOIN agents a ON a.id = r.agent_id
+WHERE r.agent_id = $1 AND a.operator_id = $2 AND r.status = 'PENDING'
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR a.branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: CreatePayoutRequest :one
 INSERT INTO agent_payout_requests (operator_id, agent_id, amount_idr, note)
-VALUES ($1, $2, $3, $4)
+SELECT $1, $2, $3, $4
+WHERE EXISTS (
+  SELECT 1 FROM agents a
+  WHERE a.id = $2 AND a.operator_id = $1
+    AND (sqlc.narg(branch_scope)::uuid IS NULL OR a.branch_id = sqlc.narg(branch_scope)::uuid)
+)
 RETURNING *;
 
 -- name: GetPayoutRequest :one
 SELECT r.*, a.name AS agent_name
 FROM agent_payout_requests r
 JOIN agents a ON a.id = r.agent_id
-WHERE r.id = $1 AND r.operator_id = $2;
+WHERE r.id = $1 AND r.operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR a.branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: ListPayoutRequests :many
 SELECT r.*, a.name AS agent_name
@@ -261,18 +286,29 @@ FROM agent_payout_requests r
 JOIN agents a ON a.id = r.agent_id
 WHERE r.operator_id = $1 AND r.status = 'PENDING'
   AND (sqlc.narg(agent_id)::uuid IS NULL OR r.agent_id = sqlc.narg(agent_id)::uuid)
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR a.branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY r.requested_at ASC;
 
 -- name: ApprovePayoutRequestTx :one
-UPDATE agent_payout_requests
+UPDATE agent_payout_requests r
 SET status = 'APPROVED', resolved_at = NOW(), resolved_by_user_id = $3
-WHERE id = $1 AND operator_id = $2 AND status = 'PENDING'
+WHERE r.id = $1 AND r.operator_id = $2 AND r.status = 'PENDING'
+  AND EXISTS (
+    SELECT 1 FROM agents a
+    WHERE a.id = r.agent_id AND a.operator_id = r.operator_id
+      AND (sqlc.narg(branch_scope)::uuid IS NULL OR a.branch_id = sqlc.narg(branch_scope)::uuid)
+  )
 RETURNING *;
 
 -- name: RejectPayoutRequest :one
-UPDATE agent_payout_requests
+UPDATE agent_payout_requests r
 SET status = 'REJECTED', resolution_note = $4, resolved_at = NOW(), resolved_by_user_id = $3
-WHERE id = $1 AND operator_id = $2 AND status = 'PENDING'
+WHERE r.id = $1 AND r.operator_id = $2 AND r.status = 'PENDING'
+  AND EXISTS (
+    SELECT 1 FROM agents a
+    WHERE a.id = r.agent_id AND a.operator_id = r.operator_id
+      AND (sqlc.narg(branch_scope)::uuid IS NULL OR a.branch_id = sqlc.narg(branch_scope)::uuid)
+  )
 RETURNING *;
 
 -- name: ListOrdersAwaitingSettlement :many

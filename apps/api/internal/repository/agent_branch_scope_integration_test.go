@@ -76,6 +76,30 @@ func TestAgentRepositoryEnforcesBranchScopeIntegration(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM agents WHERE id=$1)`, medanAgentID).Scan(&medanStillExists); err != nil || !medanStillExists {
 		t.Fatalf("kepala Bandung menghapus agen Medan: exists=%v err=%v", medanStillExists, err)
 	}
+	if _, err := repo.CreatePayoutRequest(bandungCtx, operatorID, medanAgentID, 100_000, "forbidden"); !errors.Is(err, apperror.ErrNotFound) {
+		t.Fatalf("kepala Bandung membuat permintaan payout untuk Medan: %v", err)
+	}
+	bandungRequestID, medanRequestID := uuid.NewString(), uuid.NewString()
+	exec(`INSERT INTO agent_payout_requests (id, operator_id, agent_id, amount_idr, note)
+	      VALUES ($1,$3,$4,100000,'Bandung'),($2,$3,$5,100000,'Medan')`,
+		bandungRequestID, medanRequestID, operatorID, bandungAgent.ID, medanAgentID)
+	requests, err := repo.ListPayoutRequests(bandungCtx, operatorID, "")
+	if err != nil || len(requests) != 1 || requests[0].ID != bandungRequestID {
+		t.Fatalf("inbox payout Bandung bocor: %#v (%v)", requests, err)
+	}
+	if _, err := repo.GetPayoutRequest(bandungCtx, operatorID, medanRequestID); !errors.Is(err, apperror.ErrNotFound) {
+		t.Fatalf("kepala Bandung membaca request payout Medan: %v", err)
+	}
+	if _, err := repo.RejectPayoutRequest(bandungCtx, operatorID, medanRequestID, bandungHead, "forbidden"); !errors.Is(err, apperror.ErrNotFound) {
+		t.Fatalf("kepala Bandung menolak payout Medan: %v", err)
+	}
+	if _, err := repo.GetPayoutSummary(bandungCtx, operatorID, medanAgentID); !errors.Is(err, apperror.ErrNotFound) {
+		t.Fatalf("kepala Bandung membaca saldo agen Medan: %v", err)
+	}
+	payouts, err := repo.ListPayouts(bandungCtx, operatorID)
+	if err != nil || len(payouts) != 1 || payouts[0].AgentID != bandungAgent.ID {
+		t.Fatalf("ringkasan payout Bandung bocor: %#v (%v)", payouts, err)
+	}
 
 	application, err := repo.CreateApplication(ctx, operatorID, "Calon Agen Bandung", "", "", bandungAgent.ID)
 	if err != nil {

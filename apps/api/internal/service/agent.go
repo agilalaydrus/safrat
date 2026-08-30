@@ -163,11 +163,11 @@ func (s *AgentService) GetMyWallet(ctx context.Context, orgID, userID string) (*
 	if err != nil {
 		return nil, serviceError("AgentService.GetMyWallet", err)
 	}
-	pendingRequested, err := s.agentRepository.SumPendingRequests(ctx, agent.ID)
+	pendingRequested, err := s.agentRepository.SumPendingRequests(ctx, op.ID, agent.ID)
 	if err != nil {
 		return nil, serviceError("AgentService.GetMyWallet", err)
 	}
-	entries, err := s.agentRepository.ListCommissionEntries(ctx, agent.ID)
+	entries, err := s.agentRepository.ListCommissionEntries(ctx, op.ID, agent.ID)
 	if err != nil {
 		return nil, serviceError("AgentService.GetMyWallet", err)
 	}
@@ -242,7 +242,7 @@ func (s *AgentService) RequestPayout(ctx context.Context, orgID, userID string, 
 	if err != nil {
 		return nil, serviceError("AgentService.RequestPayout", err)
 	}
-	pendingRequested, err := s.agentRepository.SumPendingRequestsTx(ctx, tx, agent.ID)
+	pendingRequested, err := s.agentRepository.SumPendingRequestsTx(ctx, tx, op.ID, agent.ID)
 	if err != nil {
 		return nil, serviceError("AgentService.RequestPayout", err)
 	}
