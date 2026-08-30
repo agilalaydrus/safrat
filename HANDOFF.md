@@ -3175,3 +3175,34 @@ menutupnya.
 
 Notifikasi ke travel saat pembayaran diakui. Dengan pencocokan otomatis, sebuah
 tagihan bisa lunas tengah malam tanpa siapa pun tahu.
+
+---
+
+## Notifikasi pembayaran ke travel (2026-08-30)
+
+Travel mentransfer lalu menunggu **tanpa sinyal apa pun**. Pencocokan otomatis
+justru memperburuknya: sebuah tagihan kini bisa lunas jam tiga pagi tanpa ada
+yang menyaksikan, dan diam setelah pembayaran terbaca seperti pembayaran yang
+tidak sampai.
+
+Pesan yang sama di **setiap jalur** — cocok otomatis, kredit yang dilampirkan,
+atau nominal yang diketik dari mutasi. Mengetahui apakah kamu diberi tahu
+berdasarkan jalur mana yang kebetulan melunasi bukan rancangan, itu kebetulan.
+
+Nominalnya ikut di pesan. "Pembayaran diterima" tanpa angka tetap membuat
+pembacanya harus mengecek sendiri.
+
+### Yang dijaga
+
+- **Notifikasi tidak pernah menghalangi pelunasan.** Uang sudah berpindah dan
+  akses sudah diberikan; membatalkannya karena push gagal terkirim adalah
+  pertukaran yang salah.
+- Tanpa Firebase, ia no-op. Antarmukanya ada supaya pelunasan tidak bergantung
+  padanya sama sekali.
+- **Pointer nil di dalam antarmuka non-nil** adalah jebakan Go yang persis
+  diundang bentuk ini. Method `FirebasePusher` memang memeriksa `p == nil` —
+  saya pastikan, bukan asumsikan.
+- **Subjek tagihan dibaca sebelum melunasi.** Sesudah PAID ia tidak lagi
+  pending dan lookup-nya menemukan nol — kesalahan yang saya buat di jalur
+  konfirmasi-nominal minggu lalu. Sekarang ada tes yang gagal kalau urutannya
+  ditukar.
