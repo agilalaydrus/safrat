@@ -24,7 +24,7 @@ import {
   pilgrimClient,
   seasonClient,
 } from "@/lib/rpc";
-import { PageHero } from "@/components/ui/PageHero";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { StatCard } from "@/components/ui/StatCard";
 import ProfileShareBanner from "@/components/settings/ProfileShareBanner";
 
@@ -131,11 +131,11 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <PageHero
+      <PageHeader
         eyebrow="Operator Dashboard"
         title="Selamat datang"
         subtitle={seasonName ? `Musim: ${seasonName}` : "Memuat data..."}
-        actions={
+        controls={
           <>
             <select className="dashboard-filter-select" aria-label="Filter musim" value={seasonId} onChange={(e) => setSeasonId(e.target.value)}>
               {seasons.map((s) => <option key={s.id} value={s.id}>{s.name}{s.isActive ? " · Aktif" : ""}</option>)}
@@ -155,11 +155,11 @@ export default function DashboardPage() {
         <div className="dashboard-stats-grid tw-stagger">
           {stats ? (
             <>
-              <StatCard label="Total Jamaah" value={stats.total} accent="gold" />
-              <StatCard label="Tersubstitusi" value={stats.substituted} accent="danger" />
-              <StatCard label="Butuh Kursi Roda" value={stats.requiresWheelchair} accent="emerald" />
-              <StatCard label="Belum Ada Grup" value={stats.unassignedGroup} accent="gold" />
-              <StatCard label="Belum Ada Kloter" value={stats.unassignedKloter} accent="gold" />
+              <StatCard label="Total Jamaah" value={stats.total} unit="jamaah" tone="brand" />
+              <StatCard label="Tersubstitusi" value={stats.substituted} unit="jamaah" tone="danger" />
+              <StatCard label="Butuh Kursi Roda" value={stats.requiresWheelchair} unit="jamaah" tone="info" />
+              <StatCard label="Belum Ada Grup" value={stats.unassignedGroup} unit="jamaah" tone="warning" />
+              <StatCard label="Belum Ada Kloter" value={stats.unassignedKloter} unit="jamaah" tone="warning" />
             </>
           ) : (
             Array.from({ length: 5 }, (_, index) => <div key={index} className="dashboard-skeleton-card" />)
