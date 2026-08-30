@@ -108,7 +108,7 @@ bayangan lebar-tipis, cincin, dan gerakan.
 - [x] `EmptyState` (judul, **sebab**, langkah berikutnya, tautan ke tempatnya) (`7a40403`)
 - [x] `DataTable` (pencarian deskriptif, filter, ekspor, klik baris → panel) (`0a28a68`)
 - [x] `DetailDrawer` (panel samping, mempertahankan konteks daftar) (`0a28a68`)
-- [ ] `Wizard` (langkah bernomor + skor kesiapan + validasi silang)
+- [x] `Wizard` (langkah bernomor + skor kesiapan + validasi silang) (`a8e882e`)
 - [x] `ChartFrame` (judul + subjudul penjelas sumbu — **wajib**) (`758097d`)
 - [x] `ProgressBar` (transisi ±700 ms) (`758097d`)
 - [x] `MethodologyNote` (`758097d`)
