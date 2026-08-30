@@ -117,7 +117,7 @@ export default function DocumentsDashboard() {
         <select aria-label="Musim" value={seasonId} onChange={(e) => setSeasonId(e.target.value)} style={select}>
           {seasons.length ? seasons.map((s) => <option key={s.id} value={s.id}>{s.name}{s.isActive ? " · Aktif" : ""}</option>) : <option>{activeName}</option>}
         </select>
-        <button onClick={() => setUploadOpen(true)} style={emerald}><IconUpload size={18} />Upload Dokumen</button>
+        <button onClick={() => setUploadOpen(true)} style={uploadOpen ? ghost : emerald}><IconUpload size={18} />Upload Dokumen</button>
       </div>
     </header>
     <div className="gold-divider" />
@@ -203,7 +203,7 @@ const candidateButton: React.CSSProperties = { minHeight: 44, display: "grid", g
 const toolbar: React.CSSProperties = { display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap", margin: "8px 0 16px" };
 const chips: React.CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap" };
 const chip: React.CSSProperties = { minHeight: 40, borderWidth: 1, borderStyle: "solid", borderColor: "var(--color-cream-400)", borderRadius: 999, padding: "0 14px", background: "transparent", color: "var(--color-warm-500)" };
-const chipActive: React.CSSProperties = { ...chip, background: "var(--color-emerald-900)", borderColor: "var(--color-emerald-900)", color: "var(--color-cream-100)" };
+const chipActive: React.CSSProperties = { ...chip, background: "var(--color-gold-50)", borderColor: "var(--color-gold-100)", color: "var(--color-gold-600)", boxShadow: "0 0 0 4px color-mix(in srgb, var(--color-gold-500) 12%, transparent)" };
 const tableCard: React.CSSProperties = { border: "1px solid var(--color-cream-400)", borderRadius: 12, background: "white", overflow: "hidden", minHeight: 260 };
 const table: React.CSSProperties = { width: "100%", borderCollapse: "collapse", minWidth: 800 };
 const th: React.CSSProperties = { background: "var(--color-cream-200)", padding: "14px 16px", textAlign: "start", fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "var(--color-warm-400)" };

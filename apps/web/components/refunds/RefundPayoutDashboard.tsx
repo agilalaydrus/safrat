@@ -144,8 +144,8 @@ export default function RefundPayoutDashboard() {
 
               <div style={actions}>
                 {whatsapp && <a href={whatsapp} target="_blank" rel="noreferrer" style={secondary}>Hubungi penerima <IconExternalLink size={14} /></a>}
-                {request.method === RefundPayoutMethod.CASH && request.status === RefundPayoutStatus.REQUESTED && <button disabled={working === request.id} onClick={() => void transition(request, RefundPayoutAction.START_PROCESSING)} style={primary}><IconClockHour4 size={15} />Mulai proses</button>}
-                {request.method === RefundPayoutMethod.CASH && request.status === RefundPayoutStatus.PROCESSING && <button disabled={working === request.id} onClick={() => openResolution(request, RefundPayoutAction.MARK_PAID)} style={primary}><IconCheck size={15} />Tandai dibayar</button>}
+                {request.method === RefundPayoutMethod.CASH && request.status === RefundPayoutStatus.REQUESTED && <button disabled={working === request.id} onClick={() => void transition(request, RefundPayoutAction.START_PROCESSING)} style={rowAction}><IconClockHour4 size={15} />Mulai proses</button>}
+                {request.method === RefundPayoutMethod.CASH && request.status === RefundPayoutStatus.PROCESSING && <button disabled={working === request.id} onClick={() => openResolution(request, RefundPayoutAction.MARK_PAID)} style={rowAction}><IconCheck size={15} />Tandai dibayar</button>}
                 {request.method === RefundPayoutMethod.CASH && (request.status === RefundPayoutStatus.REQUESTED || request.status === RefundPayoutStatus.PROCESSING) && <button disabled={working === request.id} onClick={() => openResolution(request, RefundPayoutAction.MARK_FAILED)} style={danger}><IconX size={15} />Gagal</button>}
               </div>
 
@@ -179,7 +179,7 @@ const stats: React.CSSProperties = { display: "grid", gridTemplateColumns: "repe
 const stat: React.CSSProperties = { display: "grid", gap: 5, padding: 16, border: "1px solid var(--color-cream-400)", borderRadius: 10, background: "#fff" };
 const filters: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 };
 const filterButton: React.CSSProperties = { minHeight: 38, padding: "0 13px", border: "1px solid var(--color-cream-400)", borderRadius: 99, background: "#fff", color: "var(--color-warm-600)", fontWeight: 700 };
-const filterActive: React.CSSProperties = { ...filterButton, background: "var(--color-emerald-900)", color: "#fff", borderColor: "var(--color-emerald-900)" };
+const filterActive: React.CSSProperties = { ...filterButton, background: "var(--color-gold-50)", color: "var(--color-gold-600)", borderColor: "var(--color-gold-100)", boxShadow: "0 0 0 4px color-mix(in srgb, var(--color-gold-500) 12%, transparent)" };
 const list: React.CSSProperties = { display: "grid", gap: 13 };
 const card: React.CSSProperties = { display: "grid", gap: 13, padding: 18, border: "1px solid var(--color-cream-400)", borderRadius: 12, background: "#fff" };
 const cardTop: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 };
@@ -192,6 +192,7 @@ const noteBox: React.CSSProperties = { margin: 0, padding: 11, borderRadius: 8, 
 const resultBox: React.CSSProperties = { display: "grid", gap: 4, padding: 11, borderRadius: 8, background: "var(--color-emerald-50)", color: "var(--color-emerald-900)", fontSize: 13 };
 const actions: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" };
 const primary: React.CSSProperties = { minHeight: 40, padding: "0 13px", border: 0, borderRadius: 8, display: "inline-flex", alignItems: "center", gap: 6, justifyContent: "center", background: "var(--color-emerald-900)", color: "#fff", textDecoration: "none", fontWeight: 800 };
+const rowAction: React.CSSProperties = { ...primary, border: "1px solid var(--color-emerald-700)", background: "var(--color-emerald-50)", color: "var(--color-emerald-900)" };
 const secondary: React.CSSProperties = { ...primary, border: "1px solid var(--color-cream-400)", background: "#fff", color: "var(--color-emerald-900)" };
 const danger: React.CSSProperties = { ...primary, background: "var(--color-danger-600)" };
 const resolutionBox: React.CSSProperties = { display: "grid", gap: 11, padding: 14, border: "1px solid var(--color-cream-400)", borderRadius: 9, background: "#fffcf5" };
