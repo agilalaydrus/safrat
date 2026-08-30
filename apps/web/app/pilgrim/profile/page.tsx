@@ -162,7 +162,7 @@ export default function PilgrimProfilePage() {
           {info?.kycStatus === "REJECTED" && info.kycRejectionReason && <p style={{ margin: "0 0 12px", fontSize: 13, color: "var(--color-danger-600)" }}>Alasan penolakan: {info.kycRejectionReason}</p>}
           <label style={{ display: "grid", gap: 6 }}>
             <span style={lab}>NIK</span>
-            <input value={nik} onChange={(e) => setNik(e.target.value)} maxLength={32} style={input} />
+            <input value={nik} onChange={(e) => setNik(e.target.value.replace(/\D/g, ""))} inputMode="numeric" autoComplete="off" maxLength={32} style={input} />
           </label>
           <label style={{ display: "grid", gap: 6, marginTop: 12 }}>
             <span style={lab}>Alamat sesuai KTP</span>
@@ -170,7 +170,7 @@ export default function PilgrimProfilePage() {
           </label>
           <label style={{ display: "grid", gap: 6, marginTop: 12 }}>
             <span style={lab}>Tempat lahir</span>
-            <input value={placeOfBirth} onChange={(e) => setPlaceOfBirth(e.target.value)} style={input} />
+            <input value={placeOfBirth} onChange={(e) => setPlaceOfBirth(e.target.value)} autoCapitalize="words" style={input} />
           </label>
           <label style={{ display: "grid", gap: 6, marginTop: 12 }}>
             <span style={lab}>Status pernikahan</span>
@@ -180,11 +180,11 @@ export default function PilgrimProfilePage() {
           </label>
           <label style={{ display: "grid", gap: 6, marginTop: 12 }}>
             <span style={lab}>Pekerjaan</span>
-            <input value={occupation} onChange={(e) => setOccupation(e.target.value)} style={input} />
+            <input value={occupation} onChange={(e) => setOccupation(e.target.value)} autoCapitalize="words" style={input} />
           </label>
           <label style={{ display: "grid", gap: 6, marginTop: 12 }}>
             <span style={lab}>Nama ayah kandung</span>
-            <input value={fatherName} onChange={(e) => setFatherName(e.target.value)} style={input} />
+            <input value={fatherName} onChange={(e) => setFatherName(e.target.value)} autoComplete="off" autoCapitalize="words" style={input} />
           </label>
           {kycNotice && <p style={successBox}>{kycNotice}</p>}
           <button onClick={() => void submitKyc()} disabled={savingKyc} style={primary}>{savingKyc ? "Menyimpan..." : "Simpan KYC"}</button>
@@ -209,11 +209,11 @@ export default function PilgrimProfilePage() {
         <div style={formCard}>
           <label style={{ display: "grid", gap: 6 }}>
             <span style={lab}>Kata sandi saat ini</span>
-            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} style={input} />
+            <input type="password" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} style={input} />
           </label>
           <label style={{ display: "grid", gap: 6, marginTop: 12 }}>
             <span style={lab}>Kata sandi baru</span>
-            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={input} />
+            <input type="password" autoComplete="new-password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={input} />
           </label>
           {error && <p style={errBox}>{error}</p>}
           {notice && <p style={successBox}>{notice}</p>}

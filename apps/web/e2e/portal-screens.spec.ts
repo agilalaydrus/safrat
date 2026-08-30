@@ -262,3 +262,26 @@ test.describe("agent and muttawwif screens render", () => {
     }
   });
 });
+
+/**
+ * The jamaah's own app, on the phone it lives on. These are not styling
+ * assertions — they are the difference between typing a sixteen-digit identity
+ * number on a number pad and typing it on a qwerty keyboard, and between a
+ * password manager working and a jamaah inventing a weaker password because it
+ * does not.
+ */
+test.describe("pilgrim app on a phone", () => {
+  test("identity and password fields ask for the right keyboard and autofill", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/pilgrim/profile");
+
+    // NIK is sixteen digits and this is KYC data: a wrong digit has
+    // consequences past annoyance.
+    const nik = page.getByLabel("NIK", { exact: false }).first();
+    await expect(nik).toHaveAttribute("inputmode", "numeric");
+
+    // Without these a password manager neither fills nor offers to save.
+    await expect(page.locator('input[autocomplete="current-password"]')).toHaveCount(1);
+    await expect(page.locator('input[autocomplete="new-password"]')).toHaveCount(1);
+  });
+});
