@@ -55,16 +55,26 @@ jamaah menganggap dirinya terdampak.
 
 | Tabel | Berisi | Terenkripsi? |
 |---|---|---|
-| `pilgrims` | nama, nomor paspor, tanggal lahir, telepon, email, alamat | **tidak** |
+| `pilgrims` | nama, nomor paspor, tanggal lahir, telepon, email, alamat | nomor paspor **ya** (AES-256-GCM), sisanya tidak |
+| `pilgrim_registrations` | nama, nomor paspor, tanggal lahir, telepon, email, alamat | **tidak** — pendaftaran yang belum disetujui |
 | `kyc_records` | nama, tanggal lahir, alamat, nomor identitas | nomor identitas **ya** (AES-256-GCM), sisanya tidak |
 | `pilgrim_refund_payout_requests` | tujuan rekening/e-wallet | **ya**, kunci sama dengan KYC |
 | `"user"` (Better Auth) | nama, email | tidak. Kata sandi di-hash scrypt |
 | `agents` | nama, telepon | tidak |
 
 **Konsekuensi yang harus dipahami sebelum insiden:** kalau yang bocor adalah
-dump database, nomor identitas KYC dan tujuan pencairan tetap tersegel — tapi
-nama, paspor, tanggal lahir, telepon, email, dan alamat seluruh jamaah terbaca.
-Enkripsi KYC mempersempit kerusakan; ia tidak menghilangkannya.
+dump database, nomor identitas KYC, tujuan pencairan, dan **nomor paspor
+jamaah** tetap tersegel. Yang terbaca: nama, tanggal lahir, telepon, email, dan
+alamat.
+
+Paspor sengaja disegel lebih dulu di antara kolom `pilgrims` yang lain karena ia
+satu-satunya yang memungkinkan **penyamaran identitas**, bukan sekadar
+ketidaknyamanan. Nama dan alamat memalukan kalau bocor; nomor paspor bisa
+dipakai orang lain.
+
+**Yang belum tersegel dan harus disebut jujur:** `pilgrim_registrations` —
+pendaftaran yang belum disetujui — menyimpan paspor dalam teks polos. Tabel itu
+punya jalur tulis terpisah dan belum ikut dipindahkan.
 
 ### Kueri yang sudah disiapkan
 
@@ -158,10 +168,11 @@ insiden berikutnya.
 
 Dicatat supaya jujur, bukan disembunyikan:
 
-- **`pilgrims` tidak terenkripsi.** Dump database membuka nama, paspor, dan
-  alamat seluruh jamaah. Mengenkripsinya berat karena kolom-kolom itu dicari
-  dan diurutkan; tapi ini yang paling menentukan seberapa buruk sebuah
-  kebocoran.
+- **`pilgrim_registrations` masih teks polos**, termasuk paspornya. Kolom
+  `pilgrims` sudah dipindahkan; tabel pendaftaran belum.
+- **Nama dan alamat di `pilgrims` masih teks polos.** Keduanya dicari dan
+  diurutkan, jadi tidak bisa disegel dengan cara yang sama seperti paspor —
+  paspor bisa karena ia hanya dicocokkan sama-persis.
 - **`audit_logs` tumbuh tanpa batas dan tanpa retensi.** Ia sendiri berisi data
   yang sensitif — siapa membaca catatan siapa.
 - **Jejak baca baru ada sejak 30 Agustus 2026.**

@@ -845,6 +845,20 @@ Empty output is the healthy answer.
 
 ## 12c. The KYC encryption key
 
+> **Sejak 30 Agustus 2026 kunci ini juga wajib untuk membuat jamaah.** Nomor
+> paspor disegel dengan kunci yang sama, dan penyegelan **menolak** menulis
+> tanpa kunci alih-alih diam-diam menyimpan teks polos. Tanpa
+> `KYC_ENCRYPTION_KEY`, pendaftaran jamaah gagal — di produksi, di staging, dan
+> di lingkungan pengembangan mana pun.
+>
+> Produksi sudah memilikinya (sidik jari `da3a6362`). Untuk pengembangan lokal,
+> buat satu kunci sekali pakai: `openssl rand -base64 32`.
+>
+> Data lama dipindahkan oleh sweep KYC di worker, sejam sekali, secara batch.
+> Ia melaporkan `remaining` sampai nol; sampai saat itu baris lama tetap
+> terbaca dan tetap bisa dicari.
+
+
 Identity numbers are encrypted with `KYC_ENCRYPTION_KEY` before they reach the
 database. Losing it loses every number sealed with it — there is no recovery
 path, deliberately, because one that existed would be a way in.

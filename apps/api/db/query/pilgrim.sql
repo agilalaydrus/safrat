@@ -2,11 +2,13 @@
 INSERT INTO pilgrims (
   season_id, operator_id, group_id, full_name, passport_number, nationality,
   date_of_birth, gender, photo_url, phone, emergency_contact, preferred_lang,
-  medical_notes, requires_wheelchair, mahram_id, kloter_id, email, agent_id
+  medical_notes, requires_wheelchair, mahram_id, kloter_id, email, agent_id,
+  passport_number_blind, passport_key_fingerprint
 ) SELECT
   $1, $2, NULLIF($3::text, '')::uuid, $4, $5, $6,
   $7, $8, NULLIF($9, ''), NULLIF($10, ''), NULLIF($11, ''), $12,
-  NULLIF($13, ''), $14, NULLIF($15::text, '')::uuid, NULLIF($16::text, '')::uuid, NULLIF($17, ''), NULLIF($18::text, '')::uuid
+  NULLIF($13, ''), $14, NULLIF($15::text, '')::uuid, NULLIF($16::text, '')::uuid, NULLIF($17, ''), NULLIF($18::text, '')::uuid,
+  sqlc.arg(passport_number_blind), sqlc.arg(passport_key_fingerprint)
 WHERE EXISTS (
   SELECT 1 FROM seasons WHERE id = $1 AND operator_id = $2
 )
@@ -26,8 +28,18 @@ SET last_lat = $2, last_lng = $3, last_location_at = NOW()
 WHERE app_access_code = $1 AND is_substituted = false;
 
 -- name: GetPilgrimByPassport :one
+-- Matched on the blind token, falling back to the raw column for rows the
+-- backfill has not reached yet. Both are needed only during the migration; once
+-- every row carries a token the second branch matches nothing.
+--
+-- The raw comparison stays last on purpose: after the backfill, passport_number
+-- holds ciphertext, and ciphertext never equals what somebody typed.
 SELECT * FROM pilgrims
-WHERE operator_id = $1 AND season_id = $2 AND passport_number = $3;
+WHERE operator_id = $1 AND season_id = $2
+  AND (
+    (passport_number_blind <> '' AND passport_number_blind = sqlc.arg(passport_blind))
+    OR (passport_number_blind = '' AND passport_number = sqlc.arg(passport_raw))
+  );
 
 -- name: ListPilgrims :many
 SELECT * FROM pilgrims
@@ -40,6 +52,8 @@ UPDATE pilgrims
 SET group_id = NULLIF($3::text, '')::uuid,
     full_name = $4,
     passport_number = $5,
+    passport_number_blind = sqlc.arg(passport_number_blind),
+    passport_key_fingerprint = sqlc.arg(passport_key_fingerprint),
     nationality = $6,
     date_of_birth = $7,
     gender = $8,
@@ -197,3 +211,25 @@ ORDER BY full_name ASC;
 UPDATE pilgrims
 SET kloter_id = $3, updated_at = NOW()
 WHERE id = $1 AND operator_id = $2 AND kloter_id IS NULL;
+
+-- name: ListLegacyPassports :many
+-- Rows whose passport predates encryption. Selected by the absence of a blind
+-- token, so the backfill is resumable and re-running it finds nothing.
+SELECT id::text, passport_number FROM pilgrims
+WHERE passport_number_blind = '' AND passport_number <> ''
+LIMIT $1;
+
+-- name: SealLegacyPassport :execrows
+-- Ciphertext, token and stamp move in one statement, so a row is never left
+-- sealed-but-unsearchable or stamped-but-unsealed. Conditional on still being
+-- unmigrated, so two runs cannot both claim the same row.
+UPDATE pilgrims
+SET passport_number = sqlc.arg(passport_number),
+    passport_number_blind = sqlc.arg(passport_number_blind),
+    passport_key_fingerprint = sqlc.arg(passport_key_fingerprint),
+    updated_at = NOW()
+WHERE id = sqlc.arg(id) AND passport_number_blind = '';
+
+-- name: CountLegacyPassports :one
+SELECT count(*) FROM pilgrims
+WHERE passport_number_blind = '' AND passport_number <> '';

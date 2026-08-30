@@ -12,7 +12,7 @@ func (r *PilgrimRepository) GetCertificateData(ctx context.Context, appAccessCod
 		return nil, databaseError(err)
 	}
 	return &domain.CertificateData{
-		PilgrimName: row.FullName, PassportNumber: row.PassportNumber, Nationality: row.Nationality,
+		PilgrimName: row.FullName, PassportNumber: openKYC(row.PassportNumber), Nationality: row.Nationality,
 		SeasonName: row.SeasonName, SeasonType: domainSeasonType(row.SeasonType),
 		StartDate: row.StartDate.Time, EndDate: row.EndDate.Time,
 		OperatorName: row.OperatorName, LicenseNumber: row.LicenseNumber.String,

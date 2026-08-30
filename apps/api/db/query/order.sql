@@ -393,3 +393,9 @@ WHERE buyer_kind = sqlc.arg(buyer_kind) AND buyer_id = sqlc.arg(buyer_id)
 -- role deliberately holds no DELETE on daily_digital_spend, because removing a
 -- row hands an account its whole daily limit back.
 SELECT purge_daily_digital_spend(sqlc.arg(keep_days)::int) AS removed;
+
+-- name: PurgeAuditLogs :one
+-- Runs the definer function rather than deleting directly: migration 125 took
+-- DELETE on audit_logs away from the application role, because a trail the
+-- audited credential can erase is not a trail.
+SELECT purge_audit_logs(sqlc.arg(keep_months)::int) AS removed;

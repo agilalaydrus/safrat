@@ -292,7 +292,7 @@ func (r *TransportRepository) Manifest(ctx context.Context, op, vehicleID string
 	}
 	out := make([]ManifestPilgrim, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, ManifestPilgrim{ID: uuidString(row.PilgrimID), FullName: row.FullName, Gender: row.Gender, PassportNumber: row.PassportNumber, RequiresWheelchair: row.RequiresWheelchair, SeatNumber: row.SeatNumber.Int32})
+		out = append(out, ManifestPilgrim{ID: uuidString(row.PilgrimID), FullName: row.FullName, Gender: row.Gender, PassportNumber: openKYC(row.PassportNumber), RequiresWheelchair: row.RequiresWheelchair, SeatNumber: row.SeatNumber.Int32})
 	}
 	return v, out, nil
 }

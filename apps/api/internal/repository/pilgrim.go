@@ -32,25 +32,35 @@ func (r *PilgrimRepository) Create(ctx context.Context, operatorID string, input
 	if err != nil {
 		return nil, err
 	}
+	// Sealed before it reaches the database. A passport number is the field in
+	// this table that enables impersonation rather than embarrassment, so it is
+	// the one a stolen dump must not hand over.
+	sealedPassport, passportBlind, passportKey, err := sealPassport(input.PassportNumber)
+	if err != nil {
+		return nil, err
+	}
+
 	pilgrim, err := r.queries.CreatePilgrim(ctx, db.CreatePilgrimParams{
-		SeasonID:           seasonUUID,
-		OperatorID:         operatorUUID,
-		Column3:            input.GroupID,
-		FullName:           input.FullName,
-		PassportNumber:     input.PassportNumber,
-		Nationality:        input.Nationality,
-		DateOfBirth:        pgTimestamp(input.DateOfBirth),
-		Gender:             input.Gender,
-		Column9:            input.PhotoURL,
-		Column10:           input.Phone,
-		Column11:           input.EmergencyContact,
-		PreferredLang:      input.PreferredLang,
-		Column13:           input.MedicalNotes,
-		RequiresWheelchair: input.RequiresWheelchair,
-		Column15:           input.MahramID,
-		Column16:           input.KloterID,
-		Column17:           input.Email,
-		Column18:           input.AgentID,
+		SeasonID:               seasonUUID,
+		OperatorID:             operatorUUID,
+		Column3:                input.GroupID,
+		FullName:               input.FullName,
+		PassportNumber:         sealedPassport,
+		PassportNumberBlind:    passportBlind,
+		PassportKeyFingerprint: passportKey,
+		Nationality:            input.Nationality,
+		DateOfBirth:            pgTimestamp(input.DateOfBirth),
+		Gender:                 input.Gender,
+		Column9:                input.PhotoURL,
+		Column10:               input.Phone,
+		Column11:               input.EmergencyContact,
+		PreferredLang:          input.PreferredLang,
+		Column13:               input.MedicalNotes,
+		RequiresWheelchair:     input.RequiresWheelchair,
+		Column15:               input.MahramID,
+		Column16:               input.KloterID,
+		Column17:               input.Email,
+		Column18:               input.AgentID,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -83,7 +93,19 @@ func (r *PilgrimRepository) GetByPassport(ctx context.Context, operatorID, seaso
 	if err != nil {
 		return nil, err
 	}
-	pilgrim, err := r.queries.GetPilgrimByPassport(ctx, db.GetPilgrimByPassportParams{OperatorID: operatorUUID, SeasonID: seasonUUID, PassportNumber: passportNumber})
+	// Searched by token, not by value: the stored number is ciphertext with a
+	// random nonce, so comparing it to what somebody typed would never match.
+	// The raw value is still passed for rows the backfill has not reached.
+	blind, err := blindPassport(passportNumber)
+	if err != nil {
+		return nil, err
+	}
+	pilgrim, err := r.queries.GetPilgrimByPassport(ctx, db.GetPilgrimByPassportParams{
+		OperatorID:    operatorUUID,
+		SeasonID:      seasonUUID,
+		PassportBlind: blind,
+		PassportRaw:   passportNumber,
+	})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -119,24 +141,33 @@ func (r *PilgrimRepository) Update(ctx context.Context, operatorID, pilgrimID st
 	if err != nil {
 		return nil, err
 	}
+	// The same sealing as create. Two write paths storing the field two ways
+	// would leave half the table searchable and half not, silently.
+	sealedPassport, passportBlind, passportKey, err := sealPassport(input.PassportNumber)
+	if err != nil {
+		return nil, err
+	}
+
 	pilgrim, err := r.queries.UpdatePilgrim(ctx, db.UpdatePilgrimParams{
-		ID:                 pilgrimUUID,
-		OperatorID:         operatorUUID,
-		Column3:            input.GroupID,
-		FullName:           input.FullName,
-		PassportNumber:     input.PassportNumber,
-		Nationality:        input.Nationality,
-		DateOfBirth:        pgTimestamp(input.DateOfBirth),
-		Gender:             input.Gender,
-		Column9:            input.PhotoURL,
-		Column10:           input.Phone,
-		Column11:           input.EmergencyContact,
-		PreferredLang:      input.PreferredLang,
-		Column13:           input.MedicalNotes,
-		RequiresWheelchair: input.RequiresWheelchair,
-		Column15:           input.MahramID,
-		Column16:           input.KloterID,
-		Column17:           input.Email,
+		ID:                     pilgrimUUID,
+		OperatorID:             operatorUUID,
+		Column3:                input.GroupID,
+		FullName:               input.FullName,
+		PassportNumber:         sealedPassport,
+		PassportNumberBlind:    passportBlind,
+		PassportKeyFingerprint: passportKey,
+		Nationality:            input.Nationality,
+		DateOfBirth:            pgTimestamp(input.DateOfBirth),
+		Gender:                 input.Gender,
+		Column9:                input.PhotoURL,
+		Column10:               input.Phone,
+		Column11:               input.EmergencyContact,
+		PreferredLang:          input.PreferredLang,
+		Column13:               input.MedicalNotes,
+		RequiresWheelchair:     input.RequiresWheelchair,
+		Column15:               input.MahramID,
+		Column16:               input.KloterID,
+		Column17:               input.Email,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -224,7 +255,7 @@ func (r *PilgrimRepository) ListSubstitutions(ctx context.Context, operatorID, s
 		result = append(result, &domain.Substitution{
 			OriginalID:             uuid.UUID(row.OriginalID.Bytes).String(),
 			OriginalName:           row.OriginalName,
-			OriginalPassportNumber: row.OriginalPassportNumber,
+			OriginalPassportNumber: openKYC(row.OriginalPassportNumber),
 			NewID:                  uuid.UUID(row.NewID.Bytes).String(),
 			NewName:                row.NewName,
 			Reason:                 row.Reason,
@@ -530,7 +561,7 @@ func (r *PilgrimRepository) ListSeasonDocuments(ctx context.Context, operatorID,
 			UploadedBy:     row.UploadedBy,
 			CreatedAt:      row.CreatedAt.Time,
 			PilgrimName:    row.PilgrimName,
-			PassportNumber: row.PassportNumber,
+			PassportNumber: openKYC(row.PassportNumber),
 		})
 	}
 	return result, nil
@@ -585,7 +616,7 @@ func toPilgrim(value db.Pilgrim) *domain.Pilgrim {
 		OperatorID:                   uuidString(value.OperatorID),
 		GroupID:                      nullableUUIDString(value.GroupID),
 		FullName:                     value.FullName,
-		PassportNumber:               value.PassportNumber,
+		PassportNumber:               openKYC(value.PassportNumber),
 		Nationality:                  value.Nationality,
 		DateOfBirth:                  value.DateOfBirth.Time,
 		Gender:                       value.Gender,
@@ -702,4 +733,62 @@ func nullableUUIDString(value pgtype.UUID) string {
 		return ""
 	}
 	return uuidString(value)
+}
+
+// MigrateLegacyPassports seals passport numbers that predate encryption.
+//
+// In Go rather than in a migration because the key lives in this process, not
+// in the database — the same reason migration 106 left KYC identity numbers to
+// a migrator. A SQL backfill could only copy plaintext around.
+//
+// Resumable and safe to re-run: it selects only rows with no blind token, and
+// moves the ciphertext, the token and the stamp in one UPDATE, so a row is
+// never left sealed-but-unsearchable or stamped-but-unsealed.
+func (r *PilgrimRepository) MigrateLegacyPassports(ctx context.Context, limit int32) (int, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 200
+	}
+	pending, err := r.queries.ListLegacyPassports(ctx, limit)
+	if err != nil {
+		return 0, err
+	}
+
+	migrated := 0
+	for _, item := range pending {
+		// Already-sealed values are opened first rather than sealed again. A
+		// row can carry ciphertext with no token if an earlier run stopped
+		// between the two writes, and encrypting it twice would make it
+		// unopenable.
+		plaintext, openErr := kycSealer.Open(item.PassportNumber)
+		if openErr != nil {
+			return migrated, fmt.Errorf("open passport %s: %w", item.ID, openErr)
+		}
+		sealed, blind, fingerprint, sealErr := sealPassport(plaintext)
+		if sealErr != nil {
+			return migrated, sealErr
+		}
+
+		id, err := pgUUID(item.ID)
+		if err != nil {
+			return migrated, err
+		}
+		affected, err := r.queries.SealLegacyPassport(ctx, db.SealLegacyPassportParams{
+			ID:                     id,
+			PassportNumber:         sealed,
+			PassportNumberBlind:    blind,
+			PassportKeyFingerprint: fingerprint,
+		})
+		if err != nil {
+			return migrated, err
+		}
+		migrated += int(affected)
+	}
+	return migrated, nil
+}
+
+// LegacyPassportCount reports how many rows still hold an unsealed passport.
+// The number a rotation run checks before declaring itself finished.
+func (r *PilgrimRepository) LegacyPassportCount(ctx context.Context) (int, error) {
+	remaining, err := r.queries.CountLegacyPassports(ctx)
+	return int(remaining), err
 }

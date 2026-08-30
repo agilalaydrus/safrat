@@ -143,3 +143,20 @@ func RoutingRequired(category string) bool {
 // default inside purge_daily_digital_spend (migration 117): a manual call
 // during an incident uses the database's default, not this one.
 const DailySpendRetentionDays = 30
+
+// AuditRetentionMonths is how long an access trail is kept once its period has
+// passed.
+//
+// Two years. Breach notification runs on 72 hours, but an investigation looks
+// back much further — a credential quietly misused for months is exactly the
+// case the trail exists to reconstruct, and two years covers an inquiry opened
+// long after the fact.
+//
+// Not ten: this is not the financial record. Orders, refunds and the ledgers
+// are, and none of them are affected. What this holds is who looked at whose
+// personal data, which is itself sensitive — keeping it forever builds an
+// ever-growing store of exactly what a breach would most want.
+//
+// Must stay in step with the default inside purge_audit_logs (migration 126);
+// a manual call during an incident uses the database's number, not this one.
+const AuditRetentionMonths = 24

@@ -310,7 +310,7 @@ func (r *AgentRepository) ListMyPilgrims(ctx context.Context, operatorID, agentI
 	result := make([]*domain.AgentPilgrim, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, &domain.AgentPilgrim{
-			ID: uuidString(row.ID), FullName: row.FullName, PassportNumber: row.PassportNumber, Gender: row.Gender,
+			ID: uuidString(row.ID), FullName: row.FullName, PassportNumber: openKYC(row.PassportNumber), Gender: row.Gender,
 			PaymentStatus: row.PaymentStatus, DocsComplete: row.DocsComplete.Bool, PilgrimStatus: row.PilgrimStatus,
 			SeasonID: uuidString(row.SeasonID), SeasonName: row.SeasonName, DepartureDate: timestamptzPtr(row.DepartureDate),
 		})

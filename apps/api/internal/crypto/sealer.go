@@ -5,6 +5,7 @@ package crypto
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -42,6 +43,10 @@ var (
 type Sealer struct {
 	aead        cipher.AEAD
 	fingerprint string
+	// blindKey is derived from the encryption key rather than being the key
+	// itself, so a leaked blinding token gives no purchase on the cipher. One
+	// secret to look after, two uses that never share material.
+	blindKey []byte
 }
 
 // NewSealer builds a sealer from a base64-encoded 32-byte key.
@@ -70,7 +75,16 @@ func NewSealer(base64Key string) (*Sealer, error) {
 	// Derived from the key itself, so the same key always yields the same
 	// fingerprint on any machine and in any deployment.
 	sum := sha256.Sum256(key)
-	return &Sealer{aead: aead, fingerprint: hex.EncodeToString(sum[:4])}, nil
+	// Derived, not the key itself: a blinding token that leaked would otherwise
+	// be material from the encryption key. One secret to look after, two uses
+	// that share nothing.
+	blindKey := sha256.Sum256(append([]byte("safrat-blind-index-v1"), key...))
+
+	return &Sealer{
+		aead:        aead,
+		fingerprint: hex.EncodeToString(sum[:4]),
+		blindKey:    blindKey[:],
+	}, nil
 }
 
 // Seal encrypts a value. An empty value stays empty — an absent identity number
@@ -203,4 +217,33 @@ func (r *Rotator) Reseal(stored string) (string, error) {
 		return "", err
 	}
 	return r.to.Seal(plaintext)
+}
+
+// Blind produces a deterministic, non-reversible token for a value that has to
+// stay searchable after it is encrypted.
+//
+// Sealing uses a random nonce, so the same passport number encrypts differently
+// every time — which is exactly right for secrecy and useless for "find the
+// pilgrim with this passport". This gives the lookup back: equal inputs produce
+// equal tokens, and the token reveals nothing without the key.
+//
+// HMAC rather than a plain hash. A passport number has far too little entropy
+// to survive a dictionary attack on a bare SHA-256, so an attacker holding a
+// stolen database could recover every number by hashing candidates. Keyed, that
+// attack needs the key — and the key is not in the database.
+//
+// The value is normalised first: passport numbers are quoted with stray spaces
+// and in either case, and a token that differs by whitespace would fail to find
+// a record that is plainly there.
+func (s *Sealer) Blind(value string) (string, error) {
+	normalised := strings.ToUpper(strings.Join(strings.Fields(value), ""))
+	if normalised == "" {
+		return "", nil
+	}
+	if s == nil {
+		return "", ErrNoKey
+	}
+	mac := hmac.New(sha256.New, s.blindKey)
+	mac.Write([]byte(normalised))
+	return hex.EncodeToString(mac.Sum(nil)), nil
 }

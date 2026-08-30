@@ -2,6 +2,7 @@ package repository
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/crypto"
@@ -58,4 +59,38 @@ func pgInt8Ptr(value *int64) pgtype.Int8 {
 		return pgtype.Int8{}
 	}
 	return pgtype.Int8{Int64: *value, Valid: true}
+}
+
+// sealPassport encrypts a passport number and produces the token that keeps it
+// findable.
+//
+// Both or neither: a row carrying ciphertext without a blind token cannot be
+// looked up, and one carrying a token without ciphertext claims a secret it does
+// not hold. The schema enforces the pairing; this is what makes the pairing
+// true at the point of writing.
+//
+// An empty passport stays empty rather than becoming an encrypted empty string,
+// so "not recorded" and "recorded as blank" remain different things.
+func sealPassport(plaintext string) (sealed, blind, fingerprint string, err error) {
+	if strings.TrimSpace(plaintext) == "" {
+		return "", "", "", nil
+	}
+	sealed, err = kycSealer.Seal(plaintext)
+	if err != nil {
+		return "", "", "", err
+	}
+	blind, err = kycSealer.Blind(plaintext)
+	if err != nil {
+		return "", "", "", err
+	}
+	return sealed, blind, kycSealer.Fingerprint(), nil
+}
+
+// blindPassport builds the lookup token for a search.
+//
+// Separate from sealPassport because a search has nothing to encrypt: it turns
+// what somebody typed into the token that will match the stored row, and the
+// normalisation inside Blind is what makes "c1234567" find "C1234567".
+func blindPassport(query string) (string, error) {
+	return kycSealer.Blind(query)
 }

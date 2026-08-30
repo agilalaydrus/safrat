@@ -18,7 +18,7 @@ func (r *PilgrimRepository) GetAppInfo(ctx context.Context, appAccessCode string
 	return &domain.PilgrimAppInfo{
 		ID:                  uuidString(row.ID),
 		FullName:            row.FullName,
-		PassportNumber:      row.PassportNumber,
+		PassportNumber:      openKYC(row.PassportNumber),
 		GroupName:           row.GroupName.String,
 		HotelName:           row.HotelName.String,
 		RoomNumber:          row.RoomNumber.String,

@@ -26,12 +26,13 @@ func NewKYCMigrateTask() *asynq.Task {
 // Each record is moved and its old column cleared in one transaction, so no row
 // is ever left with the number in both places or in neither.
 type KYCHandler struct {
-	logger *slog.Logger
-	kyc    *repository.KYCRepository
+	logger   *slog.Logger
+	kyc      *repository.KYCRepository
+	pilgrims *repository.PilgrimRepository
 }
 
-func NewKYCHandler(logger *slog.Logger, kyc *repository.KYCRepository) *KYCHandler {
-	return &KYCHandler{logger: logger, kyc: kyc}
+func NewKYCHandler(logger *slog.Logger, kyc *repository.KYCRepository, pilgrims *repository.PilgrimRepository) *KYCHandler {
+	return &KYCHandler{logger: logger, kyc: kyc, pilgrims: pilgrims}
 }
 
 func (h *KYCHandler) HandleMigrate(ctx context.Context, _ *asynq.Task) error {
@@ -42,6 +43,27 @@ func (h *KYCHandler) HandleMigrate(ctx context.Context, _ *asynq.Task) error {
 	if moved > 0 {
 		h.logger.Info("moved identity numbers into encrypted records",
 			"count", moved, "task", TaskKYCMigrate)
+	}
+
+	// Passport numbers ride the same sweep. Both are plaintext identity data
+	// waiting for a key that lives in this process, and both are moved in
+	// batches so a large table is never migrated in one transaction.
+	//
+	// Errors are reported and not returned: a batch that fails leaves the rows
+	// unmigrated and readable, which is the same state as before, and the next
+	// pass tries again. Failing the whole task would also abandon the identity
+	// numbers that did move.
+	if h.pilgrims != nil {
+		sealed, passportErr := h.pilgrims.MigrateLegacyPassports(ctx, 200)
+		if passportErr != nil {
+			h.logger.Error("seal legacy passports", "error", passportErr, "task", TaskKYCMigrate)
+			return nil
+		}
+		if sealed > 0 {
+			remaining, _ := h.pilgrims.LegacyPassportCount(ctx)
+			h.logger.Info("sealed passport numbers",
+				"count", sealed, "remaining", remaining, "task", TaskKYCMigrate)
+		}
 	}
 	return nil
 }

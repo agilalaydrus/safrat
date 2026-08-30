@@ -125,7 +125,7 @@ func main() {
 	refundPayoutHandler := worker.NewRefundPayoutHandler(logger, refundPayoutRepository, refundPayoutService)
 	fulfilmentService := service.NewFulfilmentService(fulfilmentRepository, supplierRepository, supplierCostRepository, orderRepository)
 	dailySpendHandler := worker.NewDailySpendHandler(logger, orderRepository)
-	kycHandler := worker.NewKYCHandler(logger, kycRepository)
+	kycHandler := worker.NewKYCHandler(logger, kycRepository, repository.NewPilgrimRepository(queries))
 	fulfilmentHandler := worker.NewFulfilmentHandler(logger, fulfilmentRepository, supplierRepository, fulfilmentService)
 	objectStorage, storageErr := storage.New(context.Background(), storage.ConfigFromEnv())
 	if storageErr != nil {
@@ -218,6 +218,13 @@ func main() {
 	// Hourly rather than daily. A daily job that misses its window because the
 	// worker was restarting waits a whole day for the next one, and the purge
 	// is cheap enough that running it against nothing costs nothing.
+	// Daily: the retention window is measured in months, so anything more
+	// frequent scans for nothing. Registered separately from the spend purge
+	// because they expire different things on different timescales.
+	if _, err := scheduler.Register("@every 24h", worker.NewAuditPurgeTask()); err != nil {
+		logger.Error("register audit purge schedule", "error", err)
+		os.Exit(1)
+	}
 	if _, err := scheduler.Register("@every 1h", worker.NewDailySpendPurgeTask()); err != nil {
 		logger.Error("register daily spend purge schedule", "error", err)
 		os.Exit(1)
@@ -250,6 +257,7 @@ func main() {
 	mux.HandleFunc(queue.TaskDispatchOne, fulfilmentHandler.HandleDispatchOne)
 	mux.HandleFunc(worker.TaskKYCMigrate, kycHandler.HandleMigrate)
 	mux.HandleFunc(worker.TaskDailySpendPurge, dailySpendHandler.HandlePurge)
+	mux.HandleFunc(worker.TaskAuditPurge, dailySpendHandler.HandleAuditPurge)
 	if storefrontAssetHandler != nil {
 		mux.HandleFunc(worker.TaskStorefrontAssetGC, storefrontAssetHandler.HandleGC)
 	}

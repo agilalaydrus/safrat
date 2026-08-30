@@ -617,3 +617,12 @@ const defaultDailyDigitalLimitIDR = 20_000_000
 func (r *OrderRepository) PurgeExpiredDailySpend(ctx context.Context, keepDays int32) (int32, error) {
 	return r.queries.PurgeDailyDigitalSpend(ctx, keepDays)
 }
+
+// PurgeExpiredAuditLogs removes audit rows past their retention window.
+//
+// Calls the definer function for the same reason the daily-spend purge does:
+// the application role holds no DELETE on audit_logs, and must not — a trail
+// the audited credential can erase answers nothing.
+func (r *OrderRepository) PurgeExpiredAuditLogs(ctx context.Context, keepMonths int32) (int32, error) {
+	return r.queries.PurgeAuditLogs(ctx, keepMonths)
+}

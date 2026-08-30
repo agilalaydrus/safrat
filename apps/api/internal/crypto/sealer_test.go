@@ -295,3 +295,54 @@ func mustSealer(t *testing.T, encoded string) *Sealer {
 	}
 	return sealer
 }
+
+// A sealed value is unsearchable by design: the nonce is random, so the same
+// passport encrypts differently every time. Blind gives the lookup back without
+// giving the value back.
+func TestBlindFindsEqualValuesWithoutRevealingThem(t *testing.T) {
+	sealer := newTestSealer(t)
+
+	const passport = "C1234567"
+	first, err := sealer.Blind(passport)
+	if err != nil {
+		t.Fatalf("blind: %v", err)
+	}
+	again, _ := sealer.Blind(passport)
+	if first != again {
+		t.Fatal("nilai sama menghasilkan token berbeda; pencarian tidak akan menemukannya")
+	}
+
+	// Normalised, because a passport is quoted with stray spaces and in either
+	// case, and a token that differs by whitespace fails to find a record that
+	// is plainly there.
+	for _, variant := range []string{"c1234567", " C1234567 ", "C 1234 567"} {
+		token, _ := sealer.Blind(variant)
+		if token != first {
+			t.Fatalf("%q menghasilkan token berbeda dari %q", variant, passport)
+		}
+	}
+
+	other, _ := sealer.Blind("C7654321")
+	if other == first {
+		t.Fatal("paspor berbeda menghasilkan token sama")
+	}
+
+	// The token must not contain the value, or the index leaks what it indexes.
+	if strings.Contains(first, passport) || strings.Contains(first, "1234567") {
+		t.Fatalf("token memuat nilainya: %s", first)
+	}
+
+	// Keyed, so a stolen database cannot be brute-forced by hashing candidate
+	// passport numbers — there are far too few to resist an unkeyed hash.
+	elsewhere, _ := newTestSealer(t).Blind(passport)
+	if elsewhere == first {
+		t.Fatal("token tidak bergantung pada kunci; basis data yang dicuri dapat dipecahkan dengan menebak")
+	}
+
+	// No key is a refusal, never a plain hash — falling back would silently
+	// publish a searchable index of every passport number.
+	var absent *Sealer
+	if _, err := absent.Blind(passport); !errors.Is(err, ErrNoKey) {
+		t.Fatalf("tanpa kunci dikembalikan %v, mau ErrNoKey", err)
+	}
+}

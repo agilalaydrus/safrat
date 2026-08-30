@@ -53,7 +53,7 @@ func (r *InsuranceRepository) ListClaims(ctx context.Context, operatorID string)
 	result := make([]*domain.InsuranceClaim, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, &domain.InsuranceClaim{
-			ID: uuidString(row.ID), PilgrimID: uuidString(row.PilgrimID), PilgrimName: row.FullName, PassportNumber: row.PassportNumber,
+			ID: uuidString(row.ID), PilgrimID: uuidString(row.PilgrimID), PilgrimName: row.FullName, PassportNumber: openKYC(row.PassportNumber),
 			InsuranceProvider: row.InsuranceProvider, InsurancePolicyNo: row.InsurancePolicyNo, OperatorID: uuidString(row.OperatorID),
 			ClaimType: row.ClaimType, IncidentDate: row.IncidentDate.Time, Description: row.Description, Status: row.Status,
 			ClaimAmountIDR: row.ClaimAmountIdr.Int64, SettledAmountIDR: row.SettledAmountIdr.Int64, FiledBy: row.FiledBy, CreatedAt: row.CreatedAt.Time,
@@ -98,7 +98,7 @@ func (r *InsuranceRepository) GetExportData(ctx context.Context, id, operatorID 
 		return nil, databaseError(err)
 	}
 	return &domain.InsuranceClaimExportData{
-		FullName: row.FullName, PassportNumber: row.PassportNumber, DateOfBirth: row.DateOfBirth.Time, Gender: row.Gender,
+		FullName: row.FullName, PassportNumber: openKYC(row.PassportNumber), DateOfBirth: row.DateOfBirth.Time, Gender: row.Gender,
 		Nationality: row.Nationality, Phone: row.Phone.String, EmergencyContactName: row.EmergencyContactName, EmergencyContactPhone: row.EmergencyContactPhone,
 		BloodType: row.BloodType, ChronicConditions: row.ChronicConditions, CurrentMedications: row.CurrentMedications,
 		InsuranceProvider: row.InsuranceProvider, InsurancePolicyNo: row.InsurancePolicyNo, InsuranceClass: row.InsuranceClass,
