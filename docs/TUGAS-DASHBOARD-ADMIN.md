@@ -178,7 +178,8 @@ tempat membuat keduanya berhenti dibaca.
       target_revenue, kepala, rekening) (`f3d6c38`, pengaman tenant `c85733e`)
 - [x] `branch_id` nullable di `pilgrims`, `registrations`, `agents`, `orders`
       (`f3d6c38`)
-- [ ] Peran `BRANCH_HEAD` di enum `user_role`
+- [x] Peran `BRANCH_HEAD` di enum `user_role` (`0db8968`; otorisasi aktif tetap
+      memakai keanggotaan Better Auth + `branch_members`, bukan enum lama)
 - [ ] **Penyaringan dipaksakan di lapisan repository, bukan handler**
 - [ ] Agregasi laporan per cabang
 - [ ] Layar `/dashboard/cabang` sesuai §4.2 DESAIN
