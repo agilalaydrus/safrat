@@ -76,14 +76,14 @@ garis krem sisa tema lama yang **tidak ada lagi** di palet Emerald. Ganti ke
 
 ## T0.2 — Token baru di `globals.css`
 
-- [ ] Trio warna peringatan (palet kita **tidak punya** warna amber sama sekali,
+- [x] Trio warna peringatan (`571b4ff`; palet kita **tidak punya** warna amber sama sekali,
       jadi semua peringatan terpaksa memakai merah bahaya):
       `--color-warning-700:#b45309` `--color-warning-600:#d97706`
       `--color-warning-200:#fde68a` `--color-warning-50:#fffbeb`
-- [ ] Tiga bayangan bernama `--shadow-soft` / `--shadow-lift` / `--shadow-glow`
+- [x] Tiga bayangan bernama `--shadow-soft` / `--shadow-lift` / `--shadow-glow` (`571b4ff`)
       (nilai persisnya ada di §2b DESAIN)
-- [ ] Keyframe `fade-up` + kelas `.tw-enter`
-- [ ] Blok `@media (prefers-reduced-motion: reduce)`
+- [x] Keyframe `fade-up` + kelas `.tw-enter` (`571b4ff`)
+- [x] Blok `@media (prefers-reduced-motion: reduce)` (`571b4ff`)
 
 ## T0.3 — Terapkan resep visual §2b
 
