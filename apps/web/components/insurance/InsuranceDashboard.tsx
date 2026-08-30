@@ -122,7 +122,7 @@ export default function InsuranceDashboard() {
       </RoleGate>
       {showClaimForm && <section style={{ ...card, marginBottom: 20 }}>
         <label style={field}>Cari jamaah
-          <input value={search} onChange={(e) => { setSearch(e.target.value); setSelectedPilgrim(undefined); }} placeholder="Nama atau nomor paspor" style={input} />
+          <input value={search} onChange={(e) => { setSearch(e.target.value); setSelectedPilgrim(undefined); }} placeholder="Cari nama jamaah atau nomor paspor…" style={input} />
         </label>
         {!selectedPilgrim && filteredPilgrims.length > 0 && <div style={{ display: "grid", gap: 4 }}>
           {filteredPilgrims.map((p) => <button key={p.id} onClick={() => pickPilgrim(p)} style={pickerRow}>{p.fullName} · {p.passportNumber}</button>)}

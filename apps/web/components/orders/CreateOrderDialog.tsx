@@ -117,7 +117,7 @@ export default function CreateOrderDialog({ open, seasonId, onClose, onCreated }
               <p style={sec}>JAMAAH</p>
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={lab}>Cari jamaah</span>
-                <input className="safrat-input" placeholder="Nama atau nomor paspor" value={selectedPilgrim ? selectedPilgrim.fullName : pilgrimSearch} onChange={(e) => { setPilgrimSearch(e.target.value); setPilgrimId(""); }} style={i} />
+                <input className="safrat-input" placeholder="Cari nama jamaah atau nomor paspor…" value={selectedPilgrim ? selectedPilgrim.fullName : pilgrimSearch} onChange={(e) => { setPilgrimSearch(e.target.value); setPilgrimId(""); }} style={i} />
                 {errors.pilgrim && <small style={{ color: "var(--color-danger-600)" }}>{errors.pilgrim}</small>}
               </label>
               {!selectedPilgrim && pilgrimSearch && (

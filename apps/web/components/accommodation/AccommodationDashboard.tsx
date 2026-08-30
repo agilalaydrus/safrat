@@ -78,7 +78,7 @@ export default function AccommodationDashboard() {
       </header>
       <div className="gold-divider" />
       {!loading && hotels.length > 0 && (
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari hotel..." style={searchInput} />
+        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari nama hotel atau kota…" style={searchInput} />
       )}
       {notice && <p role="status" style={{ color: "var(--color-gold-800)" }}>{notice}</p>}
       {loading ? <section style={empty}>Memuat data akomodasi...</section> : grouped.length ? (

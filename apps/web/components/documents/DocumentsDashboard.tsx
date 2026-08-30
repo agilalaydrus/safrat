@@ -130,7 +130,7 @@ export default function DocumentsDashboard() {
     {uploadOpen && <section style={uploadCard}>
       <h2 style={{ margin: 0 }}>Upload Dokumen Baru</h2>
       <label style={{ display: "grid", gap: 6, color: "var(--color-warm-500)", fontSize: 14 }}>Cari jamaah
-        <input value={uploadPilgrimQuery} onChange={(e) => { setUploadPilgrimQuery(e.target.value); setUploadPilgrimId(""); }} placeholder="Cari nama atau paspor" style={input} />
+        <input value={uploadPilgrimQuery} onChange={(e) => { setUploadPilgrimQuery(e.target.value); setUploadPilgrimId(""); }} placeholder="Cari nama jamaah atau nomor paspor…" style={input} />
       </label>
       {uploadPilgrimQuery && !uploadPilgrimId && <div style={{ display: "grid", gap: 6, maxHeight: 180, overflowY: "auto" }}>
         {uploadCandidates.map((p) => <button key={p.id} onClick={() => { setUploadPilgrimId(p.id); setUploadPilgrimQuery(p.fullName); }} style={candidateButton}><strong>{p.fullName}</strong><span style={{ color: "var(--color-warm-400)", fontSize: 12 }}>{p.passportNumber}</span></button>)}
@@ -153,7 +153,7 @@ export default function DocumentsDashboard() {
       <label style={{ position: "relative", flex: "1 1 280px" }}>
         <span style={sr}>Cari dokumen</span>
         <IconSearch size={20} style={{ position: "absolute", insetInlineStart: 14, top: 14, color: "var(--color-warm-400)" }} />
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama jamaah, paspor, atau nama file" style={{ ...select, width: "100%", paddingInlineStart: 44 }} />
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama jamaah, nomor paspor, atau nama file…" style={{ ...select, width: "100%", paddingInlineStart: 44 }} />
       </label>
       <div style={chips}>
         {[["all", "Semua"], ...DOC_TYPES.map((d) => [d.value, d.label])].map(([key, label]) => <button key={key} onClick={() => setTypeFilter(key ?? "all")} style={typeFilter === key ? chipActive : chip}>{label}</button>)}
