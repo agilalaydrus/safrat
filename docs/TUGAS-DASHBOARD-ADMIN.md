@@ -118,12 +118,12 @@ Sembilan nada mereka dipadatkan — lebih sedikit, lebih konsisten.
 
 ## T0.5 — Sapu 27 layar yang sudah ada
 
-- [x] **Subjudul hidup** di setiap layar — yang **menghitung**, bukan menjelaskan (`15bcace`)
-      konsep. Contoh nyata: `docs/referensi/meeqot/judul-subjudul.md`
-- [x] **Keadaan kosong yang mengajar** — sebutkan sebabnya dan langkah (`1a54a2d`)
-      berikutnya beserta tempatnya
-- [ ] **Placeholder pencarian menyebut isinya** — *"Cari nama, ID, kota, paket,
-      PIC, atau tag…"*, bukan *"Cari…"*
+- [x] **Subjudul hidup** di setiap layar — yang **menghitung**, bukan menjelaskan
+      konsep. Contoh nyata: `docs/referensi/meeqot/judul-subjudul.md` (`15bcace`)
+- [x] **Keadaan kosong yang mengajar** — sebutkan sebabnya dan langkah
+      berikutnya beserta tempatnya (`1a54a2d`)
+- [x] **Placeholder pencarian menyebut isinya** — *"Cari nama, ID, kota, paket,
+      PIC, atau tag…"*, bukan *"Cari…"* (`e5e60fc`)
 - [ ] **Satu tombol `primary` per layar.** Di dashboard mereka `primary` hanya
       muncul 9 kali, lawan `ghost` 112 dan `outline` 106. Inilah sebabnya layar
       mereka tenang meski padat.
