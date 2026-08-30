@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Timestamp } from "@bufbuild/protobuf";
 import { IconCheck } from "@tabler/icons-react";
@@ -15,11 +15,26 @@ export default function PublicRegistrationForm({ operatorId, seasonId }: { opera
   const [form, setForm] = useState({ fullName: "", passportNumber: "", gender: "MALE", phone: "", email: "", nationality: "IDN", address: "", dateOfBirth: "" });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // A birthday cannot be in the future. Bounding the picker refuses it where
+  // the mistake is made, instead of after a round trip.
+  const today = new Date().toISOString().slice(0, 10);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  const successRef = useRef<HTMLHeadingElement>(null);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     registrationClient.getRegistrationForm({ operatorId, seasonId }).then(setFormInfo).catch(() => setLoadError("Tautan pendaftaran ini tidak valid atau sudah tidak aktif."));
   }, [operatorId, seasonId]);
+
+  // Focus follows the error. Without this the form appears to do nothing when
+  // submission fails from the bottom of a phone screen.
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
+
+  useEffect(() => {
+    if (message) successRef.current?.focus();
+  }, [message]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -52,7 +67,19 @@ export default function PublicRegistrationForm({ operatorId, seasonId }: { opera
   }
 
   if (message) {
-    return <main style={page}><div style={card}><IconCheck size={40} color="var(--color-emerald-900)" /><h1 style={title}>Pendaftaran terkirim</h1><p style={{ color: "var(--color-warm-500)" }}>{message}</p></div></main>;
+    // The whole form is replaced, so the heading is what a screen reader lands
+    // on — but only if something moves focus there. Otherwise focus stays on a
+    // submit button that no longer exists and the page appears to have done
+    // nothing.
+    return (
+      <main style={page}>
+        <div style={card} role="status" aria-live="polite">
+          <IconCheck size={40} color="var(--color-emerald-900)" />
+          <h1 ref={successRef} tabIndex={-1} style={title}>Pendaftaran terkirim</h1>
+          <p style={{ color: "var(--color-warm-500)" }}>{message}</p>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -62,15 +89,21 @@ export default function PublicRegistrationForm({ operatorId, seasonId }: { opera
         <h1 style={title}>{formInfo ? `Daftar ${formInfo.seasonName} bersama ${formInfo.operatorName}` : "Formulir Pendaftaran"}</h1>
         {!!formInfo?.availableProducts.length && <p style={{ color: "var(--color-warm-500)", fontSize: 13 }}>Paket tersedia: {formInfo.availableProducts.join(", ")}</p>}
         <form onSubmit={submit} style={{ display: "grid", gap: 16, marginTop: 16 }}>
-          <label style={{ display: "grid", gap: 6 }}><span style={label}>Nama lengkap (sesuai paspor)</span><input required className="safrat-input" value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} style={input} /></label>
-          <label style={{ display: "grid", gap: 6 }}><span style={label}>Nomor paspor</span><input required className="safrat-input" value={form.passportNumber} onChange={(e) => setForm((f) => ({ ...f, passportNumber: e.target.value }))} style={input} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Nama lengkap (sesuai paspor)</span><input required autoComplete="name" autoCapitalize="words" className="safrat-input" value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} style={input} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Nomor paspor</span><input required autoCapitalize="characters" autoCorrect="off" spellCheck={false} className="safrat-input" value={form.passportNumber} onChange={(e) => setForm((f) => ({ ...f, passportNumber: e.target.value.toUpperCase() }))} style={input} /></label>
           <label style={{ display: "grid", gap: 6 }}><span style={label}>Jenis kelamin</span><select className="safrat-input" value={form.gender} onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))} style={input}><option value="MALE">Pria</option><option value="FEMALE">Wanita</option></select></label>
-          <label style={{ display: "grid", gap: 6 }}><span style={label}>Tanggal lahir</span><input type="date" className="safrat-input" value={form.dateOfBirth} onChange={(e) => setForm((f) => ({ ...f, dateOfBirth: e.target.value }))} style={input} /></label>
-          <label style={{ display: "grid", gap: 6 }}><span style={label}>Telepon</span><input className="safrat-input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={input} /></label>
-          <label style={{ display: "grid", gap: 6 }}><span style={label}>Email</span><input type="email" className="safrat-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} style={input} /></label>
-          <label style={{ display: "grid", gap: 6 }}><span style={label}>Kewarganegaraan</span><input className="safrat-input" value={form.nationality} onChange={(e) => setForm((f) => ({ ...f, nationality: e.target.value }))} style={input} /></label>
-          <label style={{ display: "grid", gap: 6 }}><span style={label}>Alamat</span><textarea className="safrat-input" rows={3} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} style={{ ...input, minHeight: 80, resize: "vertical" as const }} /></label>
-          {error && <p style={errStyle}>{error}</p>}
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Tanggal lahir</span><input type="date" required autoComplete="bday" max={today} className="safrat-input" value={form.dateOfBirth} onChange={(e) => setForm((f) => ({ ...f, dateOfBirth: e.target.value }))} style={input} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Telepon</span><input type="tel" inputMode="tel" required autoComplete="tel" placeholder="08xxxxxxxxxx" className="safrat-input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={input} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Email</span><input type="email" inputMode="email" required autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} className="safrat-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} style={input} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Kewarganegaraan</span><input required autoCapitalize="characters" className="safrat-input" value={form.nationality} onChange={(e) => setForm((f) => ({ ...f, nationality: e.target.value }))} style={input} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Alamat</span><textarea autoComplete="street-address" className="safrat-input" rows={3} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} style={{ ...input, minHeight: 80, resize: "vertical" as const }} /></label>
+          {error && (
+            // role="alert" so a screen reader announces it when it appears, and
+            // tabIndex so the focus move below has somewhere to land. On a phone
+            // the button sits below a long form; a message rendered silently
+            // above it is a message nobody sees.
+            <p ref={errorRef} tabIndex={-1} role="alert" style={errStyle}>{error}</p>
+          )}
           <button disabled={submitting} style={primary}>{submitting ? "Mengirim..." : "Kirim pendaftaran"}</button>
         </form>
       </div>

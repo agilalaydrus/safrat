@@ -1,11 +1,16 @@
 "use client";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { IconCheck } from "@tabler/icons-react";
 import { agentClient } from "@/lib/rpc";
 
 export default function ApplyAsAgentForm({ operatorId, referredByCode }: { operatorId: string; referredByCode: string }) {
   const [form, setForm] = useState({ name: "", phone: "", email: "" });
   const [error, setError] = useState("");
+  const errorRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -35,10 +40,15 @@ export default function ApplyAsAgentForm({ operatorId, referredByCode }: { opera
         <h1 style={title}>Daftar sebagai Tour Leader</h1>
         {referredByCode && <p style={{ color: "var(--color-warm-500)" }}>Dirujuk dengan kode <b>{referredByCode}</b></p>}
         <form onSubmit={submit} style={{ display: "grid", gap: 16, marginTop: 16 }}>
-          <label style={{ display: "grid", gap: 6 }}><span style={label}>Nama lengkap</span><input required className="safrat-input" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} style={input} /></label>
-          <label style={{ display: "grid", gap: 6 }}><span style={label}>Telepon</span><input className="safrat-input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={input} /></label>
-          <label style={{ display: "grid", gap: 6 }}><span style={label}>Email</span><input type="email" className="safrat-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} style={input} /></label>
-          {error && <p style={errStyle}>{error}</p>}
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Nama lengkap</span><input required autoComplete="name" autoCapitalize="words" className="safrat-input" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} style={input} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Telepon</span><input type="tel" inputMode="tel" required autoComplete="tel" placeholder="08xxxxxxxxxx" className="safrat-input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={input} /></label>
+          <label style={{ display: "grid", gap: 6 }}><span style={label}>Email</span><input type="email" inputMode="email" required autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} className="safrat-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} style={input} /></label>
+          {error && (
+            // Announced and focusable for the same reason as the registration
+            // form: a message rendered silently above a submit button is a
+            // message a phone user never sees.
+            <p ref={errorRef} tabIndex={-1} role="alert" style={errStyle}>{error}</p>
+          )}
           <button disabled={submitting} style={primary}>{submitting ? "Mengirim..." : "Kirim pendaftaran"}</button>
         </form>
       </div>
