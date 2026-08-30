@@ -33,6 +33,7 @@ export default function DocumentsDashboard() {
   const [term, setTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [notice, setNotice] = useState("");
+  const [actionError, setActionError] = useState("");
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadPilgrimQuery, setUploadPilgrimQuery] = useState("");
@@ -50,13 +51,17 @@ export default function DocumentsDashboard() {
   const refresh = () => {
     if (!seasonId) return;
     setLoading(true);
+    setActionError("");
     Promise.all([
       pilgrimClient.listSeasonDocuments({ seasonId }),
       pilgrimClient.listPilgrims({ seasonId, limit: 2000, offset: 0 }),
     ]).then(([docsResponse, pilgrimsResponse]) => {
       setDocuments(docsResponse.documents);
       setPilgrims(pilgrimsResponse.pilgrims);
-    }).catch(() => setNotice("Gagal memuat dokumen jamaah.")).finally(() => setLoading(false));
+    }).catch(() => {
+      setNotice("Gagal memuat dokumen jamaah.");
+      setActionError("Dokumen dan data jamaah gagal dimuat. Coba muat ulang sebelum menyimpulkan bahwa berkas sudah lengkap.");
+    }).finally(() => setLoading(false));
   };
   useEffect(refresh, [seasonId]);
 
@@ -157,7 +162,8 @@ export default function DocumentsDashboard() {
     {notice && <p role="status" style={{ color: "var(--color-gold-800)" }}>{notice}</p>}
 
     <ActionCenter
-      items={actionItems}
+      items={loading ? undefined : actionItems}
+      error={actionError}
       subtitle="Dihitung per jamaah, bukan per berkas — satu jenis yang hilang tetap menahan pengajuan visa"
       cleanTitle="Berkas lengkap"
       cleanDescription="Setiap jamaah musim ini sudah mengunggah paspor, sertifikat vaksin, dan pasfoto."

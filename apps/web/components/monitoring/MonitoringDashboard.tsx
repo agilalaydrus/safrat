@@ -30,6 +30,7 @@ export default function MonitoringDashboard() {
   const [seasons, setSeasons] = useState<{ id: string; name: string; isActive: boolean }[]>([]);
   const [seasonId, setSeasonId] = useState("");
   const [snapshot, setSnapshot] = useState<MonitoringSnapshot>();
+  const [snapshotError, setSnapshotError] = useState("");
   const [connected, setConnected] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<GroupMonitoringCard | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -43,7 +44,10 @@ export default function MonitoringDashboard() {
 
   const fetchSnapshot = useCallback((sid: string) => {
     if (!sid) return;
-    monitoringClient.getSnapshot({ seasonId: sid }).then(setSnapshot).catch(() => {});
+    monitoringClient.getSnapshot({ seasonId: sid }).then((value) => {
+      setSnapshot(value);
+      setSnapshotError("");
+    }).catch(() => setSnapshotError("Data lapangan terbaru gagal dimuat. Jangan anggap kondisi aman sebelum koneksi pulih."));
   }, []);
 
   const debouncedFetch = useCallback((sid: string) => {
@@ -56,6 +60,8 @@ export default function MonitoringDashboard() {
   // blip, server restart) — never hot-loops on a persistent failure.
   useEffect(() => {
     if (!seasonId) return;
+    setSnapshot(undefined);
+    setSnapshotError("");
     fetchSnapshot(seasonId);
     const controller = new AbortController();
     let cancelled = false;
@@ -167,7 +173,8 @@ export default function MonitoringDashboard() {
       <div className="gold-divider" />
 
       <ActionCenter
-        items={actionItems}
+        items={snapshot ? actionItems : undefined}
+        error={snapshotError}
         subtitle="Dari data lapangan langsung — diperbarui otomatis selama ada rombongan berjalan"
         cleanTitle="Lapangan aman"
         cleanDescription="Tidak ada SOS terbuka, tidak ada laporan kesehatan berat, dan setiap grup punya muttawwif serta kabar terbaru."

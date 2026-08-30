@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { IconArrowRight, IconCircleCheck } from "@tabler/icons-react";
+import { IconAlertTriangle, IconArrowRight, IconCircleCheck, IconClockHour4 } from "@tabler/icons-react";
 import { Badge } from "./Badge";
 import type { DashboardTone } from "./tone";
 
@@ -14,11 +14,12 @@ export interface ActionCenterItem {
 }
 
 interface ActionCenterProps {
-  items: readonly ActionCenterItem[];
+  items?: readonly ActionCenterItem[];
   title?: string;
   subtitle?: string;
   cleanTitle: string;
   cleanDescription: string;
+  error?: string;
   className?: string;
 }
 
@@ -28,6 +29,7 @@ export function ActionCenter({
   subtitle = "Prioritas yang paling perlu ditindaklanjuti hari ini",
   cleanTitle,
   cleanDescription,
+  error,
   className,
 }: ActionCenterProps) {
   const classes = ["tw-card", "tw-card--large", "tw-action-center", "tw-enter", className]
@@ -41,10 +43,32 @@ export function ActionCenter({
           <h2 className="tw-action-center__title">{title}</h2>
           <p className="tw-action-center__subtitle">{subtitle}</p>
         </div>
-        <Badge tone={items.length ? "warning" : "success"}>{items.length ? `${items.length} tindakan` : "Bersih"}</Badge>
+        {error ? (
+          <Badge tone="danger">Data gagal</Badge>
+        ) : items === undefined ? (
+          <Badge tone="neutral">Memuat</Badge>
+        ) : (
+          <Badge tone={items.length ? "warning" : "success"}>{items.length ? `${items.length} tindakan` : "Bersih"}</Badge>
+        )}
       </header>
 
-      {items.length ? (
+      {error ? (
+        <div className="tw-action-center__clean" role="alert">
+          <div className="tw-action-center__clean-icon tw-action-center__clean-icon--danger" aria-hidden="true"><IconAlertTriangle size={22} /></div>
+          <div>
+            <h3>Prioritas belum dapat dihitung</h3>
+            <p>{error}</p>
+          </div>
+        </div>
+      ) : items === undefined ? (
+        <div className="tw-action-center__clean" role="status">
+          <div className="tw-action-center__clean-icon tw-action-center__clean-icon--loading" aria-hidden="true"><IconClockHour4 size={22} /></div>
+          <div>
+            <h3>Menghitung prioritas</h3>
+            <p>Menunggu data musim yang sedang dipilih.</p>
+          </div>
+        </div>
+      ) : items.length ? (
         <ul className="tw-action-center__list tw-stagger">
           {items.map((item) => (
             <li key={item.id} className="tw-action-center__item tw-enter">
