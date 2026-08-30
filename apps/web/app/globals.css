@@ -938,6 +938,68 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-seri
   outline: 3px solid rgba(22, 93, 255, 0.22);
   outline-offset: 2px;
 }
+
+/* Shared TawafiqHub dashboard primitives. Keep these classes independent of
+   page-specific layout so hover, focus and active states stay consistent. */
+.tw-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 150ms ease-out, background-color 150ms ease-out, border-color 150ms ease-out, filter 150ms ease-out, transform 150ms ease-out;
+}
+.tw-btn:not(:disabled):hover { transform: translateY(-1px); }
+.tw-btn:not(:disabled):active { transform: translateY(1px); }
+.tw-btn:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-emerald-200) 72%, transparent);
+}
+.tw-btn:disabled,
+.tw-btn[aria-disabled="true"] { opacity: .52; cursor: not-allowed; }
+.tw-btn--gold { background: var(--color-gold-500); color: #fff; }
+.tw-btn--emerald { background: var(--color-emerald-900); color: var(--color-cream-100); }
+.tw-btn--gold:not(:disabled):hover,
+.tw-btn--emerald:not(:disabled):hover,
+.tw-btn--danger:not(:disabled):hover { filter: brightness(1.08); }
+.tw-btn--outline { border-color: var(--color-emerald-900); background: transparent; color: var(--color-emerald-900); }
+.tw-btn--outline:not(:disabled):hover { border-color: var(--color-emerald-700); background: var(--color-emerald-50); color: var(--color-emerald-700); }
+.tw-btn--ghost { border-color: var(--color-cream-500); background: transparent; color: var(--color-warm-500); }
+.tw-btn--ghost:not(:disabled):hover { border-color: var(--color-cream-400); background: var(--color-cream-200); color: var(--color-warm-700); }
+.tw-btn--danger { background: var(--color-danger-600); color: #fff; }
+.tw-btn--danger:focus-visible { box-shadow: 0 0 0 4px var(--color-danger-100); }
+.tw-btn--sm { min-height: 34px; padding: 0 14px; font-size: 12px; }
+.tw-btn--md { min-height: 42px; padding: 0 20px; font-size: 13px; }
+.tw-btn--lg { min-height: 52px; padding: 0 28px; font-size: 15px; }
+
+.tw-card {
+  border: 1px solid var(--color-cream-300);
+  border-radius: 12px;
+  background: var(--dashboard-surface, #fff);
+  transition: border-color 150ms ease-out, transform 150ms ease-out;
+}
+.tw-card:hover { border-color: var(--color-cream-400); transform: translateY(-1px); }
+.tw-stat { border-top-width: 2px; padding: 16px 18px; }
+.tw-stat--gold { border-top-color: var(--color-gold-500); }
+.tw-stat--emerald { border-top-color: var(--color-emerald-700); }
+.tw-stat--danger { border-top-color: var(--color-danger-600); }
+.tw-stat__label { margin: 0 0 8px; color: var(--color-warm-400); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.tw-stat__value { margin: 0; color: var(--color-warm-900); font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+.tw-stat__sub { margin: 5px 0 0; color: var(--color-warm-400); font-size: 11px; }
+
+.tw-page-hero { border-bottom: 1px solid var(--color-cream-300); background: var(--color-cream-100); padding: 28px 32px 0; }
+.tw-page-hero__row { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.tw-page-hero__copy { min-width: 0; }
+.tw-page-hero__title { margin: 4px 0 2px; font-size: 28px; font-weight: 500; }
+.tw-page-hero__subtitle { margin: 2px 0 0; color: var(--color-warm-400); font-size: 12px; }
+.tw-page-hero__actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 4px; }
+.tw-page-hero__divider { margin: 18px 0 0; }
 @media (min-width: 768px) {
   [data-desktop-sidebar] { display: block !important; }
   .dashboard-menu-button,
@@ -950,6 +1012,9 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-seri
   .dashboard-breadcrumb { margin-right: auto; }
   .dashboard-workspace { min-height: calc(100dvh - 64px); }
   .dashboard-brand-block { padding-top: 16px; }
+  .tw-page-hero { padding: 22px 16px 0; }
+  .tw-page-hero__row { display: grid; }
+  .tw-page-hero__actions { width: 100%; }
 }
 ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--color-cream-400); border-radius: 3px; }
 

@@ -1,5 +1,23 @@
 import React from "react";
-interface StatCardProps{label:string;value:string|number;sub?:string;accent?:"gold"|"emerald"|"danger";}
-const accentColors:Record<string,string>={gold:"var(--color-gold-500)",emerald:"var(--color-emerald-700)",danger:"var(--color-danger-600)"};
-export function StatCard({label,value,sub,accent="gold"}:StatCardProps){return <div style={{...card,borderTop:`2px solid ${accentColors[accent]}`}}><p style={labelStyle}>{label}</p><p style={valueStyle}>{value}</p>{sub&&<p style={subStyle}>{sub}</p>}</div>;}
-const card:React.CSSProperties={background:"#fff",border:"1px solid rgba(224,212,176,.6)",borderRadius:10,padding:"16px 18px"}; const labelStyle:React.CSSProperties={fontSize:10,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:"var(--color-warm-400)",marginBottom:8}; const valueStyle:React.CSSProperties={fontSize:28,fontWeight:600,color:"var(--color-warm-900)",lineHeight:1,fontVariantNumeric:"tabular-nums"}; const subStyle:React.CSSProperties={fontSize:11,color:"var(--color-warm-400)",marginTop:5};
+
+interface StatCardProps {
+  label: string;
+  value: string | number;
+  sub?: string;
+  accent?: "gold" | "emerald" | "danger";
+  className?: string;
+}
+
+export function StatCard({ label, value, sub, accent = "gold", className }: StatCardProps) {
+  const classes = ["tw-card", "tw-stat", `tw-stat--${accent}`, className]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <article className={classes}>
+      <p className="tw-stat__label">{label}</p>
+      <p className="tw-stat__value">{value}</p>
+      {sub && <p className="tw-stat__sub">{sub}</p>}
+    </article>
+  );
+}
