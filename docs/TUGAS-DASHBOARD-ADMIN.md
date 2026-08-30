@@ -101,10 +101,10 @@ bayangan lebar-tipis, cincin, dan gerakan.
 
 ## T0.4 — Sebelas komponen bersama
 
-- [ ] `PageHeader` (judul + subjudul hidup + satu aksi primary)
-- [ ] `StatCard` (nilai, **satuan**, label, delta, sparkline, `tone`)
+- [x] `PageHeader` (judul + subjudul hidup + satu aksi primary) (`07b70f7`)
+- [x] `StatCard` (nilai, **satuan**, label, delta, sparkline, `tone`) (`07b70f7`)
 - [ ] `ActionCenter` (rekomendasi + dampak rupiah + keadaan bersih)
-- [ ] `Badge` (`tone` → trio `-50`/`-200`/`-700`)
+- [x] `Badge` (`tone` → trio `-50`/`-200`/`-700`) (`07b70f7`)
 - [ ] `EmptyState` (judul, **sebab**, langkah berikutnya, tautan ke tempatnya)
 - [ ] `DataTable` (pencarian deskriptif, filter, ekspor, klik baris → panel)
 - [ ] `DetailDrawer` (panel samping, mempertahankan konteks daftar)
