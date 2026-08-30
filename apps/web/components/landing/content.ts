@@ -1,57 +1,99 @@
-// Structured copy/data for the marketing landing page. Section markup lives in
-// the individual components under components/landing/*; this file holds the
-// repeated arrays so copy edits stay in one place.
+import type { Icon } from "@tabler/icons-react";
+import {
+  IconBuildingStore,
+  IconBus,
+  IconCashBanknote,
+  IconClipboardCheck,
+  IconHeartRateMonitor,
+  IconIdBadge2,
+  IconPlaneDeparture,
+  IconShieldLock,
+  IconShoppingBag,
+  IconUsersGroup,
+} from "@tabler/icons-react";
 
 export const NAV_LINKS: [string, string][] = [
+  ["Platform", "#platform"],
   ["Solusi", "#solusi"],
   ["Cara Kerja", "#cara-kerja"],
-  ["Kalkulator ROI", "#kalkulator"],
-  ["Paket Layanan", "#harga"],
+  ["Harga", "#harga"],
   ["FAQ", "#faq"],
 ];
 
-export const HERO_TRUST: string[] = [
-  "Standar Kemenag RI",
-  "Kepatuhan Syariah & Mahram",
-  "Bantuan Setup Data Excel Gratis",
-];
+export type Capability = { title: string; description: string; icon: Icon };
 
-type BoldItem = { bold: string; rest: string };
-
-export const PROBLEM_ITEMS: BoldItem[] = [
-  { bold: "Lembur berjam-jam H-1:", rest: "Mengatur susunan kamar dan bus di Excel hingga larut malam." },
-  { bold: "Drama salah kamar mahram:", rest: "Pria dan wanita bukan mahram tidak sengaja sekamar karena salah formula nama." },
-  { bold: "Kursi bus tertukar:", rest: "Supir Saudi dan Muthowif memegang versi kertas cetak yang berbeda." },
-  { bold: "Panik saat jamaah terpisah:", rest: "Hanya mengandalkan chat grup WhatsApp yang tenggelam." },
-];
-
-export const SOLUTION_ITEMS: BoldItem[] = [
-  { bold: "Rooming list instan:", rest: "Alokasi Quad, Triple, Double otomatis terverifikasi dalam hitungan detik." },
-  { bold: "Validasi mahram otomatis:", rest: "Sistem memblokir penempatan jika terdeteksi bukan pasangan mahram sah." },
-  { bold: "Manifest bus digital:", rest: "Supir dan Muthowif cukup buka link web via ponsel tanpa aplikasi berat." },
-  { bold: "Gateway SOS 10 Menit:", rest: "Pelacakan lokasi GPS darurat jamaah dengan auto-escalation ke pimpinan." },
-];
-
-export type Testimonial = { quote: string; name: string; role: string };
-
-export const TESTIMONIALS: Testimonial[] = [
+export const CAPABILITIES: Capability[] = [
   {
-    quote:
-      "Musim kemarin kami terbantu sekali saat ada 2 jamaah sakit H-2 dan harus diganti. Di Tawafiq Hub tinggal substitusi 1 klik tanpa pusing utak-atik rumus Excel kamar hotel.",
-    name: "H. Muhammad Rofi'i",
-    role: "Direktur Utama - Mabroor Tour (Surabaya)",
+    title: "Data jamaah",
+    description: "Pendaftaran, dokumen, KYC, grup, dan manifest dalam satu profil.",
+    icon: IconIdBadge2,
   },
   {
-    quote:
-      "Validasi mahramnya sangat menyelamatkan. Pernah hampir keliru menaruh jamaah pria dan wanita satu kamar, langsung ada tanda bahaya merah dari sistem.",
-    name: "Hj. Nurul Aini",
-    role: "Manajer Operasional - Al-Multazam Travel (Jakarta)",
+    title: "Keberangkatan",
+    description: "Musim, kloter, jadwal, hotel, kamar, kendaraan, dan kursi.",
+    icon: IconPlaneDeparture,
   },
   {
-    quote:
-      "Driver bus Saudi tinggal dikirimi link via WA, langsung tahu siapa saja yang naik di gate mana. Sangat efisien dan mengurangi salah antar koper.",
-    name: "Ust. Ahmad Fauzan",
-    role: "Kepala Lapangan Saudi - Roudhoh Wisata (Bandung)",
+    title: "Operasional lapangan",
+    description: "Check-in, penugasan tim, monitoring, kesehatan, SOS, dan jamaah terpisah.",
+    icon: IconClipboardCheck,
+  },
+  {
+    title: "Bisnis travel",
+    description: "Agen, komisi, produk, pesanan, pembayaran, refund, dan arus kas.",
+    icon: IconCashBanknote,
+  },
+];
+
+export const PRODUCT_AREAS: [Capability, Capability, Capability, Capability, Capability, Capability] = [
+  {
+    title: "Ruang kerja operator",
+    description: "Direksi dan tim operasional bekerja dari data yang sama, sesuai peran dan musim aktif.",
+    icon: IconUsersGroup,
+  },
+  {
+    title: "Storefront bermerek",
+    description: "Travel memiliki katalog dan halaman publik sendiri melalui subdomain atau domain pilihan.",
+    icon: IconBuildingStore,
+  },
+  {
+    title: "Portal jamaah",
+    description: "Jadwal, dokumen, pengumuman, kesehatan, dan bantuan perjalanan tetap dekat di ponsel.",
+    icon: IconHeartRateMonitor,
+  },
+  {
+    title: "Portal tour leader",
+    description: "Daftar rombongan, check-in, manifest, komunikasi, dan respons lapangan tersedia saat bergerak.",
+    icon: IconBus,
+  },
+  {
+    title: "Jaringan agen",
+    description: "Referral, penjualan, komisi, saldo, dan pencairan dapat ditelusuri tanpa rekap terpisah.",
+    icon: IconShoppingBag,
+  },
+  {
+    title: "Kontrol dan keamanan",
+    description: "Hak akses berbasis peran, autentikasi dua langkah, jejak aktivitas, dan data KYC terenkripsi.",
+    icon: IconShieldLock,
+  },
+];
+
+export const WORKFLOW = [
+  {
+    title: "Buka pendaftaran",
+    description: "Terima data jamaah, dokumen, pembayaran, dan referral agen dari satu alur.",
+  },
+  {
+    title: "Siapkan keberangkatan",
+    description: "Susun kloter, kamar, kendaraan, jadwal, perlengkapan, dan penugasan tim.",
+  },
+  {
+    title: "Dampingi di lapangan",
+    description: "Pantau check-in, kesehatan, komunikasi, SOS, dan pergerakan rombongan.",
+  },
+  {
+    title: "Tutup perjalanan",
+    description: "Selesaikan laporan, arus kas, refund, komisi, dan layanan setelah kepulangan.",
   },
 ];
 
@@ -59,106 +101,91 @@ export type FaqItem = { q: string; a: string };
 
 export const FAQ_ITEMS: FaqItem[] = [
   {
-    q: "Apakah kami masih bisa mengimpor data jamaah dari format Excel lama?",
-    a: "Tentu saja! Tawafiq Hub mendukung impor massal file Excel/CSV pendaftaran jamaah. Sistem akan otomatis mencocokkan kolom nama, NIK, nomor paspor, dan relasi keluarga tanpa perlu ketik ulang.",
+    q: "Apakah data jamaah lama bisa dipindahkan?",
+    a: "Bisa. Tim travel dapat mengimpor data jamaah dari CSV dan melanjutkan pengelolaan data tersebut di musim yang dipilih.",
   },
   {
-    q: "Apakah Muthowif dan Supir di Saudi perlu mengunduh aplikasi di PlayStore?",
-    a: "Tidak perlu. Muthowif dan Supir bus cukup mengakses link web mobile ringan yang dikirim via WhatsApp. Tampilan dirancang cepat dan hemat kuota bahkan saat sinyal roaming lambat.",
+    q: "Apakah jamaah dan tour leader harus memasang aplikasi?",
+    a: "Tidak. Portal jamaah dan tour leader berbasis PWA, sehingga dapat dibuka lewat browser ponsel dan ditambahkan ke layar utama.",
   },
   {
-    q: "Bagaimana cara kerja validasi mahram di dalam kamar hotel?",
-    a: "Sistem mencocokkan ID Mahram dan gender setiap jamaah. Jamaah laki-laki dan perempuan yang bukan mahram akan otomatis ditolak oleh sistem jika dimasukkan ke dalam kamar yang sama.",
+    q: "Bisakah storefront memakai domain travel sendiri?",
+    a: "Bisa pada paket Growth dan Custom. Paket Starter menggunakan subdomain TawafiqHub yang dapat dikustom dengan identitas travel.",
   },
   {
-    q: "Apakah tim Tawafiq Hub membantu proses setup awal musim?",
-    a: "Ya, setiap pelanggan mendapatkan sesi onboarding 1-on-1 bersama tim spesialis kami untuk migrasi data manifest dan training staf operasional travel Anda.",
+    q: "Bagaimana akses data diatur?",
+    a: "Akses diberikan sesuai peran. Akun juga dapat memakai verifikasi dua langkah, termasuk akun yang masuk melalui Google.",
+  },
+  {
+    q: "Apakah pembayaran otomatis sudah termasuk?",
+    a: "Pencatatan pembayaran, rekonsiliasi transfer bank, refund, dan laporan tersedia. Koneksi payment gateway mengikuti konfigurasi penyedia pada akun travel.",
+  },
+  {
+    q: "Apakah ada bantuan onboarding?",
+    a: "Ya. Kami membantu menyiapkan organisasi, musim pertama, struktur tim, dan migrasi data awal agar operasional dapat dimulai dengan rapi.",
   },
 ];
 
 export type PricingTier = {
   name: string;
   blurb: string;
-  // Prices are intentionally placeholders until finalized. `unit` is the period label.
   price: string;
   unit: string;
   features: string[];
   cta: string;
   highlighted?: boolean;
-  /**
-   * Send this tier to sales instead of self sign-up. Previously inferred from
-   * price === "Custom", which meant giving the tier a real price silently
-   * rerouted its button to the sign-up form.
-   */
   contactSales?: boolean;
 };
 
-export const PRICING_TIERS: PricingTier[] = [
+export const PRICING_TIERS: [PricingTier, PricingTier, PricingTier] = [
   {
     name: "Starter PPIU",
-    blurb: "Untuk travel yang ingin sistem lengkap tanpa memikirkan domain sendiri.",
+    blurb: "Untuk travel yang mulai memusatkan operasional dan layanan jamaah.",
     price: "Rp589.000",
     unit: "bulan",
     features: [
-      "Landing page travel di subdomain Anda, penuh bisa dikustom",
-      "Portal Jamaah: jadwal, manasik, chat, dan tombol SOS",
-      "Portal Tour Leader: check-in rombongan & laporan kesehatan",
-      "Portal Agen: pendaftaran mitra, komisi, dan penarikan dana",
-      "Operasional inti: jamaah, musim, kamar, dan transportasi",
+      "Ruang kerja operator dan portal jamaah",
+      "Storefront pada subdomain TawafiqHub",
+      "Modul jamaah, kloter, hotel, dan transportasi",
+      "Agen, produk, pesanan, pembayaran, dan laporan",
+      "Bantuan onboarding dan migrasi data awal",
     ],
-    cta: "Pilih Paket Starter",
+    cta: "Mulai dengan Starter",
   },
   {
     name: "Growth Enterprise",
-    blurb: "Semua yang ada di Starter, tampil di nama domain travel Anda sendiri.",
+    blurb: "Untuk travel yang membutuhkan identitas digital dan kendali lebih luas.",
     price: "Rp789.000",
     unit: "bulan",
     features: [
       "Semua fitur Starter PPIU",
-      "Domain travel Anda sendiri, bukan subdomain kami",
-      "Sertifikat HTTPS otomatis, tanpa perpanjangan manual",
-      "Verifikasi domain mandiri lewat dashboard",
-      "Jejak merek Anda di hasil pencarian, bukan merek kami",
+      "Domain travel sendiri dan HTTPS otomatis",
+      "Storefront sesuai identitas travel",
+      "Portal tim, tour leader, agen, dan jamaah",
+      "Kontrol akses dan verifikasi dua langkah",
     ],
-    cta: "Pilih Paket Growth",
+    cta: "Pilih Growth",
     highlighted: true,
   },
   {
-    name: "Custom Enterprises",
-    blurb: "Untuk travel mana pun yang butuh server sendiri dan fitur yang dibangun sesuai kebutuhan.",
+    name: "Custom Enterprise",
+    blurb: "Untuk kebutuhan server, integrasi, dan proses kerja yang lebih khusus.",
     price: "Rp2.489.000",
     unit: "bulan",
     features: [
       "Semua fitur Growth Enterprise",
-      "Server terpisah khusus untuk travel Anda",
-      "Pengembangan fitur khusus sesuai proses kerja Anda",
-      "Kendali penuh atas data di server milik Anda",
+      "Server terpisah untuk organisasi Anda",
+      "Penyesuaian fitur dan integrasi",
+      "Kendali data pada lingkungan khusus",
       "Jalur dukungan prioritas",
     ],
-    cta: "Hubungi Enterprise Sales",
-    // A dedicated server and bespoke development need a conversation, not a
-    // self-service sign-up.
+    cta: "Diskusikan kebutuhan",
     contactSales: true,
   },
 ];
 
-export const FOOTER_MODULES: [string, string][] = [
-  ["Manajemen Jamaah & Paspor", "#solusi"],
-  ["Rooming List & Validasi Mahram", "#cara-kerja"],
-  ["Manifest Bus & Supir Saudi", "#cara-kerja"],
-  ["Gateway Darurat SOS 10 Menit", "#cara-kerja"],
-];
-
-export const FOOTER_LAYANAN: [string, string][] = [
-  ["Standar Siskopatuh Kemenag", "#solusi"],
-  ["Paket Layanan Travel", "#harga"],
-  ["Bantuan Migrasi Data Excel", "#faq"],
-  ["Panduan Onboarding 1447H", "#faq"],
-];
-
-// Sales contact — WhatsApp redirect.
 export const WA_NUMBER = "6281283031003";
 export const WA_NUMBER_DISPLAY = "+62 812-8303-1003";
 export const WA_SALES_LINK = `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(
-  "Halo TawafiqHub, saya ingin bertanya tentang sistem",
+  "Halo TawafiqHub, saya ingin berdiskusi tentang platform operasional travel",
 )}`;

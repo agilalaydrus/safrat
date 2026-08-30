@@ -3100,3 +3100,33 @@ uji bahwa salinannya ada, lalu hapus `backup-key.pem` asli yang belum terkunci.
 Recurring R2 backup juga belum dipasang di VPS; backup ini satu kali, bukan
 pengganti cron off-site. `BANK_FEED_SECRET` masih belum diset dan tetap
 menghasilkan warning Compose.
+
+---
+
+## Redesign landing page utama (2026-08-30)
+
+Landing page `tawafiqhub.id` sudah dibangun ulang agar mencerminkan produk yang
+sekarang, bukan hanya rooming dan manifest bus. Information architecture baru
+menjelaskan empat lapisan utama: data jamaah, keberangkatan, operasional
+lapangan, serta bisnis travel. Pengalaman operator, storefront travel, jamaah,
+tour leader, agen, dan kontrol keamanan juga tampil sebagai satu ekosistem.
+
+Hero memakai foto operasional khusus TawafiqHub yang dihasilkan untuk proyek
+ini dan dioptimalkan menjadi WebP 69 KB. Bagian pendukung memakai aset editorial
+yang sudah ada di repository. Mock dashboard, angka ROI tanpa sumber, logo
+regulator palsu, dan tiga testimoni yang belum dapat diverifikasi sudah
+dihapus. Harga tetap memakai angka yang sebelumnya sudah disepakati, dengan
+catatan eksplisit bahwa domain, layanan pihak ketiga, dan integrasi khusus tidak
+termasuk.
+
+Halaman sekarang server-rendered dengan metadata khusus, Open Graph, dan
+structured data `SoftwareApplication`. Mode terang/gelap, menu mobile, Escape
+untuk menutup drawer, reduced motion, breakpoint mobile, dan CTA autentikasi
+tetap dipertahankan. Bundle route utama turun dari sekitar 14,4 KB menjadi
+9,85 KB. Typecheck, ESLint, production build, dan respons HTML production
+preview semuanya lulus.
+
+**Belum dilakukan:** visual inspection otomatis desktop/mobile dan Lighthouse
+karena browser terintegrasi tidak tersedia pada sesi ini. Production belum
+diubah; redesign baru ada di repository lokal sampai commit ini didorong dan
+dideploy.

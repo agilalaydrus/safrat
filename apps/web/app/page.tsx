@@ -1,28 +1,60 @@
-"use client";
-
+import type { Metadata } from "next";
 import { ThemeProvider } from "@/components/landing/ThemeProvider";
 import Navbar from "@/components/landing/Navbar";
 import Hero from "@/components/landing/Hero";
-import ProblemSolution from "@/components/landing/ProblemSolution";
-import ModuleTabs from "@/components/landing/ModuleTabs";
-import RoiCalculator from "@/components/landing/RoiCalculator";
+import PlatformOverview from "@/components/landing/PlatformOverview";
+import ProductShowcase from "@/components/landing/ProductShowcase";
+import Workflow from "@/components/landing/Workflow";
 import Pricing from "@/components/landing/Pricing";
-import Testimonials from "@/components/landing/Testimonials";
 import Faq from "@/components/landing/Faq";
 import CtaAndFooter from "@/components/landing/CtaAndFooter";
+
+export const metadata: Metadata = {
+  title: "Platform Operasional Umrah untuk PPIU",
+  description:
+    "Kelola jamaah, kloter, operasional lapangan, keuangan, agen, dan storefront travel dalam satu platform TawafiqHub.",
+  openGraph: {
+    title: "TawafiqHub | Platform Operasional Umrah untuk PPIU",
+    description:
+      "Satu ruang kerja untuk tim travel, tour leader, agen, dan jamaah dari pendaftaran sampai kepulangan.",
+    type: "website",
+    locale: "id_ID",
+  },
+};
+
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "TawafiqHub",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web",
+  description:
+    "Platform operasional Umrah untuk PPIU yang menghubungkan pengelolaan jamaah, keberangkatan, layanan, dan keuangan.",
+  offers: {
+    "@type": "AggregateOffer",
+    lowPrice: "589000",
+    highPrice: "2489000",
+    priceCurrency: "IDR",
+  },
+};
 
 export default function LandingPage() {
   return (
     <ThemeProvider>
-      <div className="landing-scope min-h-screen bg-slate-50 text-slate-900 antialiased selection:bg-amber-100 selection:text-amber-950 dark:bg-slate-950 dark:text-slate-100">
+      <div className="landing-scope landing-v2">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+        />
         <Navbar />
-        <Hero />
-        <ProblemSolution />
-        <ModuleTabs />
-        <RoiCalculator />
-        <Pricing />
-        <Testimonials />
-        <Faq />
+        <main>
+          <Hero />
+          <PlatformOverview />
+          <ProductShowcase />
+          <Workflow />
+          <Pricing />
+          <Faq />
+        </main>
         <CtaAndFooter />
       </div>
     </ThemeProvider>
