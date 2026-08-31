@@ -59,7 +59,7 @@ export default defineConfig({
       // deliberately signs out and back in to exercise the real pending 2FA
       // cookie, a one-use backup code, and management step-up grants.
       name: "auth-security",
-      testMatch: /two-factor-security\.spec\.ts/,
+      testMatch: /(two-factor-security|auth-navigation)\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
     {
