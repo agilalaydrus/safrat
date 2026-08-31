@@ -46,14 +46,21 @@ INSERT INTO pilgrim_cancellations (
 ) RETURNING *;
 
 -- name: MarkPilgrimCancelled :exec
-UPDATE pilgrims SET status = 'CANCELLED' WHERE id = $1 AND operator_id = $2;
+UPDATE pilgrims SET status = 'CANCELLED'
+WHERE id = $1 AND operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: GetPilgrimCancellation :one
-SELECT * FROM pilgrim_cancellations WHERE pilgrim_id = $1 AND operator_id = $2;
+SELECT pc.*
+FROM pilgrim_cancellations pc
+JOIN pilgrims p ON p.id = pc.pilgrim_id
+WHERE pc.pilgrim_id = $1 AND pc.operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: ListCancellations :many
 SELECT pc.*, p.full_name AS pilgrim_name
 FROM pilgrim_cancellations pc
 JOIN pilgrims p ON p.id = pc.pilgrim_id
 WHERE pc.operator_id = $1 AND pc.season_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY pc.cancelled_at DESC;

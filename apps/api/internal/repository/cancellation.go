@@ -107,7 +107,11 @@ func (r *CancellationRepository) GetByPilgrimID(ctx context.Context, operatorID,
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
-	row, err := r.queries.GetPilgrimCancellation(ctx, db.GetPilgrimCancellationParams{PilgrimID: pilgrimUUID, OperatorID: opUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.queries.GetPilgrimCancellation(ctx, db.GetPilgrimCancellationParams{PilgrimID: pilgrimUUID, OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -129,7 +133,11 @@ func (r *CancellationRepository) ListCancellations(ctx context.Context, operator
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
-	rows, err := r.queries.ListCancellations(ctx, db.ListCancellationsParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListCancellations(ctx, db.ListCancellationsParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -173,8 +181,12 @@ func (r *CancellationRepository) ConfirmCancellation(ctx context.Context, operat
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	qtx := r.queries.WithTx(tx)
+	scope, err := branchScope(ctx, qtx, opUUID)
+	if err != nil {
+		return nil, err
+	}
 
-	pilgrim, err := qtx.GetPilgrim(ctx, db.GetPilgrimParams{ID: pilgrimUUID, OperatorID: opUUID})
+	pilgrim, err := qtx.GetPilgrim(ctx, db.GetPilgrimParams{ID: pilgrimUUID, OperatorID: opUUID, BranchScope: scope})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.ErrNotFound
 	}
@@ -201,7 +213,7 @@ func (r *CancellationRepository) ConfirmCancellation(ctx context.Context, operat
 		return nil, databaseError(err)
 	}
 
-	if err := qtx.MarkPilgrimCancelled(ctx, db.MarkPilgrimCancelledParams{ID: pilgrimUUID, OperatorID: opUUID}); err != nil {
+	if err := qtx.MarkPilgrimCancelled(ctx, db.MarkPilgrimCancelledParams{ID: pilgrimUUID, OperatorID: opUUID, BranchScope: scope}); err != nil {
 		return nil, err
 	}
 
