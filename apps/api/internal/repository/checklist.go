@@ -82,8 +82,12 @@ func (r *ChecklistRepository) UpsertItem(ctx context.Context, templateID, pilgri
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
+	branchID, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
 	row, err := r.queries.UpsertPilgrimChecklistItem(ctx, db.UpsertPilgrimChecklistItemParams{
-		TemplateID: templateUUID, PilgrimID: pilgrimUUID, OperatorID: opUUID, IsCompleted: isCompleted, CompletedBy: completedBy, Notes: notes,
+		TemplateID: templateUUID, PilgrimID: pilgrimUUID, OperatorID: opUUID, IsCompleted: isCompleted, CompletedBy: completedBy, Notes: notes, BranchScope: branchID,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -109,7 +113,11 @@ func (r *ChecklistRepository) GetPilgrimChecklist(ctx context.Context, operatorI
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
-	rows, err := r.queries.GetPilgrimChecklist(ctx, db.GetPilgrimChecklistParams{OperatorID: opUUID, SeasonID: seasonUUID, PilgrimID: pilgrimUUID})
+	branchID, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.GetPilgrimChecklist(ctx, db.GetPilgrimChecklistParams{OperatorID: opUUID, SeasonID: seasonUUID, PilgrimID: pilgrimUUID, BranchScope: branchID})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -137,7 +145,11 @@ func (r *ChecklistRepository) GetStats(ctx context.Context, operatorID, seasonID
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
-	rows, err := r.queries.GetChecklistCompletionStats(ctx, db.GetChecklistCompletionStatsParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	branchID, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.GetChecklistCompletionStats(ctx, db.GetChecklistCompletionStatsParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: branchID})
 	if err != nil {
 		return nil, databaseError(err)
 	}

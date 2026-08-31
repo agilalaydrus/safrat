@@ -13,8 +13,12 @@ DELETE FROM checklist_templates WHERE id = $1 AND operator_id = $2;
 
 -- name: UpsertPilgrimChecklistItem :one
 INSERT INTO pilgrim_checklist_items (template_id, pilgrim_id, operator_id, is_completed, completed_at, completed_by, notes)
-VALUES ($1, $2, $3, $4,
-        CASE WHEN $4 THEN NOW() ELSE NULL END, $5, $6)
+SELECT $1, $2, $3, $4,
+       CASE WHEN $4 THEN NOW() ELSE NULL END, $5, $6
+FROM checklist_templates ct
+JOIN pilgrims p ON p.id = $2 AND p.operator_id = $3
+WHERE ct.id = $1 AND ct.operator_id = $3
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 ON CONFLICT (template_id, pilgrim_id) DO UPDATE
   SET is_completed = EXCLUDED.is_completed,
       completed_at = CASE WHEN EXCLUDED.is_completed THEN NOW() ELSE NULL END,
@@ -34,6 +38,11 @@ FROM checklist_templates ct
 LEFT JOIN pilgrim_checklist_items pci
   ON pci.template_id = ct.id AND pci.pilgrim_id = $3
 WHERE ct.operator_id = $1 AND ct.season_id = $2
+  AND EXISTS (
+    SELECT 1 FROM pilgrims p
+    WHERE p.id = $3 AND p.operator_id = $1 AND p.season_id = $2
+      AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
+  )
 ORDER BY ct.sort_order ASC;
 
 -- name: GetChecklistCompletionStats :many
@@ -52,5 +61,6 @@ WHERE ct.operator_id = $1
   AND p.operator_id  = $1
   AND p.season_id    = $2
   AND p.status       = 'ACTIVE'
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 GROUP BY ct.id, ct.title, ct.category, ct.is_required, ct.sort_order
 ORDER BY ct.sort_order;
