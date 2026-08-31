@@ -102,7 +102,7 @@ func (s *LostReportService) ResolveForGroup(ctx context.Context, authenticatedOr
 	if err := s.groupLeaderRepository.EnsureLeaderOwnsGroup(ctx, operator.ID, req.GroupId, middleware.UserIDFromCtx(ctx)); err != nil {
 		return nil, serviceError("LostReportService.ResolveForGroup", apperror.ErrForbidden)
 	}
-	if err := s.lostReportRepository.ResolveForGroup(ctx, req.GroupId, req.Id); err != nil {
+	if err := s.lostReportRepository.ResolveForGroup(ctx, operator.ID, req.GroupId, req.Id); err != nil {
 		return nil, serviceError("LostReportService.ResolveForGroup", err)
 	}
 	return &hajjv1.ResolveLostReportResponse{}, nil
@@ -121,7 +121,7 @@ func (s *LostReportService) ListForGroup(ctx context.Context, authenticatedOrgID
 	if err := s.groupLeaderRepository.EnsureLeaderOwnsGroup(ctx, operator.ID, req.GroupId, middleware.UserIDFromCtx(ctx)); err != nil {
 		return nil, serviceError("LostReportService.ListForGroup", apperror.ErrForbidden)
 	}
-	reports, err := s.lostReportRepository.ListForGroup(ctx, req.GroupId)
+	reports, err := s.lostReportRepository.ListForGroup(ctx, operator.ID, req.GroupId)
 	if err != nil {
 		return nil, serviceError("LostReportService.ListForGroup", err)
 	}

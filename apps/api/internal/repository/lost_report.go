@@ -53,7 +53,18 @@ func (r *LostReportRepository) Resolve(ctx context.Context, operatorID, id strin
 	if err != nil {
 		return apperror.ErrValidation
 	}
-	return databaseError(r.queries.ResolveLostReport(ctx, db.ResolveLostReportParams{ID: idUUID, OperatorID: opUUID}))
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return err
+	}
+	rows, err := r.queries.ResolveLostReport(ctx, db.ResolveLostReportParams{ID: idUUID, OperatorID: opUUID, BranchScope: scope})
+	if err != nil {
+		return databaseError(err)
+	}
+	if rows == 0 {
+		return apperror.ErrNotFound
+	}
+	return nil
 }
 
 // ResolveForGroup scopes the resolve by group_id instead of operator_id —
@@ -61,7 +72,11 @@ func (r *LostReportRepository) Resolve(ctx context.Context, operatorID, id strin
 // group via EnsureLeaderOwnsGroup, but this scoping is what actually
 // prevents resolving a report outside that group at the DB level. Zero rows
 // affected means the report doesn't exist or isn't LOST in this group.
-func (r *LostReportRepository) ResolveForGroup(ctx context.Context, groupID, id string) error {
+func (r *LostReportRepository) ResolveForGroup(ctx context.Context, operatorID, groupID, id string) error {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return apperror.ErrValidation
+	}
 	groupUUID, err := pgUUID(groupID)
 	if err != nil {
 		return apperror.ErrValidation
@@ -70,7 +85,11 @@ func (r *LostReportRepository) ResolveForGroup(ctx context.Context, groupID, id 
 	if err != nil {
 		return apperror.ErrValidation
 	}
-	rows, err := r.queries.ResolveGroupLostReport(ctx, db.ResolveGroupLostReportParams{ID: idUUID, GroupID: groupUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return err
+	}
+	rows, err := r.queries.ResolveGroupLostReport(ctx, db.ResolveGroupLostReportParams{ID: idUUID, GroupID: groupUUID, BranchScope: scope})
 	if err != nil {
 		return databaseError(err)
 	}
@@ -85,7 +104,11 @@ func (r *LostReportRepository) ListActive(ctx context.Context, operatorID string
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
-	rows, err := r.queries.ListActiveLostReports(ctx, opUUID)
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListActiveLostReports(ctx, db.ListActiveLostReportsParams{OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -101,12 +124,20 @@ func (r *LostReportRepository) ListActive(ctx context.Context, operatorID string
 	return result, nil
 }
 
-func (r *LostReportRepository) ListForGroup(ctx context.Context, groupID string) ([]*domain.LostReport, error) {
+func (r *LostReportRepository) ListForGroup(ctx context.Context, operatorID, groupID string) ([]*domain.LostReport, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
 	groupUUID, err := pgUUID(groupID)
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
-	rows, err := r.queries.ListGroupLostReports(ctx, groupUUID)
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListGroupLostReports(ctx, db.ListGroupLostReportsParams{OperatorID: opUUID, GroupID: groupUUID, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
