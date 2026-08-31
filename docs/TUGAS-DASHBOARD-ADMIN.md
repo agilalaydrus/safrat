@@ -249,6 +249,11 @@ Status perjalanan jamaah kini dipagari untuk baca, agregat kloter, mutasi,
 log, dan cascade grup/kloter langsung di query/repository. Uji dua arah
 memastikan kepala Bandung tidak dapat melihat atau mengubah status perjalanan
 Medan, sementara kantor pusat tetap operator-wide (`0027bf8`).
+Progres ritual kini menghitung dan menampilkan nama jamaah hanya dari cabang
+aktif; penyelesaian individual maupun bulk dipagari di query, ritual lintas
+operator ditolak, dan kepala cabang dilarang membuat template operator-wide.
+Uji dua arah membuktikan Bandung dapat menyelesaikan ritual jamaahnya tanpa
+membaca atau mengubah Medan (`1e44d38`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
