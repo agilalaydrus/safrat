@@ -198,8 +198,11 @@ sudah terisolasi; registrasi publik mewarisi cabang agen referral dan agent ID
 lintas tenant ditolak oleh query (`dfb2e62`). Kotak penyaringan utama tetap
 terbuka. Profil, KYC, dokumen, create, dan aplikasi referral agen sudah memakai
 batas yang sama (`822b895`); payout agen, saldo, histori, komisi, dan request
-pencairan sekarang juga terisolasi (`de0a3b1`). Order masih harus ditutup
-sebelum kotak penyaringan utama boleh dicentang.
+pencairan sekarang juga terisolasi (`de0a3b1`). Order sekarang mewarisi cabang
+pembeli dan dipagari saat dibaca, dihitung, dibayar
+manual, atau diselesaikan dari status held (`ac5e846`). Kotak penyaringan utama
+tetap terbuka sampai agregat dashboard/laporan cabang ditutup dengan batas yang
+sama.
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
