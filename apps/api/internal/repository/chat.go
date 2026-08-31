@@ -2,10 +2,13 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
+	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
+	"github.com/jackc/pgx/v5"
 )
 
 type ChatRepository struct{ queries *db.Queries }
@@ -28,6 +31,9 @@ func (r *ChatRepository) CreateFromPilgrim(ctx context.Context, operatorID, grou
 		return nil, err
 	}
 	message, err := r.queries.CreateChatMessageFromPilgrim(ctx, db.CreateChatMessageFromPilgrimParams{OperatorID: opUUID, GroupID: groupUUID, SenderPilgrimID: pilgrimUUID, Body: body, IdempotencyKey: idempotencyKey})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperror.ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +49,14 @@ func (r *ChatRepository) CreateFromUser(ctx context.Context, operatorID, groupID
 	if err != nil {
 		return nil, err
 	}
-	message, err := r.queries.CreateChatMessageFromUser(ctx, db.CreateChatMessageFromUserParams{OperatorID: opUUID, GroupID: groupUUID, SenderUserID: pgText(userID), Body: body, IdempotencyKey: idempotencyKey})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	message, err := r.queries.CreateChatMessageFromUser(ctx, db.CreateChatMessageFromUserParams{OperatorID: opUUID, GroupID: groupUUID, SenderUserID: pgText(userID), Body: body, IdempotencyKey: idempotencyKey, BranchScope: scope})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, apperror.ErrNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +72,11 @@ func (r *ChatRepository) ListByGroup(ctx context.Context, operatorID, groupID st
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListChatMessagesByGroup(ctx, db.ListChatMessagesByGroupParams{GroupID: groupUUID, OperatorID: opUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListChatMessagesByGroup(ctx, db.ListChatMessagesByGroupParams{GroupID: groupUUID, OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
