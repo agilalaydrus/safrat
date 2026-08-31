@@ -81,6 +81,10 @@ func (r *OrderRepository) Create(ctx context.Context, params CreateOrderParams) 
 	if err != nil {
 		return nil, false, err
 	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, false, err
+	}
 	seasonUUID, err := pgUUID(params.SeasonID)
 	if err != nil {
 		return nil, false, err
@@ -126,6 +130,7 @@ func (r *OrderRepository) Create(ctx context.Context, params CreateOrderParams) 
 		Destination:           strings.TrimSpace(params.Destination),
 		DigitalSpendCountedOn: spendStamp,
 		CheckoutChannel:       params.CheckoutChannel,
+		BranchScope:           scope,
 	})
 	if err == nil {
 		// Only a genuinely new order spends. A replay reaches the branch below
@@ -161,7 +166,7 @@ func (r *OrderRepository) Create(ctx context.Context, params CreateOrderParams) 
 	// No row came back: this key already made an order. That order is what the
 	// caller is asking for, and it already spent its share of the limit.
 	existing, err := qtx.GetOrderByIdempotencyKey(ctx, db.GetOrderByIdempotencyKeyParams{
-		OperatorID: opUUID, IdempotencyKey: params.IdempotencyKey,
+		OperatorID: opUUID, IdempotencyKey: params.IdempotencyKey, BranchScope: scope,
 	})
 	if err != nil {
 		return nil, false, err
@@ -220,7 +225,11 @@ func (r *OrderRepository) MarkPaidManually(ctx context.Context, operatorID, orde
 	if err != nil {
 		return nil, err
 	}
-	order, err := r.queries.MarkOrderPaidManually(ctx, db.MarkOrderPaidManuallyParams{ID: orderUUID, OperatorID: opUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	order, err := r.queries.MarkOrderPaidManually(ctx, db.MarkOrderPaidManuallyParams{ID: orderUUID, OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -270,7 +279,11 @@ func (r *OrderRepository) Get(ctx context.Context, operatorID, orderID string) (
 	if err != nil {
 		return nil, err
 	}
-	order, err := r.queries.GetOrder(ctx, db.GetOrderParams{ID: orderUUID, OperatorID: opUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	order, err := r.queries.GetOrder(ctx, db.GetOrderParams{ID: orderUUID, OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -286,7 +299,11 @@ func (r *OrderRepository) ListBySeason(ctx context.Context, operatorID, seasonID
 	if err != nil {
 		return nil, err
 	}
-	orders, err := r.queries.ListOrders(ctx, db.ListOrdersParams{OperatorID: opUUID, SeasonID: seasonUUID, Limit: limit, Offset: offset})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	orders, err := r.queries.ListOrders(ctx, db.ListOrdersParams{OperatorID: opUUID, SeasonID: seasonUUID, Limit: limit, Offset: offset, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -306,7 +323,11 @@ func (r *OrderRepository) CountBySeason(ctx context.Context, operatorID, seasonI
 	if err != nil {
 		return 0, err
 	}
-	return r.queries.CountOrdersBySeason(ctx, db.CountOrdersBySeasonParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return 0, err
+	}
+	return r.queries.CountOrdersBySeason(ctx, db.CountOrdersBySeasonParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: scope})
 }
 
 func toOrder(o db.Order) *domain.Order {
@@ -378,9 +399,13 @@ func (r *OrderRepository) ListForBuyerAgent(ctx context.Context, operatorID, sea
 	if err != nil {
 		return nil, 0, err
 	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, 0, err
+	}
 	rows, err := r.queries.ListOrdersForBuyerAgent(ctx, db.ListOrdersForBuyerAgentParams{
 		OperatorID: opUUID, SeasonID: seasonUUID, BuyerAgentID: agentUUID,
-		Limit: limit, Offset: offset,
+		Limit: limit, Offset: offset, BranchScope: scope,
 	})
 	if err != nil {
 		return nil, 0, err
@@ -405,7 +430,7 @@ func (r *OrderRepository) ListForBuyerAgent(ctx context.Context, operatorID, sea
 		result = append(result, base)
 	}
 	count, err := r.queries.CountOrdersForBuyerAgent(ctx, db.CountOrdersForBuyerAgentParams{
-		OperatorID: opUUID, SeasonID: seasonUUID, BuyerAgentID: agentUUID,
+		OperatorID: opUUID, SeasonID: seasonUUID, BuyerAgentID: agentUUID, BranchScope: scope,
 	})
 	if err != nil {
 		return nil, 0, err
@@ -512,11 +537,15 @@ func (r *OrderRepository) ResolveHeld(ctx context.Context, operatorID, orderID s
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
 	var order db.Order
 	if accept {
-		order, err = r.queries.ResolveHeldOrderToPaid(ctx, db.ResolveHeldOrderToPaidParams{ID: orderUUID, OperatorID: opUUID})
+		order, err = r.queries.ResolveHeldOrderToPaid(ctx, db.ResolveHeldOrderToPaidParams{ID: orderUUID, OperatorID: opUUID, BranchScope: scope})
 	} else {
-		order, err = r.queries.ResolveHeldOrderToFailed(ctx, db.ResolveHeldOrderToFailedParams{ID: orderUUID, OperatorID: opUUID})
+		order, err = r.queries.ResolveHeldOrderToFailed(ctx, db.ResolveHeldOrderToFailedParams{ID: orderUUID, OperatorID: opUUID, BranchScope: scope})
 	}
 	if err != nil {
 		return nil, databaseError(err)

@@ -7,8 +7,8 @@ INSERT INTO orders (
   unit_price_idr, total_price_idr, platform_amount_idr, operator_amount_idr,
   agent_commission_idr, idempotency_key, placed_by_agent_id, buyer_agent_id,
   buyer_kind, base_price_idr, operator_markup_idr, agent_markup_idr,
-  destination, digital_spend_counted_on, checkout_channel
-) VALUES (
+  destination, digital_spend_counted_on, checkout_channel, branch_id
+) SELECT
   sqlc.arg(operator_id), sqlc.arg(season_id), sqlc.narg(pilgrim_id),
   sqlc.arg(product_id), NULLIF(sqlc.arg(agent_id)::text, '')::uuid,
   sqlc.arg(quantity), sqlc.arg(unit_price_idr), sqlc.arg(total_price_idr),
@@ -18,8 +18,16 @@ INSERT INTO orders (
   sqlc.narg(buyer_agent_id), sqlc.arg(buyer_kind),
   sqlc.arg(base_price_idr), sqlc.arg(operator_markup_idr),
   sqlc.arg(agent_markup_idr), sqlc.arg(destination),
-  sqlc.narg(digital_spend_counted_on), sqlc.arg(checkout_channel)
-)
+  sqlc.narg(digital_spend_counted_on), sqlc.arg(checkout_channel),
+  COALESCE(
+    (SELECT p.branch_id FROM pilgrims p WHERE p.id = sqlc.narg(pilgrim_id) AND p.operator_id = sqlc.arg(operator_id)),
+    (SELECT a.branch_id FROM agents a WHERE a.id = sqlc.narg(buyer_agent_id) AND a.operator_id = sqlc.arg(operator_id))
+  )
+WHERE sqlc.narg(branch_scope)::uuid IS NULL
+   OR COALESCE(
+        (SELECT p.branch_id FROM pilgrims p WHERE p.id = sqlc.narg(pilgrim_id) AND p.operator_id = sqlc.arg(operator_id)),
+        (SELECT a.branch_id FROM agents a WHERE a.id = sqlc.narg(buyer_agent_id) AND a.operator_id = sqlc.arg(operator_id))
+      ) = sqlc.narg(branch_scope)::uuid
 ON CONFLICT (operator_id, idempotency_key) WHERE idempotency_key <> '' DO NOTHING
 RETURNING *;
 
@@ -32,7 +40,8 @@ LEFT JOIN pilgrims p ON p.id = o.pilgrim_id
 LEFT JOIN agents buyer ON buyer.id = o.buyer_agent_id
 JOIN products pr ON pr.id = o.product_id
 LEFT JOIN agents a ON a.id = o.agent_id
-WHERE o.operator_id = $1 AND o.idempotency_key = $2;
+WHERE o.operator_id = $1 AND o.idempotency_key = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR o.branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: SetOrderXenditInvoice :exec
 UPDATE orders
@@ -66,6 +75,7 @@ RETURNING *;
 UPDATE orders
 SET status = 'PAID', paid_at = NOW(), updated_at = NOW()
 WHERE id = $1 AND operator_id = $2 AND status = 'PENDING'
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid)
 RETURNING *;
 
 -- name: MarkOrderStatusByInvoiceID :one
@@ -83,7 +93,8 @@ LEFT JOIN pilgrims p ON p.id = o.pilgrim_id
 LEFT JOIN agents buyer ON buyer.id = o.buyer_agent_id
 JOIN products pr ON pr.id = o.product_id
 LEFT JOIN agents a ON a.id = o.agent_id
-WHERE o.id = $1 AND o.operator_id = $2;
+WHERE o.id = $1 AND o.operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR o.branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: ListOrders :many
 SELECT o.*, COALESCE(p.full_name, '') AS pilgrim_name,
@@ -95,6 +106,7 @@ LEFT JOIN agents buyer ON buyer.id = o.buyer_agent_id
 JOIN products pr ON pr.id = o.product_id
 LEFT JOIN agents a ON a.id = o.agent_id
 WHERE o.operator_id = $1 AND o.season_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR o.branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY o.created_at DESC
 LIMIT $3 OFFSET $4;
 
@@ -106,15 +118,19 @@ JOIN agents buyer ON buyer.id = o.buyer_agent_id
 JOIN products pr ON pr.id = o.product_id
 LEFT JOIN agents a ON a.id = o.agent_id
 WHERE o.operator_id = $1 AND o.season_id = $2 AND o.buyer_agent_id = $3
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR o.branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY o.created_at DESC
 LIMIT $4 OFFSET $5;
 
 -- name: CountOrdersForBuyerAgent :one
 SELECT COUNT(*) FROM orders
-WHERE operator_id = $1 AND season_id = $2 AND buyer_agent_id = $3;
+WHERE operator_id = $1 AND season_id = $2 AND buyer_agent_id = $3
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: CountOrdersBySeason :one
-SELECT COUNT(*) FROM orders WHERE operator_id = $1 AND season_id = $2;
+SELECT COUNT(*) FROM orders
+WHERE operator_id = $1 AND season_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: ListAgentPayouts :many
 -- Lifetime, not season-scoped — agents aren't a per-season concept (see
@@ -359,6 +375,7 @@ UPDATE orders SET last_gateway_check_at = NOW() WHERE id = ANY($1::uuid[]);
 UPDATE orders
 SET status = 'PAID', paid_at = NOW(), updated_at = NOW()
 WHERE id = $1 AND operator_id = $2 AND status = 'HELD'
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid)
 RETURNING *;
 
 -- name: ResolveHeldOrderToFailed :one
@@ -367,6 +384,7 @@ RETURNING *;
 UPDATE orders
 SET status = 'FAILED', updated_at = NOW()
 WHERE id = $1 AND operator_id = $2 AND status = 'HELD'
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid)
 RETURNING *;
 
 -- name: GetOrderByIdempotencyKeyAny :one
