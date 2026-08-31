@@ -1,5 +1,16 @@
 package domain
 
+import "time"
+
+type Branch struct {
+	ID, OperatorID, Name, City                                string
+	TargetPilgrims                                            int32
+	TargetRevenueIDR                                          int64
+	HeadUserID, Phone, BankName, AccountNumber, AccountHolder string
+	IsActive                                                  bool
+	CreatedAt, UpdatedAt                                      time.Time
+}
+
 type BranchTrendPoint struct {
 	Month        string
 	RevenueIDR   int64

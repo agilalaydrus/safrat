@@ -17,6 +17,30 @@ func NewBranchRepository(queries *db.Queries) *BranchRepository {
 	return &BranchRepository{queries: queries}
 }
 
+func (r *BranchRepository) List(ctx context.Context, operatorID string, includeInactive bool) ([]domain.Branch, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListBranches(ctx, db.ListBranchesParams{OperatorID: opUUID, Column2: includeInactive, BranchScope: scope})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	items := make([]domain.Branch, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, branchFromRow(row))
+	}
+	return items, nil
+}
+
+func branchFromRow(row db.ListBranchesRow) domain.Branch {
+	return domain.Branch{ID: uuidString(row.ID), OperatorID: uuidString(row.OperatorID), Name: row.Name, City: row.City, TargetPilgrims: row.TargetPilgrims, TargetRevenueIDR: row.TargetRevenueIdr, HeadUserID: row.HeadUserID, Phone: row.Phone, BankName: row.BankName, AccountNumber: row.AccountNumber, AccountHolder: row.AccountHolder, IsActive: row.IsActive, CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time}
+}
+
 func (r *BranchRepository) GetPerformance(ctx context.Context, operatorID, seasonID string) (*domain.BranchPerformanceReport, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
