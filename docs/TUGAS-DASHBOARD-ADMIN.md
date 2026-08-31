@@ -222,8 +222,9 @@ arus kas memakai batas yang sama (`1090e32`).
 - [x] Satu fungsi `entitlement.Check()` dipanggil **service**, bukan handler
       (`401b6c7`; pembuatan jamaah sudah memakai cek ini, dengan trigger DB
       sebagai pengaman konkurensi)
-- [ ] Layar pemakaian vs batas di `/dashboard/langganan`
-- [ ] Menu di luar paket tetap terlihat tapi terkunci — itu yang menjual naik paket
+- [x] Layar pemakaian vs batas di `/dashboard/langganan` (`281ebbe`)
+- [x] Menu di luar paket tetap terlihat tapi terkunci — Cabang pada STARTER
+      membawa operator ke langganan, bukan disembunyikan (`281ebbe`)
 
 > Hari ini `plan` hanya menggerbangi domain kustom
 > (`apps/api/internal/repository/operator_domain.go:31`). Tidak ada batas
