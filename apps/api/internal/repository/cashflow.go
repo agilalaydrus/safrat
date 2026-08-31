@@ -26,9 +26,13 @@ func (r *CashFlowRepository) CreatePayment(ctx context.Context, operatorID, seas
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
+	branchID, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
 	row, err := r.queries.CreateVendorPayment(ctx, db.CreateVendorPaymentParams{
 		OperatorID: opUUID, SeasonID: seasonUUID, VendorName: vendorName, Category: category,
-		Description: description, AmountIdr: amountIDR, DueDate: pgDate(&dueDate),
+		Description: description, AmountIdr: amountIDR, DueDate: pgDate(&dueDate), BranchScope: branchID,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -45,7 +49,11 @@ func (r *CashFlowRepository) ListPayments(ctx context.Context, operatorID, seaso
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
-	rows, err := r.queries.ListVendorPayments(ctx, db.ListVendorPaymentsParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	branchID, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListVendorPayments(ctx, db.ListVendorPaymentsParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: branchID})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -65,7 +73,11 @@ func (r *CashFlowRepository) UpdatePaymentStatus(ctx context.Context, operatorID
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
-	row, err := r.queries.UpdateVendorPaymentStatus(ctx, db.UpdateVendorPaymentStatusParams{ID: idUUID, OperatorID: opUUID, Status: status})
+	branchID, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.queries.UpdateVendorPaymentStatus(ctx, db.UpdateVendorPaymentStatusParams{ID: idUUID, OperatorID: opUUID, Status: status, BranchScope: branchID})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -81,7 +93,11 @@ func (r *CashFlowRepository) DeletePayment(ctx context.Context, operatorID, id s
 	if err != nil {
 		return apperror.ErrValidation
 	}
-	return databaseError(r.queries.DeleteVendorPayment(ctx, db.DeleteVendorPaymentParams{ID: idUUID, OperatorID: opUUID}))
+	branchID, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return err
+	}
+	return databaseError(r.queries.DeleteVendorPayment(ctx, db.DeleteVendorPaymentParams{ID: idUUID, OperatorID: opUUID, BranchScope: branchID}))
 }
 
 func (r *CashFlowRepository) GetSummary(ctx context.Context, operatorID, seasonID string) (*domain.CashFlowSummary, error) {
@@ -93,15 +109,19 @@ func (r *CashFlowRepository) GetSummary(ctx context.Context, operatorID, seasonI
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
-	collected, err := r.queries.GetSeasonPaidTotal(ctx, db.GetSeasonPaidTotalParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	branchID, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	collected, err := r.queries.GetSeasonPaidTotal(ctx, db.GetSeasonPaidTotalParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: branchID})
 	if err != nil {
 		return nil, databaseError(err)
 	}
-	commitment, err := r.queries.GetVendorCommitmentSummary(ctx, db.GetVendorCommitmentSummaryParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	commitment, err := r.queries.GetVendorCommitmentSummary(ctx, db.GetVendorCommitmentSummaryParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: branchID})
 	if err != nil {
 		return nil, databaseError(err)
 	}
-	unpaidCount, err := r.queries.CountUnpaidPilgrims(ctx, db.CountUnpaidPilgrimsParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	unpaidCount, err := r.queries.CountUnpaidPilgrims(ctx, db.CountUnpaidPilgrimsParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: branchID})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -122,7 +142,11 @@ func (r *CashFlowRepository) GetMonthlyProjection(ctx context.Context, operatorI
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
-	rows, err := r.queries.GetMonthlyProjection(ctx, db.GetMonthlyProjectionParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	branchID, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.GetMonthlyProjection(ctx, db.GetMonthlyProjectionParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: branchID})
 	if err != nil {
 		return nil, databaseError(err)
 	}
