@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/hajj-saas/api/internal/apperror"
 	db "github.com/hajj-saas/api/internal/gen/db"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -244,7 +245,12 @@ func (r *TransportRepository) AssignSeatTx(ctx context.Context, tx pgx.Tx, op, v
 	if e != nil {
 		return nil, e
 	}
-	a, e := r.q.WithTx(tx).AssignSeat(ctx, db.AssignSeatParams{OperatorID: o, VehicleID: v, PilgrimID: p, SeatNumber: pgtype.Int4{Int32: seat, Valid: seat > 0}, AssignedBy: user})
+	qtx := r.q.WithTx(tx)
+	scope, e := branchScope(ctx, qtx, o)
+	if e != nil {
+		return nil, e
+	}
+	a, e := qtx.AssignSeat(ctx, db.AssignSeatParams{OperatorID: o, VehicleID: v, PilgrimID: p, SeatNumber: pgtype.Int4{Int32: seat, Valid: seat > 0}, AssignedBy: user, BranchScope: scope})
 	if e != nil {
 		return nil, databaseError(e)
 	}
@@ -263,7 +269,18 @@ func (r *TransportRepository) UnassignSeat(ctx context.Context, op, vehicle, pil
 	if e != nil {
 		return e
 	}
-	return r.q.UnassignSeat(ctx, db.UnassignSeatParams{OperatorID: o, VehicleID: v, PilgrimID: p})
+	scope, e := branchScope(ctx, r.q, o)
+	if e != nil {
+		return e
+	}
+	rows, e := r.q.UnassignSeat(ctx, db.UnassignSeatParams{OperatorID: o, VehicleID: v, PilgrimID: p, BranchScope: scope})
+	if e != nil {
+		return databaseError(e)
+	}
+	if rows == 0 {
+		return apperror.ErrNotFound
+	}
+	return nil
 }
 func (r *TransportRepository) UnassignPilgrimAllSeatsTx(ctx context.Context, tx pgx.Tx, op, pilgrim string) error {
 	o, e := pgUUID(op)
@@ -274,7 +291,12 @@ func (r *TransportRepository) UnassignPilgrimAllSeatsTx(ctx context.Context, tx 
 	if e != nil {
 		return e
 	}
-	_, e = r.q.WithTx(tx).UnassignPilgrimAllSeats(ctx, db.UnassignPilgrimAllSeatsParams{OperatorID: o, PilgrimID: p})
+	qtx := r.q.WithTx(tx)
+	scope, e := branchScope(ctx, qtx, o)
+	if e != nil {
+		return e
+	}
+	_, e = qtx.UnassignPilgrimAllSeats(ctx, db.UnassignPilgrimAllSeatsParams{OperatorID: o, PilgrimID: p, BranchScope: scope})
 	return e
 }
 func (r *TransportRepository) Manifest(ctx context.Context, op, vehicleID string) (*Vehicle, []ManifestPilgrim, error) {
@@ -286,7 +308,15 @@ func (r *TransportRepository) Manifest(ctx context.Context, op, vehicleID string
 	if e != nil {
 		return nil, nil, e
 	}
-	rows, e := r.q.GetVehicleManifest(ctx, id)
+	o, e := pgUUID(op)
+	if e != nil {
+		return nil, nil, e
+	}
+	scope, e := branchScope(ctx, r.q, o)
+	if e != nil {
+		return nil, nil, e
+	}
+	rows, e := r.q.GetVehicleManifest(ctx, db.GetVehicleManifestParams{VehicleID: id, OperatorID: o, BranchScope: scope})
 	if e != nil {
 		return nil, nil, e
 	}
