@@ -233,6 +233,9 @@ Bandung tidak dapat melihat atau membatalkan jamaah Medan (`7117fb3`).
 Daftar grup, kloter, dan roster kini menghitung hanya jamaah cabang aktif;
 perubahan struktur grup/kloter dibatasi untuk kantor pusat di repository, dengan
 uji integrasi dua arah (`8b474bc`).
+Manifest kendaraan—termasuk nama, paspor, kebutuhan kursi roda, pemasangan, dan
+pelepasan kursi—kini dibatasi per cabang di repository dan dikunci oleh uji
+integrasi dua arah (`19d050b`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
