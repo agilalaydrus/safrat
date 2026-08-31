@@ -29,11 +29,15 @@ func (r *JourneyRepository) UpdateStatus(ctx context.Context, operatorID, pilgri
 		return nil, err
 	}
 	updatedBy := pgtype.Text{String: updatedByUserID, Valid: updatedByUserID != ""}
-	v, err := r.queries.UpsertPilgrimJourneyStatus(ctx, db.UpsertPilgrimJourneyStatusParams{OperatorID: opUUID, PilgrimID: pilgrimUUID, Status: to, UpdatedBy: updatedBy, Notes: notes})
+	scope, err := branchScope(ctx, r.queries, opUUID)
 	if err != nil {
 		return nil, err
 	}
-	if err := r.queries.InsertPilgrimJourneyLog(ctx, db.InsertPilgrimJourneyLogParams{OperatorID: opUUID, PilgrimID: pilgrimUUID, FromStatus: from, ToStatus: to, UpdatedBy: updatedBy, Notes: notes}); err != nil {
+	v, err := r.queries.UpsertPilgrimJourneyStatus(ctx, db.UpsertPilgrimJourneyStatusParams{OperatorID: opUUID, PilgrimID: pilgrimUUID, Status: to, UpdatedBy: updatedBy, Notes: notes, BranchScope: scope})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	if err := r.queries.InsertPilgrimJourneyLog(ctx, db.InsertPilgrimJourneyLogParams{OperatorID: opUUID, PilgrimID: pilgrimUUID, FromStatus: from, ToStatus: to, UpdatedBy: updatedBy, Notes: notes, BranchScope: scope}); err != nil {
 		return nil, err
 	}
 	return &domain.PilgrimJourneyStatus{PilgrimID: uuidString(v.PilgrimID), Status: v.Status, UpdatedAt: v.UpdatedAt.Time, Notes: v.Notes}, nil
@@ -48,9 +52,13 @@ func (r *JourneyRepository) GetStatus(ctx context.Context, operatorID, pilgrimID
 	if err != nil {
 		return nil, err
 	}
-	v, err := r.queries.GetPilgrimJourneyStatus(ctx, db.GetPilgrimJourneyStatusParams{PilgrimID: pilgrimUUID, OperatorID: opUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
 	if err != nil {
 		return nil, err
+	}
+	v, err := r.queries.GetPilgrimJourneyStatus(ctx, db.GetPilgrimJourneyStatusParams{PilgrimID: pilgrimUUID, OperatorID: opUUID, BranchScope: scope})
+	if err != nil {
+		return nil, databaseError(err)
 	}
 	return &domain.PilgrimJourneyStatus{PilgrimID: uuidString(v.PilgrimID), Status: v.Status, UpdatedByName: v.UpdatedByName, UpdatedAt: v.UpdatedAt.Time, Notes: v.Notes}, nil
 }
@@ -67,7 +75,11 @@ func (r *JourneyRepository) ListByKloter(ctx context.Context, operatorID, kloter
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListJourneyStatusesByKloter(ctx, db.ListJourneyStatusesByKloterParams{OperatorID: opUUID, KloterID: kloterUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListJourneyStatusesByKloter(ctx, db.ListJourneyStatusesByKloterParams{OperatorID: opUUID, KloterID: kloterUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +99,11 @@ func (r *JourneyRepository) CountByKloter(ctx context.Context, operatorID, klote
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.CountJourneyStatusesByKloter(ctx, db.CountJourneyStatusesByKloterParams{OperatorID: opUUID, KloterID: kloterUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.CountJourneyStatusesByKloter(ctx, db.CountJourneyStatusesByKloterParams{OperatorID: opUUID, KloterID: kloterUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +134,11 @@ func (r *JourneyRepository) listPilgrimIDsByGroup(ctx context.Context, queries *
 	if err != nil {
 		return nil, err
 	}
-	rows, err := queries.ListGroupRoster(ctx, db.ListGroupRosterParams{GroupID: groupUUID, OperatorID: opUUID})
+	scope, err := branchScope(ctx, queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := queries.ListGroupRoster(ctx, db.ListGroupRosterParams{GroupID: groupUUID, OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}

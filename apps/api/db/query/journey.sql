@@ -1,18 +1,26 @@
 -- name: UpsertPilgrimJourneyStatus :one
 INSERT INTO pilgrim_journey_status (operator_id, pilgrim_id, status, updated_by, notes)
-VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (pilgrim_id) DO UPDATE SET status = $3, updated_by = $4, notes = $5, updated_at = NOW()
+SELECT sqlc.arg(operator_id), p.id, sqlc.arg(status), sqlc.arg(updated_by), sqlc.arg(notes)
+FROM pilgrims p
+WHERE p.id = sqlc.arg(pilgrim_id) AND p.operator_id = sqlc.arg(operator_id)
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
+ON CONFLICT (pilgrim_id) DO UPDATE SET status = sqlc.arg(status), updated_by = sqlc.arg(updated_by), notes = sqlc.arg(notes), updated_at = NOW()
 RETURNING *;
 
 -- name: InsertPilgrimJourneyLog :exec
 INSERT INTO pilgrim_journey_log (operator_id, pilgrim_id, from_status, to_status, updated_by, notes)
-VALUES ($1, $2, $3, $4, $5, $6);
+SELECT sqlc.arg(operator_id), p.id, sqlc.arg(from_status), sqlc.arg(to_status), sqlc.arg(updated_by), sqlc.arg(notes)
+FROM pilgrims p
+WHERE p.id = sqlc.arg(pilgrim_id) AND p.operator_id = sqlc.arg(operator_id)
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: GetPilgrimJourneyStatus :one
 SELECT s.*, COALESCE(u.name, '') AS updated_by_name
 FROM pilgrim_journey_status s
+JOIN pilgrims p ON p.id = s.pilgrim_id AND p.operator_id = s.operator_id
 LEFT JOIN "user" u ON u.id = s.updated_by
-WHERE s.pilgrim_id = $1 AND s.operator_id = $2;
+WHERE s.pilgrim_id = sqlc.arg(pilgrim_id) AND s.operator_id = sqlc.arg(operator_id)
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: ListJourneyStatusesByKloter :many
 -- One row per non-substituted pilgrim in the kloter — pilgrims with no
@@ -22,11 +30,13 @@ WHERE s.pilgrim_id = $1 AND s.operator_id = $2;
 SELECT p.id AS pilgrim_id, COALESCE(s.status, 'REGISTERED') AS status
 FROM pilgrims p
 LEFT JOIN pilgrim_journey_status s ON s.pilgrim_id = p.id
-WHERE p.operator_id = $1 AND p.kloter_id = $2 AND p.is_substituted = false;
+WHERE p.operator_id = sqlc.arg(operator_id) AND p.kloter_id = sqlc.arg(kloter_id) AND p.is_substituted = false
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: CountJourneyStatusesByKloter :many
 SELECT COALESCE(s.status, 'REGISTERED') AS status, COUNT(*)::int AS count
 FROM pilgrims p
 LEFT JOIN pilgrim_journey_status s ON s.pilgrim_id = p.id
-WHERE p.operator_id = $1 AND p.kloter_id = $2 AND p.is_substituted = false
+WHERE p.operator_id = sqlc.arg(operator_id) AND p.kloter_id = sqlc.arg(kloter_id) AND p.is_substituted = false
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 GROUP BY COALESCE(s.status, 'REGISTERED');
