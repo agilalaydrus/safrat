@@ -245,6 +245,10 @@ kamar bersama tidak dapat terpesan melebihi kapasitas oleh dua cabang
 okupansi ditambahkan, identitas lintas cabang disembunyikan tanpa memalsukan
 sisa kapasitas, seluruh jamaah dimuat bertahap, dan panel penempatan kini
 memakai drawer aksesibel bersama (`56c817d`).
+Status perjalanan jamaah kini dipagari untuk baca, agregat kloter, mutasi,
+log, dan cascade grup/kloter langsung di query/repository. Uji dua arah
+memastikan kepala Bandung tidak dapat melihat atau mengubah status perjalanan
+Medan, sementara kantor pusat tetap operator-wide (`0027bf8`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
