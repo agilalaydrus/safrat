@@ -22,7 +22,11 @@ func (r *MonitoringRepository) ListActiveSOS(ctx context.Context, operatorID, se
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListActiveSOSForSeason(ctx, db.ListActiveSOSForSeasonParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListActiveSOSForSeason(ctx, db.ListActiveSOSForSeasonParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +46,11 @@ func (r *MonitoringRepository) ListOpenHealthReports(ctx context.Context, operat
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListOpenHealthReportsForSeason(ctx, db.ListOpenHealthReportsForSeasonParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListOpenHealthReportsForSeason(ctx, db.ListOpenHealthReportsForSeasonParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +70,11 @@ func (r *MonitoringRepository) ListGroupRitualProgress(ctx context.Context, oper
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListGroupRitualProgressForSeason(ctx, db.ListGroupRitualProgressForSeasonParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListGroupRitualProgressForSeason(ctx, db.ListGroupRitualProgressForSeasonParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +95,11 @@ func (r *MonitoringRepository) ListReturnTimeline(ctx context.Context, operatorI
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListReturnTimelineForSeason(ctx, db.ListReturnTimelineForSeasonParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListReturnTimelineForSeason(ctx, db.ListReturnTimelineForSeasonParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}

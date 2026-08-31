@@ -4,6 +4,7 @@ FROM sos_alerts s
 JOIN pilgrims p ON p.id = s.pilgrim_id
 LEFT JOIN groups g ON g.id = p.group_id
 WHERE s.operator_id = $1 AND p.season_id = $2 AND s.status IN ('ACTIVE','ACKNOWLEDGED','ESCALATED')
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY s.created_at DESC;
 
 -- name: ListOpenHealthReportsForSeason :many
@@ -12,6 +13,7 @@ FROM pilgrim_health_reports hr
 JOIN pilgrims p ON p.id = hr.pilgrim_id
 JOIN groups g ON g.id = hr.group_id
 WHERE hr.operator_id = $1 AND p.season_id = $2 AND hr.resolved = false
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY hr.created_at DESC;
 
 -- name: ListGroupRitualProgressForSeason :many
@@ -28,8 +30,10 @@ JOIN seasons s ON s.id = g.season_id
 LEFT JOIN ritual_templates rt ON rt.operator_id = g.operator_id
   AND rt.season_type = (CASE WHEN s.type = 'HAJJ' THEN 'HAJJ' ELSE 'UMRAH' END)
 LEFT JOIN pilgrims p ON p.group_id = g.id AND p.is_substituted = false
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 LEFT JOIN pilgrim_rituals pr ON pr.pilgrim_id = p.id AND pr.ritual_id = rt.id
 WHERE g.operator_id = $1 AND g.season_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR EXISTS (SELECT 1 FROM pilgrims gp WHERE gp.group_id=g.id AND gp.branch_id=sqlc.narg(branch_scope)::uuid))
 GROUP BY g.id;
 
 -- name: ListReturnTimelineForSeason :many
@@ -42,6 +46,7 @@ SELECT k.id AS kloter_id, k.code AS kloter_code, m.scheduled_at AS return_at,
 FROM kloters k
 JOIN movements m ON m.kloter_id = k.id AND m.mode = 'FLIGHT' AND m.trip_leg = 'RETURN'
 LEFT JOIN pilgrims p ON p.kloter_id = k.id AND p.is_substituted = false
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 LEFT JOIN pilgrim_journey_status js ON js.pilgrim_id = p.id
 WHERE k.operator_id = $1 AND k.season_id = $2
   AND m.scheduled_at BETWEEN NOW() AND NOW() + INTERVAL '7 days'
