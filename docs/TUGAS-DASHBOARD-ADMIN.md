@@ -219,6 +219,9 @@ sekarang dibatasi oleh cabang di repository (`ba05834`). Laporan kesehatan
 individual—termasuk list, cek kondisi BERAT untuk aturan perjalanan, pembuatan,
 dan penyelesaian laporan—kini dipagari kembali di repository; uji integrasi
 dua arah memastikan kepala Bandung tidak dapat menyentuh data Medan (`d93b4ab`).
+Alert SOS individual dan daftar SOS per kloter juga kini memakai batas cabang
+yang sama saat dibaca, dikonfirmasi, atau diselesaikan; uji integrasi dua arah
+mengunci perilaku tersebut (`970da01`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
