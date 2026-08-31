@@ -225,6 +225,9 @@ mengunci perilaku tersebut (`970da01`).
 Laporan jamaah hilang, yang mencakup koordinat dan nomor telepon, kini dibatasi
 untuk daftar serta penyelesaian di repository; tes dua arah membuktikan cabang
 tidak dapat mengubah laporan cabang lain (`a216849`).
+Pembatalan jamaah dan riwayat refund sekarang juga dipagari langsung di
+repository, termasuk transaksi pembatalan atomik; test dua arah memverifikasi
+Bandung tidak dapat melihat atau membatalkan jamaah Medan (`7117fb3`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
