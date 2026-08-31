@@ -222,6 +222,9 @@ dua arah memastikan kepala Bandung tidak dapat menyentuh data Medan (`d93b4ab`).
 Alert SOS individual dan daftar SOS per kloter juga kini memakai batas cabang
 yang sama saat dibaca, dikonfirmasi, atau diselesaikan; uji integrasi dua arah
 mengunci perilaku tersebut (`970da01`).
+Laporan jamaah hilang, yang mencakup koordinat dan nomor telepon, kini dibatasi
+untuk daftar serta penyelesaian di repository; tes dua arah membuktikan cabang
+tidak dapat mengubah laporan cabang lain (`a216849`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
