@@ -55,6 +55,14 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], storageState: "./e2e/.auth/operator.json" },
     },
     {
+      // Product-level smoke coverage for dashboard modules that combine live
+      // RPC data, responsive layout, action states and detail interactions.
+      name: "dashboard-ui",
+      dependencies: ["setup"],
+      testMatch: /dashboard-.*\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], storageState: "./e2e/.auth/operator.json" },
+    },
+    {
       // Uses its own short-lived account and no saved storage state: the spec
       // deliberately signs out and back in to exercise the real pending 2FA
       // cookie, a one-use backup code, and management step-up grants.

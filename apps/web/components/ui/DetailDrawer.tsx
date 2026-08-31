@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode, type RefObject } from "react";
 import { IconX } from "@tabler/icons-react";
 
 interface DetailDrawerProps {
@@ -12,6 +12,7 @@ interface DetailDrawerProps {
   footer?: ReactNode;
   closeLabel?: string;
   className?: string;
+  initialFocusRef?: RefObject<HTMLElement | null>;
 }
 
 const FOCUSABLE_SELECTOR = [
@@ -32,6 +33,7 @@ export function DetailDrawer({
   footer,
   closeLabel = "Tutup panel detail",
   className,
+  initialFocusRef,
 }: DetailDrawerProps) {
   const titleId = useId();
   const drawerRef = useRef<HTMLElement>(null);
@@ -43,7 +45,7 @@ export function DetailDrawer({
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    closeRef.current?.focus();
+    (initialFocusRef?.current ?? closeRef.current)?.focus();
 
     function handleKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === "Escape") {
@@ -76,7 +78,7 @@ export function DetailDrawer({
       document.body.style.overflow = previousOverflow;
       previousFocus?.focus();
     };
-  }, [onClose, open]);
+  }, [initialFocusRef, onClose, open]);
 
   if (!open) return null;
 
