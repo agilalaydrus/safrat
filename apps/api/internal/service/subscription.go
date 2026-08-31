@@ -10,6 +10,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/hajj-saas/api/internal/apperror"
+	"github.com/hajj-saas/api/internal/domain"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/payment"
 	"github.com/hajj-saas/api/internal/repository"
@@ -35,15 +36,16 @@ func (t TransferAccount) configured() bool {
 }
 
 type SubscriptionService struct {
-	repository         *repository.SubscriptionRepository
-	operatorRepository *repository.OperatorRepository
-	xenditClient       *payment.Client
-	transferAccount    TransferAccount
-	appBaseURL         string
+	repository            *repository.SubscriptionRepository
+	operatorRepository    *repository.OperatorRepository
+	entitlementRepository *repository.EntitlementRepository
+	xenditClient          *payment.Client
+	transferAccount       TransferAccount
+	appBaseURL            string
 }
 
-func NewSubscriptionService(subscriptions *repository.SubscriptionRepository, operators *repository.OperatorRepository, xendit *payment.Client, transfer TransferAccount, appBaseURL string) *SubscriptionService {
-	return &SubscriptionService{repository: subscriptions, operatorRepository: operators, xenditClient: xendit, transferAccount: transfer, appBaseURL: appBaseURL}
+func NewSubscriptionService(subscriptions *repository.SubscriptionRepository, operators *repository.OperatorRepository, entitlements *repository.EntitlementRepository, xendit *payment.Client, transfer TransferAccount, appBaseURL string) *SubscriptionService {
+	return &SubscriptionService{repository: subscriptions, operatorRepository: operators, entitlementRepository: entitlements, xenditClient: xendit, transferAccount: transfer, appBaseURL: appBaseURL}
 }
 
 func (s *SubscriptionService) GetMine(ctx context.Context, orgID string) (*hajjv1.GetMySubscriptionResponse, error) {
@@ -69,11 +71,34 @@ func (s *SubscriptionService) GetMine(ctx context.Context, orgID string) (*hajjv
 		BankTransferAvailable: s.transferAccount.configured(),
 		GatewayAvailable:      s.xenditClient != nil && s.xenditClient.Configured(),
 	}
+	entitlement, err := s.entitlementRepository.Get(ctx, operator.ID)
+	if err != nil {
+		return nil, serviceError("SubscriptionService.GetMine", err)
+	}
+	response.Entitlement = entitlementMessage(entitlement)
 	pending, err := s.repository.PendingInvoice(ctx, operator.ID)
 	if err == nil {
 		response.PendingInvoice = invoiceMessage(pending)
 	}
 	return response, nil
+}
+
+func entitlementMessage(entitlement domain.Entitlement) *hajjv1.EntitlementUsage {
+	message := &hajjv1.EntitlementUsage{
+		PilgrimCount: entitlement.PilgrimCount, ActiveBranchCount: entitlement.BranchCount,
+		BranchesEnabled: entitlement.Features["branches"],
+	}
+	if entitlement.MaxPilgrims == nil {
+		message.PilgrimsUnlimited = true
+	} else {
+		message.MaxPilgrims = *entitlement.MaxPilgrims
+	}
+	if entitlement.MaxBranches == nil {
+		message.BranchesUnlimited = true
+	} else {
+		message.MaxBranches = *entitlement.MaxBranches
+	}
+	return message
 }
 
 func (s *SubscriptionService) ListMine(ctx context.Context, orgID string, limit int32) (*hajjv1.ListMyInvoicesResponse, error) {

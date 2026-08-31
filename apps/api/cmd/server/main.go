@@ -274,7 +274,7 @@ func main() {
 		checklistService := service.NewChecklistService(operatorRepository, pilgrimRepository, checklistRepository)
 		lostReportService := service.NewLostReportService(operatorRepository, pilgrimRepository, lostReportRepository, groupLeaderRepository, firebasePusher)
 		tripService := service.NewTripService(operatorRepository, tripRepository, pilgrimRepository, sosRepository, groupLeaderRepository, transportRepository, kloterService)
-		subscriptionService := service.NewSubscriptionService(subscriptionRepository, operatorRepository, xenditClient, service.TransferAccount{
+		subscriptionService := service.NewSubscriptionService(subscriptionRepository, operatorRepository, entitlementRepository, xenditClient, service.TransferAccount{
 			BankName:      strings.TrimSpace(os.Getenv("SUBSCRIPTION_BANK_NAME")),
 			AccountNumber: strings.TrimSpace(os.Getenv("SUBSCRIPTION_BANK_ACCOUNT")),
 			AccountHolder: strings.TrimSpace(os.Getenv("SUBSCRIPTION_BANK_HOLDER")),

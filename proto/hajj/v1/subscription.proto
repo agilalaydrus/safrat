@@ -57,6 +57,19 @@ message GetMySubscriptionResponse {
   // method it cannot finish rather than letting an operator pick it and fail.
   bool bank_transfer_available = 9;
   bool gateway_available = 10;
+  EntitlementUsage entitlement = 11;
+}
+
+// Effective plan limits after a possible per-operator override. A zero max
+// with unlimited=false is a deliberate limit; unlimited avoids overloading 0.
+message EntitlementUsage {
+  int32 pilgrim_count = 1;
+  int32 max_pilgrims = 2;
+  bool pilgrims_unlimited = 3;
+  int32 active_branch_count = 4;
+  int32 max_branches = 5;
+  bool branches_unlimited = 6;
+  bool branches_enabled = 7;
 }
 
 message ListMyInvoicesRequest {

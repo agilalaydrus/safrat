@@ -843,6 +843,15 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-seri
 }
 .dashboard-nav-item:hover { background: var(--color-cream-200); color: var(--dashboard-ink); }
 .dashboard-nav-item:active { transform: translateY(1px); }
+.dashboard-nav-item.is-locked {
+  width: 100%;
+  justify-content: flex-start;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.dashboard-nav-item.is-locked > svg { margin-left: auto; color: var(--color-warm-400); }
+.dashboard-nav-item.is-locked:focus-visible { outline: 0; box-shadow: 0 0 0 4px color-mix(in srgb, var(--dashboard-accent) 18%, transparent); }
 .dashboard-nav-item.is-active {
   border-color: transparent;
   background: var(--dashboard-accent-soft);

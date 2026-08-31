@@ -109,6 +109,16 @@ export default function SubscriptionPage() {
         </p>
       </section>}
 
+      {subscription?.entitlement && <section style={card} aria-labelledby="usage-title">
+        <p style={eyebrow}>PEMAKAIAN PAKET</p>
+        <h2 id="usage-title" style={sectionTitle}>Kapasitas yang sedang digunakan</h2>
+        <div style={usageGrid}>
+          <UsageMeter label="Jamaah" used={subscription.entitlement.pilgrimCount} max={subscription.entitlement.maxPilgrims} unlimited={subscription.entitlement.pilgrimsUnlimited} />
+          <UsageMeter label="Cabang" used={subscription.entitlement.activeBranchCount} max={subscription.entitlement.maxBranches} unlimited={subscription.entitlement.branchesUnlimited} locked={!subscription.entitlement.branchesEnabled} />
+        </div>
+        {!subscription.entitlement.branchesEnabled && <p style={hint}><IconLock size={15} /> Fitur Cabang tersedia mulai paket Growth. Upgrade untuk mengelola target dan laporan tiap cabang.</p>}
+      </section>}
+
       {error && <p style={errorBox}>{error}</p>}
 
       {pending
@@ -193,6 +203,16 @@ export default function SubscriptionPage() {
   </main>;
 }
 
+function UsageMeter({ label, used, max, unlimited, locked }: { label: string; used: number; max: number; unlimited: boolean; locked?: boolean }) {
+  const limit = unlimited ? "Tanpa batas" : `${used} / ${max}`;
+  const progress = unlimited ? 8 : max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0;
+  return <div style={usageItem}>
+    <div style={usageLabel}><span>{label}</span>{locked && <IconLock size={14} aria-label="Terkunci" />}</div>
+    <strong style={usageValue}>{limit}</strong>
+    <div style={usageTrack} aria-label={`${label}: ${limit}`}><span style={{ ...usageFill, width: `${progress}%` }} /></div>
+  </div>;
+}
+
 const page: React.CSSProperties = { minHeight: "100dvh", background: "var(--color-cream-100)", padding: "28px 16px 64px" };
 const wrap: React.CSSProperties = { maxWidth: 720, margin: "0 auto", display: "grid", gap: 18 };
 const backLink: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-warm-500)", fontSize: 13, fontWeight: 600, textDecoration: "none" };
@@ -233,3 +253,9 @@ const badgePaid: React.CSSProperties = { ...badgeBase, color: "var(--color-emera
 const badgePending: React.CSSProperties = { ...badgeBase, color: "#b45309", background: "#fef3c7" };
 const badgeStale: React.CSSProperties = { ...badgeBase, color: "var(--color-warm-400)", background: "var(--color-cream-200)" };
 const errorBox: React.CSSProperties = { margin: 0, border: "1px solid var(--color-danger-600)", borderRadius: 10, background: "#fff", padding: "10px 12px", color: "var(--color-danger-600)", fontSize: 13 };
+const usageGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 };
+const usageItem: React.CSSProperties = { display: "grid", gap: 7, border: "1px solid var(--color-cream-400)", borderRadius: 12, padding: 14 };
+const usageLabel: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", color: "var(--color-warm-500)", fontSize: 12, fontWeight: 700 };
+const usageValue: React.CSSProperties = { color: "var(--color-emerald-900)", fontSize: 20 };
+const usageTrack: React.CSSProperties = { height: 7, overflow: "hidden", borderRadius: 99, background: "var(--color-cream-200)" };
+const usageFill: React.CSSProperties = { display: "block", height: "100%", borderRadius: 99, background: "var(--color-emerald-700)", transition: "width 700ms ease-out" };

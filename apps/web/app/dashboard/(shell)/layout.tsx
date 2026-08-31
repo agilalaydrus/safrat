@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   IconBuildingHospital,
+  IconBuildingCommunity,
   IconBus,
   IconCalendar,
   IconCalendarEvent,
@@ -18,6 +19,7 @@ import {
   IconHeartHandshake,
   IconHome,
   IconLayoutDashboard,
+  IconLock,
   IconLogout,
   IconMapPinExclamation,
   IconMenu2,
@@ -38,12 +40,12 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { authClient } from "@/lib/auth-client";
-import { operatorClient, seasonClient } from "@/lib/rpc";
+import { operatorClient, seasonClient, subscriptionClient } from "@/lib/rpc";
 import { RequireAccess } from "@/components/auth/RequireAccess";
 import { RequireTwoFactor } from "@/components/auth/RequireTwoFactor";
 import { invalidateMyAccessCache } from "@/lib/access-cache";
 
-type NavItem = readonly [label: string, href: string, icon: typeof IconLayoutDashboard];
+type NavItem = readonly [label: string, href: string, icon: typeof IconLayoutDashboard, feature?: "branches"];
 type NavGroup = { readonly label: string; readonly items: readonly NavItem[] };
 
 const nav: readonly NavGroup[] = [
@@ -84,6 +86,7 @@ const nav: readonly NavGroup[] = [
       ["Pesanan", "/dashboard/orders", IconReceipt2],
       ["Refund & Saldo", "/dashboard/refunds", IconWallet],
       ["Tour Leader", "/dashboard/agents", IconUserDollar],
+      ["Cabang", "/dashboard/cabang", IconBuildingCommunity, "branches"],
     ],
   },
   {
@@ -103,6 +106,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [open, setOpen] = useState(false);
   const [operator, setOperator] = useState("");
   const [season, setSeason] = useState("");
+  const [branchesEnabled, setBranchesEnabled] = useState<boolean>();
 
   useEffect(() => {
     operatorClient.getMyOperator({}).then((value) => setOperator(value.name)).catch(async (err) => {
@@ -132,6 +136,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [router]);
 
   useEffect(() => setOpen(false), [pathname]);
+
+  useEffect(() => {
+    subscriptionClient.getMySubscription({}).then((value) => {
+      setBranchesEnabled(value.entitlement?.branchesEnabled ?? false);
+    }).catch(() => setBranchesEnabled(false));
+  }, []);
 
   async function signOut() {
     await authClient.signOut();
@@ -170,14 +180,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <section className="dashboard-nav-group" key={group.label || groupIndex} aria-label={group.label || "Utama"}>
             {group.label && <p className="dashboard-nav-label">{group.label}</p>}
             <ul className="dashboard-nav-list">
-              {group.items.map(([label, href, Icon]) => {
+              {group.items.map(([label, href, Icon, feature]) => {
                 const active = isActiveRoute(pathname, href);
+                const locked = feature === "branches" && branchesEnabled === false;
                 return (
                   <li key={href}>
-                    <Link className={`dashboard-nav-item${active ? " is-active" : ""}`} href={href} aria-current={active ? "page" : undefined}>
+                    {locked ? <button type="button" className="dashboard-nav-item is-locked" onClick={() => router.push("/dashboard/langganan")} aria-label="Cabang tersedia mulai paket Growth">
+                      <span className="dashboard-nav-icon"><Icon size={18} stroke={1.8} aria-hidden /></span>
+                      <span>{label}</span><IconLock size={14} aria-hidden />
+                    </button> : <Link className={`dashboard-nav-item${active ? " is-active" : ""}`} href={href} aria-current={active ? "page" : undefined}>
                       <span className="dashboard-nav-icon"><Icon size={18} stroke={1.8} aria-hidden /></span>
                       <span>{label}</span>
-                    </Link>
+                    </Link>}
                   </li>
                 );
               })}
