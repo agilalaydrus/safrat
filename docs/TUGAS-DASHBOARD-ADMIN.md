@@ -184,7 +184,8 @@ tempat membuat keduanya berhenti dibaca.
 - [x] Agregasi laporan per cabang — omzet bersih, jamaah, agen, capaian
       target, kolektibilitas, kesiapan dokumen, dan tren 12 bulan; laporan
       kepala cabang tetap dipaksa hanya untuk cabangnya (`f72cbf6`)
-- [ ] Layar `/dashboard/cabang` sesuai §4.2 DESAIN
+- [x] Layar `/dashboard/cabang` sesuai §4.2 DESAIN (`971a182`; data performa
+      nyata melalui BranchService, dengan menu terkunci oleh entitlement)
 - [x] Uji **dua arah**: kepala cabang Bandung **bisa** melihat jamaahnya, dan
       **tidak bisa** melihat jamaah Medan (`6af60db`, integration test langsung
       di lapisan repository)
