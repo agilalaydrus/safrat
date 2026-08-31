@@ -16,20 +16,34 @@ func NewHealthReportRepository(queries *db.Queries) *HealthReportRepository {
 }
 
 func (r *HealthReportRepository) Create(ctx context.Context, operatorID, pilgrimID, groupID, reportedByUserID, severity, symptoms, actionTaken string) (*domain.HealthReport, error) {
-	return createHealthReport(ctx, r.queries, operatorID, pilgrimID, groupID, reportedByUserID, severity, symptoms, actionTaken)
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return createHealthReport(ctx, r.queries, opUUID, scope, pilgrimID, groupID, reportedByUserID, severity, symptoms, actionTaken)
 }
 
 // CreateTx is the transactional variant — used so the report insert and the
 // outbox event that fans out its BERAT push commit atomically.
 func (r *HealthReportRepository) CreateTx(ctx context.Context, tx pgx.Tx, operatorID, pilgrimID, groupID, reportedByUserID, severity, symptoms, actionTaken string) (*domain.HealthReport, error) {
-	return createHealthReport(ctx, r.queries.WithTx(tx), operatorID, pilgrimID, groupID, reportedByUserID, severity, symptoms, actionTaken)
-}
-
-func createHealthReport(ctx context.Context, q *db.Queries, operatorID, pilgrimID, groupID, reportedByUserID, severity, symptoms, actionTaken string) (*domain.HealthReport, error) {
 	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	// Resolve the actor's branch through the same transaction so a concurrent
+	// membership change cannot widen this write after the scope was checked.
+	scope, err := branchScope(ctx, r.queries.WithTx(tx), opUUID)
 	if err != nil {
 		return nil, err
 	}
+	return createHealthReport(ctx, r.queries.WithTx(tx), opUUID, scope, pilgrimID, groupID, reportedByUserID, severity, symptoms, actionTaken)
+}
+
+func createHealthReport(ctx context.Context, q *db.Queries, opUUID, scope pgtype.UUID, pilgrimID, groupID, reportedByUserID, severity, symptoms, actionTaken string) (*domain.HealthReport, error) {
 	pilgrimUUID, err := pgUUID(pilgrimID)
 	if err != nil {
 		return nil, err
@@ -39,12 +53,12 @@ func createHealthReport(ctx context.Context, q *db.Queries, operatorID, pilgrimI
 		return nil, err
 	}
 	v, err := q.CreateHealthReport(ctx, db.CreateHealthReportParams{
-		OperatorID: opUUID, PilgrimID: pilgrimUUID, GroupID: groupUUID,
+		OperatorID: opUUID, PilgrimID: pilgrimUUID, GroupID: groupUUID, BranchScope: scope,
 		ReportedBy: pgtype.Text{String: reportedByUserID, Valid: reportedByUserID != ""},
 		Severity:   db.HealthSeverity(severity), Symptoms: symptoms, ActionTaken: actionTaken,
 	})
 	if err != nil {
-		return nil, err
+		return nil, databaseError(err)
 	}
 	return &domain.HealthReport{ID: uuidString(v.ID), PilgrimID: uuidString(v.PilgrimID), GroupID: uuidString(v.GroupID), Severity: string(v.Severity), Symptoms: v.Symptoms, ActionTaken: v.ActionTaken, Resolved: v.Resolved, ResolvedAt: timestamptzPtr(v.ResolvedAt), CreatedAt: v.CreatedAt.Time}, nil
 }
@@ -58,7 +72,11 @@ func (r *HealthReportRepository) List(ctx context.Context, operatorID string, re
 	if resolved != nil {
 		param = pgtype.Bool{Bool: *resolved, Valid: true}
 	}
-	rows, err := r.queries.ListHealthReports(ctx, db.ListHealthReportsParams{OperatorID: opUUID, Resolved: param})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListHealthReports(ctx, db.ListHealthReportsParams{OperatorID: opUUID, Resolved: param, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -81,9 +99,13 @@ func (r *HealthReportRepository) Resolve(ctx context.Context, operatorID, report
 	if err != nil {
 		return nil, err
 	}
-	v, err := r.queries.ResolveHealthReport(ctx, db.ResolveHealthReportParams{ID: reportUUID, OperatorID: opUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
 	if err != nil {
 		return nil, err
+	}
+	v, err := r.queries.ResolveHealthReport(ctx, db.ResolveHealthReportParams{ID: reportUUID, OperatorID: opUUID, BranchScope: scope})
+	if err != nil {
+		return nil, databaseError(err)
 	}
 	return &domain.HealthReport{ID: uuidString(v.ID), PilgrimID: uuidString(v.PilgrimID), GroupID: uuidString(v.GroupID), Severity: string(v.Severity), Symptoms: v.Symptoms, ActionTaken: v.ActionTaken, Resolved: v.Resolved, ResolvedAt: timestamptzPtr(v.ResolvedAt), CreatedAt: v.CreatedAt.Time}, nil
 }
@@ -97,5 +119,9 @@ func (r *HealthReportRepository) HasOpenSevere(ctx context.Context, operatorID, 
 	if err != nil {
 		return false, err
 	}
-	return r.queries.HasOpenSevereHealthReport(ctx, db.HasOpenSevereHealthReportParams{PilgrimID: pilgrimUUID, OperatorID: opUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return false, err
+	}
+	return r.queries.HasOpenSevereHealthReport(ctx, db.HasOpenSevereHealthReportParams{PilgrimID: pilgrimUUID, OperatorID: opUUID, BranchScope: scope})
 }
