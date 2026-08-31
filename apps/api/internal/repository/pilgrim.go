@@ -712,6 +712,12 @@ func databaseError(err error) error {
 		return apperror.ErrNotFound
 	}
 	var pgError *pgconn.PgError
+	if errors.As(err, &pgError) && pgError.Code == "23514" {
+		switch pgError.ConstraintName {
+		case "operator_pilgrim_limit", "operator_branch_limit", "operator_branch_feature":
+			return fmt.Errorf("%w: %s", apperror.ErrFailedPrecondition, pgError.ConstraintName)
+		}
+	}
 	if errors.As(err, &pgError) && pgError.Code == "23505" {
 		// ConstraintName lets the caller tell "this passport is already
 		// registered" apart from "this email is already registered" —

@@ -33,8 +33,8 @@ func TestAgentRepositoryEnforcesBranchScopeIntegration(t *testing.T) {
 			t.Fatalf("fixture: %v", err)
 		}
 	}
-	exec(`INSERT INTO operators (id, better_auth_org_id, name, country, email, slug)
-	      VALUES ($1,$2,'Agent Scope Test','ID',$3,$4)`, operatorID,
+	exec(`INSERT INTO operators (id, better_auth_org_id, name, country, email, slug, plan)
+	      VALUES ($1,$2,'Agent Scope Test','ID',$3,$4,'GROWTH')`, operatorID,
 		"agent-scope-"+uuid.NewString(), operatorID[:8]+"@example.test", "agent-"+operatorID[:8])
 	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), `DELETE FROM operators WHERE id = $1`, operatorID) })
 	exec(`INSERT INTO branches (id, operator_id, name, city) VALUES ($1,$3,'Bandung','Bandung'),($2,$3,'Medan','Medan')`, bandungID, medanID, operatorID)

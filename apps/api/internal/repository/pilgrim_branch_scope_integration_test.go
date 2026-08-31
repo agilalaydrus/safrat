@@ -41,8 +41,8 @@ func TestPilgrimRepositoryEnforcesBranchScopeBothWaysIntegration(t *testing.T) {
 			t.Fatalf("fixture: %v", err)
 		}
 	}
-	exec(`INSERT INTO operators (id, better_auth_org_id, name, country, email, slug)
-	      VALUES ($1,$2,'Cabang Scope Test','ID',$3,$4)`,
+	exec(`INSERT INTO operators (id, better_auth_org_id, name, country, email, slug, plan)
+	      VALUES ($1,$2,'Cabang Scope Test','ID',$3,$4,'GROWTH')`,
 		operatorID, "branch-scope-"+uuid.NewString(), operatorID[:8]+"@example.test", "scope-"+operatorID[:8])
 	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), `DELETE FROM operators WHERE id = $1`, operatorID) })
 	exec(`INSERT INTO seasons (id, operator_id, name, type, start_date, end_date, capacity)
