@@ -118,6 +118,7 @@ func main() {
 		outboxRepository := repository.NewOutboxRepository(queries)
 		monitoringRepository := repository.NewMonitoringRepository(queries)
 		analyticsRepository := repository.NewAnalyticsRepository(queries)
+		branchRepository := repository.NewBranchRepository(queries)
 		entitlementRepository := repository.NewEntitlementRepository(queries)
 		storefrontRepository := repository.NewStorefrontRepository(pool)
 		storefrontAssetRepository := repository.NewStorefrontAssetRepository(pool)
@@ -279,8 +280,10 @@ func main() {
 			AccountNumber: strings.TrimSpace(os.Getenv("SUBSCRIPTION_BANK_ACCOUNT")),
 			AccountHolder: strings.TrimSpace(os.Getenv("SUBSCRIPTION_BANK_HOLDER")),
 		}, config.AllowedOrigin)
+		branchService := service.NewBranchService(operatorRepository, branchRepository, service.NewEntitlementChecker(entitlementRepository))
 		operatorHandler := handler.NewOperatorHandler(operatorService)
 		subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService)
+		branchHandler := handler.NewBranchHandler(branchService)
 		pilgrimHandler := handler.NewPilgrimHandler(pilgrimService)
 		seasonHandler := handler.NewSeasonHandler(seasonService)
 		accommodationHandler := handler.NewAccommodationHandler(accommodationService)
@@ -346,6 +349,7 @@ func main() {
 		)}
 		operatorPath, operatorServiceHandler := hajjv1connect.NewOperatorServiceHandler(operatorHandler, handlerOptions...)
 		subscriptionPath, subscriptionServiceHandler := hajjv1connect.NewSubscriptionServiceHandler(subscriptionHandler, handlerOptions...)
+		branchPath, branchServiceHandler := hajjv1connect.NewBranchServiceHandler(branchHandler, handlerOptions...)
 		pilgrimPath, pilgrimServiceHandler := hajjv1connect.NewPilgrimServiceHandler(pilgrimHandler, handlerOptions...)
 		seasonPath, seasonServiceHandler := hajjv1connect.NewSeasonServiceHandler(seasonHandler, handlerOptions...)
 		accommodationPath, accommodationServiceHandler := hajjv1connect.NewAccommodationServiceHandler(accommodationHandler, handlerOptions...)
@@ -382,6 +386,7 @@ func main() {
 		monitoringPath, monitoringServiceHandler := hajjv1connect.NewMonitoringServiceHandler(monitoringHandler, handlerOptions...)
 		mux.Handle(operatorPath, operatorServiceHandler)
 		mux.Handle(subscriptionPath, subscriptionServiceHandler)
+		mux.Handle(branchPath, branchServiceHandler)
 		mux.Handle(pilgrimPath, pilgrimServiceHandler)
 		mux.Handle(seasonPath, seasonServiceHandler)
 		mux.Handle(accommodationPath, accommodationServiceHandler)

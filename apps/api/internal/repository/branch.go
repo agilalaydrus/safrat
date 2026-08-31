@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 
+	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	"github.com/hajj-saas/api/internal/gen/db"
 )
@@ -39,6 +40,74 @@ func (r *BranchRepository) List(ctx context.Context, operatorID string, includeI
 
 func branchFromRow(row db.ListBranchesRow) domain.Branch {
 	return domain.Branch{ID: uuidString(row.ID), OperatorID: uuidString(row.OperatorID), Name: row.Name, City: row.City, TargetPilgrims: row.TargetPilgrims, TargetRevenueIDR: row.TargetRevenueIdr, HeadUserID: row.HeadUserID, Phone: row.Phone, BankName: row.BankName, AccountNumber: row.AccountNumber, AccountHolder: row.AccountHolder, IsActive: row.IsActive, CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time}
+}
+
+func branchFromDB(row db.Branch) domain.Branch {
+	return domain.Branch{ID: uuidString(row.ID), OperatorID: uuidString(row.OperatorID), Name: row.Name, City: row.City, TargetPilgrims: row.TargetPilgrims, TargetRevenueIDR: row.TargetRevenueIdr, Phone: row.Phone, BankName: row.BankName, AccountNumber: row.AccountNumber, AccountHolder: row.AccountHolder, IsActive: row.IsActive, CreatedAt: row.CreatedAt.Time, UpdatedAt: row.UpdatedAt.Time}
+}
+
+func (r *BranchRepository) Create(ctx context.Context, operatorID string, value domain.Branch) (*domain.Branch, error) {
+	op, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	scope, err := branchScope(ctx, r.queries, op)
+	if err != nil {
+		return nil, err
+	}
+	if scope.Valid {
+		return nil, apperror.ErrForbidden
+	}
+	row, err := r.queries.CreateBranch(ctx, db.CreateBranchParams{OperatorID: op, Name: value.Name, City: value.City, TargetPilgrims: value.TargetPilgrims, TargetRevenueIdr: value.TargetRevenueIDR, Phone: value.Phone, BankName: value.BankName, AccountNumber: value.AccountNumber, AccountHolder: value.AccountHolder, BranchScope: scope})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	result := branchFromDB(row)
+	return &result, nil
+}
+
+func (r *BranchRepository) Update(ctx context.Context, operatorID string, value domain.Branch) (*domain.Branch, error) {
+	op, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	id, err := pgUUID(value.ID)
+	if err != nil {
+		return nil, err
+	}
+	scope, err := branchScope(ctx, r.queries, op)
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.queries.UpdateBranch(ctx, db.UpdateBranchParams{ID: id, OperatorID: op, Name: value.Name, City: value.City, TargetPilgrims: value.TargetPilgrims, TargetRevenueIdr: value.TargetRevenueIDR, Phone: value.Phone, BankName: value.BankName, AccountNumber: value.AccountNumber, AccountHolder: value.AccountHolder, IsActive: value.IsActive, BranchScope: scope})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	result := branchFromDB(row)
+	return &result, nil
+}
+
+func (r *BranchRepository) AssignHead(ctx context.Context, operatorID, branchID, userID string) error {
+	op, err := pgUUID(operatorID)
+	if err != nil {
+		return err
+	}
+	id, err := pgUUID(branchID)
+	if err != nil {
+		return err
+	}
+	scope, err := branchScope(ctx, r.queries, op)
+	if err != nil {
+		return err
+	}
+	if scope.Valid {
+		return apperror.ErrForbidden
+	}
+	if userID == "" {
+		return databaseError(r.queries.ClearBranchHead(ctx, db.ClearBranchHeadParams{BranchID: id, OperatorID: op, BranchScope: scope}))
+	}
+	_, err = r.queries.AssignBranchHead(ctx, db.AssignBranchHeadParams{ID: id, OperatorID: op, BetterAuthUserID: userID, BranchScope: scope})
+	return databaseError(err)
 }
 
 func (r *BranchRepository) GetPerformance(ctx context.Context, operatorID, seasonID string) (*domain.BranchPerformanceReport, error) {

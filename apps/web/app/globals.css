@@ -852,6 +852,12 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-seri
 }
 .dashboard-nav-item.is-locked > svg { margin-left: auto; color: var(--color-warm-400); }
 .dashboard-nav-item.is-locked:focus-visible { outline: 0; box-shadow: 0 0 0 4px color-mix(in srgb, var(--dashboard-accent) 18%, transparent); }
+.branch-table { display: grid; gap: 5px; }
+.branch-row { display: grid; grid-template-columns: minmax(160px,2fr) repeat(4,minmax(90px,1fr)); gap: 14px; align-items: center; border-radius: 12px; padding: 12px; color: var(--color-warm-600); font-size: 13px; }
+.branch-row:not(.branch-head):hover { background: var(--color-cream-100); }
+.branch-row > strong,.branch-row > span { display:flex; align-items:center; gap:7px; }
+.branch-row > strong { color: var(--dashboard-ink); }.branch-row small{display:block;color:var(--dashboard-muted);font-weight:500}.branch-head{color:var(--dashboard-muted);font-size:11px;font-weight:800}.branch-score{font-weight:850;color:var(--dashboard-accent)}
+@media (max-width: 720px){.branch-row{grid-template-columns:1fr 1fr}.branch-head{display:none}.branch-row>strong{grid-column:span 2}.branch-row small{margin-left:auto}}
 .dashboard-nav-item.is-active {
   border-color: transparent;
   background: var(--dashboard-accent-soft);

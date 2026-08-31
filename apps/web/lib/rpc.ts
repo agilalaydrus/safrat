@@ -2,6 +2,7 @@ import { createClient } from "@connectrpc/connect";
 import { AccommodationService } from "@hajj-saas/proto-gen/hajj/v1/accommodation_connect";
 import { AgentService } from "@hajj-saas/proto-gen/hajj/v1/agent_connect";
 import { BroadcastService } from "@hajj-saas/proto-gen/hajj/v1/broadcast_connect";
+import { BranchService } from "@hajj-saas/proto-gen/hajj/v1/branch_connect";
 import { CancellationService } from "@hajj-saas/proto-gen/hajj/v1/cancellation_connect";
 import { CashFlowService } from "@hajj-saas/proto-gen/hajj/v1/cashflow_connect";
 import { ChatService } from "@hajj-saas/proto-gen/hajj/v1/chat_connect";
@@ -38,6 +39,7 @@ import { WaitlistService } from "@hajj-saas/proto-gen/hajj/v1/waitlist_connect";
 import { transport } from "./transport";
 
 export const operatorClient = createClient(OperatorService, transport);
+export const branchClient = createClient(BranchService, transport);
 export const subscriptionClient = createClient(SubscriptionService, transport);
 export const pilgrimClient = createClient(PilgrimService, transport);
 export const seasonClient = createClient(SeasonService, transport);
