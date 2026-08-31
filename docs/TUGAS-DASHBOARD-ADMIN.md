@@ -236,6 +236,15 @@ uji integrasi dua arah (`8b474bc`).
 Manifest kendaraan—termasuk nama, paspor, kebutuhan kursi roda, pemasangan, dan
 pelepasan kursi—kini dibatasi per cabang di repository dan dikunci oleh uji
 integrasi dua arah (`19d050b`).
+Alokasi kamar kini juga dipagari di query/repository untuk manifest, daftar
+penempatan, pemasangan, pelepasan, dan transfer substitusi; uji integrasi dua
+arah memastikan kepala Bandung tidak dapat membaca atau mengubah penghuni
+Medan (`0fa3006`). Kapasitas fisik kamar tetap dihitung operator-wide agar
+kamar bersama tidak dapat terpesan melebihi kapasitas oleh dua cabang
+(`519084b`). UI kamar ikut diselaraskan: kontras kartu diperbaiki, ringkasan
+okupansi ditambahkan, identitas lintas cabang disembunyikan tanpa memalsukan
+sisa kapasitas, seluruh jamaah dimuat bertahap, dan panel penempatan kini
+memakai drawer aksesibel bersama (`56c817d`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
