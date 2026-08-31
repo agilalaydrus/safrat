@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -43,6 +44,10 @@ func TestPlanEntitlementsAreDatabaseEnforcedIntegration(t *testing.T) {
 		if err := insertPilgrim(n); err != nil {
 			t.Fatalf("jamaah ke-%d ditolak sebelum limit: %v", n, err)
 		}
+	}
+	entitlement, err := NewEntitlementRepository(db.New(pool)).Get(ctx, operatorID)
+	if err != nil || entitlement.MaxPilgrims == nil || *entitlement.MaxPilgrims != 200 || entitlement.PilgrimCount != 200 || entitlement.Features["branches"] {
+		t.Fatalf("entitlement STARTER salah: %#v (%v)", entitlement, err)
 	}
 	if err := insertPilgrim(201); !constraintIs(err, "operator_pilgrim_limit") {
 		t.Fatalf("jamaah ke-201 harus diblokir limit STARTER: %v", err)

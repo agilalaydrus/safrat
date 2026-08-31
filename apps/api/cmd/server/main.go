@@ -118,6 +118,7 @@ func main() {
 		outboxRepository := repository.NewOutboxRepository(queries)
 		monitoringRepository := repository.NewMonitoringRepository(queries)
 		analyticsRepository := repository.NewAnalyticsRepository(queries)
+		entitlementRepository := repository.NewEntitlementRepository(queries)
 		storefrontRepository := repository.NewStorefrontRepository(pool)
 		storefrontAssetRepository := repository.NewStorefrontAssetRepository(pool)
 		operatorDomainRepository := repository.NewOperatorDomainRepository(pool)
@@ -239,7 +240,8 @@ func main() {
 		}
 
 		operatorService := service.NewOperatorService(operatorRepository, seasonRepository, storefrontRepository, storefrontAssetRepository, operatorDomainRepository, objectStorage, config.StorefrontStorageQuotaBytes)
-		pilgrimService := service.NewPilgrimService(operatorRepository, pilgrimRepository, accommodationRepository, transportRepository, auditRepository, pool)
+		pilgrimService := service.NewPilgrimService(operatorRepository, pilgrimRepository, accommodationRepository, transportRepository, auditRepository, pool).
+			WithEntitlementChecker(service.NewEntitlementChecker(entitlementRepository))
 		seasonService := service.NewSeasonService(operatorRepository, seasonRepository, auditRepository, analyticsRepository, monitoringRepository)
 		accommodationService := service.NewAccommodationService(operatorRepository, pilgrimRepository, accommodationRepository, auditRepository)
 		transportService := service.NewTransportService(operatorRepository, transportRepository, auditRepository)

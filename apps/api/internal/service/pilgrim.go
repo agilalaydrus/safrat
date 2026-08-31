@@ -24,11 +24,19 @@ type PilgrimService struct {
 	accommodationRepository *repository.AccommodationRepository
 	transportRepository     *repository.TransportRepository
 	auditRepository         *repository.AuditRepository
+	entitlementChecker      *EntitlementChecker
 	db                      *pgxpool.Pool
 }
 
 func NewPilgrimService(operatorRepository *repository.OperatorRepository, pilgrimRepository *repository.PilgrimRepository, accommodationRepository *repository.AccommodationRepository, transportRepository *repository.TransportRepository, auditRepository *repository.AuditRepository, db *pgxpool.Pool) *PilgrimService {
 	return &PilgrimService{operatorRepository: operatorRepository, pilgrimRepository: pilgrimRepository, accommodationRepository: accommodationRepository, transportRepository: transportRepository, auditRepository: auditRepository, db: db}
+}
+
+// WithEntitlementChecker keeps construction compatible with isolated service
+// tests while production wiring always installs the policy gate.
+func (s *PilgrimService) WithEntitlementChecker(checker *EntitlementChecker) *PilgrimService {
+	s.entitlementChecker = checker
+	return s
 }
 
 // logActivity records a real, timestamped entry for the dashboard's Aktivitas
@@ -45,6 +53,9 @@ func (s *PilgrimService) Create(ctx context.Context, authenticatedOrgID string, 
 	}
 	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
 	if err != nil {
+		return nil, serviceError("PilgrimService.Create", err)
+	}
+	if err := s.entitlementChecker.Check(ctx, operator.ID, "pilgrims"); err != nil {
 		return nil, serviceError("PilgrimService.Create", err)
 	}
 	_, err = s.pilgrimRepository.GetByPassport(ctx, operator.ID, input.SeasonID, input.PassportNumber)
