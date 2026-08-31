@@ -219,7 +219,9 @@ arus kas memakai batas yang sama (`1090e32`).
 - [x] Tabel `plan_limits` (plan, max_pilgrims, max_branches, flag fitur)
       (`e7bc6e2`; STARTER 200 jamaah/0 cabang, GROWTH 500/3, PRO tanpa batas)
 - [x] Tabel `plan_overrides` per operator (`e7bc6e2`)
-- [ ] Satu fungsi `entitlement.Check()` dipanggil **service**, bukan handler
+- [x] Satu fungsi `entitlement.Check()` dipanggil **service**, bukan handler
+      (`401b6c7`; pembuatan jamaah sudah memakai cek ini, dengan trigger DB
+      sebagai pengaman konkurensi)
 - [ ] Layar pemakaian vs batas di `/dashboard/langganan`
 - [ ] Menu di luar paket tetap terlihat tapi terkunci — itu yang menjual naik paket
 
