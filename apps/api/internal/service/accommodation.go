@@ -153,7 +153,7 @@ func (s *AccommodationService) AllocatePilgrim(ctx context.Context, org string, 
 	if e != nil {
 		return nil, serviceError("AccommodationService.AllocatePilgrim", e)
 	}
-	count, e := s.repo.CountAllocated(ctx, room.ID)
+	count, e := s.repo.CountAllocated(ctx, op, room.ID)
 	if e != nil {
 		return nil, serviceError("AccommodationService.AllocatePilgrim", e)
 	}

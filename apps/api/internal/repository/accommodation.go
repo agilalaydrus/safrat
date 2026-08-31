@@ -163,7 +163,11 @@ func (r *AccommodationRepository) ListAllocations(ctx context.Context, opID, roo
 	if e != nil {
 		return nil, e
 	}
-	vs, e := r.queries.ListAllocationsByRoom(ctx, db.ListAllocationsByRoomParams{RoomID: id, OperatorID: op})
+	scope, e := branchScope(ctx, r.queries, op)
+	if e != nil {
+		return nil, e
+	}
+	vs, e := r.queries.ListAllocationsByRoom(ctx, db.ListAllocationsByRoomParams{RoomID: id, OperatorID: op, BranchScope: scope})
 	if e != nil {
 		return nil, e
 	}
@@ -173,12 +177,16 @@ func (r *AccommodationRepository) ListAllocations(ctx context.Context, opID, roo
 	}
 	return out, nil
 }
-func (r *AccommodationRepository) CountAllocated(ctx context.Context, roomID string) (int64, error) {
+func (r *AccommodationRepository) CountAllocated(ctx context.Context, operatorID, roomID string) (int64, error) {
+	op, e := pgUUID(operatorID)
+	if e != nil {
+		return 0, e
+	}
 	id, e := pgUUID(roomID)
 	if e != nil {
 		return 0, e
 	}
-	return r.queries.CountAllocatedByRoom(ctx, id)
+	return r.queries.CountAllocatedByRoom(ctx, db.CountAllocatedByRoomParams{RoomID: id, OperatorID: op})
 }
 
 // GetAllocationForHotel checks whether the pilgrim already holds a room in
@@ -197,7 +205,11 @@ func (r *AccommodationRepository) GetAllocationForHotel(ctx context.Context, opI
 	if e != nil {
 		return nil, e
 	}
-	v, e := r.queries.GetAllocationForHotel(ctx, db.GetAllocationForHotelParams{OperatorID: op, PilgrimID: p, HotelID: h})
+	scope, e := branchScope(ctx, r.queries, op)
+	if e != nil {
+		return nil, e
+	}
+	v, e := r.queries.GetAllocationForHotel(ctx, db.GetAllocationForHotelParams{OperatorID: op, PilgrimID: p, HotelID: h, BranchScope: scope})
 	if errors.Is(e, pgx.ErrNoRows) {
 		return nil, apperror.ErrNotFound
 	}
@@ -223,7 +235,14 @@ func (r *AccommodationRepository) Allocate(ctx context.Context, opID, roomID, ho
 	if e != nil {
 		return nil, e
 	}
-	v, e := r.queries.AllocatePilgrimTx(ctx, db.AllocatePilgrimTxParams{OperatorID: op, RoomID: rID, HotelID: hID, PilgrimID: p, AssignedBy: assignedBy})
+	scope, e := branchScope(ctx, r.queries, op)
+	if e != nil {
+		return nil, e
+	}
+	v, e := r.queries.AllocatePilgrimTx(ctx, db.AllocatePilgrimTxParams{OperatorID: op, RoomID: rID, HotelID: hID, PilgrimID: p, AssignedBy: assignedBy, BranchScope: scope})
+	if errors.Is(e, pgx.ErrNoRows) {
+		return nil, apperror.ErrNotFound
+	}
 	if e != nil {
 		return nil, e
 	}
@@ -242,7 +261,18 @@ func (r *AccommodationRepository) Deallocate(ctx context.Context, opID, pilgrimI
 	if e != nil {
 		return e
 	}
-	return r.queries.DeallocatePilgrim(ctx, db.DeallocatePilgrimParams{OperatorID: op, PilgrimID: p, RoomID: rID})
+	scope, e := branchScope(ctx, r.queries, op)
+	if e != nil {
+		return e
+	}
+	rows, e := r.queries.DeallocatePilgrim(ctx, db.DeallocatePilgrimParams{OperatorID: op, PilgrimID: p, RoomID: rID, BranchScope: scope})
+	if e != nil {
+		return databaseError(e)
+	}
+	if rows == 0 {
+		return apperror.ErrNotFound
+	}
+	return nil
 }
 
 func (r *AccommodationRepository) TransferAllocationTx(ctx context.Context, tx pgx.Tx, originalID, replacementID, operatorID string) error {
@@ -258,7 +288,12 @@ func (r *AccommodationRepository) TransferAllocationTx(ctx context.Context, tx p
 	if err != nil {
 		return err
 	}
-	rows, err := r.queries.WithTx(tx).TransferAllocation(ctx, db.TransferAllocationParams{PilgrimID: originalUUID, PilgrimID_2: replacementUUID, OperatorID: operatorUUID})
+	queries := r.queries.WithTx(tx)
+	scope, err := branchScope(ctx, queries, operatorUUID)
+	if err != nil {
+		return err
+	}
+	rows, err := queries.TransferAllocation(ctx, db.TransferAllocationParams{OriginalID: originalUUID, ReplacementID: replacementUUID, OperatorID: operatorUUID, BranchScope: scope})
 	if err != nil {
 		return databaseError(err)
 	}
@@ -287,7 +322,11 @@ func (r *AccommodationRepository) ListPilgrimRoomAssignments(ctx context.Context
 	if e != nil {
 		return nil, e
 	}
-	rows, e := r.queries.ListPilgrimRoomAssignments(ctx, db.ListPilgrimRoomAssignmentsParams{OperatorID: op, SeasonID: season})
+	scope, e := branchScope(ctx, r.queries, op)
+	if e != nil {
+		return nil, e
+	}
+	rows, e := r.queries.ListPilgrimRoomAssignments(ctx, db.ListPilgrimRoomAssignmentsParams{OperatorID: op, SeasonID: season, BranchScope: scope})
 	if e != nil {
 		return nil, e
 	}
