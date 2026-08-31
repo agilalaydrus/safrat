@@ -205,7 +205,9 @@ tetap terbuka sampai agregat dashboard/laporan cabang ditutup dengan batas yang
 sama. Ringkasan musim, pendapatan pesanan, timeline pembayaran, statistik agen,
 pengisian kloter, dan okupansi hotel kini juga menerima batas cabang dari
 repository; uji integrasi membuktikan angka Bandung tidak memuat Medan,
-sementara kantor pusat tetap operator-wide (`4c6db22`).
+sementara kantor pusat tetap operator-wide (`4c6db22`). Checklist per jamaah
+dan statistik penyelesaiannya juga dipagari di query, termasuk mutasi upsert
+(`daefeab`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
