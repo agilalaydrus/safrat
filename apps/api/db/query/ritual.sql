@@ -13,17 +13,23 @@ SELECT COUNT(*)::int FROM ritual_templates WHERE operator_id = $1 AND season_typ
 
 -- name: UpsertPilgrimRitual :one
 INSERT INTO pilgrim_rituals (operator_id, pilgrim_id, ritual_id, completed, completed_at, completed_by, notes)
-VALUES ($1, $2, $3, true, NOW(), $4, $5)
-ON CONFLICT (pilgrim_id, ritual_id) DO UPDATE SET completed = true, completed_at = NOW(), completed_by = $4, notes = $5
+SELECT sqlc.arg(operator_id), p.id, rt.id, true, NOW(), sqlc.arg(completed_by), sqlc.arg(notes)
+FROM pilgrims p
+JOIN ritual_templates rt ON rt.id = sqlc.arg(ritual_id) AND rt.operator_id = sqlc.arg(operator_id)
+WHERE p.id = sqlc.arg(pilgrim_id) AND p.operator_id = sqlc.arg(operator_id)
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
+ON CONFLICT (pilgrim_id, ritual_id) DO UPDATE SET completed = true, completed_at = NOW(), completed_by = sqlc.arg(completed_by), notes = sqlc.arg(notes)
 RETURNING *;
 
 -- name: GetPilgrimRitualStatus :one
 SELECT rt.id AS ritual_id, rt.name, rt.order_num, rt.is_required,
   COALESCE(pr.completed, false) AS completed, pr.completed_at, COALESCE(u.name, '') AS completed_by_name
 FROM ritual_templates rt
-LEFT JOIN pilgrim_rituals pr ON pr.ritual_id = rt.id AND pr.pilgrim_id = $2
+JOIN pilgrims p ON p.id = sqlc.arg(pilgrim_id) AND p.operator_id = rt.operator_id
+LEFT JOIN pilgrim_rituals pr ON pr.ritual_id = rt.id AND pr.pilgrim_id = p.id
 LEFT JOIN "user" u ON u.id = pr.completed_by
-WHERE rt.operator_id = $1 AND rt.season_type = $3
+WHERE rt.operator_id = sqlc.arg(operator_id) AND rt.season_type = sqlc.arg(season_type)
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY rt.order_num ASC;
 
 -- name: GetPilgrimRitualStatusByAccessCode :many
@@ -51,14 +57,16 @@ JOIN ritual_templates rt ON rt.operator_id = g.operator_id
   AND rt.season_type = (CASE WHEN s.type = 'HAJJ' THEN 'HAJJ' ELSE 'UMRAH' END)
 JOIN pilgrims p ON p.group_id = g.id AND p.is_substituted = false
 LEFT JOIN pilgrim_rituals pr ON pr.ritual_id = rt.id AND pr.pilgrim_id = p.id
-WHERE g.id = $1 AND g.operator_id = $2
+WHERE g.id = sqlc.arg(group_id) AND g.operator_id = sqlc.arg(operator_id)
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 GROUP BY rt.id, rt.name, rt.order_num
 ORDER BY rt.order_num ASC;
 
 -- name: ListIncompletePilgrimNamesForRitual :many
 SELECT p.id, p.full_name FROM pilgrims p
-WHERE p.group_id = $1 AND p.operator_id = $2 AND p.is_substituted = false
-  AND NOT EXISTS (SELECT 1 FROM pilgrim_rituals pr WHERE pr.pilgrim_id = p.id AND pr.ritual_id = $3 AND pr.completed = true)
+WHERE p.group_id = sqlc.arg(group_id) AND p.operator_id = sqlc.arg(operator_id) AND p.is_substituted = false
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
+  AND NOT EXISTS (SELECT 1 FROM pilgrim_rituals pr WHERE pr.pilgrim_id = p.id AND pr.ritual_id = sqlc.arg(ritual_id) AND pr.completed = true)
 ORDER BY p.full_name ASC;
 
 -- name: SeasonTypeBucket :one

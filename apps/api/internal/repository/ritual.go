@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 
+	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
 	"github.com/jackc/pgx/v5"
@@ -44,6 +45,11 @@ func (r *RitualRepository) CreateTemplate(ctx context.Context, operatorID, seaso
 	if err != nil {
 		return nil, err
 	}
+	if scope, scopeErr := branchScope(ctx, r.queries, opUUID); scopeErr != nil {
+		return nil, scopeErr
+	} else if scope.Valid {
+		return nil, apperror.ErrForbidden
+	}
 	v, err := r.queries.CreateRitualTemplate(ctx, db.CreateRitualTemplateParams{OperatorID: opUUID, SeasonType: seasonType, Name: name, Description: description, OrderNum: orderNum, IsRequired: isRequired})
 	if err != nil {
 		return nil, err
@@ -74,11 +80,15 @@ func (r *RitualRepository) completePilgrimRitual(ctx context.Context, queries *d
 	if err != nil {
 		return err
 	}
+	scope, err := branchScope(ctx, queries, opUUID)
+	if err != nil {
+		return err
+	}
 	_, err = queries.UpsertPilgrimRitual(ctx, db.UpsertPilgrimRitualParams{
 		OperatorID: opUUID, PilgrimID: pilgrimUUID, RitualID: ritualUUID,
-		CompletedBy: pgtype.Text{String: completedByUserID, Valid: completedByUserID != ""}, Notes: notes,
+		CompletedBy: pgtype.Text{String: completedByUserID, Valid: completedByUserID != ""}, Notes: notes, BranchScope: scope,
 	})
-	return err
+	return databaseError(err)
 }
 
 func (r *RitualRepository) GetPilgrimStatusByAccessCode(ctx context.Context, appAccessCode string) ([]domain.PilgrimRitualStatus, error) {
@@ -105,7 +115,11 @@ func (r *RitualRepository) GetGroupProgress(ctx context.Context, operatorID, gro
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.CountRitualCompletionByGroup(ctx, db.CountRitualCompletionByGroupParams{ID: groupUUID, OperatorID: opUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.CountRitualCompletionByGroup(ctx, db.CountRitualCompletionByGroupParams{GroupID: groupUUID, OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +127,7 @@ func (r *RitualRepository) GetGroupProgress(ctx context.Context, operatorID, gro
 	for _, row := range rows {
 		item := domain.RitualProgressItem{RitualID: uuidString(row.RitualID), Name: row.Name, OrderNum: row.OrderNum, TotalPilgrims: row.TotalPilgrims, CompletedCount: row.CompletedCount}
 		if row.CompletedCount < row.TotalPilgrims {
-			names, err := r.queries.ListIncompletePilgrimNamesForRitual(ctx, db.ListIncompletePilgrimNamesForRitualParams{GroupID: groupUUID, OperatorID: opUUID, RitualID: row.RitualID})
+			names, err := r.queries.ListIncompletePilgrimNamesForRitual(ctx, db.ListIncompletePilgrimNamesForRitualParams{GroupID: groupUUID, OperatorID: opUUID, RitualID: row.RitualID, BranchScope: scope})
 			if err == nil {
 				for _, n := range names {
 					item.IncompletePilgrimNames = append(item.IncompletePilgrimNames, n.FullName)
