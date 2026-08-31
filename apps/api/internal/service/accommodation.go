@@ -226,7 +226,18 @@ func (s *AccommodationService) Manifest(ctx context.Context, org string, r *hajj
 	if e != nil {
 		return nil, serviceError("AccommodationService.Manifest", e)
 	}
-	out := &hajjv1.RoomManifest{Room: roomMessage(room), AvailableCapacity: room.Capacity - int32(len(as))}
+	// The occupant list follows the actor's branch scope, but availability is
+	// a physical, operator-wide constraint. Using len(as) here would make every
+	// branch believe the other branches' beds were still empty.
+	allocated, e := s.repo.CountAllocated(ctx, op, room.ID)
+	if e != nil {
+		return nil, serviceError("AccommodationService.Manifest", e)
+	}
+	available := room.Capacity - int32(allocated)
+	if available < 0 {
+		available = 0
+	}
+	out := &hajjv1.RoomManifest{Room: roomMessage(room), AvailableCapacity: available}
 	for _, a := range as {
 		p, err := s.pilgrims.Get(ctx, op, a.PilgrimID)
 		if err != nil {
