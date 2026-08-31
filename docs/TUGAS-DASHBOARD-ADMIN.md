@@ -259,6 +259,10 @@ Untuk staf cabang, thread hanya dapat dibaca atau dikirimi pesan bila seluruh
 jamaah aktif di dalamnya berasal dari cabang yang sama; ini menjaga konteks
 percakapan utuh tanpa membocorkan pesan grup lain. Akses publik jamaah dan
 akses kantor pusat tetap berfungsi, dengan uji dua arah (`bbd8364`).
+Broadcast musim diklasifikasikan sebagai komunikasi operator-wide: kepala
+cabang tetap dapat membaca pengumuman pusat yang juga tampil di portal jamaah,
+tetapi pembuatan dan penghapusan hanya boleh dilakukan kantor pusat. Pengaman
+berada di repository dan dikunci integration test (`16977ec`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
