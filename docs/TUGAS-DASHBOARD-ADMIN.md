@@ -228,6 +228,9 @@ tidak dapat mengubah laporan cabang lain (`a216849`).
 Pembatalan jamaah dan riwayat refund sekarang juga dipagari langsung di
 repository, termasuk transaksi pembatalan atomik; test dua arah memverifikasi
 Bandung tidak dapat melihat atau membatalkan jamaah Medan (`7117fb3`).
+Daftar grup, kloter, dan roster kini menghitung hanya jamaah cabang aktif;
+perubahan struktur grup/kloter dibatasi untuk kantor pusat di repository, dengan
+uji integrasi dua arah (`8b474bc`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
