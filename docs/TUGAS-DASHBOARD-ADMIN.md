@@ -202,7 +202,10 @@ pencairan sekarang juga terisolasi (`de0a3b1`). Order sekarang mewarisi cabang
 pembeli dan dipagari saat dibaca, dihitung, dibayar
 manual, atau diselesaikan dari status held (`ac5e846`). Kotak penyaringan utama
 tetap terbuka sampai agregat dashboard/laporan cabang ditutup dengan batas yang
-sama.
+sama. Ringkasan musim, pendapatan pesanan, timeline pembayaran, statistik agen,
+pengisian kloter, dan okupansi hotel kini juga menerima batas cabang dari
+repository; uji integrasi membuktikan angka Bandung tidak memuat Medan,
+sementara kantor pusat tetap operator-wide (`4c6db22`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
