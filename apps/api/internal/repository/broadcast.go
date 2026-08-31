@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
 )
@@ -22,6 +23,11 @@ func (r *BroadcastRepository) Create(ctx context.Context, operatorID, seasonID, 
 	seasonUUID, err := pgUUID(seasonID)
 	if err != nil {
 		return nil, err
+	}
+	if scope, scopeErr := branchScope(ctx, r.queries, opUUID); scopeErr != nil {
+		return nil, scopeErr
+	} else if scope.Valid {
+		return nil, apperror.ErrForbidden
 	}
 	row, err := r.queries.CreateBroadcast(ctx, db.CreateBroadcastParams{OperatorID: opUUID, SeasonID: seasonUUID, Title: title, Body: body})
 	if err != nil {
@@ -58,6 +64,11 @@ func (r *BroadcastRepository) Delete(ctx context.Context, operatorID, broadcastI
 	broadcastUUID, err := pgUUID(broadcastID)
 	if err != nil {
 		return err
+	}
+	if scope, scopeErr := branchScope(ctx, r.queries, opUUID); scopeErr != nil {
+		return scopeErr
+	} else if scope.Valid {
+		return apperror.ErrForbidden
 	}
 	return databaseError(r.queries.DeleteBroadcast(ctx, db.DeleteBroadcastParams{ID: broadcastUUID, OperatorID: opUUID}))
 }
