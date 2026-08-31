@@ -254,6 +254,11 @@ aktif; penyelesaian individual maupun bulk dipagari di query, ritual lintas
 operator ditolak, dan kepala cabang dilarang membuat template operator-wide.
 Uji dua arah membuktikan Bandung dapat menyelesaikan ritual jamaahnya tanpa
 membaca atau mengubah Medan (`1e44d38`).
+Chat grup kini memvalidasi bahwa pesan jamaah benar-benar dikirim ke grupnya.
+Untuk staf cabang, thread hanya dapat dibaca atau dikirimi pesan bila seluruh
+jamaah aktif di dalamnya berasal dari cabang yang sama; ini menjaga konteks
+percakapan utuh tanpa membocorkan pesan grup lain. Akses publik jamaah dan
+akses kantor pusat tetap berfungsi, dengan uji dua arah (`bbd8364`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
