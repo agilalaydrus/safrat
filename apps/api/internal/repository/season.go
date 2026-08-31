@@ -248,11 +248,15 @@ func (r *SeasonRepository) GetAnalytics(ctx context.Context, operatorID, seasonI
 	if err != nil {
 		return nil, err
 	}
-	row, err := r.queries.GetSeasonAnalytics(ctx, db.GetSeasonAnalyticsParams{OperatorID: operatorUUID, SeasonID: seasonUUID})
+	branchID, err := branchScope(ctx, r.queries, operatorUUID)
 	if err != nil {
 		return nil, err
 	}
-	orderStats, err := r.queries.GetSeasonOrderStats(ctx, db.GetSeasonOrderStatsParams{OperatorID: operatorUUID, SeasonID: seasonUUID})
+	row, err := r.queries.GetSeasonAnalytics(ctx, db.GetSeasonAnalyticsParams{OperatorID: operatorUUID, SeasonID: seasonUUID, BranchScope: branchID})
+	if err != nil {
+		return nil, err
+	}
+	orderStats, err := r.queries.GetSeasonOrderStats(ctx, db.GetSeasonOrderStatsParams{OperatorID: operatorUUID, SeasonID: seasonUUID, BranchScope: branchID})
 	if err != nil {
 		return nil, err
 	}

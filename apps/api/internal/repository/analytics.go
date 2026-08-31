@@ -25,7 +25,11 @@ func (r *AnalyticsRepository) ListPaymentTimeline(ctx context.Context, operatorI
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.GetPaymentTimelineByMonth(ctx, db.GetPaymentTimelineByMonthParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	branchID, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.GetPaymentTimelineByMonth(ctx, db.GetPaymentTimelineByMonthParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: branchID})
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +53,11 @@ func (r *AnalyticsRepository) ListAgentStats(ctx context.Context, operatorID, se
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.GetAgentSeasonStats(ctx, db.GetAgentSeasonStatsParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	branchID, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.GetAgentSeasonStats(ctx, db.GetAgentSeasonStatsParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: branchID})
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +77,11 @@ func (r *AnalyticsRepository) ListKloterFill(ctx context.Context, operatorID, se
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListKloterFillForSeason(ctx, db.ListKloterFillForSeasonParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	branchID, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListKloterFillForSeason(ctx, db.ListKloterFillForSeasonParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: branchID})
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +101,11 @@ func (r *AnalyticsRepository) ListHotelOccupancy(ctx context.Context, operatorID
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListHotelOccupancyForSeason(ctx, db.ListHotelOccupancyForSeasonParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	branchID, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListHotelOccupancyForSeason(ctx, db.ListHotelOccupancyForSeasonParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: branchID})
 	if err != nil {
 		return nil, err
 	}

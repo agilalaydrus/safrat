@@ -16,6 +16,7 @@ LEFT JOIN room_allocations ra ON ra.pilgrim_id = p.id
 LEFT JOIN seat_assignments sa ON sa.pilgrim_id = p.id
 WHERE p.operator_id = $1
   AND p.season_id   = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
   AND NOT p.is_substituted;
 
 -- name: GetSeasonOrderStats :one
@@ -27,15 +28,19 @@ WHERE p.operator_id = $1
 SELECT
   COUNT(*)::int AS order_count,
   COALESCE(SUM(net_paid_idr), 0)::bigint AS total_revenue_idr
-FROM order_payments
-WHERE operator_id = $1 AND season_id = $2;
+FROM order_payments op
+JOIN orders o ON o.id = op.order_id
+WHERE op.operator_id = $1 AND op.season_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR o.branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: ListKloterFillForSeason :many
 SELECT k.code AS kloter_code, k.pilgrim_count::int, k.capacity::int
 FROM (
   SELECT kl.id, kl.code, kl.capacity, COUNT(p.id)::int AS pilgrim_count
   FROM kloters kl
-  LEFT JOIN pilgrims p ON p.kloter_id = kl.id AND p.is_substituted = false
+  LEFT JOIN pilgrims p ON p.kloter_id = kl.id
+    AND p.is_substituted = false
+    AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
   WHERE kl.operator_id = $1 AND kl.season_id = $2
   GROUP BY kl.id
 ) k
@@ -48,7 +53,9 @@ SELECT h.name AS hotel_name, h.city,
 FROM hotels h
 LEFT JOIN rooms r ON r.hotel_id = h.id
 LEFT JOIN room_allocations ra ON ra.room_id = r.id
+LEFT JOIN pilgrims p ON p.id = ra.pilgrim_id
 WHERE h.operator_id = $1 AND h.season_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 GROUP BY h.id, h.name, h.city
 ORDER BY h.city ASC, h.name ASC;
 
@@ -59,7 +66,9 @@ SELECT
   a.commission_rate
 FROM agents a
 LEFT JOIN pilgrims p ON p.agent_id = a.id AND p.season_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 WHERE a.operator_id = $1
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR a.branch_id = sqlc.narg(branch_scope)::uuid)
 GROUP BY a.id, a.name, a.commission_rate
 ORDER BY pilgrim_count DESC;
 
@@ -72,5 +81,6 @@ SELECT
 FROM pilgrims p
 WHERE p.operator_id = $1
   AND p.season_id   = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 GROUP BY 1
 ORDER BY 1;
