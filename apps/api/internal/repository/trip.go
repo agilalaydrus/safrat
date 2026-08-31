@@ -65,7 +65,11 @@ func (r *TripRepository) ListActiveSOSAlerts(ctx context.Context, operatorID, kl
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListActiveSOSAlertsForKloter(ctx, db.ListActiveSOSAlertsForKloterParams{OperatorID: opUUID, KloterID: kloterUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListActiveSOSAlertsForKloter(ctx, db.ListActiveSOSAlertsForKloterParams{OperatorID: opUUID, KloterID: kloterUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}

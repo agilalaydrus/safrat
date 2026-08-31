@@ -57,7 +57,11 @@ func (r *SOSRepository) ListActive(ctx context.Context, operatorID string) ([]*d
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListActiveSOSAlerts(ctx, opUUID)
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListActiveSOSAlerts(ctx, db.ListActiveSOSAlertsParams{OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +78,11 @@ func (r *SOSRepository) ListActiveForLeader(ctx context.Context, operatorID, lea
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListActiveSOSAlertsForLeader(ctx, db.ListActiveSOSAlertsForLeaderParams{OperatorID: opUUID, LeaderID: pgText(leaderUserID)})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListActiveSOSAlertsForLeader(ctx, db.ListActiveSOSAlertsForLeaderParams{OperatorID: opUUID, LeaderID: pgText(leaderUserID), BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -135,9 +143,13 @@ func (r *SOSRepository) Acknowledge(ctx context.Context, operatorID, alertID, us
 	if err != nil {
 		return nil, err
 	}
-	alert, err := r.queries.AcknowledgeSOSAlert(ctx, db.AcknowledgeSOSAlertParams{ID: alertUUID, OperatorID: opUUID, AcknowledgedBy: pgText(userID)})
+	scope, err := branchScope(ctx, r.queries, opUUID)
 	if err != nil {
 		return nil, err
+	}
+	alert, err := r.queries.AcknowledgeSOSAlert(ctx, db.AcknowledgeSOSAlertParams{ID: alertUUID, OperatorID: opUUID, AcknowledgedBy: pgText(userID), BranchScope: scope})
+	if err != nil {
+		return nil, databaseError(err)
 	}
 	return toSOSAlert(alert, ""), nil
 }
@@ -151,9 +163,13 @@ func (r *SOSRepository) Resolve(ctx context.Context, operatorID, alertID, userID
 	if err != nil {
 		return nil, err
 	}
-	alert, err := r.queries.ResolveSOSAlert(ctx, db.ResolveSOSAlertParams{ID: alertUUID, OperatorID: opUUID, ResolvedBy: pgText(userID), Notes: notes})
+	scope, err := branchScope(ctx, r.queries, opUUID)
 	if err != nil {
 		return nil, err
+	}
+	alert, err := r.queries.ResolveSOSAlert(ctx, db.ResolveSOSAlertParams{ID: alertUUID, OperatorID: opUUID, ResolvedBy: pgText(userID), Notes: notes, BranchScope: scope})
+	if err != nil {
+		return nil, databaseError(err)
 	}
 	return toSOSAlert(alert, ""), nil
 }

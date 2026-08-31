@@ -16,6 +16,7 @@ SELECT s.*, p.full_name AS pilgrim_name
 FROM sos_alerts s
 JOIN pilgrims p ON p.id = s.pilgrim_id
 WHERE s.operator_id = $1 AND s.status IN ('ACTIVE','ACKNOWLEDGED','ESCALATED')
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY s.created_at DESC;
 
 -- name: ListActiveSOSAlertsForLeader :many
@@ -24,23 +25,31 @@ FROM sos_alerts s
 JOIN pilgrims p ON p.id = s.pilgrim_id
 JOIN groups g ON g.id = p.group_id
 WHERE s.operator_id = $1 AND g.leader_id = $2 AND s.status IN ('ACTIVE','ACKNOWLEDGED','ESCALATED')
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY s.created_at DESC;
 
 -- name: GetSOSAlert :one
-SELECT * FROM sos_alerts
-WHERE id = $1 AND operator_id = $2;
+SELECT s.*
+FROM sos_alerts s
+JOIN pilgrims p ON p.id = s.pilgrim_id
+WHERE s.id = $1 AND s.operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: AcknowledgeSOSAlert :one
-UPDATE sos_alerts
+UPDATE sos_alerts s
 SET status = 'ACKNOWLEDGED', acknowledged_by = $3, acknowledged_at = NOW()
-WHERE id = $1 AND operator_id = $2 AND status = 'ACTIVE'
-RETURNING *;
+FROM pilgrims p
+WHERE s.id = $1 AND s.operator_id = $2 AND s.status = 'ACTIVE' AND p.id = s.pilgrim_id
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
+RETURNING s.*;
 
 -- name: ResolveSOSAlert :one
-UPDATE sos_alerts
+UPDATE sos_alerts s
 SET status = 'RESOLVED', resolved_by = $3, resolved_at = NOW(), notes = $4
-WHERE id = $1 AND operator_id = $2 AND status != 'RESOLVED'
-RETURNING *;
+FROM pilgrims p
+WHERE s.id = $1 AND s.operator_id = $2 AND s.status != 'RESOLVED' AND p.id = s.pilgrim_id
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
+RETURNING s.*;
 
 -- name: EscalateStaleSOSAlerts :many
 WITH escalated AS (
@@ -64,4 +73,5 @@ SELECT s.*, p.full_name AS pilgrim_name
 FROM sos_alerts s
 JOIN pilgrims p ON p.id = s.pilgrim_id
 WHERE s.operator_id = $1 AND p.kloter_id = $2 AND s.status IN ('ACTIVE','ACKNOWLEDGED','ESCALATED')
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY s.created_at DESC;
