@@ -2,7 +2,9 @@
 SELECT k.*, COUNT(p.id)::int AS pilgrim_count
 FROM kloters k
 LEFT JOIN pilgrims p ON p.kloter_id = k.id AND p.is_substituted = false
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 WHERE k.operator_id = $1 AND k.season_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR EXISTS (SELECT 1 FROM pilgrims gp WHERE gp.kloter_id = k.id AND gp.branch_id = sqlc.narg(branch_scope)::uuid))
 GROUP BY k.id
 ORDER BY k.departure_date ASC NULLS LAST, k.code ASC;
 

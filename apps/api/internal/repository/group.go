@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
 	"github.com/jackc/pgx/v5"
@@ -25,7 +26,11 @@ func (r *GroupRepository) ListForOperator(ctx context.Context, operatorID, seaso
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListGroupsForOperator(ctx, db.ListGroupsForOperatorParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListGroupsForOperator(ctx, db.ListGroupsForOperatorParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +53,11 @@ func (r *GroupRepository) ListByKloter(ctx context.Context, operatorID, kloterID
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListGroupsByKloter(ctx, db.ListGroupsByKloterParams{OperatorID: opUUID, KloterID: kloterUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListGroupsByKloter(ctx, db.ListGroupsByKloterParams{OperatorID: opUUID, KloterID: kloterUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -150,6 +159,11 @@ func (r *GroupRepository) Create(ctx context.Context, operatorID, seasonID, name
 	if err != nil {
 		return nil, err
 	}
+	if scope, err := branchScope(ctx, r.queries, opUUID); err != nil {
+		return nil, err
+	} else if scope.Valid {
+		return nil, apperror.ErrForbidden
+	}
 	group, err := r.queries.CreateGroup(ctx, db.CreateGroupParams{OperatorID: opUUID, SeasonID: seasonUUID, Name: name, Capacity: capacity})
 	if err != nil {
 		return nil, err
@@ -165,6 +179,11 @@ func (r *GroupRepository) Update(ctx context.Context, operatorID, groupID, name 
 	groupUUID, err := pgUUID(groupID)
 	if err != nil {
 		return nil, err
+	}
+	if scope, err := branchScope(ctx, r.queries, opUUID); err != nil {
+		return nil, err
+	} else if scope.Valid {
+		return nil, apperror.ErrForbidden
 	}
 	group, err := r.queries.UpdateGroup(ctx, db.UpdateGroupParams{ID: groupUUID, OperatorID: opUUID, Name: name, Capacity: capacity, Column5: leaderID, Column6: kloterID})
 	if err != nil {
@@ -182,6 +201,11 @@ func (r *GroupRepository) Delete(ctx context.Context, operatorID, groupID string
 	if err != nil {
 		return err
 	}
+	if scope, err := branchScope(ctx, r.queries, opUUID); err != nil {
+		return err
+	} else if scope.Valid {
+		return apperror.ErrForbidden
+	}
 	if err := r.queries.UnassignGroupPilgrims(ctx, db.UnassignGroupPilgrimsParams{GroupID: groupUUID, OperatorID: opUUID}); err != nil {
 		return err
 	}
@@ -197,7 +221,11 @@ func (r *GroupRepository) GetRoster(ctx context.Context, operatorID, groupID str
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListGroupRoster(ctx, db.ListGroupRosterParams{GroupID: groupUUID, OperatorID: opUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListGroupRoster(ctx, db.ListGroupRosterParams{GroupID: groupUUID, OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}

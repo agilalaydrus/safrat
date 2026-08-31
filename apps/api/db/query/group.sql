@@ -2,6 +2,7 @@
 SELECT g.*, COUNT(p.id)::int AS pilgrim_count
 FROM groups g
 LEFT JOIN pilgrims p ON p.group_id = g.id AND p.is_substituted = false
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 WHERE g.operator_id = $1 AND g.leader_id = $2
 GROUP BY g.id
 ORDER BY g.name ASC;
@@ -17,14 +18,17 @@ WHERE id = $1 AND operator_id = $2 AND leader_id = $3;
 -- name: ListGroupRoster :many
 SELECT * FROM pilgrims
 WHERE group_id = $1 AND operator_id = $2 AND is_substituted = false
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY full_name ASC;
 
 -- name: ListGroupsForOperator :many
 SELECT g.*, COUNT(p.id)::int AS pilgrim_count, u.name AS leader_name
 FROM groups g
 LEFT JOIN pilgrims p ON p.group_id = g.id AND p.is_substituted = false
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 LEFT JOIN "user" u ON u.id = g.leader_id
 WHERE g.operator_id = $1 AND g.season_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR EXISTS (SELECT 1 FROM pilgrims gp WHERE gp.group_id = g.id AND gp.branch_id = sqlc.narg(branch_scope)::uuid))
 GROUP BY g.id, u.name
 ORDER BY g.name ASC;
 
@@ -32,8 +36,10 @@ ORDER BY g.name ASC;
 SELECT g.*, COUNT(p.id)::int AS pilgrim_count, u.name AS leader_name
 FROM groups g
 LEFT JOIN pilgrims p ON p.group_id = g.id AND p.is_substituted = false
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 LEFT JOIN "user" u ON u.id = g.leader_id
 WHERE g.operator_id = $1 AND g.kloter_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR EXISTS (SELECT 1 FROM pilgrims gp WHERE gp.group_id = g.id AND gp.branch_id = sqlc.narg(branch_scope)::uuid))
 GROUP BY g.id, u.name
 ORDER BY g.name ASC;
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
 	db "github.com/hajj-saas/api/internal/gen/db"
 	"github.com/jackc/pgx/v5"
@@ -25,7 +26,11 @@ func (r *KloterRepository) ListForOperator(ctx context.Context, operatorID, seas
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListKloters(ctx, db.ListKlotersParams{OperatorID: opUUID, SeasonID: seasonUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListKloters(ctx, db.ListKlotersParams{OperatorID: opUUID, SeasonID: seasonUUID, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
@@ -45,6 +50,11 @@ func (r *KloterRepository) Create(ctx context.Context, operatorID, seasonID, cod
 	if err != nil {
 		return nil, err
 	}
+	if scope, err := branchScope(ctx, r.queries, opUUID); err != nil {
+		return nil, err
+	} else if scope.Valid {
+		return nil, apperror.ErrForbidden
+	}
 	v, err := r.queries.CreateKloter(ctx, db.CreateKloterParams{OperatorID: opUUID, SeasonID: seasonUUID, Code: code, Embarkation: embarkation, FlightNumber: flightNumber, DepartureDate: pgTimestamptzOptional(departureDate), Capacity: capacity})
 	if err != nil {
 		return nil, err
@@ -60,6 +70,11 @@ func (r *KloterRepository) Update(ctx context.Context, operatorID, kloterID, cod
 	kloterUUID, err := pgUUID(kloterID)
 	if err != nil {
 		return nil, err
+	}
+	if scope, err := branchScope(ctx, r.queries, opUUID); err != nil {
+		return nil, err
+	} else if scope.Valid {
+		return nil, apperror.ErrForbidden
 	}
 	v, err := r.queries.UpdateKloter(ctx, db.UpdateKloterParams{ID: kloterUUID, OperatorID: opUUID, Code: code, Embarkation: embarkation, FlightNumber: flightNumber, DepartureDate: pgTimestamptzOptional(departureDate), Capacity: capacity})
 	if err != nil {
@@ -85,6 +100,11 @@ func (r *KloterRepository) updateStatus(ctx context.Context, queries *db.Queries
 	if err != nil {
 		return nil, err
 	}
+	if scope, err := branchScope(ctx, queries, opUUID); err != nil {
+		return nil, err
+	} else if scope.Valid {
+		return nil, apperror.ErrForbidden
+	}
 	v, err := queries.UpdateKloterStatus(ctx, db.UpdateKloterStatusParams{ID: kloterUUID, OperatorID: opUUID, Status: status})
 	if err != nil {
 		return nil, err
@@ -96,6 +116,11 @@ func (r *KloterRepository) Delete(ctx context.Context, operatorID, kloterID stri
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return err
+	}
+	if scope, err := branchScope(ctx, r.queries, opUUID); err != nil {
+		return err
+	} else if scope.Valid {
+		return apperror.ErrForbidden
 	}
 	kloterUUID, err := pgUUID(kloterID)
 	if err != nil {
