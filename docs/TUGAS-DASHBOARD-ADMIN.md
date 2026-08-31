@@ -215,7 +215,10 @@ tetap tercatat sebagai kewajiban pusat, sedangkan tagihan baru dari kepala
 cabang otomatis mewarisi cabangnya; daftar, mutasi, proyeksi, dan ringkasan
 arus kas memakai batas yang sama (`1090e32`).
 Monitoring SOS, kesehatan, progres ritual grup, dan timeline kepulangan juga
-sekarang dibatasi oleh cabang di repository (`ba05834`).
+sekarang dibatasi oleh cabang di repository (`ba05834`). Laporan kesehatan
+individual—termasuk list, cek kondisi BERAT untuk aturan perjalanan, pembuatan,
+dan penyelesaian laporan—kini dipagari kembali di repository; uji integrasi
+dua arah memastikan kepala Bandung tidak dapat menyentuh data Medan (`d93b4ab`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
