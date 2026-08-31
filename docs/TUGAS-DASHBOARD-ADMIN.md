@@ -216,8 +216,9 @@ arus kas memakai batas yang sama (`1090e32`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
-- [ ] Tabel `plan_limits` (plan, max_pilgrims, max_branches, flag fitur)
-- [ ] Tabel `plan_overrides` per operator
+- [x] Tabel `plan_limits` (plan, max_pilgrims, max_branches, flag fitur)
+      (`e7bc6e2`; STARTER 200 jamaah/0 cabang, GROWTH 500/3, PRO tanpa batas)
+- [x] Tabel `plan_overrides` per operator (`e7bc6e2`)
 - [ ] Satu fungsi `entitlement.Check()` dipanggil **service**, bukan handler
 - [ ] Layar pemakaian vs batas di `/dashboard/langganan`
 - [ ] Menu di luar paket tetap terlihat tapi terkunci — itu yang menjual naik paket
@@ -227,6 +228,11 @@ arus kas memakai batas yang sama (`1090e32`).
 > jamaah, tidak ada batas cabang, tidak ada fitur terkunci. **Tangga harga tanpa
 > anak tangga** — dan setiap fitur baru setelah ini langsung bocor gratis ke
 > STARTER. Karena itu tugas ini mendahului semua modul.
+
+**Pengaman konkurensi.** Trigger PostgreSQL mengunci transaksi per operator dan
+memeriksa penggunaan saat `INSERT` jamaah/cabang. Dua request bersamaan tidak
+dapat sama-sama lolos dari limit; pemeriksaan service yang ramah-pengguna tetap
+menyusul sebagai lapisan pengalaman, bukan satu-satunya pengaman.
 
 ## T2.3 — Pembayaran bercicilan
 
