@@ -181,7 +181,9 @@ tempat membuat keduanya berhenti dibaca.
 - [x] Peran `BRANCH_HEAD` di enum `user_role` (`0db8968`; otorisasi aktif tetap
       memakai keanggotaan Better Auth + `branch_members`, bukan enum lama)
 - [ ] **Penyaringan dipaksakan di lapisan repository, bukan handler**
-- [ ] Agregasi laporan per cabang
+- [x] Agregasi laporan per cabang — omzet bersih, jamaah, agen, capaian
+      target, kolektibilitas, kesiapan dokumen, dan tren 12 bulan; laporan
+      kepala cabang tetap dipaksa hanya untuk cabangnya (`f72cbf6`)
 - [ ] Layar `/dashboard/cabang` sesuai §4.2 DESAIN
 - [x] Uji **dua arah**: kepala cabang Bandung **bisa** melihat jamaahnya, dan
       **tidak bisa** melihat jamaah Medan (`6af60db`, integration test langsung
