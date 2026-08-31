@@ -207,7 +207,10 @@ pengisian kloter, dan okupansi hotel kini juga menerima batas cabang dari
 repository; uji integrasi membuktikan angka Bandung tidak memuat Medan,
 sementara kantor pusat tetap operator-wide (`4c6db22`). Checklist per jamaah
 dan statistik penyelesaiannya juga dipagari di query, termasuk mutasi upsert
-(`daefeab`).
+(`daefeab`). Tagihan vendor kini memiliki `branch_id` nullable: tagihan lama
+tetap tercatat sebagai kewajiban pusat, sedangkan tagihan baru dari kepala
+cabang otomatis mewarisi cabangnya; daftar, mutasi, proyeksi, dan ringkasan
+arus kas memakai batas yang sama (`1090e32`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
