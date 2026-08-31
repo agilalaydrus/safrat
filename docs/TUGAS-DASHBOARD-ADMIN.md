@@ -214,6 +214,8 @@ dan statistik penyelesaiannya juga dipagari di query, termasuk mutasi upsert
 tetap tercatat sebagai kewajiban pusat, sedangkan tagihan baru dari kepala
 cabang otomatis mewarisi cabangnya; daftar, mutasi, proyeksi, dan ringkasan
 arus kas memakai batas yang sama (`1090e32`).
+Monitoring SOS, kesehatan, progres ritual grup, dan timeline kepulangan juga
+sekarang dibatasi oleh cabang di repository (`ba05834`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
