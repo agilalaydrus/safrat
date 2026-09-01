@@ -122,6 +122,11 @@ message ListInstallmentReceivablesResponse {
   int64 due_next_7_days_idr = 5;
   int64 unverified_payment_count = 6;
   int32 collection_rate_bps = 7;
+  int64 aging_current_idr = 8;
+  int64 aging_1_30_idr = 9;
+  int64 aging_31_60_idr = 10;
+  int64 aging_61_90_idr = 11;
+  int64 aging_over_90_idr = 12;
 }
 
 message RecordInstallmentPaymentRequest {

@@ -88,4 +88,9 @@ type InstallmentReceivableResult struct {
 	DueNext7DaysIDR        int64
 	UnverifiedPaymentCount int64
 	CollectionRateBPS      int32
+	AgingCurrentIDR        int64
+	Aging1To30IDR          int64
+	Aging31To60IDR         int64
+	Aging61To90IDR         int64
+	AgingOver90IDR         int64
 }

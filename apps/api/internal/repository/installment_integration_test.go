@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
+	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -120,6 +121,14 @@ func TestInstallmentRepositoryEncapsulatesMoneyAndBranchScopeIntegration(t *test
 	}
 	if _, _, err := repo.RecordPayment(bandungCtx, op, head, firstInstallment.ID, 30_000, "CASH", "", "overpay", "overpay-"+uuid.NewString()); !errors.Is(err, apperror.ErrFailedPrecondition) {
 		t.Fatalf("overpayment diterima: %v", err)
+	}
+	partialBook, err := repo.ListReceivables(bandungCtx, op, domain.InstallmentReceivableFilter{SeasonID: season})
+	if err != nil || partialBook.TotalReceivableIDR != 70_001 || partialBook.AgingCurrentIDR != 70_001 {
+		t.Fatalf("aging piutang Bandung salah setelah pembayaran: %#v (%v)", partialBook, err)
+	}
+	cashSummary, err := NewCashFlowRepository(db.New(pool)).GetSummary(bandungCtx, op, season)
+	if err != nil || cashSummary.TotalCollectedIDR != 30_000 {
+		t.Fatalf("kas masuk tidak menjumlah ledger cicilan: %#v (%v)", cashSummary, err)
 	}
 	assertPilgrimPaymentStatus(t, pool, pilgrims[0], "DP")
 

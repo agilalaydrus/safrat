@@ -6,8 +6,9 @@ interface EmptyStateProps {
   title: string;
   cause: string;
   nextStep: string;
-  actionHref: string;
-  actionLabel: string;
+  actionHref?: string;
+  actionLabel?: string;
+  onAction?: () => void;
   icon?: ReactNode;
   className?: string;
 }
@@ -18,6 +19,7 @@ export function EmptyState({
   nextStep,
   actionHref,
   actionLabel,
+  onAction,
   icon,
   className,
 }: EmptyStateProps) {
@@ -31,10 +33,12 @@ export function EmptyState({
         <p className="tw-empty-state__cause">{cause}</p>
         <p className="tw-empty-state__next"><strong>Langkah berikutnya:</strong> {nextStep}</p>
       </div>
-      <Link className="tw-btn tw-btn--outline tw-btn--sm" href={actionHref}>
-        {actionLabel}
-        <IconArrowRight size={14} aria-hidden="true" />
-      </Link>
+      {actionLabel && actionHref && <Link className="tw-btn tw-btn--outline tw-btn--sm" href={actionHref}>
+        {actionLabel}<IconArrowRight size={14} aria-hidden="true" />
+      </Link>}
+      {actionLabel && onAction && !actionHref && <button className="tw-btn tw-btn--outline tw-btn--sm" type="button" onClick={onAction}>
+        {actionLabel}<IconArrowRight size={14} aria-hidden="true" />
+      </button>}
     </section>
   );
 }

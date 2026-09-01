@@ -224,6 +224,9 @@ func (s *CashFlowService) ListInstallmentReceivables(ctx context.Context, authen
 		TotalReceivableIdr: result.TotalReceivableIDR, TotalOverdueIdr: result.TotalOverdueIDR,
 		DueNext_7DaysIdr: result.DueNext7DaysIDR, UnverifiedPaymentCount: result.UnverifiedPaymentCount,
 		CollectionRateBps: result.CollectionRateBPS,
+		AgingCurrentIdr:   result.AgingCurrentIDR, Aging_1_30Idr: result.Aging1To30IDR,
+		Aging_31_60Idr: result.Aging31To60IDR, Aging_61_90Idr: result.Aging61To90IDR,
+		AgingOver_90Idr: result.AgingOver90IDR,
 	}
 	for _, plan := range result.Plans {
 		response.Plans = append(response.Plans, installmentPlanMessage(plan))

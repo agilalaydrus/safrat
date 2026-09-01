@@ -271,6 +271,11 @@ func (r *InstallmentRepository) ListReceivables(ctx context.Context, operatorID 
 	result.TotalReceivableIDR = stats.TotalReceivableIdr
 	result.TotalOverdueIDR = stats.TotalOverdueIdr
 	result.DueNext7DaysIDR = stats.DueNext7DaysIdr
+	result.AgingCurrentIDR = stats.AgingCurrentIdr
+	result.Aging1To30IDR = stats.Aging130Idr
+	result.Aging31To60IDR = stats.Aging3160Idr
+	result.Aging61To90IDR = stats.Aging6190Idr
+	result.AgingOver90IDR = stats.AgingOver90Idr
 	if stats.TotalPayableIdr > 0 {
 		result.CollectionRateBPS = int32(stats.TotalPaidIdr * 10_000 / stats.TotalPayableIdr)
 	}

@@ -21,15 +21,25 @@ DELETE FROM vendor_payments WHERE id = $1 AND operator_id = $2
   AND (sqlc.narg(branch_scope)::uuid IS NULL OR branch_id = sqlc.narg(branch_scope)::uuid);
 
 -- name: GetSeasonPaidTotal :one
--- Total collected from pilgrims — the actual payment ledger (orders net of
--- refunds), not a cached running-balance column.
-SELECT COALESCE(SUM(op.net_paid_idr), 0)::bigint AS total_collected_idr
-FROM order_payments op
-JOIN orders o ON o.id = op.order_id
-LEFT JOIN pilgrims p ON p.id = op.pilgrim_id
-WHERE op.operator_id = $1 AND op.season_id = $2
-  AND (op.pilgrim_id IS NULL OR p.status = 'ACTIVE')
-  AND (sqlc.narg(branch_scope)::uuid IS NULL OR o.branch_id = sqlc.narg(branch_scope)::uuid);
+-- Total collected from every append-only pilgrim money ledger. Cached pilgrim
+-- payment_status is deliberately excluded because it carries no rupiah value.
+WITH collected AS (
+  SELECT op.net_paid_idr AS amount_idr
+  FROM order_payments op
+  JOIN orders o ON o.id = op.order_id
+  LEFT JOIN pilgrims p ON p.id = op.pilgrim_id
+  WHERE op.operator_id = $1 AND op.season_id = $2
+    AND (op.pilgrim_id IS NULL OR p.status = 'ACTIVE')
+    AND (sqlc.narg(branch_scope)::uuid IS NULL OR o.branch_id = sqlc.narg(branch_scope)::uuid)
+  UNION ALL
+  SELECT pe.amount_idr
+  FROM installment_payment_entries pe
+  JOIN installment_plans ip ON ip.id = pe.plan_id
+  JOIN pilgrims p ON p.id = ip.pilgrim_id
+  WHERE pe.operator_id = $1 AND ip.season_id = $2 AND p.status = 'ACTIVE'
+    AND (sqlc.narg(branch_scope)::uuid IS NULL OR pe.branch_id = sqlc.narg(branch_scope)::uuid)
+)
+SELECT COALESCE(SUM(amount_idr), 0)::bigint AS total_collected_idr FROM collected;
 
 -- name: GetVendorCommitmentSummary :one
 SELECT

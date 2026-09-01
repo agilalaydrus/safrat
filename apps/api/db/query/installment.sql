@@ -161,7 +161,22 @@ SELECT
     WHERE due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + 7 AND paid_idr < amount_due_idr
   ), 0)::bigint AS due_next_7_days_idr,
   COALESCE(SUM(paid_idr), 0)::bigint AS total_paid_idr,
-  COALESCE(SUM(amount_due_idr), 0)::bigint AS total_payable_idr
+  COALESCE(SUM(amount_due_idr), 0)::bigint AS total_payable_idr,
+  COALESCE(SUM(amount_due_idr - paid_idr) FILTER (
+    WHERE due_date >= CURRENT_DATE AND paid_idr < amount_due_idr
+  ), 0)::bigint AS aging_current_idr,
+  COALESCE(SUM(amount_due_idr - paid_idr) FILTER (
+    WHERE due_date < CURRENT_DATE AND due_date >= CURRENT_DATE - 30 AND paid_idr < amount_due_idr
+  ), 0)::bigint AS aging_1_30_idr,
+  COALESCE(SUM(amount_due_idr - paid_idr) FILTER (
+    WHERE due_date < CURRENT_DATE - 30 AND due_date >= CURRENT_DATE - 60 AND paid_idr < amount_due_idr
+  ), 0)::bigint AS aging_31_60_idr,
+  COALESCE(SUM(amount_due_idr - paid_idr) FILTER (
+    WHERE due_date < CURRENT_DATE - 60 AND due_date >= CURRENT_DATE - 90 AND paid_idr < amount_due_idr
+  ), 0)::bigint AS aging_61_90_idr,
+  COALESCE(SUM(amount_due_idr - paid_idr) FILTER (
+    WHERE due_date < CURRENT_DATE - 90 AND paid_idr < amount_due_idr
+  ), 0)::bigint AS aging_over_90_idr
 FROM installment_paid;
 
 -- name: InsertInstallmentPayment :one

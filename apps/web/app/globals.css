@@ -2317,3 +2317,127 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-seri
 @media (prefers-reduced-motion: reduce) {
   .landing-v2 *, .landing-v2 *::before, .landing-v2 *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Payment and installment ledger */
+.cashflow-page { min-height: 100%; background: var(--color-cream-100); }
+.cashflow-content { display: grid; max-width: 1400px; margin: 0 auto; padding: 0 32px 40px; }
+.cashflow-tabs { display: flex; gap: 24px; border-bottom: 1px solid var(--color-cream-300); margin-bottom: 20px; }
+.cashflow-tabs button { position: relative; min-height: 50px; border: 0; background: transparent; color: var(--color-warm-400); font: inherit; font-size: 12px; font-weight: 700; transition: color 150ms ease-out; }
+.cashflow-tabs button::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--color-emerald-800); content: ""; opacity: 0; transform: scaleX(.6); transition: opacity 150ms ease-out, transform 150ms ease-out; }
+.cashflow-tabs button:hover { color: var(--color-warm-700); }
+.cashflow-tabs button[data-active] { color: var(--color-emerald-900); }
+.cashflow-tabs button[data-active]::after { opacity: 1; transform: scaleX(1); }
+.cashflow-tabs button:focus-visible { border-radius: 4px; outline: 0; box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-emerald-700) 16%, transparent); }
+.cashflow-season, .cashflow-filter { min-height: 42px; border: 1px solid var(--color-cream-400); border-radius: 12px; background: #fff; padding: 0 36px 0 12px; color: var(--color-warm-700); font: inherit; font-size: 12px; }
+.cashflow-season:focus-visible, .cashflow-filter:focus-visible { border-color: transparent; outline: 0; box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-emerald-700) 16%, transparent); }
+.cashflow-notice { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; border: 1px solid var(--color-warning-200); border-radius: 12px; background: var(--color-warning-50); margin-bottom: 18px; padding: 12px 14px; color: var(--color-warning-700); font-size: 12px; }
+.cashflow-notice button { border: 0; background: transparent; color: inherit; font-size: 11px; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+.cashflow-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.cashflow-section, .cashflow-vendors { display: grid; gap: 14px; }
+.cashflow-aging { display: grid; grid-template-columns: minmax(180px, .32fr) minmax(0, 1fr); gap: 24px; margin-bottom: 20px; padding: 20px; }
+.cashflow-aging h2 { margin: 0; color: var(--color-warm-900); font-size: 16px; font-weight: 750; }
+.cashflow-aging > div:first-child p { margin: 4px 0 0; color: var(--color-warm-400); font-size: 10px; line-height: 1.5; }
+.cashflow-aging__plot { display: grid; gap: 10px; }
+.cashflow-aging__plot article { display: grid; grid-template-columns: 112px minmax(80px, 1fr) 92px; align-items: center; gap: 10px; }
+.cashflow-aging__plot span { color: var(--color-warm-700); font-size: 10px; font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; }
+.cashflow-aging__plot article > div { height: 7px; overflow: hidden; border-radius: 9999px; background: var(--color-cream-300); }
+.cashflow-aging__plot i { display: block; height: 100%; min-width: 2px; border-radius: inherit; background: var(--color-gold-500); transition: width 300ms ease-out; }
+.cashflow-aging__plot article:nth-child(n + 2) i { background: var(--color-warning-600); }
+.cashflow-aging__plot article:last-child i { background: var(--color-danger-600); }
+.cashflow-aging__plot small { color: var(--color-warm-400); font-size: 9px; }
+.cashflow-section__heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 4px 2px; }
+.cashflow-section__heading h2, .cashflow-chart h2 { margin: 0; color: var(--color-warm-900); font-size: 17px; font-weight: 750; }
+.cashflow-section__heading p, .cashflow-chart p { margin: 4px 0 0; color: var(--color-warm-400); font-size: 11px; }
+.cashflow-person { display: grid; gap: 3px; min-width: 150px; }
+.cashflow-person strong { color: var(--color-warm-900); }
+.cashflow-person span { color: var(--color-warm-400); font-size: 10px; }
+.cashflow-progress { position: relative; width: 112px; height: 6px; border-radius: 9999px; background: var(--color-cream-300); }
+.cashflow-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--color-emerald-700); transition: width 300ms ease-out; }
+.cashflow-progress small { position: absolute; top: 10px; left: 0; color: var(--color-warm-400); font-size: 9px; font-variant-numeric: tabular-nums; }
+.cashflow-form { display: grid; gap: 16px; }
+.cashflow-form label, .cashflow-reversal label { display: grid; gap: 7px; color: var(--color-warm-700); font-size: 12px; font-weight: 700; }
+.cashflow-form :is(input, select, textarea), .cashflow-reversal textarea { width: 100%; min-height: 44px; border: 1px solid var(--color-cream-400); border-radius: 12px; background: #fff; padding: 10px 12px; color: var(--color-warm-900); font: inherit; font-size: 13px; font-weight: 500; }
+.cashflow-form textarea, .cashflow-reversal textarea { resize: vertical; }
+.cashflow-form :is(input, select, textarea):focus, .cashflow-reversal textarea:focus { border-color: transparent; outline: 0; box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-emerald-700) 16%, transparent); }
+.cashflow-form input::placeholder { color: var(--color-warm-400); opacity: 1; }
+.cashflow-form label > small { color: var(--color-warm-400); font-size: 10px; font-weight: 500; }
+.cashflow-ledger-note { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--color-cream-300); border-radius: 12px; background: var(--color-cream-100); padding: 13px; color: var(--color-warm-500); }
+.cashflow-ledger-note svg { flex: 0 0 auto; color: var(--color-gold-600); }
+.cashflow-ledger-note p { margin: 0; font-size: 10px; line-height: 1.55; }
+.cashflow-ledger-note strong { color: var(--color-warm-700); }
+.cashflow-detail { display: grid; gap: 26px; }
+.cashflow-detail > section > h3, .cashflow-detail__heading h3, .cashflow-reversal h3 { margin: 0 0 10px; color: var(--color-warm-900); font-size: 13px; font-weight: 800; }
+.cashflow-detail__summary { display: grid; grid-template-columns: 1fr 1fr auto; align-items: center; gap: 12px; border: 1px solid var(--color-cream-300); border-radius: 12px; background: var(--color-cream-100); padding: 14px; }
+.cashflow-detail__summary > div { display: grid; gap: 4px; }
+.cashflow-detail__summary span { color: var(--color-warm-400); font-size: 9px; font-weight: 700; text-transform: uppercase; }
+.cashflow-detail__summary strong { color: var(--color-warm-900); font-size: 14px; font-variant-numeric: tabular-nums; }
+.cashflow-schedule { display: grid; gap: 8px; }
+.cashflow-installment { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 16px; border: 1px solid var(--color-cream-300); border-radius: 12px; background: #fff; padding: 12px; color: var(--color-warm-700); text-align: left; transition: border-color 150ms ease-out, background-color 150ms ease-out, box-shadow 150ms ease-out, transform 150ms ease-out; }
+.cashflow-installment:hover { border-color: var(--color-cream-500); background: var(--color-cream-100); }
+.cashflow-installment:active { transform: translateY(1px); }
+.cashflow-installment:focus-visible { border-color: transparent; outline: 0; box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-emerald-700) 16%, transparent); }
+.cashflow-installment[data-selected] { border-color: var(--color-emerald-700); background: var(--color-emerald-50); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-emerald-700) 10%, transparent); }
+.cashflow-installment > span { display: grid; justify-items: start; gap: 4px; }
+.cashflow-installment > span:last-child { justify-items: end; }
+.cashflow-installment small { color: var(--color-warm-400); font-size: 9px; }
+.cashflow-payment-form { border-top: 1px solid var(--color-cream-300); padding-top: 22px; }
+.cashflow-detail__heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cashflow-detail__heading h3 { margin: 0; }
+.cashflow-ledger { display: grid; border: 1px solid var(--color-cream-300); border-radius: 12px; overflow: hidden; }
+.cashflow-ledger article { display: flex; align-items: center; justify-content: space-between; gap: 14px; border-bottom: 1px solid var(--color-cream-200); padding: 12px; }
+.cashflow-ledger article:last-child { border-bottom: 0; }
+.cashflow-ledger article[data-kind="REVERSAL"] { background: var(--color-danger-50); color: var(--color-danger-700); }
+.cashflow-ledger article > div { display: grid; gap: 3px; }
+.cashflow-ledger article span { color: var(--color-warm-400); font-size: 9px; }
+.cashflow-ledger__amount { justify-items: end; font-variant-numeric: tabular-nums; }
+.cashflow-ledger__amount button { border: 0; background: transparent; color: var(--color-danger-600); font-size: 9px; font-weight: 800; text-decoration: underline; text-underline-offset: 2px; }
+.cashflow-reversal { border: 1px solid var(--color-danger-200); border-radius: 12px; background: var(--color-danger-50); padding: 14px; }
+.cashflow-reversal p { margin: -4px 0 12px; color: var(--color-danger-700); font-size: 10px; line-height: 1.55; }
+.cashflow-reversal > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.cashflow-chart { display: grid; grid-template-columns: minmax(180px, .35fr) minmax(0, 1fr); gap: 24px; padding: 20px; }
+.cashflow-bars { display: flex; height: 180px; align-items: flex-end; gap: 14px; overflow-x: auto; padding: 8px 4px 0; }
+.cashflow-bars > div { display: grid; height: 100%; min-width: 66px; grid-template-rows: auto 1fr auto; justify-items: center; gap: 7px; }
+.cashflow-bars span, .cashflow-bars small { color: var(--color-warm-400); font-size: 9px; white-space: nowrap; }
+.cashflow-bars i { align-self: end; width: 30px; min-height: 5px; border-radius: 6px 6px 2px 2px; background: var(--color-gold-500); transition: height 300ms ease-out; }
+.cashflow-vendor-table { overflow: hidden; }
+.cashflow-vendor-table .cashflow-section__heading { padding: 18px 20px 14px; }
+.cashflow-vendor-table table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.cashflow-vendor-table th { background: var(--color-cream-100); padding: 10px 14px; color: var(--color-warm-400); font-size: 10px; text-align: left; text-transform: uppercase; }
+.cashflow-vendor-table td { border-top: 1px solid var(--color-cream-200); padding: 12px 14px; color: var(--color-warm-700); }
+.cashflow-vendor-table :is(th, td)[data-align="right"] { text-align: right; }
+.cashflow-vendor-table td > small { display: block; margin-top: 3px; color: var(--color-warm-400); }
+.cashflow-table-state { padding: 24px; color: var(--color-warm-400); text-align: center; }
+
+@media (max-width: 980px) {
+  .cashflow-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cashflow-chart, .cashflow-aging { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .cashflow-content { padding: 0 16px 28px; }
+  .cashflow-tabs { gap: 18px; overflow-x: auto; }
+  .cashflow-tabs button { flex: 0 0 auto; }
+  .cashflow-stats { grid-template-columns: 1fr; }
+  .cashflow-season { width: 100%; }
+  .cashflow-notice { grid-template-columns: auto minmax(0, 1fr); }
+  .cashflow-notice button { grid-column: 2; justify-self: start; }
+  .cashflow-detail__summary { grid-template-columns: 1fr 1fr; }
+  .cashflow-detail__summary > .tw-badge { grid-column: 1 / -1; justify-self: start; }
+  .cashflow-aging__plot article { grid-template-columns: 90px minmax(70px, 1fr); }
+  .cashflow-aging__plot small { grid-column: 1 / -1; padding-left: 100px; }
+  .cashflow-installment { align-items: flex-start; flex-direction: column; }
+  .cashflow-installment > span:last-child { width: 100%; grid-template-columns: 1fr auto; justify-items: start; align-items: center; }
+}
+
+@media print {
+  body:has(.cashflow-detail) > * { visibility: hidden; }
+  .tw-detail-drawer-layer, .tw-detail-drawer-layer * { visibility: visible; }
+  .tw-detail-drawer-layer { position: absolute; inset: 0; display: block; }
+  .tw-detail-drawer__backdrop, .tw-detail-drawer__close, .tw-detail-drawer__footer, .cashflow-payment-form, .cashflow-reversal, .cashflow-ledger__amount button { display: none !important; }
+  .tw-detail-drawer { width: 100%; height: auto; box-shadow: none; }
+  .tw-detail-drawer__body { overflow: visible; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cashflow-page *, .cashflow-page *::before, .cashflow-page *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
