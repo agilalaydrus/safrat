@@ -9,7 +9,17 @@ RETURNING *;
 SELECT ks.*, k.code AS kloter_name, k.departure_date
 FROM kloter_staff ks
 JOIN kloters k ON k.id = ks.kloter_id
-WHERE ks.operator_id = $1 AND ks.kloter_id = $2;
+WHERE ks.operator_id = $1 AND ks.kloter_id = $2
+  AND (
+    sqlc.narg(branch_scope)::uuid IS NULL
+    OR EXISTS (
+      SELECT 1 FROM pilgrims p
+      WHERE p.kloter_id = k.id
+        AND p.operator_id = ks.operator_id
+        AND p.branch_id = sqlc.narg(branch_scope)::uuid
+        AND p.is_substituted = false
+    )
+  );
 
 -- name: ListMyAssignments :many
 -- Staff-facing: show all kloters this staff member is assigned to.
@@ -31,6 +41,16 @@ FROM kloters k
 JOIN seasons s ON s.id = k.season_id
 LEFT JOIN kloter_staff ks ON ks.kloter_id = k.id
 WHERE k.operator_id = $1 AND s.id = $2
+  AND (
+    sqlc.narg(branch_scope)::uuid IS NULL
+    OR EXISTS (
+      SELECT 1 FROM pilgrims p
+      WHERE p.kloter_id = k.id
+        AND p.operator_id = k.operator_id
+        AND p.branch_id = sqlc.narg(branch_scope)::uuid
+        AND p.is_substituted = false
+    )
+  )
 GROUP BY k.id, k.code, k.departure_date, s.name
 ORDER BY k.departure_date ASC;
 

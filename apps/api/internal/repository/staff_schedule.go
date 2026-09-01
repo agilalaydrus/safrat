@@ -21,6 +21,11 @@ func (r *StaffScheduleRepository) Assign(ctx context.Context, operatorID, kloter
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
+	if scope, err := branchScope(ctx, r.queries, opUUID); err != nil {
+		return nil, err
+	} else if scope.Valid {
+		return nil, apperror.ErrForbidden
+	}
 	kloterUUID, err := pgUUID(kloterID)
 	if err != nil {
 		return nil, apperror.ErrValidation
@@ -49,7 +54,11 @@ func (r *StaffScheduleRepository) ListForKloter(ctx context.Context, operatorID,
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
-	rows, err := r.queries.ListKloterStaff(ctx, db.ListKloterStaffParams{OperatorID: opUUID, KloterID: kloterUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListKloterStaff(ctx, db.ListKloterStaffParams{OperatorID: opUUID, KloterID: kloterUUID, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -93,7 +102,11 @@ func (r *StaffScheduleRepository) ListAll(ctx context.Context, operatorID, seaso
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
-	rows, err := r.queries.ListAllStaffSchedule(ctx, db.ListAllStaffScheduleParams{OperatorID: opUUID, ID: seasonUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListAllStaffSchedule(ctx, db.ListAllStaffScheduleParams{OperatorID: opUUID, ID: seasonUUID, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -115,6 +128,11 @@ func (r *StaffScheduleRepository) Remove(ctx context.Context, kloterID, staffID,
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return apperror.ErrValidation
+	}
+	if scope, err := branchScope(ctx, r.queries, opUUID); err != nil {
+		return err
+	} else if scope.Valid {
+		return apperror.ErrForbidden
 	}
 	return databaseError(r.queries.RemoveStaffFromKloter(ctx, db.RemoveStaffFromKloterParams{KloterID: kloterUUID, StaffID: staffID, OperatorID: opUUID}))
 }
