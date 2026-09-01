@@ -10,6 +10,7 @@ import (
 	"github.com/hajj-saas/api/internal/apperror"
 	appcrypto "github.com/hajj-saas/api/internal/crypto"
 	"github.com/hajj-saas/api/internal/domain"
+	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -274,7 +275,16 @@ func (r *RefundPayoutRepository) ListByOperator(ctx context.Context, operatorID,
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
-	rows, err := r.pool.Query(ctx, refundPayoutSelect+` WHERE pr.operator_id=$1 AND ($2='' OR pr.status=$2) ORDER BY CASE pr.status WHEN 'REQUESTED' THEN 0 WHEN 'PROCESSING' THEN 1 ELSE 2 END, pr.created_at DESC`, id, status)
+	scope, err := branchScope(ctx, db.New(r.pool), id)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.pool.Query(ctx, refundPayoutSelect+`
+		WHERE pr.operator_id=$1 AND ($2='' OR pr.status=$2)
+		  AND ($3::uuid IS NULL
+		    OR (pr.beneficiary_kind='PILGRIM' AND p.branch_id=$3)
+		    OR (pr.beneficiary_kind='AGENT' AND a.branch_id=$3))
+		ORDER BY CASE pr.status WHEN 'REQUESTED' THEN 0 WHEN 'PROCESSING' THEN 1 ELSE 2 END, pr.created_at DESC`, id, status, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -306,7 +316,16 @@ func (r *RefundPayoutRepository) LockByIDTx(ctx context.Context, tx pgx.Tx, oper
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
-	request, err := scanRefundPayout(tx.QueryRow(ctx, refundPayoutSelect+` WHERE pr.operator_id=$1 AND pr.id=$2 FOR UPDATE OF pr`, opID, id))
+	scope, err := branchScope(ctx, db.New(tx), opID)
+	if err != nil {
+		return nil, err
+	}
+	request, err := scanRefundPayout(tx.QueryRow(ctx, refundPayoutSelect+`
+		WHERE pr.operator_id=$1 AND pr.id=$2
+		  AND ($3::uuid IS NULL
+		    OR (pr.beneficiary_kind='PILGRIM' AND p.branch_id=$3)
+		    OR (pr.beneficiary_kind='AGENT' AND a.branch_id=$3))
+		FOR UPDATE OF pr`, opID, id, scope))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.ErrNotFound
 	}
