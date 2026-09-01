@@ -70,6 +70,11 @@ func (r *WaitlistRepository) List(ctx context.Context, operatorID, seasonID stri
 	if err != nil {
 		return nil, err
 	}
+	if scope, err := branchScope(ctx, r.queries, opUUID); err != nil {
+		return nil, err
+	} else if scope.Valid {
+		return nil, apperror.ErrForbidden
+	}
 	seasonUUID, err := pgUUID(seasonID)
 	if err != nil {
 		return nil, err
@@ -90,6 +95,11 @@ func (r *WaitlistRepository) Promote(ctx context.Context, operatorID, id string)
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
+	if scope, err := branchScope(ctx, r.queries, opUUID); err != nil {
+		return nil, err
+	} else if scope.Valid {
+		return nil, apperror.ErrForbidden
+	}
 	idUUID, err := pgUUID(id)
 	if err != nil {
 		return nil, apperror.ErrValidation
@@ -109,6 +119,11 @@ func (r *WaitlistRepository) AdminConfirm(ctx context.Context, operatorID, id st
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
+	if scope, err := branchScope(ctx, r.queries, opUUID); err != nil {
+		return nil, err
+	} else if scope.Valid {
+		return nil, apperror.ErrForbidden
+	}
 	idUUID, err := pgUUID(id)
 	if err != nil {
 		return nil, apperror.ErrValidation
@@ -126,6 +141,11 @@ func (r *WaitlistRepository) PromoteNextWaiting(ctx context.Context, operatorID,
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
+	}
+	if scope, err := branchScope(ctx, r.queries, opUUID); err != nil {
+		return nil, err
+	} else if scope.Valid {
+		return nil, apperror.ErrForbidden
 	}
 	seasonUUID, err := pgUUID(seasonID)
 	if err != nil {
@@ -149,6 +169,11 @@ func (r *WaitlistRepository) Remove(ctx context.Context, operatorID, id string) 
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return apperror.ErrValidation
+	}
+	if scope, err := branchScope(ctx, r.queries, opUUID); err != nil {
+		return err
+	} else if scope.Valid {
+		return apperror.ErrForbidden
 	}
 	idUUID, err := pgUUID(id)
 	if err != nil {
