@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { IconSpeakerphone, IconTrash } from "@tabler/icons-react";
 import { Broadcast } from "@hajj-saas/proto-gen/hajj/v1/broadcast_pb";
 import { broadcastClient, seasonClient } from "@/lib/rpc";
+import { getMyAccessCached } from "@/lib/access-cache";
 
 export default function BroadcastDashboard() {
   const [seasonId, setSeasonId] = useState("");
@@ -14,6 +15,14 @@ export default function BroadcastDashboard() {
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState("");
+  const [branchId, setBranchId] = useState<string | null>();
+
+  useEffect(() => {
+    getMyAccessCached().then((access) => setBranchId(access.branchId || null)).catch(() => {
+      setBranchId("unavailable");
+      setNotice("Hak akses komunikasi belum dapat diverifikasi. Muat ulang halaman sebelum mengirim pengumuman.");
+    });
+  }, []);
 
   useEffect(() => {
     seasonClient.listSeasons({}).then((response) => {
@@ -30,6 +39,7 @@ export default function BroadcastDashboard() {
   useEffect(refresh, [seasonId]);
 
   const activeName = useMemo(() => seasons.find((s) => s.id === seasonId)?.name ?? "Pilih musim", [seasons, seasonId]);
+  const canManage = branchId === null;
 
   const send = async () => {
     if (!title.trim() || !body.trim()) { setNotice("Judul dan isi pengumuman wajib diisi."); return; }
@@ -66,8 +76,9 @@ export default function BroadcastDashboard() {
     </header>
     <div className="gold-divider" />
     {notice && <p role="status" style={{ color: "var(--color-gold-800)" }}>{notice}</p>}
-    <section style={composer}>
+    {branchId === undefined ? <section style={composer} aria-busy="true">Memverifikasi cakupan komunikasi…</section> : canManage ? <section style={composer}>
       <h2 style={{ margin: 0 }}>Kirim Pengumuman Baru</h2>
+      <p style={{ margin: 0, color: "var(--color-warm-500)", fontSize: 13 }}>Pengumuman ini tampil kepada seluruh jamaah pada musim yang dipilih, di semua cabang.</p>
       <label style={field}>Judul
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Judul pengumuman" style={input} maxLength={150} />
       </label>
@@ -75,14 +86,14 @@ export default function BroadcastDashboard() {
         <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} placeholder="Tulis pengumuman untuk seluruh jamaah pada musim ini..." style={{ ...input, minHeight: 100, resize: "vertical" }} maxLength={1000} />
       </label>
       <button disabled={sending || !seasonId} onClick={send} style={emerald}><IconSpeakerphone size={18} />{sending ? "Mengirim..." : "Kirim ke Semua Jamaah"}</button>
-    </section>
+    </section> : <section style={branchNotice}><IconSpeakerphone size={22} /><div><h2 style={{ margin: 0, fontSize: 18 }}>Pengumuman dikelola kantor pusat</h2><p style={{ margin: "5px 0 0", color: "var(--color-warm-500)", fontSize: 13 }}>Anda tetap dapat membaca pengumuman untuk seluruh jamaah. Hubungi kantor pusat jika cabang membutuhkan pengumuman baru atau koreksi.</p></div></section>}
     <section style={{ marginTop: 24 }}>
       <h2>Riwayat Pengumuman</h2>
       {loading ? <p style={{ color: "var(--color-warm-500)" }}>Memuat...</p> : broadcasts.length ? <div style={{ display: "grid", gap: 12 }}>
         {broadcasts.map((b) => <article key={b.id} style={card}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start" }}>
             <div><h3 style={{ margin: "0 0 4px" }}>{b.title}</h3><p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{b.body}</p></div>
-            <button onClick={() => remove(b)} aria-label={`Hapus pengumuman ${b.title}`} style={deleteBtn}><IconTrash size={16} /></button>
+            {canManage && <button onClick={() => remove(b)} aria-label={`Hapus pengumuman ${b.title}`} style={deleteBtn}><IconTrash size={16} /></button>}
           </div>
           <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--color-warm-400)" }}>{b.createdAt?.toDate().toLocaleString("id-ID") ?? ""}</p>
         </article>)}
@@ -102,3 +113,4 @@ const input: React.CSSProperties = { minHeight: 44, width: "100%", border: "1px 
 const emerald: React.CSSProperties = { minHeight: 48, border: 0, borderRadius: 8, background: "var(--color-emerald-900)", color: "white", fontWeight: 700, padding: "0 18px", display: "inline-flex", gap: 8, alignItems: "center", justifySelf: "start" };
 const card: React.CSSProperties = { border: "1px solid var(--color-cream-400)", borderRadius: 12, padding: 16, background: "white" };
 const deleteBtn: React.CSSProperties = { minHeight: 36, minWidth: 36, border: "1px solid var(--color-cream-400)", borderRadius: 8, background: "transparent", color: "var(--color-danger-600)", display: "grid", placeItems: "center", flexShrink: 0 };
+const branchNotice: React.CSSProperties = { display: "flex", alignItems: "flex-start", gap: 12, border: "1px solid var(--color-warning-200)", borderRadius: 12, background: "var(--color-warning-50)", padding: 18, color: "var(--color-warning-700)" };

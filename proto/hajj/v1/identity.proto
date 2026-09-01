@@ -43,6 +43,9 @@ message MyAccess {
   // vacana.tawafiqhub.id) — see apps/web/lib/tenant-link.ts. Empty if the
   // operator was created before slugs existed and never got backfilled one.
   string operator_slug = 8;
+  // Set only for operator staff assigned through branch_members. Empty means
+  // head-office staff and therefore operator-wide authority.
+  string branch_id = 9;
 
   // Group Leader — every group this identity leads (groups.leader_id).
   // Usually one, but a person can lead more than one group.

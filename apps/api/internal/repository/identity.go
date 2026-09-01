@@ -93,6 +93,12 @@ func (r *IdentityRepository) fetchMyAccess(ctx context.Context, userID string) (
 		result.OperatorID = uuidString(membership.OperatorID)
 		result.OperatorName = membership.OperatorName
 		result.OperatorSlug = membership.OperatorSlug.String
+		branchID, branchErr := r.queries.GetStaffBranchScope(ctx, db.GetStaffBranchScopeParams{BetterAuthUserID: userID, OperatorID: membership.OperatorID})
+		if branchErr == nil {
+			result.BranchID = uuidString(branchID)
+		} else if !errors.Is(branchErr, pgx.ErrNoRows) {
+			return nil, branchErr
+		}
 	case errors.Is(err, pgx.ErrNoRows):
 		// not staff — expected for leaders/pilgrims
 	default:

@@ -10,6 +10,7 @@ type MyAccess struct {
 	OperatorID    string
 	OperatorName  string
 	OperatorSlug  string
+	BranchID      string
 	LeaderGroups  []LeaderGroupSummary
 	LinkedPilgrim *PilgrimSummary
 	LinkedAgent   *Agent

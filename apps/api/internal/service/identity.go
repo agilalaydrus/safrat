@@ -36,6 +36,7 @@ func (s *IdentityService) GetMyAccess(ctx context.Context, _ *hajjv1.GetMyAccess
 		OperatorId:   access.OperatorID,
 		OperatorName: access.OperatorName,
 		OperatorSlug: access.OperatorSlug,
+		BranchId:     access.BranchID,
 		LeaderGroups: make([]*hajjv1.LeaderGroupSummary, 0, len(access.LeaderGroups)),
 	}
 	for _, g := range access.LeaderGroups {
