@@ -30,7 +30,7 @@ func NewCascadeDispatchTask() *asynq.Task {
 // local interface so the worker doesn't depend on the service package.
 type OperatorPusher interface {
 	NotifyOperatorStaff(ctx context.Context, operatorID, title, body string) error
-	NotifyGroupPilgrims(ctx context.Context, operatorID, groupID, title, body string) error
+	NotifyGroupPilgrims(ctx context.Context, operatorID, groupID, branchID, title, body string) error
 	NotifyKloterPilgrims(ctx context.Context, operatorID, kloterID, title, body string) error
 }
 
@@ -97,7 +97,7 @@ func (h *OutboxHandler) dispatch(ctx context.Context, ev domain.CascadeEvent) er
 			}
 		}
 		if payload.NotificationBody != "" && h.push != nil {
-			if err := h.push.NotifyGroupPilgrims(ctx, ev.OperatorID, payload.GroupID, "Tawafiq Hub", payload.NotificationBody); err != nil {
+			if err := h.push.NotifyGroupPilgrims(ctx, ev.OperatorID, payload.GroupID, "", "Tawafiq Hub", payload.NotificationBody); err != nil {
 				return err
 			}
 		}
@@ -133,7 +133,7 @@ func (h *OutboxHandler) dispatch(ctx context.Context, ev domain.CascadeEvent) er
 			return fmt.Errorf("ritual bulk event missing group_id")
 		}
 		if payload.NotificationBody != "" && h.push != nil {
-			if err := h.push.NotifyGroupPilgrims(ctx, ev.OperatorID, payload.GroupID, "Tawafiq Hub", payload.NotificationBody); err != nil {
+			if err := h.push.NotifyGroupPilgrims(ctx, ev.OperatorID, payload.GroupID, payload.BranchID, "Tawafiq Hub", payload.NotificationBody); err != nil {
 				return err
 			}
 		}

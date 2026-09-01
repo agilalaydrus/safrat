@@ -158,11 +158,11 @@ func (p *FirebasePusher) NotifyOperatorStaff(ctx context.Context, operatorID, ti
 // NotifyGroupPilgrims pushes to every pilgrim in the group who has
 // registered a device (pilgrim_push_tokens) — used for the Muttawwif's
 // location-update cascade ("Rombongan Anda kini di Makkah").
-func (p *FirebasePusher) NotifyGroupPilgrims(ctx context.Context, operatorID, groupID, title, body string) error {
+func (p *FirebasePusher) NotifyGroupPilgrims(ctx context.Context, operatorID, groupID, branchID, title, body string) error {
 	if p == nil || p.client == nil {
 		return nil
 	}
-	tokens, err := p.tokens.ListTokensForGroup(ctx, operatorID, groupID)
+	tokens, err := p.tokens.ListTokensForGroup(ctx, operatorID, groupID, branchID)
 	if err != nil {
 		return fmt.Errorf("list group push tokens: %w", err)
 	}

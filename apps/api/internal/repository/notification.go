@@ -57,7 +57,7 @@ func (r *NotificationRepository) RegisterPilgrimToken(ctx context.Context, opera
 	return r.queries.UpsertPilgrimPushToken(ctx, db.UpsertPilgrimPushTokenParams{OperatorID: opUUID, PilgrimID: pilgrimUUID, FcmToken: fcmToken})
 }
 
-func (r *NotificationRepository) ListTokensForGroup(ctx context.Context, operatorID, groupID string) ([]string, error) {
+func (r *NotificationRepository) ListTokensForGroup(ctx context.Context, operatorID, groupID, branchID string) ([]string, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -66,7 +66,11 @@ func (r *NotificationRepository) ListTokensForGroup(ctx context.Context, operato
 	if err != nil {
 		return nil, err
 	}
-	return r.queries.ListPushTokensForGroup(ctx, db.ListPushTokensForGroupParams{OperatorID: opUUID, GroupID: groupUUID})
+	scope, err := nullableUUID(branchID)
+	if err != nil {
+		return nil, err
+	}
+	return r.queries.ListPushTokensForGroup(ctx, db.ListPushTokensForGroupParams{OperatorID: opUUID, GroupID: groupUUID, BranchScope: scope})
 }
 
 func (r *NotificationRepository) ListTokensForKloter(ctx context.Context, operatorID, kloterID string) ([]string, error) {

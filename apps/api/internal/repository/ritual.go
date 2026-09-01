@@ -67,6 +67,22 @@ func (r *RitualRepository) CompletePilgrimRitualTx(ctx context.Context, tx pgx.T
 	return r.completePilgrimRitual(ctx, r.queries.WithTx(tx), operatorID, pilgrimID, ritualID, completedByUserID, notes)
 }
 
+// BranchScopeIDTx serializes the actor's repository-enforced branch boundary
+// into an outbox payload. Workers run without the original request context,
+// so omitting this would widen a branch-scoped write back to operator-wide
+// when its notification is delivered asynchronously.
+func (r *RitualRepository) BranchScopeIDTx(ctx context.Context, tx pgx.Tx, operatorID string) (string, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return "", err
+	}
+	scope, err := branchScope(ctx, r.queries.WithTx(tx), opUUID)
+	if err != nil {
+		return "", err
+	}
+	return nullableUUIDString(scope), nil
+}
+
 func (r *RitualRepository) completePilgrimRitual(ctx context.Context, queries *db.Queries, operatorID, pilgrimID, ritualID, completedByUserID, notes string) error {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {

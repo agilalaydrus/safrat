@@ -140,6 +140,10 @@ func (s *RitualService) BulkCompleteRitual(ctx context.Context, orgID string, re
 		return nil, serviceError("RitualService.BulkCompleteRitual", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	branchID, err := s.ritualRepository.BranchScopeIDTx(ctx, tx, op.ID)
+	if err != nil {
+		return nil, serviceError("RitualService.BulkCompleteRitual", err)
+	}
 	pilgrimIDs, err := s.journeyRepository.ListPilgrimIDsByGroupTx(ctx, tx, op.ID, req.GroupId)
 	if err != nil {
 		return nil, serviceError("RitualService.BulkCompleteRitual", err)
@@ -160,7 +164,7 @@ func (s *RitualService) BulkCompleteRitual(ctx context.Context, orgID string, re
 		count++
 	}
 	if err := s.outboxRepository.EnqueueTx(ctx, tx, op.ID, domain.EventRitualBulkCompleted, req.GroupId, domain.RitualBulkCompletedPayload{
-		GroupID: req.GroupId, RitualID: req.RitualId, CompletedCount: count, NotificationBody: "Sebuah ritual ibadah telah diselesaikan ✓",
+		GroupID: req.GroupId, RitualID: req.RitualId, BranchID: branchID, CompletedCount: count, NotificationBody: "Sebuah ritual ibadah telah diselesaikan ✓",
 	}); err != nil {
 		return nil, serviceError("RitualService.BulkCompleteRitual", err)
 	}

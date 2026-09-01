@@ -13,6 +13,7 @@ import (
 
 type fakeCascadePusher struct {
 	groupID  string
+	branchID string
 	kloterID string
 	body     string
 	err      error
@@ -21,8 +22,8 @@ type fakeCascadePusher struct {
 func (f *fakeCascadePusher) NotifyOperatorStaff(context.Context, string, string, string) error {
 	return f.err
 }
-func (f *fakeCascadePusher) NotifyGroupPilgrims(_ context.Context, _ string, groupID, _, body string) error {
-	f.groupID, f.body = groupID, body
+func (f *fakeCascadePusher) NotifyGroupPilgrims(_ context.Context, _ string, groupID, branchID, _, body string) error {
+	f.groupID, f.branchID, f.body = groupID, branchID, body
 	return f.err
 }
 func (f *fakeCascadePusher) NotifyKloterPilgrims(_ context.Context, _ string, kloterID, _, body string) error {
@@ -72,6 +73,30 @@ func TestDispatchReturnsPushFailureForRetry(t *testing.T) {
 	err := testOutboxHandler(push, &fakeJourneyCascader{}).dispatch(context.Background(), domain.CascadeEvent{OperatorID: "operator-1", EventType: domain.EventRitualBulkCompleted, Payload: payload})
 	if !errors.Is(err, want) {
 		t.Fatalf("got %v, want %v", err, want)
+	}
+}
+
+func TestDispatchRitualPreservesBranchScopeForPush(t *testing.T) {
+	push := &fakeCascadePusher{}
+	payload, _ := json.Marshal(domain.RitualBulkCompletedPayload{GroupID: "group-1", BranchID: "branch-bandung", NotificationBody: "done"})
+	err := testOutboxHandler(push, &fakeJourneyCascader{}).dispatch(context.Background(), domain.CascadeEvent{OperatorID: "operator-1", EventType: domain.EventRitualBulkCompleted, Payload: payload})
+	if err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if push.groupID != "group-1" || push.branchID != "branch-bandung" {
+		t.Fatalf("branch scope hilang di worker: %+v", push)
+	}
+}
+
+func TestDispatchLegacyRitualWithoutBranchRemainsOperatorWide(t *testing.T) {
+	push := &fakeCascadePusher{}
+	payload, _ := json.Marshal(map[string]any{"group_id": "group-1", "notification_body": "legacy"})
+	err := testOutboxHandler(push, &fakeJourneyCascader{}).dispatch(context.Background(), domain.CascadeEvent{OperatorID: "operator-1", EventType: domain.EventRitualBulkCompleted, Payload: payload})
+	if err != nil {
+		t.Fatalf("dispatch legacy: %v", err)
+	}
+	if push.branchID != "" {
+		t.Fatalf("event lama seharusnya operator-wide, scope=%q", push.branchID)
 	}
 }
 

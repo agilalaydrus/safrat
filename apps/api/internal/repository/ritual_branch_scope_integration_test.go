@@ -14,17 +14,26 @@ import (
 
 func TestRitualRepositoryEnforcesBranchScopeBothWaysIntegration(t *testing.T) {
 	url := os.Getenv("STOREFRONT_TEST_DATABASE_URL")
-	if url == "" { t.Skip("STOREFRONT_TEST_DATABASE_URL is not set") }
+	if url == "" {
+		t.Skip("STOREFRONT_TEST_DATABASE_URL is not set")
+	}
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, url)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(pool.Close)
 
 	op, season, group, ritual := uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()
 	bandung, medan := uuid.NewString(), uuid.NewString()
 	bandungPilgrim, medanPilgrim := uuid.NewString(), uuid.NewString()
 	head := "ritual-branch-head-" + uuid.NewString()
-	exec := func(query string, args ...any) { t.Helper(); if _, err := pool.Exec(ctx, query, args...); err != nil { t.Fatalf("fixture: %v", err) } }
+	exec := func(query string, args ...any) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, query, args...); err != nil {
+			t.Fatalf("fixture: %v", err)
+		}
+	}
 	exec(`INSERT INTO operators (id,better_auth_org_id,name,country,email,slug,plan) VALUES ($1,$2,'Ritual scope','ID',$3,$4,'GROWTH')`, op, "ritual-scope-"+uuid.NewString(), op[:8]+"@example.test", "ritual-"+op[:8])
 	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), `DELETE FROM operators WHERE id=$1`, op) })
 	exec(`INSERT INTO seasons (id,operator_id,name,type,start_date,end_date,capacity) VALUES ($1,$2,'Musim','UMRAH_REGULER',NOW(),NOW()+INTERVAL '30 days',20)`, season, op)
@@ -36,6 +45,15 @@ func TestRitualRepositoryEnforcesBranchScopeBothWaysIntegration(t *testing.T) {
 
 	repo := NewRitualRepository(db.New(pool))
 	branchCtx := ContextWithStaffActor(ctx, head)
+	tx, err := pool.Begin(branchCtx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	persistedScope, err := repo.BranchScopeIDTx(branchCtx, tx, op)
+	_ = tx.Rollback(ctx)
+	if err != nil || persistedScope != bandung {
+		t.Fatalf("scope outbox ritual salah: %q (%v)", persistedScope, err)
+	}
 	progress, err := repo.GetGroupProgress(branchCtx, op, group)
 	if err != nil || len(progress) != 1 || progress[0].TotalPilgrims != 1 || len(progress[0].IncompletePilgrimNames) != 1 || progress[0].IncompletePilgrimNames[0] != "Jamaah Bandung" {
 		t.Fatalf("progres ritual Bandung bocor: %#v (%v)", progress, err)

@@ -38,6 +38,7 @@ type KloterStatusUpdatedPayload struct {
 type RitualBulkCompletedPayload struct {
 	GroupID          string `json:"group_id"`
 	RitualID         string `json:"ritual_id"`
+	BranchID         string `json:"branch_id,omitempty"`
 	CompletedCount   int32  `json:"completed_count"`
 	NotificationBody string `json:"notification_body"`
 }
