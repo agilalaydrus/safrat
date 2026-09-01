@@ -83,3 +83,58 @@ func (h *CashFlowHandler) GetMonthlyProjection(ctx context.Context, req *connect
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *CashFlowHandler) CreateInstallmentPlan(ctx context.Context, req *connect.Request[hajjv1.CreateInstallmentPlanRequest]) (*connect.Response[hajjv1.InstallmentPlanDetail], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.cashFlowService.CreateInstallmentPlan(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *CashFlowHandler) GetPilgrimInstallmentPlan(ctx context.Context, req *connect.Request[hajjv1.GetPilgrimInstallmentPlanRequest]) (*connect.Response[hajjv1.InstallmentPlanDetail], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.cashFlowService.GetPilgrimInstallmentPlan(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *CashFlowHandler) ListInstallmentReceivables(ctx context.Context, req *connect.Request[hajjv1.ListInstallmentReceivablesRequest]) (*connect.Response[hajjv1.ListInstallmentReceivablesResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.cashFlowService.ListInstallmentReceivables(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *CashFlowHandler) RecordInstallmentPayment(ctx context.Context, req *connect.Request[hajjv1.RecordInstallmentPaymentRequest]) (*connect.Response[hajjv1.RecordInstallmentPaymentResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.cashFlowService.RecordInstallmentPayment(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *CashFlowHandler) ReverseInstallmentPayment(ctx context.Context, req *connect.Request[hajjv1.ReverseInstallmentPaymentRequest]) (*connect.Response[hajjv1.ReverseInstallmentPaymentResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.cashFlowService.ReverseInstallmentPayment(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

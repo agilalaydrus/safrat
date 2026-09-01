@@ -14,6 +14,141 @@ service CashFlowService {
   rpc DeleteVendorPayment(DeleteVendorPaymentRequest) returns (DeleteVendorPaymentResponse);
   rpc GetCashFlowSummary(GetCashFlowSummaryRequest) returns (CashFlowSummary);
   rpc GetMonthlyProjection(GetMonthlyProjectionRequest) returns (GetMonthlyProjectionResponse);
+  // Installment plans are travel-package receivables, deliberately separate
+  // from OrderService's product checkout transactions. The schedule is frozen
+  // at creation; money movements are append-only entries and corrections are
+  // explicit reversals.
+  rpc CreateInstallmentPlan(CreateInstallmentPlanRequest) returns (InstallmentPlanDetail);
+  rpc GetPilgrimInstallmentPlan(GetPilgrimInstallmentPlanRequest) returns (InstallmentPlanDetail);
+  rpc ListInstallmentReceivables(ListInstallmentReceivablesRequest) returns (ListInstallmentReceivablesResponse);
+  rpc RecordInstallmentPayment(RecordInstallmentPaymentRequest) returns (RecordInstallmentPaymentResponse);
+  rpc ReverseInstallmentPayment(ReverseInstallmentPaymentRequest) returns (ReverseInstallmentPaymentResponse);
+}
+
+enum InstallmentScheme {
+  INSTALLMENT_SCHEME_UNSPECIFIED = 0;
+  INSTALLMENT_SCHEME_FULL = 1;
+  INSTALLMENT_SCHEME_DP_50 = 2;
+  INSTALLMENT_SCHEME_6X = 3;
+  INSTALLMENT_SCHEME_12X = 4;
+  INSTALLMENT_SCHEME_CASH_BONUS = 5;
+}
+
+enum InstallmentPaymentMethod {
+  INSTALLMENT_PAYMENT_METHOD_UNSPECIFIED = 0;
+  INSTALLMENT_PAYMENT_METHOD_CASH = 1;
+  INSTALLMENT_PAYMENT_METHOD_BANK_TRANSFER = 2;
+  INSTALLMENT_PAYMENT_METHOD_XENDIT = 3;
+}
+
+message InstallmentPlan {
+  string id = 1;
+  string operator_id = 2;
+  string season_id = 3;
+  string pilgrim_id = 4;
+  string pilgrim_name = 5;
+  string branch_id = 6;
+  InstallmentScheme scheme = 7;
+  int64 gross_amount_idr = 8;
+  int64 cash_bonus_idr = 9;
+  int64 payable_amount_idr = 10;
+  int64 paid_amount_idr = 11;
+  int64 outstanding_amount_idr = 12;
+  int32 progress_percent = 13;
+  string status = 14; // UNPAID | PARTIAL | PAID | OVERDUE
+  google.protobuf.Timestamp created_at = 15;
+}
+
+message Installment {
+  string id = 1;
+  string plan_id = 2;
+  int32 installment_number = 3;
+  string label = 4;
+  string due_date = 5; // YYYY-MM-DD
+  int64 amount_due_idr = 6;
+  int64 paid_amount_idr = 7;
+  int64 outstanding_amount_idr = 8;
+  string status = 9; // UPCOMING | DUE | PARTIAL | PAID | OVERDUE
+  int32 days_overdue = 10;
+}
+
+message InstallmentPayment {
+  string id = 1;
+  string plan_id = 2;
+  string installment_id = 3;
+  string kind = 4; // PAYMENT | REVERSAL
+  int64 amount_idr = 5; // signed; REVERSAL is negative
+  InstallmentPaymentMethod method = 6;
+  string reference = 7;
+  string note = 8;
+  string original_payment_id = 9;
+  string verified_by_user_id = 10;
+  google.protobuf.Timestamp created_at = 11;
+  string receipt_number = 12;
+}
+
+message InstallmentPlanDetail {
+  InstallmentPlan plan = 1;
+  repeated Installment installments = 2;
+  repeated InstallmentPayment payments = 3;
+}
+
+message CreateInstallmentPlanRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+  InstallmentScheme scheme = 2 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3, 4, 5]}];
+  int64 gross_amount_idr = 3 [(buf.validate.field).int64.gt = 0];
+  int64 cash_bonus_idr = 4 [(buf.validate.field).int64.gte = 0];
+  string first_due_date = 5 [(buf.validate.field).string.min_len = 1];
+  string idempotency_key = 6 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+}
+
+message GetPilgrimInstallmentPlanRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message ListInstallmentReceivablesRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+  string status = 2 [(buf.validate.field).string = {in: ["", "UNPAID", "PARTIAL", "PAID", "OVERDUE"]}];
+  string search = 3 [(buf.validate.field).string.max_len = 100];
+  int32 limit = 4 [(buf.validate.field).int32 = {gte: 0, lte: 200}];
+  int32 offset = 5 [(buf.validate.field).int32.gte = 0];
+}
+
+message ListInstallmentReceivablesResponse {
+  repeated InstallmentPlan plans = 1;
+  int64 total_count = 2;
+  int64 total_receivable_idr = 3;
+  int64 total_overdue_idr = 4;
+  int64 due_next_7_days_idr = 5;
+  int64 unverified_payment_count = 6;
+  int32 collection_rate_bps = 7;
+}
+
+message RecordInstallmentPaymentRequest {
+  string installment_id = 1 [(buf.validate.field).string.uuid = true];
+  int64 amount_idr = 2 [(buf.validate.field).int64.gt = 0];
+  InstallmentPaymentMethod method = 3 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3]}];
+  string reference = 4 [(buf.validate.field).string.max_len = 100];
+  string note = 5 [(buf.validate.field).string.max_len = 500];
+  string idempotency_key = 6 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+}
+
+message RecordInstallmentPaymentResponse {
+  InstallmentPayment payment = 1;
+  InstallmentPlanDetail detail = 2;
+  bool created = 3;
+}
+
+message ReverseInstallmentPaymentRequest {
+  string payment_id = 1 [(buf.validate.field).string.uuid = true];
+  string reason = 2 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+  string idempotency_key = 3 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+}
+
+message ReverseInstallmentPaymentResponse {
+  InstallmentPayment reversal = 1;
+  InstallmentPlanDetail detail = 2;
+  bool created = 3;
 }
 
 message VendorPayment {

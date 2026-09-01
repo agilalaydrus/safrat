@@ -39,6 +39,10 @@ func (c *EntitlementChecker) Check(ctx context.Context, operatorID, resource str
 		if entitlement.MaxBranches != nil && entitlement.BranchCount >= *entitlement.MaxBranches {
 			return fmt.Errorf("%w: batas %d cabang sudah tercapai", apperror.ErrFailedPrecondition, *entitlement.MaxBranches)
 		}
+	case "installments":
+		if !entitlement.Features["installments"] {
+			return fmt.Errorf("%w: fitur pembayaran bercicilan tidak tersedia di paket ini", apperror.ErrFailedPrecondition)
+		}
 	default:
 		return fmt.Errorf("%w: resource entitlement tidak dikenal", apperror.ErrValidation)
 	}
