@@ -11,7 +11,10 @@ RETURNING *;
 
 -- name: CreateInsuranceClaim :one
 INSERT INTO insurance_claims (pilgrim_id, operator_id, claim_type, incident_date, description, claim_amount_idr, filed_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+SELECT p.id, $2, $3, $4, $5, $6, $7
+FROM pilgrims p
+WHERE p.id = $1 AND p.operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 RETURNING *;
 
 -- name: ListInsuranceClaims :many
@@ -19,12 +22,19 @@ SELECT ic.*, p.full_name, p.passport_number, p.insurance_provider, p.insurance_p
 FROM insurance_claims ic
 JOIN pilgrims p ON p.id = ic.pilgrim_id
 WHERE ic.operator_id = $1
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY ic.created_at DESC;
 
 -- name: UpdateInsuranceClaimStatus :one
 UPDATE insurance_claims
 SET status = $3, settled_amount_idr = $4
-WHERE id = $1 AND operator_id = $2
+WHERE insurance_claims.id = $1 AND insurance_claims.operator_id = $2
+  AND EXISTS (
+    SELECT 1 FROM pilgrims p
+    WHERE p.id = insurance_claims.pilgrim_id
+      AND p.operator_id = insurance_claims.operator_id
+      AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid)
+  )
 RETURNING *;
 
 -- name: GetInsuranceClaimExportData :one
@@ -44,4 +54,5 @@ FROM insurance_claims ic
 JOIN pilgrims p  ON p.id  = ic.pilgrim_id
 JOIN seasons  s  ON s.id  = p.season_id
 JOIN operators o ON o.id  = ic.operator_id
-WHERE ic.id = $1 AND ic.operator_id = $2;
+WHERE ic.id = $1 AND ic.operator_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR p.branch_id = sqlc.narg(branch_scope)::uuid);

@@ -27,9 +27,13 @@ func (r *InsuranceRepository) CreateClaim(ctx context.Context, pilgrimID, operat
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
 	row, err := r.queries.CreateInsuranceClaim(ctx, db.CreateInsuranceClaimParams{
-		PilgrimID: pilgrimUUID, OperatorID: opUUID, ClaimType: claimType, IncidentDate: pgDate(&incidentDate),
-		Description: description, ClaimAmountIdr: pgtype.Int8{Int64: claimAmountIDR, Valid: true}, FiledBy: filedBy,
+		ID: pilgrimUUID, OperatorID: opUUID, ClaimType: claimType, IncidentDate: pgDate(&incidentDate),
+		Description: description, ClaimAmountIdr: pgtype.Int8{Int64: claimAmountIDR, Valid: true}, FiledBy: filedBy, BranchScope: scope,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -46,7 +50,11 @@ func (r *InsuranceRepository) ListClaims(ctx context.Context, operatorID string)
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
-	rows, err := r.queries.ListInsuranceClaims(ctx, opUUID)
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListInsuranceClaims(ctx, db.ListInsuranceClaimsParams{OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
@@ -71,8 +79,12 @@ func (r *InsuranceRepository) UpdateClaimStatus(ctx context.Context, operatorID,
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
 	row, err := r.queries.UpdateInsuranceClaimStatus(ctx, db.UpdateInsuranceClaimStatusParams{
-		ID: idUUID, OperatorID: opUUID, Status: status, SettledAmountIdr: pgtype.Int8{Int64: settledAmountIDR, Valid: settledAmountIDR > 0},
+		ID: idUUID, OperatorID: opUUID, Status: status, SettledAmountIdr: pgtype.Int8{Int64: settledAmountIDR, Valid: settledAmountIDR > 0}, BranchScope: scope,
 	})
 	if err != nil {
 		return nil, databaseError(err)
@@ -93,7 +105,11 @@ func (r *InsuranceRepository) GetExportData(ctx context.Context, id, operatorID 
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
-	row, err := r.queries.GetInsuranceClaimExportData(ctx, db.GetInsuranceClaimExportDataParams{ID: idUUID, OperatorID: opUUID})
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	row, err := r.queries.GetInsuranceClaimExportData(ctx, db.GetInsuranceClaimExportDataParams{ID: idUUID, OperatorID: opUUID, BranchScope: scope})
 	if err != nil {
 		return nil, databaseError(err)
 	}
