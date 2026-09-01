@@ -76,6 +76,13 @@ test("backup code login and sensitive 2FA management require a step-up", async (
     await page.getByRole("button", { name: /^Masuk$/ }).click();
     await expect(page).toHaveURL(/\/onboarding/);
 
+    // A valid session without an operator is not a dashboard yet. The landing
+    // CTA must say what will actually happen and return to onboarding.
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: "Lanjutkan pendaftaran" }).first()).toBeVisible();
+    await page.getByRole("link", { name: "Lanjutkan pendaftaran" }).first().click();
+    await expect(page).toHaveURL(/\/onboarding/);
+
     await page.goto("/keamanan");
     await page.getByLabel(/Kata sandi akun/i).fill(account.password);
     await page.getByRole("button", { name: /^Lanjutkan$/ }).click();
@@ -140,6 +147,13 @@ test("backup code login and sensitive 2FA management require a step-up", async (
     await page.getByRole("button", { name: /Nonaktifkan dan pasang ulang/i }).click();
     await expect(page).toHaveURL(/\/keamanan/);
     await expect(page.getByText(/Langkah 1 — konfirmasi kata sandi/i)).toBeVisible();
+
+    // An unfinished account must never trap somebody who meant to use an
+    // existing account. Onboarding provides an explicit, verified sign-out.
+    await page.goto("/onboarding");
+    await page.getByRole("button", { name: "Gunakan akun lain" }).click();
+    await expect(page).toHaveURL(/\/sign-in/);
+    await expect(page.getByRole("heading", { name: "Masuk ke akun Anda" })).toBeVisible();
 
     const [user] = await query<{ id: string }>('SELECT id FROM "user" WHERE email = $1', [account.email]);
     if (!user) throw new Error("2FA fixture user disappeared");

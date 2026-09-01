@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { IconCompass, IconMenu2, IconMoon, IconSun, IconX } from "@tabler/icons-react";
 import { authClient } from "@/lib/auth-client";
+import { resolveLandingPath } from "@/lib/post-login";
 import { useTheme } from "./ThemeProvider";
 import { NAV_LINKS } from "./content";
 
@@ -11,7 +12,26 @@ export default function Navbar() {
   const { theme, toggleTheme } = useTheme();
   const { data: session, isPending } = authClient.useSession();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [accountPath, setAccountPath] = useState<string>();
   const isAuthenticated = Boolean(session?.user);
+  const userId = session?.user?.id;
+
+  useEffect(() => {
+    if (!userId) {
+      setAccountPath(undefined);
+      return;
+    }
+    let cancelled = false;
+    resolveLandingPath()
+      .then((path) => { if (!cancelled) setAccountPath(path); })
+      // /dashboard has its own authoritative access guard. Keeping it as the
+      // failure fallback means a temporary API outage never strands a signed-
+      // in visitor on the marketing page.
+      .catch(() => { if (!cancelled) setAccountPath("/dashboard"); });
+    return () => { cancelled = true; };
+  }, [userId]);
+
+  const accountLabel = accountPath === "/onboarding" ? "Lanjutkan pendaftaran" : "Dashboard";
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -57,9 +77,11 @@ export default function Navbar() {
             </button>
 
             {isAuthenticated ? (
-              <Link href="/dashboard" className="landing-button landing-button-primary landing-nav-cta">
-                Dashboard
-              </Link>
+              accountPath ? (
+                <Link href={accountPath} className="landing-button landing-button-primary landing-nav-cta">
+                  {accountLabel}
+                </Link>
+              ) : null
             ) : !isPending ? (
               <>
                 <Link href="/sign-in" className="landing-login-link">Masuk</Link>
@@ -94,7 +116,7 @@ export default function Navbar() {
             </nav>
             <div className="landing-drawer-actions">
               {isAuthenticated ? (
-                <Link href="/dashboard" className="landing-button landing-button-primary">Buka dashboard</Link>
+                accountPath ? <Link href={accountPath} className="landing-button landing-button-primary">{accountLabel}</Link> : null
               ) : (
                 <>
                   <Link href="/sign-in" className="landing-button landing-button-secondary">Masuk</Link>

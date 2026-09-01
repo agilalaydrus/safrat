@@ -6,6 +6,8 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SeasonType } from "@hajj-saas/proto-gen/hajj/v1/season_pb";
 import { authClient } from "@/lib/auth-client";
+import { invalidateMyAccessCache } from "@/lib/access-cache";
+import { resolveLandingPath } from "@/lib/post-login";
 import { operatorClient, seasonClient } from "@/lib/rpc";
 import { SEASON_TYPE_OPTIONS } from "@/lib/season-types";
 
@@ -52,7 +54,46 @@ export default function OnboardingPage() {
   const [slugStatus, setSlugStatus] = useState<"idle" | "checking" | "available" | "unavailable" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(true);
   const submittingRef = useRef(false);
+  const userId = session?.user?.id;
+
+  useEffect(() => {
+    if (isPending) return;
+    if (!userId) {
+      router.replace("/sign-in");
+      return;
+    }
+
+    let cancelled = false;
+    resolveLandingPath()
+      .then((path) => {
+        if (cancelled) return;
+        if (path !== "/onboarding") {
+          router.replace(path);
+          return;
+        }
+        setCheckingAccess(false);
+      })
+      // An access lookup failure should not erase or hide an unfinished form;
+      // authenticated users can still continue once the API recovers.
+      .catch(() => { if (!cancelled) setCheckingAccess(false); });
+    return () => { cancelled = true; };
+  }, [isPending, router, userId]);
+
+  async function switchAccount() {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await authClient.signOut();
+      if (result.error) throw new Error(result.error.message);
+      invalidateMyAccessCache();
+      router.replace("/sign-in");
+    } catch {
+      setError("Gagal keluar. Silakan coba lagi.");
+      setBusy(false);
+    }
+  }
 
   function update<K extends keyof Values>(key: K, value: Values[K]) {
     setValues((current) => ({ ...current, [key]: value }));
@@ -170,7 +211,7 @@ export default function OnboardingPage() {
     }
   }
 
-  if (isPending) {
+  if (isPending || checkingAccess) {
     return (
       <main style={pageStyle}>
         <p style={{ color: "var(--color-warm-400)" }}>Memuat sesi...</p>
@@ -272,6 +313,12 @@ export default function OnboardingPage() {
             </button>
           </div>
         </form>
+        <div style={accountSwitchStyle}>
+          <span>Form ini untuk membuat travel baru.</span>
+          <button type="button" onClick={() => void switchAccount()} disabled={busy} style={accountSwitchButtonStyle}>
+            Gunakan akun lain
+          </button>
+        </div>
       </div>
     </main>
   );
@@ -405,3 +452,5 @@ const subdomainTextInputStyle: React.CSSProperties = { minWidth: 70, flex: 1, pa
 const suffixStyle: React.CSSProperties = { display: "flex", alignItems: "center", paddingRight: 12, color: "var(--color-warm-500)", fontWeight: 500 };
 const primaryBtnStyle: React.CSSProperties = { flex: 1, padding: "13px 20px", border: 0, borderRadius: 10, background: "var(--color-emerald-800)", color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer" };
 const secondaryBtnStyle: React.CSSProperties = { padding: "13px 20px", borderRadius: 10, border: "1.5px solid var(--color-cream-400)", background: "white", color: "var(--color-warm-700)", fontWeight: 600, fontSize: 14, cursor: "pointer" };
+const accountSwitchStyle: React.CSSProperties = { display: "flex", justifyContent: "center", alignItems: "center", flexWrap: "wrap", gap: 6, marginTop: 24, paddingTop: 20, borderTop: "1px solid var(--color-cream-300)", color: "var(--color-warm-400)", fontSize: 13 };
+const accountSwitchButtonStyle: React.CSSProperties = { border: 0, background: "transparent", padding: "4px 6px", color: "var(--color-emerald-800)", font: "inherit", fontWeight: 700, cursor: "pointer" };
