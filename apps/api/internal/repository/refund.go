@@ -6,6 +6,7 @@ import (
 
 	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/hajj-saas/api/internal/domain"
+	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -38,6 +39,10 @@ func (r *RefundRepository) LockOrderForRefund(ctx context.Context, tx pgx.Tx, op
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
+	scope, err := branchScope(ctx, db.New(tx), opID)
+	if err != nil {
+		return nil, err
+	}
 	var order domain.RefundableOrder
 	var agentID, buyerAgentID *string
 	err = tx.QueryRow(ctx, `
@@ -48,7 +53,8 @@ func (r *RefundRepository) LockOrderForRefund(ctx context.Context, tx pgx.Tx, op
 		       COALESCE((SELECT SUM(commission_reversed_idr) FROM order_refunds WHERE order_id = o.id), 0)::bigint
 		FROM orders o
 		WHERE o.id = $1 AND o.operator_id = $2
-		FOR UPDATE OF o`, ordID, opID).
+		  AND ($3::uuid IS NULL OR o.branch_id = $3)
+		FOR UPDATE OF o`, ordID, opID, scope).
 		Scan(&order.ID, &order.PilgrimID, &order.BuyerKind, &buyerAgentID, &agentID, &order.TotalPriceIDR,
 			&order.AgentCommissionIDR, &order.Status, &order.RefundedIDR, &order.CommissionReversed)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -168,12 +174,21 @@ func (r *RefundRepository) ListByOrder(ctx context.Context, operatorID, orderID 
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
+	scope, err := branchScope(ctx, db.New(r.pool), opID)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := r.pool.Query(ctx, `
 		SELECT id::text, operator_id::text, order_id::text, amount_idr,
 		       commission_reversed_idr, reason, COALESCE(created_by_user_id, ''), created_at
-		FROM order_refunds
-		WHERE operator_id = $1 AND order_id = $2
-		ORDER BY created_at DESC`, opID, ordID)
+		FROM order_refunds r
+		WHERE r.operator_id = $1 AND r.order_id = $2
+		  AND EXISTS (
+		    SELECT 1 FROM orders o
+		    WHERE o.id = r.order_id AND o.operator_id = r.operator_id
+		      AND ($3::uuid IS NULL OR o.branch_id = $3)
+		  )
+		ORDER BY r.created_at DESC`, opID, ordID, scope)
 	if err != nil {
 		return nil, err
 	}
