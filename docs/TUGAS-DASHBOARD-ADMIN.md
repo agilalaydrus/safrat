@@ -263,6 +263,12 @@ Broadcast musim diklasifikasikan sebagai komunikasi operator-wide: kepala
 cabang tetap dapat membaca pengumuman pusat yang juga tampil di portal jamaah,
 tetapi pembuatan dan penghapusan hanya boleh dilakukan kantor pusat. Pengaman
 berada di repository dan dikunci integration test (`16977ec`).
+Scope ritual kini bertahan melewati batas asynchronous: `branch_id` dibaca di
+dalam transaksi, disimpan pada payload outbox, diteruskan worker/Firebase, dan
+dipakai query token grup. Event lama tanpa field tersebut tetap operator-wide
+untuk kompatibilitas antrean produksi. Integration test membuktikan hanya token
+Bandung yang dipilih dan pasangan `operator_id`/`pilgrim_id` lintas tenant tidak
+dapat didaftarkan (`adfa952`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
