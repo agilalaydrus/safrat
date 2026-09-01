@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hajj-saas/api/internal/apperror"
+	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -366,6 +367,10 @@ func (r *FulfilmentRepository) ListShipments(ctx context.Context, operatorID str
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
+	scope, err := branchScope(ctx, db.New(r.pool), operator)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := r.pool.Query(ctx, `
 		SELECT `+shipmentColumns+`
 		FROM order_fulfilments f
@@ -375,8 +380,9 @@ func (r *FulfilmentRepository) ListShipments(ctx context.Context, operatorID str
 		LEFT JOIN agents buyer ON buyer.id = o.buyer_agent_id
 		WHERE f.kind = 'SHIPMENT' AND f.operator_id = $1
 		  AND ($2::bool OR f.status <> 'DELIVERED')
+		  AND ($3::uuid IS NULL OR o.branch_id = $3)
 		ORDER BY o.paid_at ASC NULLS LAST, f.created_at ASC
-		LIMIT 500`, operator, includeDelivered)
+		LIMIT 500`, operator, includeDelivered, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -403,6 +409,10 @@ func (r *FulfilmentRepository) GetShipment(ctx context.Context, operatorID, orde
 	if err != nil {
 		return nil, apperror.ErrValidation
 	}
+	scope, err := branchScope(ctx, db.New(r.pool), operator)
+	if err != nil {
+		return nil, err
+	}
 	shipment, err := scanShipment(r.pool.QueryRow(ctx, `
 		SELECT `+shipmentColumns+`
 		FROM order_fulfilments f
@@ -410,8 +420,9 @@ func (r *FulfilmentRepository) GetShipment(ctx context.Context, operatorID, orde
 		JOIN products p ON p.id = o.product_id
 		LEFT JOIN pilgrims pil ON pil.id = o.pilgrim_id
 		LEFT JOIN agents buyer ON buyer.id = o.buyer_agent_id
-		WHERE f.kind = 'SHIPMENT' AND f.operator_id = $1 AND f.order_id = $2`,
-		operator, order))
+		WHERE f.kind = 'SHIPMENT' AND f.operator_id = $1 AND f.order_id = $2
+		  AND ($3::uuid IS NULL OR o.branch_id = $3)`,
+		operator, order, scope))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, apperror.ErrNotFound
 	}
@@ -433,14 +444,23 @@ func (r *FulfilmentRepository) SaveShipmentDestination(ctx context.Context, oper
 	if err != nil {
 		return apperror.ErrValidation
 	}
+	scope, err := branchScope(ctx, db.New(r.pool), operator)
+	if err != nil {
+		return err
+	}
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE order_fulfilments
 		SET delivery_method = $3, recipient_name = $4, recipient_phone = $5,
 		    shipping_address = $6, updated_at = NOW()
 		WHERE order_id = $2 AND operator_id = $1 AND kind = 'SHIPMENT'
-		  AND status NOT IN ('SENT', 'DELIVERED')`,
+		  AND status NOT IN ('SENT', 'DELIVERED')
+		  AND EXISTS (
+		    SELECT 1 FROM orders o
+		    WHERE o.id = order_fulfilments.order_id
+		      AND ($7::uuid IS NULL OR o.branch_id = $7)
+		  )`,
 		operator, order, item.DeliveryMethod, item.RecipientName,
-		item.RecipientPhone, item.ShippingAddress)
+		item.RecipientPhone, item.ShippingAddress, scope)
 	if err != nil {
 		return databaseError(err)
 	}
@@ -464,13 +484,22 @@ func (r *FulfilmentRepository) MarkShipmentSent(ctx context.Context, operatorID,
 	if err != nil {
 		return apperror.ErrValidation
 	}
+	scope, err := branchScope(ctx, db.New(r.pool), operator)
+	if err != nil {
+		return err
+	}
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE order_fulfilments
 		SET status = 'SENT', courier = $3, tracking_number = $4,
 		    sent_at = NOW(), updated_at = NOW()
 		WHERE order_id = $2 AND operator_id = $1 AND kind = 'SHIPMENT'
-		  AND status = 'PENDING'`,
-		operator, order, courier, tracking)
+		  AND status = 'PENDING'
+		  AND EXISTS (
+		    SELECT 1 FROM orders o
+		    WHERE o.id = order_fulfilments.order_id
+		      AND ($5::uuid IS NULL OR o.branch_id = $5)
+		  )`,
+		operator, order, courier, tracking, scope)
 	if err != nil {
 		return databaseError(err)
 	}
@@ -494,14 +523,23 @@ func (r *FulfilmentRepository) MarkShipmentHandedOver(ctx context.Context, opera
 	if err != nil {
 		return apperror.ErrValidation
 	}
+	scope, err := branchScope(ctx, db.New(r.pool), operator)
+	if err != nil {
+		return err
+	}
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE order_fulfilments
 		SET status = 'DELIVERED', handover_recipient = $3, handover_note = $4,
 		    handover_proof_key = $5, handed_over_by_user_id = $6,
 		    delivered_at = NOW(), updated_at = NOW()
 		WHERE order_id = $2 AND operator_id = $1 AND kind = 'SHIPMENT'
-		  AND status IN ('PENDING', 'SENT')`,
-		operator, order, recipient, note, proofKey, userID)
+		  AND status IN ('PENDING', 'SENT')
+		  AND EXISTS (
+		    SELECT 1 FROM orders o
+		    WHERE o.id = order_fulfilments.order_id
+		      AND ($7::uuid IS NULL OR o.branch_id = $7)
+		  )`,
+		operator, order, recipient, note, proofKey, userID, scope)
 	if err != nil {
 		return databaseError(err)
 	}
@@ -526,13 +564,22 @@ func (r *FulfilmentRepository) MarkShipmentLost(ctx context.Context, operatorID,
 	if err != nil {
 		return false, apperror.ErrValidation
 	}
+	scope, err := branchScope(ctx, db.New(r.pool), operator)
+	if err != nil {
+		return false, err
+	}
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE order_fulfilments
 		SET status = 'FAILED', last_error = $3, resolved_by_user_id = $4,
 		    resolution_note = $3, updated_at = NOW()
 		WHERE order_id = $2 AND operator_id = $1 AND kind = 'SHIPMENT'
-		  AND status IN ('PENDING', 'SENT')`,
-		operator, order, note, userID)
+		  AND status IN ('PENDING', 'SENT')
+		  AND EXISTS (
+		    SELECT 1 FROM orders o
+		    WHERE o.id = order_fulfilments.order_id
+		      AND ($5::uuid IS NULL OR o.branch_id = $5)
+		  )`,
+		operator, order, note, userID, scope)
 	if err != nil {
 		return false, databaseError(err)
 	}
