@@ -336,6 +336,14 @@ menyusul sebagai lapisan pengalaman, bukan satu-satunya pengaman.
 > Ini cara mayoritas jamaah Indonesia membayar. Bukan fitur pembeda — **syarat
 > masuk pasar.** Tanpanya banyak travel tidak bisa memakai TawafiqHub sama sekali.
 
+**Progres aktif (belum menutup T2.3):** ledger cicilan append-only, skema dan
+jadwal beku, idempotensi database, reversal, aging, isolasi cabang dua arah,
+entitlement, serta workspace UI sudah tersedia di `d49add5` dan `481816f`.
+Integration test juga membuktikan overpayment konkuren ditolak dan KPI kas
+masuk membaca ledger. Yang masih memblokir tanda selesai: pengiriman kwitansi
+melalui email, pengingat jatuh tempo satuan dan massal yang durable, serta uji
+visual browser untuk layar final.
+
 ---
 
 # TAHAP 3 — Modul komersial
