@@ -41,6 +41,13 @@ tidak ada endpoint yang diprobe — pertahankan batas itu.**
   **Repository tidak boleh mengimpor service.**
 - Setiap operasi yang bisa diulang butuh kunci idempotensi yang **dipaksakan di
   database** (unique / partial unique index), bukan SELECT-lalu-INSERT.
+- Setiap fakta keuangan memakai **encapsulated update**: jurnal dan mutasi uang
+  bersifat append-only; kesalahan dikoreksi dengan entry pembalik yang merujuk
+  transaksi asal, bukan `UPDATE`/`DELETE`. Nominal, beneficiary, serta sumber
+  transaksi tidak boleh berubah setelah tercatat. Perubahan saldo dan status
+  terkait harus atomik dalam satu transaksi ACID, dengan aktor, waktu, alasan,
+  idempotency key, dan audit trail. Status workflow boleh berubah hanya bila
+  tidak menulis ulang fakta uang yang sudah terjadi.
 - Commit setiap unit yang selesai dan terverifikasi. **Jangan push ke `main`** —
   push memicu deploy ke produksi; hanya pemilik yang memutuskan.
 - `KYC_ENCRYPTION_KEY` wajib ada untuk membuat jamaah di lingkungan mana pun.
@@ -180,7 +187,9 @@ tempat membuat keduanya berhenti dibaca.
       (`f3d6c38`)
 - [x] Peran `BRANCH_HEAD` di enum `user_role` (`0db8968`; otorisasi aktif tetap
       memakai keanggotaan Better Auth + `branch_members`, bukan enum lama)
-- [ ] **Penyaringan dipaksakan di lapisan repository, bukan handler**
+- [x] **Penyaringan dipaksakan di lapisan repository, bukan handler**
+      (`6af60db`–`adfa952`, penutupan audit `4911b00`, `226e1cc`, `36e26aa`,
+      `ebcf198`, `f917d6b`, `90876d0`, `753003c`)
 - [x] Agregasi laporan per cabang — omzet bersih, jamaah, agen, capaian
       target, kolektibilitas, kesiapan dokumen, dan tren 12 bulan; laporan
       kepala cabang tetap dipaksa hanya untuk cabangnya (`f72cbf6`)
@@ -275,6 +284,21 @@ untuk menampilkan composer/hapus hanya bagi kantor pusat; kepala cabang mendapat
 mode baca dengan penjelasan cakupan, dan kegagalan pemeriksaan akses bersifat
 fail-closed. Lint, typecheck, API suite, serta build produksi 70 halaman lulus
 (`e349c03`).
+Refund order dan payout refund kini memaksa scope berdasarkan pemilik transaksi
+di repository; kepala Bandung tidak dapat mengunci order, membaca riwayat, atau
+memproses payout Medan (`4911b00`, `226e1cc`). Klaim asuransi dipagari untuk
+create, list, perubahan status, dan ekspor data medis (`36e26aa`). Antrean
+pengiriman—termasuk nama, telepon, alamat, resi, dan bukti serah-terima—dipagari
+untuk seluruh baca dan mutasi (`ebcf198`). Jadwal petugas hanya terlihat untuk
+kloter yang memuat jamaah cabang aktif, sedangkan perubahan struktur petugas
+tetap khusus kantor pusat (`f917d6b`). Audit trail kini membekukan `branch_id`
+saat append sehingga perpindahan staf tidak menulis ulang makna bukti lama;
+legacy log tidak di-backfill dengan tebakan, dan pembacaan dipagari per cabang
+(`90876d0`). PII antrean tunggu yang belum punya assignment cabang tetap menjadi
+inbox pusat sampai CRM menyediakan alokasi eksplisit; kepala cabang tidak dapat
+membaca atau memutasinya, sementara jalur publik dan worker tetap bekerja
+(`753003c`). Setiap unit memiliki integration test dua arah dan kantor pusat
+tetap operator-wide.
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
