@@ -269,6 +269,12 @@ dipakai query token grup. Event lama tanpa field tersebut tetap operator-wide
 untuk kompatibilitas antrean produksi. Integration test membuktikan hanya token
 Bandung yang dipilih dan pasangan `operator_id`/`pilgrim_id` lintas tenant tidak
 dapat didaftarkan (`adfa952`).
+`MyAccess` kini mengekspos `branch_id` sebagai kontrak proto agar frontend
+tidak menebak authority dari jumlah cabang. Layar komunikasi memakai nilai itu
+untuk menampilkan composer/hapus hanya bagi kantor pusat; kepala cabang mendapat
+mode baca dengan penjelasan cakupan, dan kegagalan pemeriksaan akses bersifat
+fail-closed. Lint, typecheck, API suite, serta build produksi 70 halaman lulus
+(`e349c03`).
 
 ## T2.2 — Batas paket yang sungguhan 🔴 sebelum fitur apa pun
 
