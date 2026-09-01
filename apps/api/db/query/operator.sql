@@ -33,6 +33,7 @@ SELECT a.id, a.operator_id, a.action, a.entity_type, a.entity_id,
 FROM audit_logs a
 LEFT JOIN "user" u ON u.id = a.user_id
 WHERE a.operator_id = $1
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR a.branch_id = sqlc.narg(branch_scope)::uuid)
 ORDER BY a.created_at DESC
 LIMIT $2;
 

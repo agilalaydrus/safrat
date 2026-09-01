@@ -409,7 +409,11 @@ func (r *OperatorRepository) ListAuditLogs(ctx context.Context, operatorID strin
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListAuditLogs(ctx, db.ListAuditLogsParams{OperatorID: id, Limit: limit})
+	scope, err := branchScope(ctx, r.queries, id)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := r.queries.ListAuditLogs(ctx, db.ListAuditLogsParams{OperatorID: id, Limit: limit, BranchScope: scope})
 	if err != nil {
 		return nil, err
 	}
