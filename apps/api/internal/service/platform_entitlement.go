@@ -354,12 +354,33 @@ func (s *PlatformService) GetSubscriptionBillingSettings(ctx context.Context) (*
 	response := &hajjv1.GetSubscriptionBillingSettingsResponse{
 		DefaultGracePeriodDays: int32(settings.GracePeriodDays),
 		SuspendAfterDays:       int32(settings.SuspendAfterDays),
+		TrialDays:              int32(settings.TrialDays),
 		DunningDays:            make([]int32, 0, len(settings.ReminderDays)),
 	}
 	for _, day := range settings.ReminderDays {
 		response.DunningDays = append(response.DunningDays, int32(day))
 	}
 	return response, nil
+}
+
+func (s *PlatformService) SetTrialDays(ctx context.Context, req *hajjv1.SetTrialDaysRequest) (*hajjv1.SetTrialDaysResponse, error) {
+	userID, err := s.requirePlatformAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req == nil || req.TrialDays < 1 || req.TrialDays > 90 || strings.TrimSpace(req.Reason) == "" ||
+		!strings.EqualFold(strings.TrimSpace(req.Confirmation), "TRIAL") || strings.TrimSpace(req.IdempotencyKey) == "" {
+		return nil, serviceError("PlatformService.SetTrialDays", apperror.ErrValidation)
+	}
+	days, err := s.subscriptionRepository.SetTrialDays(ctx, repository.TrialDaysChange{
+		Days: req.TrialDays, Reason: strings.TrimSpace(req.Reason),
+		Confirmation: strings.TrimSpace(req.Confirmation), ActorUserID: userID,
+		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+	})
+	if err != nil {
+		return nil, serviceError("PlatformService.SetTrialDays", err)
+	}
+	return &hajjv1.SetTrialDaysResponse{TrialDays: days}, nil
 }
 
 func (s *PlatformService) SetSubscriptionGracePeriod(ctx context.Context, req *hajjv1.SetSubscriptionGracePeriodRequest) (*hajjv1.SetSubscriptionGracePeriodResponse, error) {

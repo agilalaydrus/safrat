@@ -2,11 +2,13 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -101,5 +103,49 @@ func TestTrialLengthComesFromSettingsAndDoesNotShortenRunningTrialsIntegration(t
 	}
 	if got := daysGranted(third); got < 9.5 || got > 10.5 {
 		t.Fatalf("fallback %.2f hari, mau 10", got)
+	}
+}
+
+func TestSetTrialDaysIsAuditedAndDatabaseIdempotentIntegration(t *testing.T) {
+	databaseURL := os.Getenv("STOREFRONT_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("STOREFRONT_TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	t.Cleanup(pool.Close)
+
+	var original string
+	if err := pool.QueryRow(ctx, `SELECT value FROM platform_settings WHERE key='trial_days'`).Scan(&original); err != nil {
+		t.Fatalf("read setting: %v", err)
+	}
+	actor := "trial-setting-test-" + uuid.NewString()
+	key := "trial-" + uuid.NewString()
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `UPDATE platform_settings SET value=$1 WHERE key='trial_days'`, original)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM audit_logs WHERE user_id=$1`, actor)
+	})
+
+	repo := NewSubscriptionRepository(pool)
+	change := TrialDaysChange{Days: 12, Reason: "uji kebijakan trial", Confirmation: "TRIAL", ActorUserID: actor, IdempotencyKey: key}
+	if days, err := repo.SetTrialDays(ctx, change); err != nil || days != 12 {
+		t.Fatalf("set trial = %d, %v", days, err)
+	}
+	if days, err := repo.SetTrialDays(ctx, change); err != nil || days != 12 {
+		t.Fatalf("exact replay = %d, %v", days, err)
+	}
+	var audits int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM audit_logs WHERE user_id=$1 AND action='trial_days_changed'`, actor).Scan(&audits); err != nil {
+		t.Fatal(err)
+	}
+	if audits != 1 {
+		t.Fatalf("exact replay wrote %d audit rows, want 1", audits)
+	}
+	change.Days = 13
+	if _, err := repo.SetTrialDays(ctx, change); !errors.Is(err, apperror.ErrConflict) {
+		t.Fatalf("same key with different payload = %v, want conflict", err)
 	}
 }

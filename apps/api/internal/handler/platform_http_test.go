@@ -161,6 +161,11 @@ func TestPlatformPlanControlRPCAccessRevocationAndMutationIntegration(t *testing
 	planKey := "plan-http-" + fixture.operatorID
 	overrideKey := "override-http-" + fixture.operatorID
 	deleteKey := "delete-http-" + fixture.operatorID
+	trialKey := "trial-http-" + fixture.operatorID
+	var originalTrialDays string
+	if err := pool.QueryRow(ctx, `SELECT value FROM platform_settings WHERE key='trial_days'`).Scan(&originalTrialDays); err != nil {
+		t.Fatalf("read trial setting: %v", err)
+	}
 	billingOperatorID := uuid.NewString()
 	billingPeriod := time.Now().UTC().Truncate(time.Microsecond).Add(72 * time.Hour)
 	if _, err := pool.Exec(ctx, `INSERT INTO operators (id,better_auth_org_id,name,country,email,slug,plan)
@@ -215,6 +220,12 @@ func TestPlatformPlanControlRPCAccessRevocationAndMutationIntegration(t *testing
 			req := connect.NewRequest(&hajjv1.ListPlanLimitsRequest{})
 			auth(req, token)
 			_, err := client.ListPlanLimits(ctx, req)
+			return err
+		}},
+		{"ListUsage", func(token string) error {
+			req := connect.NewRequest(&hajjv1.ListUsageRequest{})
+			auth(req, token)
+			_, err := client.ListUsage(ctx, req)
 			return err
 		}},
 		{"PreviewPlanLimitChange", func(token string) error {
@@ -278,6 +289,14 @@ func TestPlatformPlanControlRPCAccessRevocationAndMutationIntegration(t *testing
 			_, err := client.GetSubscriptionBillingSettings(ctx, req)
 			return err
 		}},
+		{"SetTrialDays", func(token string) error {
+			req := connect.NewRequest(&hajjv1.SetTrialDaysRequest{
+				TrialDays: 10, Reason: "verifikasi HTTP trial", Confirmation: "TRIAL", IdempotencyKey: trialKey,
+			})
+			auth(req, token)
+			_, err := client.SetTrialDays(ctx, req)
+			return err
+		}},
 		{"SetSubscriptionGracePeriod", func(token string) error {
 			days := int32(2)
 			req := connect.NewRequest(&hajjv1.SetSubscriptionGracePeriodRequest{
@@ -323,9 +342,10 @@ func TestPlatformPlanControlRPCAccessRevocationAndMutationIntegration(t *testing
 	}
 	t.Cleanup(func() {
 		bg := context.Background()
+		_, _ = pool.Exec(bg, `UPDATE platform_settings SET value=$1 WHERE key='trial_days'`, originalTrialDays)
 		_, _ = pool.Exec(bg, `DELETE FROM platform_admins WHERE user_id=$1`, userID)
 		_, _ = pool.Exec(bg, `DELETE FROM privileged_actions WHERE requested_by=$1`, userID)
-		_, _ = pool.Exec(bg, `DELETE FROM audit_logs WHERE user_id=$1 AND action IN ('plan_limit_changed','plan_override_set','plan_override_deleted')`, userID)
+		_, _ = pool.Exec(bg, `DELETE FROM audit_logs WHERE user_id=$1 AND action IN ('plan_limit_changed','plan_override_set','plan_override_deleted','trial_days_changed')`, userID)
 		_, _ = pool.Exec(bg, `DELETE FROM plan_overrides WHERE operator_id=$1`, fixture.operatorID)
 	})
 	for _, call := range calls {

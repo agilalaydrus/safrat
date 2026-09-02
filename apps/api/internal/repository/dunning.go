@@ -63,6 +63,69 @@ func (r *SubscriptionRepository) Settings(ctx context.Context) (DunningSettings,
 	return settings, rows.Err()
 }
 
+type TrialDaysChange struct {
+	Days           int32
+	Reason         string
+	Confirmation   string
+	ActorUserID    string
+	IdempotencyKey string
+}
+
+// SetTrialDays changes the offer for subscriptions created after this
+// transaction. Existing access_until values are deliberately untouched, so a
+// shorter offer cannot take days away from a trial already accepted.
+func (r *SubscriptionRepository) SetTrialDays(ctx context.Context, change TrialDaysChange) (int32, error) {
+	if change.Days < 1 || change.Days > 90 || strings.TrimSpace(change.Reason) == "" ||
+		!strings.EqualFold(strings.TrimSpace(change.Confirmation), "TRIAL") ||
+		strings.TrimSpace(change.ActorUserID) == "" || strings.TrimSpace(change.IdempotencyKey) == "" {
+		return 0, apperror.ErrValidation
+	}
+
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	if err != nil {
+		return 0, databaseError(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('platform-setting:trial-days',0))`); err != nil {
+		return 0, databaseError(err)
+	}
+	fingerprint, _, err := requestFingerprint(change)
+	if err != nil {
+		return 0, err
+	}
+	duplicate, err := checkPlatformMutationKey(ctx, tx, change.ActorUserID, "trial_days_changed", change.IdempotencyKey, fingerprint)
+	if err != nil {
+		return 0, err
+	}
+	if !duplicate {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO platform_settings (key,value,updated_by,updated_at)
+			VALUES ('trial_days',$1,$2,NOW())
+			ON CONFLICT (key) DO UPDATE SET
+			  value=EXCLUDED.value, updated_by=EXCLUDED.updated_by, updated_at=NOW()`,
+			strconv.Itoa(int(change.Days)), change.ActorUserID); err != nil {
+			return 0, databaseError(err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO audit_logs (operator_id,user_id,action,entity_type,entity_id,metadata)
+			VALUES (NULL,$1,'trial_days_changed','platform_setting','trial_days',$2)`,
+			change.ActorUserID, map[string]any{
+				"message": change.Reason, "idempotency_key": change.IdempotencyKey,
+				"request_fingerprint": fingerprint, "trial_days": change.Days,
+			}); err != nil {
+			return 0, databaseError(err)
+		}
+	}
+	var effective int32
+	if err := tx.QueryRow(ctx, `SELECT platform_trial_days()`).Scan(&effective); err != nil {
+		return 0, databaseError(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, databaseError(err)
+	}
+	return effective, nil
+}
+
 func parseDayList(value string) []int {
 	days := make([]int, 0, 4)
 	for _, part := range strings.Split(value, ",") {

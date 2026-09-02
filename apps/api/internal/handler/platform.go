@@ -96,6 +96,17 @@ func (h *PlatformHandler) GetSubscriptionBillingSettings(ctx context.Context, _ 
 	return connect.NewResponse(result), nil
 }
 
+func (h *PlatformHandler) SetTrialDays(ctx context.Context, req *connect.Request[hajjv1.SetTrialDaysRequest]) (*connect.Response[hajjv1.SetTrialDaysResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.SetTrialDays(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *PlatformHandler) SetSubscriptionGracePeriod(ctx context.Context, req *connect.Request[hajjv1.SetSubscriptionGracePeriodRequest]) (*connect.Response[hajjv1.SetSubscriptionGracePeriodResponse], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

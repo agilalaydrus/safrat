@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { IconAlertTriangle, IconBan, IconReceipt, IconRefresh } from "@tabler/icons-react";
+import { IconAlertTriangle, IconBan, IconClockHour4, IconReceipt, IconRefresh } from "@tabler/icons-react";
 import type {
   PlatformOperator,
   PreviewSubscriptionPlanChangeResponse,
@@ -39,6 +39,11 @@ export default function SubscriptionsTab() {
   const [defaultGraceDays, setDefaultGraceDays] = useState(0);
   const [dunningDays, setDunningDays] = useState<number[]>([]);
   const [suspendAfterDays, setSuspendAfterDays] = useState(0);
+  const [trialDays, setTrialDays] = useState(10);
+  const [trialDraft, setTrialDraft] = useState("10");
+  const [trialReason, setTrialReason] = useState("");
+  const [trialConfirmation, setTrialConfirmation] = useState("");
+  const [trialBusy, setTrialBusy] = useState(false);
   const [graceScope, setGraceScope] = useState("GLOBAL");
   const [graceDays, setGraceDays] = useState("0");
   const [graceReason, setGraceReason] = useState("");
@@ -65,6 +70,8 @@ export default function SubscriptionsTab() {
         setDefaultGraceDays(settingsResponse.defaultGracePeriodDays);
         setDunningDays(settingsResponse.dunningDays);
         setSuspendAfterDays(settingsResponse.suspendAfterDays);
+        setTrialDays(settingsResponse.trialDays);
+        setTrialDraft(String(settingsResponse.trialDays));
       })
       .catch(() => setNotice("Gagal memuat data langganan."))
       .finally(() => setLoading(false));
@@ -136,6 +143,29 @@ export default function SubscriptionsTab() {
   }
 
   const selectedGraceOperator = operators.find((operator) => operator.id === graceScope);
+
+  async function saveTrialDays() {
+    const days = Number(trialDraft);
+    if (!Number.isInteger(days) || days < 1 || days > 90 || !trialReason.trim() || trialConfirmation !== "TRIAL") return;
+    setTrialBusy(true);
+    try {
+      const response = await platformClient.setTrialDays({
+        trialDays: days,
+        reason: trialReason.trim(),
+        confirmation: trialConfirmation,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      setTrialDays(response.trialDays);
+      setTrialDraft(String(response.trialDays));
+      setTrialReason("");
+      setTrialConfirmation("");
+      setNotice(`Masa trial untuk pendaftaran baru menjadi ${response.trialDays} hari.`);
+    } catch {
+      setNotice("Masa trial gagal disimpan. Muat ulang kebijakan lalu coba kembali.");
+    } finally {
+      setTrialBusy(false);
+    }
+  }
 
   async function saveGracePeriod() {
     const parsedDays = Number(graceDays);
@@ -227,6 +257,41 @@ export default function SubscriptionsTab() {
           penangguhan menutup akses tanpa menghapus data apa pun.
         </p>
       )}
+
+      <details className="admin-policy-card tw-card">
+        <summary>
+          <span className="admin-policy-card__summary-icon" aria-hidden="true"><IconClockHour4 size={18} /></span>
+          <span><strong>Masa trial tenant baru</strong><small>{trialDays} hari, hanya untuk langganan yang dibuat setelah perubahan</small></span>
+          <span className="tw-badge tw-badge--neutral">Kebijakan akuisisi</span>
+        </summary>
+        <div className="admin-policy-card__body">
+          <div className="admin-policy-card__callout">
+            <strong>Trial yang sedang berjalan tidak dipotong.</strong>
+            <span>Nilai ini dibaca satu kali ketika langganan dibuat. Perubahan hanya berlaku untuk tenant berikutnya.</span>
+          </div>
+          <div className="admin-policy-card__form">
+            <label>
+              <span>Masa trial (hari)</span>
+              <input type="number" min={1} max={90} value={trialDraft} onChange={(event) => setTrialDraft(event.target.value)} />
+              <small>Minimal 1 hari, maksimal 90 hari.</small>
+            </label>
+            <label>
+              <span>Alasan perubahan</span>
+              <input value={trialReason} maxLength={500} onChange={(event) => setTrialReason(event.target.value)} placeholder="Contoh: evaluasi hasil program onboarding" />
+            </label>
+            <label>
+              <span>Ketik TRIAL untuk mengonfirmasi</span>
+              <input value={trialConfirmation} autoComplete="off" onChange={(event) => setTrialConfirmation(event.target.value.toUpperCase())} />
+            </label>
+          </div>
+          <div className="admin-policy-card__footer">
+            <span>Perubahan dicatat di audit log dan aman terhadap submit ulang.</span>
+            <button className="tw-btn tw-btn--emerald tw-btn--md" onClick={saveTrialDays} disabled={trialBusy || !Number.isInteger(Number(trialDraft)) || Number(trialDraft) < 1 || Number(trialDraft) > 90 || !trialReason.trim() || trialConfirmation !== "TRIAL"}>
+              {trialBusy ? "Menyimpan..." : "Simpan masa trial"}
+            </button>
+          </div>
+        </div>
+      </details>
 
       <details className="admin-grace-settings tw-card">
         <summary>

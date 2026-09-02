@@ -46,6 +46,7 @@ service PlatformService {
   rpc PreviewSubscriptionBilling(PreviewSubscriptionBillingRequest) returns (PreviewSubscriptionBillingResponse);
   rpc IssueSubscriptionBilling(IssueSubscriptionBillingRequest) returns (IssueSubscriptionBillingResponse);
   rpc GetSubscriptionBillingSettings(GetSubscriptionBillingSettingsRequest) returns (GetSubscriptionBillingSettingsResponse);
+  rpc SetTrialDays(SetTrialDaysRequest) returns (SetTrialDaysResponse);
   rpc SetSubscriptionGracePeriod(SetSubscriptionGracePeriodRequest) returns (SetSubscriptionGracePeriodResponse);
   rpc PreviewSubscriptionPlanChange(PreviewSubscriptionPlanChangeRequest) returns (PreviewSubscriptionPlanChangeResponse);
   rpc ApplySubscriptionPlanChange(ApplySubscriptionPlanChangeRequest) returns (ApplySubscriptionPlanChangeResponse);
@@ -365,7 +366,16 @@ message GetSubscriptionBillingSettingsResponse {
   int32 default_grace_period_days = 1;
   repeated int32 dunning_days = 2;
   int32 suspend_after_days = 3;
+  int32 trial_days = 4;
 }
+
+message SetTrialDaysRequest {
+  int32 trial_days = 1 [(buf.validate.field).int32 = {gte: 1, lte: 90}];
+  string reason = 2 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+  string confirmation = 3 [(buf.validate.field).string.const = "TRIAL"];
+  string idempotency_key = 4 [(buf.validate.field).string = {min_len: 8, max_len: 128}];
+}
+message SetTrialDaysResponse { int32 trial_days = 1; }
 
 message SetSubscriptionGracePeriodRequest {
   // Empty updates the platform default. A UUID sets or clears one tenant's
