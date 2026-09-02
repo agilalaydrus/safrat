@@ -13,22 +13,26 @@ Diperbarui: **2 September 2026**
 | Jalur | Rute | Berkas tugas | Posisi |
 |---|---|---|---|
 | **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **54/74 butir** · sisa Tahap 3–4 |
-| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1 selesai** · 7/68 butir · berikutnya A2 |
+| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1 selesai** · 16/68 butir · berikutnya B2 |
 
 Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
 `admin/page.tsx`.
 
 ## Yang sedang menunggu, berurutan
 
-1. **A2** Routing produk & log supplier — `ListProductRoutes`, `SaveProductRoute`,
-   `ListSupplierLogs` masih tanpa pemanggil. Routing hanya bisa diubah lewat
-   terminal.
-2. **B1/B2** Langganan & dunning, lalu meter pemakaian.
+1. **B2** Meter pemakaian — batas ditegakkan tapi tidak ada yang tahu siapa
+   mendekatinya.
+2. **B3** Halaman detail tenant.
 3. **Tahap 3 Dashboard Travel** — CRM Leads, WhatsApp, rundown, tier kamar.
 
-**Belum diverifikasi di browser:** tab Paket & Kuota. Ia butuh sesi admin
-platform dengan 2FA, yang tidak bisa dibuat agen. Pemilik perlu membukanya
-sekali dan memastikan tabel terisi.
+**Dunning masih mode kering.** Ia berjalan tiap 24 jam, mengisi `dunning_log`,
+dan **tidak mengirim apa pun** sampai `DUNNING_LIVE=true` diset. Bandingkan satu
+siklus dengan daftar manual sebelum menyalakannya — satu tagihan salah kirim ke
+travel yang sudah membayar lebih mahal daripada menunda sepekan.
+
+**Belum diverifikasi di browser:** tiga tab baru — Paket & Kuota, Routing & Log,
+Langganan. Semuanya butuh sesi admin platform dengan 2FA, yang tidak bisa dibuat
+agen. Pemilik perlu membukanya sekali.
 
 ## Kondisi terverifikasi (2 September 2026)
 
@@ -36,11 +40,11 @@ sekali dan memastikan tabel terisi.
 go build · go vet            bersih
 suite Go                     15 paket lulus, 0 gagal
 tsc --noEmit · next lint     bersih
-migrasi                      138, terpasang di DB dev dan DB uji
+migrasi                      139, terpasang di DB dev dan DB uji
 build:verify                 sukses
 scripts/uji-batas-cabang.sh  15 pengaman lolos, dua arah
 working tree                 bersih
-belum di-push                27 commit
+belum di-push                34 commit
 ```
 
 `main` = deploy. **Jangan push tanpa perintah pemilik.**
@@ -106,3 +110,9 @@ Tulis di sini setiap kali ketemu lagi.
   `SENTRY_DSN` kosong. Di dev galat itu hilang tanpa jejak.
 - **Skrip pengaman bisa jadi usang** dan gagal karena aturan baru, bukan karena
   ada yang bocor. Selalu baca teks galatnya, jangan hanya kode keluar.
+- **Menghitung paket lulus bukan hasil.** `grep -c "^ok"` mengembalikan sukses
+  walau ada yang gagal, dan sebuah commit sempat lolos dengan dua tes merah.
+  Periksa `^--- FAIL` secara eksplisit.
+- **Tes bisa flaky karena asersi global.** Paket uji berjalan paralel terhadap
+  satu database; hitungan lintas-tenant dan nominal transfer yang dikarang akan
+  bertabrakan. Jalankan suite beberapa kali sebelum percaya ia hijau.
