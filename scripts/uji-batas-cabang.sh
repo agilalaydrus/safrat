@@ -3,7 +3,7 @@
 # berjalan. Read-only: setiap uji berjalan di dalam transaksi yang di-ROLLBACK.
 #
 # Uji ini ada karena pengaman yang tidak pernah dijalankan adalah pengaman yang
-# tidak diketahui rusak. Menjalankannya harus menghasilkan 11 baris "DITOLAK"
+# tidak diketahui rusak. Menjalankannya harus menghasilkan 15 baris "DITOLAK"
 # atau "DITERIMA". Satu pun yang berubah jadi "MASALAH" berarti ada lubang.
 #
 #   DATABASE_URL=... bash scripts/uji-batas-cabang.sh
@@ -17,7 +17,10 @@ BR_2=aaaaaaaa-0000-0000-0000-000000000002
 BR_X=bbbbbbbb-0000-0000-0000-000000000001
 SEASON=cccccccc-0000-0000-0000-000000000001
 
-SEED="INSERT INTO operators (id,better_auth_org_id,name,country,email) VALUES ('$OP_A','org-uji-a','Uji A','ID','a@uji.test'),('$OP_B','org-uji-b','Uji B','ID','b@uji.test');
+# Sejak migrasi 132 cabang digerbangi paket: STARTER tidak boleh punya cabang
+# sama sekali, GROWTH maksimum tiga. Operator uji dibuat di PRO supaya uji
+# batas cabang tidak tercampur dengan uji entitlement di bawah.
+SEED="INSERT INTO operators (id,better_auth_org_id,name,country,email,plan) VALUES ('$OP_A','org-uji-a','Uji A','ID','a@uji.test','PRO'),('$OP_B','org-uji-b','Uji B','ID','b@uji.test','PRO');
 INSERT INTO branches (id,operator_id,name,city) VALUES ('$BR_1','$OP_A','Bandung','Bandung'),('$BR_2','$OP_A','Medan','Medan'),('$BR_X','$OP_B','Tetangga','Solo');
 INSERT INTO seasons (id,operator_id,name,type,start_date,end_date) VALUES ('$SEASON','$OP_A','Musim Uji','UMRAH_REGULER','2027-01-01','2027-01-14');"
 P="INSERT INTO pilgrims (operator_id,season_id,full_name,passport_number,nationality,date_of_birth,gender"
@@ -64,12 +67,15 @@ tolak "jamaah dipindah ke cabang operator lain"  "does not belong to operator"  
 tolak "nama cabang kosong"                       "branches_name_check"                     "INSERT INTO branches (operator_id,name) VALUES ('$OP_A','   ');"
 tolak "target jamaah negatif"                    "branches_target_pilgrims_check"           "INSERT INTO branches (operator_id,name,target_pilgrims) VALUES ('$OP_A','Baru',-1);"
 tolak "hapus cabang yang masih punya jamaah"     "pilgrims_branch_id_fkey"                 "$P,branch_id) $V,'$BR_1'); DELETE FROM branches WHERE id='$BR_1';"
+tolak "cabang pada paket STARTER"                "branches are not enabled"                "UPDATE operators SET plan='STARTER' WHERE id='$OP_A'; INSERT INTO branches (operator_id,name) VALUES ('$OP_A','Solo');"
+tolak "cabang keempat pada paket GROWTH"         "branch limit reached"                    "UPDATE operators SET plan='GROWTH' WHERE id='$OP_A'; INSERT INTO branches (operator_id,name) VALUES ('$OP_A','Solo'),('$OP_A','Semarang');"
 
 echo "Harus diterima:"
 terima "jamaah tanpa cabang (milik pusat)"       "$P) $V);"
 terima "jamaah di cabang operatornya sendiri"    "$P,branch_id) $V,'$BR_1');"
 terima "pindah jamaah antar cabang sendiri"      "$P,branch_id) $V,'$BR_1'); UPDATE pilgrims SET branch_id='$BR_2' WHERE passport_number='X1';"
 terima "hapus cabang yang sudah kosong"          "DELETE FROM branches WHERE id='$BR_2';"
+terima "cabang ketiga pada paket GROWTH"         "UPDATE operators SET plan='GROWTH' WHERE id='$OP_A'; INSERT INTO branches (operator_id,name) VALUES ('$OP_A','Solo');"
 
 echo
 if [ "$fail" -eq 0 ]; then echo "Semua pengaman cabang bekerja."; else echo "ADA PENGAMAN YANG BOCOR - jangan lanjut."; exit 1; fi

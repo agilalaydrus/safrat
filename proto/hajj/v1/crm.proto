@@ -1,0 +1,214 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+service CRMService {
+  rpc CreateLead(CreateCRMLeadRequest) returns (CreateCRMLeadResponse);
+  rpc ListLeads(ListCRMLeadsRequest) returns (ListCRMLeadsResponse);
+  rpc GetLead(GetCRMLeadRequest) returns (CRMLeadDetail);
+  rpc UpdateLead(UpdateCRMLeadRequest) returns (CRMLead);
+  rpc MoveLeadStage(MoveCRMLeadStageRequest) returns (CRMLead);
+  rpc AddLeadActivity(AddCRMLeadActivityRequest) returns (CRMLeadActivity);
+  rpc GetDashboard(GetCRMDashboardRequest) returns (CRMDashboard);
+  rpc ListAssignees(ListCRMAssigneesRequest) returns (ListCRMAssigneesResponse);
+}
+
+enum CRMLeadStage {
+  CRM_LEAD_STAGE_UNSPECIFIED = 0;
+  CRM_LEAD_STAGE_NEW = 1;
+  CRM_LEAD_STAGE_CONTACT = 2;
+  CRM_LEAD_STAGE_OFFER = 3;
+  CRM_LEAD_STAGE_HOT = 4;
+  CRM_LEAD_STAGE_CLOSING = 5;
+  CRM_LEAD_STAGE_CANCELLED = 6;
+}
+
+enum CRMLeadSource {
+  CRM_LEAD_SOURCE_UNSPECIFIED = 0;
+  CRM_LEAD_SOURCE_WEBSITE = 1;
+  CRM_LEAD_SOURCE_INSTAGRAM = 2;
+  CRM_LEAD_SOURCE_WHATSAPP = 3;
+  CRM_LEAD_SOURCE_WALK_IN = 4;
+  CRM_LEAD_SOURCE_REFERRAL = 5;
+  CRM_LEAD_SOURCE_ALUMNI = 6;
+  CRM_LEAD_SOURCE_OTHER = 7;
+}
+
+enum CRMActivityKind {
+  CRM_ACTIVITY_KIND_UNSPECIFIED = 0;
+  CRM_ACTIVITY_KIND_CREATED = 1;
+  CRM_ACTIVITY_KIND_STAGE_CHANGED = 2;
+  CRM_ACTIVITY_KIND_CONTACT = 3;
+  CRM_ACTIVITY_KIND_NOTE = 4;
+  CRM_ACTIVITY_KIND_OFFER_SENT = 5;
+  CRM_ACTIVITY_KIND_PROFILE_UPDATED = 6;
+}
+
+message CRMLead {
+  string id = 1;
+  string operator_id = 2;
+  string branch_id = 3;
+  string full_name = 4;
+  string phone = 5;
+  string email = 6;
+  CRMLeadSource source = 7;
+  string campaign = 8;
+  CRMLeadStage stage = 9;
+  string season_id = 10;
+  string season_name = 11;
+  string product_id = 12;
+  string product_name = 13;
+  string assignee_user_id = 14;
+  string assignee_name = 15;
+  int32 pax = 16;
+  int64 estimated_value_idr = 17;
+  string next_action = 18;
+  google.protobuf.Timestamp next_follow_up_at = 19;
+  google.protobuf.Timestamp last_contact_at = 20;
+  google.protobuf.Timestamp closed_at = 21;
+  google.protobuf.Timestamp created_at = 22;
+  google.protobuf.Timestamp updated_at = 23;
+}
+
+message CRMLeadActivity {
+  string id = 1;
+  string lead_id = 2;
+  CRMActivityKind kind = 3;
+  CRMLeadStage from_stage = 4;
+  CRMLeadStage to_stage = 5;
+  string note = 6;
+  string actor_user_id = 7;
+  string actor_name = 8;
+  google.protobuf.Timestamp occurred_at = 9;
+}
+
+message CRMLeadDetail {
+  CRMLead lead = 1;
+  repeated CRMLeadActivity activities = 2;
+}
+
+message CreateCRMLeadRequest {
+  string full_name = 1 [(buf.validate.field).string = {min_len: 2, max_len: 150}];
+  string phone = 2 [(buf.validate.field).string.max_len = 40];
+  string email = 3 [(buf.validate.field).string.max_len = 254];
+  CRMLeadSource source = 4 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3, 4, 5, 6, 7]}];
+  string campaign = 5 [(buf.validate.field).string.max_len = 120];
+  string season_id = 6 [(buf.validate.field).string = {max_len: 36}];
+  string product_id = 7 [(buf.validate.field).string = {max_len: 36}];
+  string assignee_user_id = 8 [(buf.validate.field).string.max_len = 255];
+  int32 pax = 9 [(buf.validate.field).int32 = {gte: 1, lte: 1000}];
+  int64 estimated_value_idr = 10 [(buf.validate.field).int64.gte = 0];
+  string next_action = 11 [(buf.validate.field).string.max_len = 300];
+  google.protobuf.Timestamp next_follow_up_at = 12;
+  string note = 13 [(buf.validate.field).string.max_len = 2000];
+  string idempotency_key = 14 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+}
+
+message CreateCRMLeadResponse {
+  CRMLead lead = 1;
+  bool created = 2;
+}
+
+message ListCRMLeadsRequest {
+  CRMLeadStage stage = 1 [(buf.validate.field).enum.defined_only = true];
+  CRMLeadSource source = 2 [(buf.validate.field).enum.defined_only = true];
+  string search = 3 [(buf.validate.field).string.max_len = 100];
+  int32 limit = 4 [(buf.validate.field).int32 = {gte: 0, lte: 500}];
+  int32 offset = 5 [(buf.validate.field).int32.gte = 0];
+}
+
+message ListCRMLeadsResponse {
+  repeated CRMLead leads = 1;
+  int64 total_count = 2;
+}
+
+message GetCRMLeadRequest {
+  string lead_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message UpdateCRMLeadRequest {
+  string lead_id = 1 [(buf.validate.field).string.uuid = true];
+  string full_name = 2 [(buf.validate.field).string = {min_len: 2, max_len: 150}];
+  string phone = 3 [(buf.validate.field).string.max_len = 40];
+  string email = 4 [(buf.validate.field).string.max_len = 254];
+  CRMLeadSource source = 5 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3, 4, 5, 6, 7]}];
+  string campaign = 6 [(buf.validate.field).string.max_len = 120];
+  string season_id = 7 [(buf.validate.field).string.max_len = 36];
+  string product_id = 8 [(buf.validate.field).string.max_len = 36];
+  string assignee_user_id = 9 [(buf.validate.field).string.max_len = 255];
+  int32 pax = 10 [(buf.validate.field).int32 = {gte: 1, lte: 1000}];
+  int64 estimated_value_idr = 11 [(buf.validate.field).int64.gte = 0];
+  string next_action = 12 [(buf.validate.field).string.max_len = 300];
+  google.protobuf.Timestamp next_follow_up_at = 13;
+  string reason = 14 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+  string idempotency_key = 15 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+}
+
+message MoveCRMLeadStageRequest {
+  string lead_id = 1 [(buf.validate.field).string.uuid = true];
+  CRMLeadStage stage = 2 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3, 4, 5, 6]}];
+  string reason = 3 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+  string idempotency_key = 4 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+}
+
+message AddCRMLeadActivityRequest {
+  string lead_id = 1 [(buf.validate.field).string.uuid = true];
+  CRMActivityKind kind = 2 [(buf.validate.field).enum = {defined_only: true, in: [3, 4, 5]}];
+  string note = 3 [(buf.validate.field).string = {min_len: 1, max_len: 2000}];
+  google.protobuf.Timestamp occurred_at = 4;
+  string next_action = 5 [(buf.validate.field).string.max_len = 300];
+  google.protobuf.Timestamp next_follow_up_at = 6;
+  string idempotency_key = 7 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+}
+
+message GetCRMDashboardRequest {}
+
+message ListCRMAssigneesRequest {}
+
+message CRMAssignee {
+  string user_id = 1;
+  string name = 2;
+  string email = 3;
+}
+
+message ListCRMAssigneesResponse {
+  repeated CRMAssignee assignees = 1;
+}
+
+message CRMStageMetric {
+  CRMLeadStage stage = 1;
+  int64 lead_count = 2;
+  int64 value_idr = 3;
+}
+
+message CRMSourceMetric {
+  CRMLeadSource source = 1;
+  int64 lead_count = 2;
+  int64 value_idr = 3;
+}
+
+message CRMAssigneeMetric {
+  string user_id = 1;
+  string name = 2;
+  int64 active_count = 3;
+  int64 closing_count = 4;
+  int64 value_idr = 5;
+}
+
+message CRMDashboard {
+  int64 active_count = 1;
+  int64 pipeline_value_idr = 2;
+  int32 monthly_conversion_bps = 3;
+  int64 overdue_follow_up_count = 4;
+  int64 source_count = 5;
+  repeated CRMStageMetric stages = 6;
+  repeated CRMSourceMetric sources = 7;
+  repeated CRMAssigneeMetric assignees = 8;
+  repeated CRMLead attention_leads = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
