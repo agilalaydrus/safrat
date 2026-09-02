@@ -51,7 +51,7 @@ func TestFunnelRecordingCountsPeopleAndIgnoresBotsIntegration(t *testing.T) {
 	serve := func(salt string) hajjv1connect.FunnelServiceClient {
 		t.Helper()
 		funnelService := service.NewFunnelService(repository.NewFunnelRepository(pool), funnel.NewHasher(salt))
-		path, serviceHandler := hajjv1connect.NewFunnelServiceHandler(handler.NewFunnelHandler(funnelService))
+		path, serviceHandler := hajjv1connect.NewFunnelServiceHandler(handler.NewFunnelHandler(funnelService, ""))
 		mux := http.NewServeMux()
 		mux.Handle(path, serviceHandler)
 		server := httptest.NewServer(mux)
@@ -60,7 +60,7 @@ func TestFunnelRecordingCountsPeopleAndIgnoresBotsIntegration(t *testing.T) {
 	}
 	send := func(client hajjv1connect.FunnelServiceClient, operatorSlug, step, agent, ip string) {
 		t.Helper()
-		request := connect.NewRequest(&hajjv1.RecordFunnelEventRequest{OperatorSlug: operatorSlug, Step: step, Path: "/"})
+		request := connect.NewRequest(&hajjv1.RecordEventRequest{OperatorSlug: operatorSlug, Step: step, Path: "/"})
 		request.Header().Set("User-Agent", agent)
 		request.Header().Set("X-Real-IP", ip)
 		if _, err := client.RecordEvent(ctx, request); err != nil {

@@ -849,6 +849,7 @@ Empty output is the healthy answer.
 Set alongside the other secrets in `.env.prod`:
 
     FUNNEL_SALT=$(openssl rand -base64 32)
+    FUNNEL_INGEST_SECRET=$(openssl rand -base64 32)
 
 Visitor tokens are `SHA256(salt ‖ date ‖ IP ‖ user agent)`, and the salt is the
 only thing that stops that hash being reversed. The IPv4 space is small enough
@@ -863,6 +864,13 @@ than writing reversible tokens.
 Rotating it is safe and costs only continuity: tokens before and after the
 rotation cannot be matched, so one day's visitor counts are split in two. Rotate
 on a day boundary if the number matters.
+
+`FUNNEL_INGEST_SECRET` has a different purpose: it authenticates the original
+visitor address when Next.js sends the beacon to the API over Docker's internal
+network. The signature expires after two minutes. Keep the two values different
+and rotate them independently. If this secret is missing, the web middleware
+skips recording rather than collapsing every visitor onto the web container's
+address.
 
 ## 12c. The KYC encryption key
 

@@ -399,7 +399,13 @@ func main() {
 		if !funnelHasher.Configured() {
 			logger.Warn("FUNNEL_SALT is not set or too short; visitor funnel recording is disabled")
 		}
-		funnelHandler := handler.NewFunnelHandler(service.NewFunnelService(repository.NewFunnelRepository(pool), funnelHasher))
+		if len(strings.TrimSpace(os.Getenv("FUNNEL_INGEST_SECRET"))) < 32 {
+			logger.Warn("FUNNEL_INGEST_SECRET is not set or too short; trusted visitor forwarding is disabled")
+		}
+		funnelHandler := handler.NewFunnelHandler(
+			service.NewFunnelService(repository.NewFunnelRepository(pool), funnelHasher),
+			os.Getenv("FUNNEL_INGEST_SECRET"),
+		)
 		funnelPath, funnelServiceHandler := hajjv1connect.NewFunnelServiceHandler(funnelHandler, handlerOptions...)
 		mux.Handle(operatorPath, operatorServiceHandler)
 		mux.Handle(subscriptionPath, subscriptionServiceHandler)

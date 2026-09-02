@@ -184,26 +184,59 @@ function funnelStepFor(pathname: string): { step: string; articleSlug?: string }
  * page must render whether or not its visit was counted. Analytics that can
  * take a storefront down is worse than no analytics.
  */
-function recordFunnelStep(request: NextRequest, event: NextFetchEvent, operatorSlug: string) {
+async function funnelSignature(secret: string, timestamp: string, clientIP: string, userAgent: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const bytes = new Uint8Array(
+    await crypto.subtle.sign("HMAC", key, encoder.encode(`${timestamp}\n${clientIP}\n${userAgent}`)),
+  );
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function sendFunnelStep(request: NextRequest, operatorSlug: string): Promise<void> {
   const step = funnelStepFor(request.nextUrl.pathname);
   if (!step) return;
+
+  const secret = process.env.FUNNEL_INGEST_SECRET?.trim() ?? "";
+  const clientIP =
+    request.headers.get("x-real-ip")?.trim() ??
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    "";
+  // Do not emit an event that would collapse many people onto one proxy
+  // identity. The API also rejects signed forwarding with a short secret.
+  if (secret.length < 32 || !clientIP) return;
+
   const params = request.nextUrl.searchParams;
+  const userAgent = request.headers.get("user-agent") ?? "";
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const signature = await funnelSignature(secret, timestamp, clientIP, userAgent);
   let referrerHost = "";
   try {
     referrerHost = new URL(request.headers.get("referer") ?? "").hostname;
   } catch {
     // No referrer, or one that is not a URL. Both are ordinary.
   }
-  event.waitUntil(
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/hajj.v1.FunnelService/RecordEvent`, {
+  const apiURL = (process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
+  if (!apiURL) return;
+  await fetch(`${apiURL}/hajj.v1.FunnelService/RecordEvent`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Connect-Protocol-Version": "1",
-        // The visitor's address and agent, not the middleware's — the token is
-        // derived from them and neither is stored.
-        "User-Agent": request.headers.get("user-agent") ?? "",
-        "X-Real-IP": request.headers.get("x-real-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "",
+        "User-Agent": userAgent,
+        // X-Real-IP gives the rate limiter a per-visitor key on the internal
+        // request. The X-Funnel value is used for hashing only after its HMAC
+        // and timestamp have been verified by the API.
+        "X-Real-IP": clientIP,
+        "X-Funnel-Client-IP": clientIP,
+        "X-Funnel-Timestamp": timestamp,
+        "X-Funnel-Signature": signature,
       },
       body: JSON.stringify({
         operatorSlug,
@@ -214,8 +247,13 @@ function recordFunnelStep(request: NextRequest, event: NextFetchEvent, operatorS
         utmSource: params.get("utm_source") ?? "",
         utmCampaign: params.get("utm_campaign") ?? "",
       }),
-    }).catch(() => undefined),
-  );
+    }).catch(() => undefined);
+}
+
+function recordFunnelStep(request: NextRequest, event: NextFetchEvent, operatorSlug: string) {
+  // waitUntil lets the response leave before analytics finishes. A rejected
+  // signature or unavailable API must never delay or break the storefront.
+  event.waitUntil(sendFunnelStep(request, operatorSlug));
 }
 
 export async function middleware(request: NextRequest, event: NextFetchEvent) {

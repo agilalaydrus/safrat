@@ -12,10 +12,10 @@ option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 // has not identified themselves. Nothing here reads anything back — the
 // reporting side lives on the authenticated services, scoped to one operator.
 service FunnelService {
-  rpc RecordEvent(RecordFunnelEventRequest) returns (RecordFunnelEventResponse);
+  rpc RecordEvent(RecordEventRequest) returns (RecordEventResponse);
 }
 
-message RecordFunnelEventRequest {
+message RecordEventRequest {
   // Empty for TawafiqHub's own site. An unknown slug is dropped rather than
   // stored loose, so a caller cannot invent tenants.
   string operator_slug = 1 [(buf.validate.field).string.max_len = 180];
@@ -33,4 +33,4 @@ message RecordFunnelEventRequest {
 
 // Deliberately empty. The caller must not wait on this or change what it does
 // based on the answer: a page must render whether or not its visit was counted.
-message RecordFunnelEventResponse {}
+message RecordEventResponse {}

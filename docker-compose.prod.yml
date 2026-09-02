@@ -81,6 +81,10 @@ services:
       XENDIT_WEBHOOK_ALLOWED_IPS: ${XENDIT_WEBHOOK_ALLOWED_IPS}
       BANK_FEED_SECRET: ${BANK_FEED_SECRET}
       KYC_ENCRYPTION_KEY: ${KYC_ENCRYPTION_KEY}
+      # Funnel hashing and trusted web-to-API forwarding use separate secrets.
+      # Neither is exposed to browser JavaScript.
+      FUNNEL_SALT: ${FUNNEL_SALT:?FUNNEL_SALT is required}
+      FUNNEL_INGEST_SECRET: ${FUNNEL_INGEST_SECRET:?FUNNEL_INGEST_SECRET is required}
       UPLOAD_DIR: /uploads/documents
       # Direct browser upload to the self-hosted MinIO endpoint. Credentials
       # belong to a bucket-scoped service user and are consumed by API only.
@@ -183,10 +187,13 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-${SMTP_USER}}
       SENTRY_DSN: ${SENTRY_DSN}
+      INTERNAL_API_URL: http://api:8080
+      FUNNEL_INGEST_SECRET: ${FUNNEL_INGEST_SECRET:?FUNNEL_INGEST_SECRET is required}
     ports:
       - "127.0.0.1:9101:3000"   # nginx -> localhost:9101 -> container :3000
     depends_on:
       - postgres
+      - api
     networks:
       - internal
 

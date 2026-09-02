@@ -27,8 +27,8 @@ func NewFunnelService(funnelRepository *repository.FunnelRepository, hasher *fun
 // digging them out of the context: they come from request headers, which belong
 // to the handler, and passing them makes the bot and token behaviour testable
 // without building a request.
-func (s *FunnelService) RecordEvent(ctx context.Context, req *hajjv1.RecordFunnelEventRequest, clientIP, userAgent string) (*hajjv1.RecordFunnelEventResponse, error) {
-	empty := &hajjv1.RecordFunnelEventResponse{}
+func (s *FunnelService) RecordEvent(ctx context.Context, req *hajjv1.RecordEventRequest, clientIP, userAgent string) (*hajjv1.RecordEventResponse, error) {
+	empty := &hajjv1.RecordEventResponse{}
 	if req == nil {
 		return empty, nil
 	}
