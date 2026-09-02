@@ -110,7 +110,9 @@ Menutup mesin tanpa pemicu. RPC-nya sudah ada, teruji, tidak dipanggil siapa pun
       dunning, dan penangguhan membaca batas efektif yang sama (`7b7d834`)
 - [x] Void invoice menyimpan barisnya + alasan + audit; yang sudah lunas tidak
       bisa dibatalkan (`9233cf1`)
-- [C] Prorata saat upgrade/downgrade di tengah periode
+- [x] Prorata saat upgrade/downgrade di tengah periode: ledger adjustment
+      append-only, upgrade aktif sesudah dibayar tanpa menambah masa akses,
+      downgrade menjadi kredit yang dipakai saat renewal lunas (`0504d63`, `fb120ef`)
 - [x] Penangguhan lewat **waktu, bukan status** + `suspended_at`. Interceptor
       tidak berubah sama sekali (`db9fa97`)
 - [x] Pembayaran kapan pun **memulihkan akses**, termasuk sesudah H+21, tanpa

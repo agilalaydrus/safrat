@@ -13,7 +13,7 @@ Diperbarui: **2 September 2026**
 | Jalur | Rute | Berkas tugas | Posisi |
 |---|---|---|---|
 | **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **54/74 butir** · sisa Tahap 3–4 |
-| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1 selesai** · 16/68 butir · berikutnya B2 |
+| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1 selesai** · 21/68 butir · berikutnya B2 |
 | **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | dirancang, **antre** · 0/33 butir |
 | **SEO & Konten** | storefront | [TUGAS-SEO-KONTEN.md](TUGAS-SEO-KONTEN.md) | dirancang, **antre** · 0/17 butir |
 
@@ -38,9 +38,10 @@ dan **tidak mengirim apa pun** sampai `DUNNING_LIVE=true` diset. Bandingkan satu
 siklus dengan daftar manual sebelum menyalakannya — satu tagihan salah kirim ke
 travel yang sudah membayar lebih mahal daripada menunda sepekan.
 
-**Belum diverifikasi di browser:** tiga tab baru — Paket & Kuota, Routing & Log,
-Langganan. Semuanya butuh sesi admin platform dengan 2FA, yang tidak bisa dibuat
-agen. Pemilik perlu membukanya sekali.
+**Belum diverifikasi di browser:** Paket & Kuota, Routing & Log, serta alur baru
+Langganan (mass billing, grace, prorata). Tidak ada browser yang terhubung saat
+pass terakhir; semuanya juga butuh sesi admin platform dengan 2FA. Pemilik perlu
+membukanya sekali.
 
 ## Kondisi terverifikasi (2 September 2026)
 
@@ -48,11 +49,11 @@ agen. Pemilik perlu membukanya sekali.
 go build · go vet            bersih
 suite Go                     15 paket lulus, 0 gagal
 tsc --noEmit · next lint     bersih
-migrasi                      139, terpasang di DB dev dan DB uji
+migrasi                      143, terpasang di DB dev dan dipakai integration test
 build:verify                 sukses
 scripts/uji-batas-cabang.sh  15 pengaman lolos, dua arah
 working tree                 bersih
-belum di-push                34 commit
+belum di-push                43 commit
 ```
 
 `main` = deploy. **Jangan push tanpa perintah pemilik.**
