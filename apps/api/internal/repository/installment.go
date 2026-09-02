@@ -409,6 +409,13 @@ func (r *InstallmentRepository) QueueReceipt(ctx context.Context, operatorID, pa
 	if !delivery.PilgrimEmail.Valid || strings.TrimSpace(delivery.PilgrimEmail.String) == "" {
 		return false, apperror.ErrFailedPrecondition
 	}
+	reversed, err := q.HasInstallmentPaymentReversal(ctx, db.HasInstallmentPaymentReversalParams{OperatorID: op, OriginalPaymentID: payment})
+	if err != nil {
+		return false, databaseError(err)
+	}
+	if reversed {
+		return false, apperror.ErrFailedPrecondition
+	}
 	created, err := NewOutboxRepository(r.queries).EnqueueIdempotentTx(ctx, tx, operatorID, domain.EventInstallmentReceipt, paymentID, strings.TrimSpace(idempotencyKey), struct{}{})
 	if err != nil {
 		return false, databaseError(err)

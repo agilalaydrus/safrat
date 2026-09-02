@@ -173,6 +173,9 @@ func TestInstallmentRepositoryEncapsulatesMoneyAndBranchScopeIntegration(t *test
 	if _, _, err := repo.ReversePayment(bandungCtx, op, head, payment.ID, "Pembalikan kedua", "second-reversal-"+uuid.NewString()); !errors.Is(err, apperror.ErrAlreadyExists) {
 		t.Fatalf("pembayaran dapat dibalik dua kali: %v", err)
 	}
+	if _, err := repo.QueueReceipt(bandungCtx, op, payment.ID, "void-receipt-"+uuid.NewString()); !errors.Is(err, apperror.ErrFailedPrecondition) {
+		t.Fatalf("kwitansi positif dapat dikirim setelah pembayaran dibalik: %v", err)
+	}
 	assertPilgrimPaymentStatus(t, pool, pilgrims[0], "UNPAID")
 
 	fullFirst, _, err := repo.RecordPayment(bandungCtx, op, head, firstInstallment.ID, 50_001, "CASH", "", "Pelunasan DP", "full-first-"+uuid.NewString())

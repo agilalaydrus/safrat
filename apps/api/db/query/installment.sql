@@ -216,6 +216,12 @@ JOIN pilgrims p ON p.id = ip.pilgrim_id
 JOIN operators op ON op.id = pe.operator_id
 WHERE pe.id = $1 AND pe.operator_id = $2 AND pe.kind = 'PAYMENT';
 
+-- name: HasInstallmentPaymentReversal :one
+SELECT EXISTS (
+  SELECT 1 FROM installment_payment_entries
+  WHERE operator_id = $1 AND original_payment_id = $2 AND kind = 'REVERSAL'
+);
+
 -- name: GetInstallmentReminderDelivery :one
 SELECT ip.id, ip.payable_amount_idr, p.full_name AS pilgrim_name,
        p.email AS pilgrim_email, op.name AS operator_name, op.email AS operator_email,
