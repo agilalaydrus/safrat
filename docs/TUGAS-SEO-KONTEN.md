@@ -49,13 +49,14 @@ Diperiksa sebelum menulis daftar ini:
 
 # TAHAP S2 — Data terstruktur
 
-- [ ] **S2.1** `TravelAgency` (subtipe `LocalBusiness`) di storefront: nama,
-      alamat, telepon, url, logo. Ini yang memunculkan panel info di sisi kanan
-      hasil pencarian.
-- [ ] **S2.2** `Article` di tiap artikel: `headline`, `datePublished`,
-      `dateModified`, `author`, `image`. Tanggal muncul di hasil pencarian dan
-      menaikkan klik untuk topik yang berubah tiap musim.
-- [ ] **S2.3** `Product` + `Offer` untuk paket — **dengan syarat di bawah.**
+- [x] **S2.1** `TravelAgency` di storefront, termasuk nomor izin sebagai
+      `identifier` — hal pertama yang dicari calon jamaah yang teliti (`c8ed3ae`)
+- [x] **S2.2** `Article` di blog dan berita. `dateModified` **tidak dikarang**
+      dari `datePublished` — mengaku diperbarui padahal tidak persis jenis
+      ketidakjujuran kecil yang diawasi (`c8ed3ae`)
+- [x] **S2.3** `Product` selalu; `Offer` **hanya** bila ada harga numerik, dan
+      angka itu juga yang ditampilkan halaman — satu sumber, jadi mustahil
+      berbeda (`c8ed3ae`)
 
 > **Jangan mengarang harga.** `priceLabel` adalah teks bebas yang diketik
 > operator: bisa "Mulai Rp 25 juta", bisa "Hubungi kami". Google menuntut
@@ -68,8 +69,10 @@ Diperiksa sebelum menulis daftar ini:
 > Mem-parse angka dari teks bebas adalah cara paling cepat kehilangan rich
 > result untuk semua pelanggan sekaligus.
 
-- [ ] **S2.4** Uji dengan Rich Results Test Google untuk tiga kasus: paket
-      berharga numerik, paket "Hubungi kami", dan satu artikel.
+- [x] **S2.4** Delapan aturan diuji langsung terhadap modulnya, bukan dibaca:
+      Offer ada/tidak untuk tiga kondisi harga, `dateModified` absen, alamat
+      tidak dikeluarkan bila hanya negara, dan `</script>` di-escape (`c8ed3ae`).
+      **Belum diuji di Rich Results Test Google** — butuh URL publik
 
 # TAHAP S3 — Search Console
 

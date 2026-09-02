@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import TenantStorefront, { type StorefrontProfile } from "@/components/storefront/TenantStorefront";
+import TenantStorefront, { packagePriceAmount, type StorefrontProfile } from "@/components/storefront/TenantStorefront";
+import { jsonLdScript, packageJsonLd, travelAgencyJsonLd } from "@/lib/structured-data";
 import { buildTenantLinkFromBase } from "@/lib/tenant-link";
 
 async function getProfile(slug: string): Promise<StorefrontProfile | null> {
@@ -53,5 +54,44 @@ export default async function OperatorPublicProfile({ params }: { params: Promis
   const { slug } = await params;
   const profile = await getProfile(slug);
   if (!profile) notFound();
-  return <TenantStorefront profile={profile} />;
+
+  // Anchored on the canonical address, so the markup names the same page the
+  // canonical tag points at rather than whichever host served this request.
+  const base = canonicalUrl(profile.canonicalHost, profile.slug, "") ?? "";
+  const content = profile.content;
+  const graph: object[] = [
+    travelAgencyJsonLd({
+      name: content?.displayName || profile.name,
+      url: base || "/",
+      description: content?.seoDescription || content?.description || profile.description,
+      logoUrl: content?.logoUrl || profile.logoUrl,
+      phone: content?.whatsappNumber || profile.whatsappNumber,
+      address: content?.address || profile.address,
+      city: content?.city || profile.city,
+      country: profile.country,
+      licenseNumber: profile.licenseNumber,
+      sameAs: content?.socialLinks?.map((link) => link.url).filter(Boolean),
+    }),
+  ];
+  for (const item of content?.publicPackages ?? []) {
+    graph.push(
+      packageJsonLd({
+        name: item.title,
+        url: base ? `${base}/` : "/",
+        description: item.summary,
+        imageUrl: item.imageUrl,
+        category: item.category,
+        // Only when a real number exists — never parsed out of the label.
+        priceIDR: packagePriceAmount(item),
+        brandName: content?.displayName || profile.name,
+      }),
+    );
+  }
+
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(graph as never) }} />
+      <TenantStorefront profile={profile} />
+    </>
+  );
 }

@@ -44,11 +44,36 @@ export type StorefrontSeason = {
   pilgrimCount?: number;
 };
 
+/**
+ * The one place a package price becomes text.
+ *
+ * A number, when the operator gave one, always wins over the free-text label —
+ * that is what keeps the visible price and the structured data identical. The
+ * label is the fallback for packages that are quoted rather than listed, where
+ * "Hubungi kami" is the honest answer.
+ */
+export function packagePriceLabel(pkg: { priceLabel?: string; priceFromIdr?: number | string }): string {
+  const amount = packagePriceAmount(pkg);
+  if (amount !== undefined) {
+    return `Mulai ${new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount)}`;
+  }
+  return pkg.priceLabel?.trim() || "Hubungi kami";
+}
+
+/** The numeric price, or undefined when none was given. */
+export function packagePriceAmount(pkg: { priceFromIdr?: number | string }): number | undefined {
+  const raw = typeof pkg.priceFromIdr === "string" ? Number(pkg.priceFromIdr) : pkg.priceFromIdr;
+  return raw !== undefined && Number.isFinite(raw) && raw > 0 ? raw : undefined;
+}
+
 export type StorefrontPackage = {
   seasonId: string;
   imageUrl?: string;
   summary?: string;
   priceLabel?: string;
+  /** Starting price as a number. When present it is what the page shows and
+   *  what the structured data claims, so the two cannot disagree. */
+  priceFromIdr?: number | string;
   facilities?: string[];
   itinerary?: { title: string; description?: string }[];
 };
@@ -60,6 +85,7 @@ export type StorefrontPublicPackage = {
   summary?: string;
   imageUrl?: string;
   priceLabel?: string;
+  priceFromIdr?: number | string;
   durationLabel?: string;
   registrationSlug?: string;
   seasonId?: string;
@@ -277,7 +303,7 @@ export default function TenantStorefront({ profile, preview = false }: { profile
   const publicPackages = content.publicPackages ?? [];
   const packageRows: StorefrontPublicPackage[] = publicPackages.length > 0 ? publicPackages : seasons.map((season) => {
     const detail = packageContent.get(season.id);
-    return { id: season.id, title: season.name, category: SEASON_LABEL[season.type] ?? season.type, summary: detail?.summary, imageUrl: detail?.imageUrl, priceLabel: detail?.priceLabel, durationLabel: `${formatMonthYear(season.startDate)}${season.endDate ? ` sampai ${formatMonthYear(season.endDate)}` : ""}`, registrationSlug: season.slug, seasonId: season.id, facilities: detail?.facilities, seasons: [{ seasonId: season.id }] };
+    return { id: season.id, title: season.name, category: SEASON_LABEL[season.type] ?? season.type, summary: detail?.summary, imageUrl: detail?.imageUrl, priceLabel: detail?.priceLabel, priceFromIdr: detail?.priceFromIdr, durationLabel: `${formatMonthYear(season.startDate)}${season.endDate ? ` sampai ${formatMonthYear(season.endDate)}` : ""}`, registrationSlug: season.slug, seasonId: season.id, facilities: detail?.facilities, seasons: [{ seasonId: season.id }] };
   });
   const news = content.news?.length ? content.news : DEFAULT_NEWS;
   const blogPosts = content.blogPosts?.length ? content.blogPosts : DEFAULT_BLOG;
@@ -531,7 +557,7 @@ export default function TenantStorefront({ profile, preview = false }: { profile
                           {item.summary && <p className="tenant-package-sub">{item.summary}</p>}
                           <p className="tenant-package-when"><IconCalendarEvent size={16} stroke={1.9} />{[seasonName, item.durationLabel].filter(Boolean).join(" · ") || "Jadwal menyusul"}</p>
                           <div className="tenant-package-foot">
-                            <span className="tenant-price-pill">{item.priceLabel || "Hubungi kami"}</span>
+                            <span className="tenant-price-pill">{packagePriceLabel(item)}</span>
                             <span className="tenant-package-airline">{option?.airline || ""}</span>
                           </div>
                         </div>
@@ -591,7 +617,7 @@ export default function TenantStorefront({ profile, preview = false }: { profile
                         <span className="tenant-package-line-main">
                           <strong>{item.title}</strong>
                           <span className="tenant-package-line-when"><IconCalendarEvent size={15} stroke={1.9} />{[seasonName, item.durationLabel].filter(Boolean).join(" · ") || "Jadwal menyusul"}</span>
-                          <span className="tenant-package-line-price">Mulai <b>{item.priceLabel || "Hubungi kami"}</b></span>
+                          <span className="tenant-package-line-price">{packagePriceLabel(item)}</span>
                         </span>
                         <IconChevronRight size={20} stroke={2} className="tenant-package-line-chevron" />
                       </button>

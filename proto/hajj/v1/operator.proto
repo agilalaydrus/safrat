@@ -226,9 +226,18 @@ message StorefrontPackage {
   string season_id = 1 [(buf.validate.field).string.uuid = true];
   string image_url = 2 [(buf.validate.field).string.max_len = 2048];
   string summary = 3 [(buf.validate.field).string.max_len = 300];
+  // Free text, and the only price when price_from_idr is unset: "Hubungi kami"
+  // is a legitimate answer for a package that is quoted rather than listed.
   string price_label = 4 [(buf.validate.field).string.max_len = 80];
   repeated string facilities = 5;
   repeated StorefrontItineraryItem itinerary = 6;
+  // The starting price as a number, zero when not quoted publicly.
+  //
+  // When set it becomes the displayed price as well as the one in structured
+  // data, so the two cannot disagree. Search engines require a marked-up price
+  // to match what a visitor sees, and a mismatch is a policy violation that can
+  // strip rich results from the whole domain — the client's domain, not ours.
+  int64 price_from_idr = 7 [(buf.validate.field).int64.gte = 0];
 }
 
 message StorefrontPublicPackage {
@@ -244,6 +253,9 @@ message StorefrontPublicPackage {
   // public label, but preserves the existing registration workflow.
   string season_id = 9 [(buf.validate.field).string.max_len = 80];
   repeated string facilities = 10;
+  // See StorefrontPackage.price_from_idr: when set, this is both what the page
+  // shows and what the structured data claims, so they cannot drift apart.
+  int64 price_from_idr = 12 [(buf.validate.field).int64.gte = 0];
   repeated StorefrontSeasonOption seasons = 11;
 }
 
