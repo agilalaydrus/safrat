@@ -43,6 +43,8 @@ service PlatformService {
   rpc IssueSubscriptionBilling(IssueSubscriptionBillingRequest) returns (IssueSubscriptionBillingResponse);
   rpc GetSubscriptionBillingSettings(GetSubscriptionBillingSettingsRequest) returns (GetSubscriptionBillingSettingsResponse);
   rpc SetSubscriptionGracePeriod(SetSubscriptionGracePeriodRequest) returns (SetSubscriptionGracePeriodResponse);
+  rpc PreviewSubscriptionPlanChange(PreviewSubscriptionPlanChangeRequest) returns (PreviewSubscriptionPlanChangeResponse);
+  rpc ApplySubscriptionPlanChange(ApplySubscriptionPlanChangeRequest) returns (ApplySubscriptionPlanChangeResponse);
   rpc VoidSubscriptionInvoice(VoidSubscriptionInvoiceRequest) returns (VoidSubscriptionInvoiceResponse);
   rpc SetPlanOverride(SetPlanOverrideRequest) returns (SetPlanOverrideResponse);
   rpc DeletePlanOverride(DeletePlanOverrideRequest) returns (DeletePlanOverrideResponse);
@@ -196,6 +198,7 @@ message PlatformOperator {
   int32 grace_period_days = 14;
   optional int32 grace_period_override_days = 15;
   google.protobuf.Timestamp effective_access_until = 16;
+  int64 credit_balance_idr = 17;
 }
 
 message ListOperatorsRequest {}
@@ -359,6 +362,45 @@ message SetSubscriptionGracePeriodResponse {
   string operator_id = 1;
   int32 effective_grace_period_days = 2;
   optional int32 override_grace_period_days = 3;
+}
+
+message PreviewSubscriptionPlanChangeRequest {
+  string operator_id = 1 [(buf.validate.field).string.uuid = true];
+  string new_plan = 2 [(buf.validate.field).string = {in: ["STARTER", "GROWTH", "PRO"]}];
+}
+message PreviewSubscriptionPlanChangeResponse {
+  string operator_id = 1;
+  string operator_name = 2;
+  string current_plan = 3;
+  string new_plan = 4;
+  int64 current_monthly_idr = 5;
+  int64 new_monthly_idr = 6;
+  int32 remaining_days = 7;
+  int32 billing_period_days = 8;
+  // Positive is payable now; negative is credit recorded for the tenant.
+  int64 adjustment_idr = 9;
+  int64 current_credit_balance_idr = 10;
+  google.protobuf.Timestamp access_until = 11;
+}
+message ApplySubscriptionPlanChangeRequest {
+  string operator_id = 1 [(buf.validate.field).string.uuid = true];
+  string new_plan = 2 [(buf.validate.field).string = {in: ["STARTER", "GROWTH", "PRO"]}];
+  int64 expected_adjustment_idr = 3;
+  string reason = 4 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+  string confirmation = 5 [(buf.validate.field).string = {min_len: 1, max_len: 160}];
+  string idempotency_key = 6 [(buf.validate.field).string = {min_len: 8, max_len: 128}];
+}
+message ApplySubscriptionPlanChangeResponse {
+  string adjustment_id = 1;
+  string operator_id = 2;
+  string from_plan = 3;
+  string to_plan = 4;
+  int64 adjustment_idr = 5;
+  string invoice_id = 6;
+  int64 invoice_amount_idr = 7;
+  // PENDING_PAYMENT for an upgrade, APPLIED for a downgrade.
+  string status = 8;
+  int64 credit_balance_idr = 9;
 }
 
 message VoidSubscriptionInvoiceRequest {

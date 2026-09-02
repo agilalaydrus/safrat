@@ -417,10 +417,11 @@ func (r *SubscriptionRepository) MarkPaid(ctx context.Context, invoiceID string)
 
 	var operatorID string
 	var plan string
+	var purpose string
 	err = tx.QueryRow(ctx, `
 		UPDATE subscription_invoices SET status = 'PAID', paid_at = NOW(), updated_at = NOW()
 		WHERE id = $1 AND status = 'PENDING'
-		RETURNING operator_id::text, plan::text`, target).Scan(&operatorID, &plan)
+		RETURNING operator_id::text, plan::text, purpose`, target).Scan(&operatorID, &plan, &purpose)
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Already settled, or cancelled. Treated as success so a webhook or a
 		// mutation sweep can safely deliver the same payment twice.
@@ -429,7 +430,26 @@ func (r *SubscriptionRepository) MarkPaid(ctx context.Context, invoiceID string)
 	if err != nil {
 		return err
 	}
-	if err := extendAccess(ctx, tx, operatorID, plan); err != nil {
+	if purpose == "PRORATION" {
+		// The upgrade buys the remaining slice of the current period; it must
+		// not also grant another 30 days. The target plan is activated only now,
+		// after money moved, so voiding an unpaid invoice cannot leave a free
+		// upgrade behind.
+		operator, parseErr := pgUUID(operatorID)
+		if parseErr != nil {
+			return parseErr
+		}
+		var targetPlan string
+		if err := tx.QueryRow(ctx, `SELECT to_plan::text FROM subscription_adjustments WHERE invoice_id=$1`, target).Scan(&targetPlan); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE subscriptions SET plan=$2::plan, updated_at=NOW() WHERE operator_id=$1`, operator, targetPlan); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE operators SET plan=$2::plan WHERE id=$1`, operator, targetPlan); err != nil {
+			return err
+		}
+	} else if err := extendAccess(ctx, tx, operatorID, plan); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

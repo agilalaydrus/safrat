@@ -70,6 +70,7 @@ type PlatformOperator struct {
 	GracePeriodDays      int32
 	GraceOverrideDays    *int32
 	EffectiveAccessUntil *time.Time
+	CreditBalanceIDR     int64
 }
 
 // ListOperators returns tenants, most urgent first, up to limit.
@@ -83,6 +84,7 @@ func (r *PlatformRepository) ListOperators(ctx context.Context, limit int32) ([]
 		       CASE WHEN s.operator_id IS NULL THEN NULL ELSE subscription_effective_access_until(s.access_until, s.grace_period_days) END,
 		       COALESCE(s.grace_period_days, platform_grace_period_days())::int,
 		       s.grace_period_days,
+		       COALESCE(s.credit_balance_idr,0),
 		       COALESCE(p.count, 0)::int, COALESCE(pr.count, 0)::int, COALESCE(h.count, 0)::int,
 		       o.created_at, s.suspended_at,
 		       -- Furthest stage reached for the lapse currently in progress.
@@ -122,7 +124,7 @@ func (r *PlatformRepository) ListOperators(ctx context.Context, limit int32) ([]
 		var operator PlatformOperator
 		if err := rows.Scan(&operator.ID, &operator.Name, &operator.Slug, &operator.Plan,
 			&operator.SubscriptionStatus, &operator.AccessUntil, &operator.EffectiveAccessUntil,
-			&operator.GracePeriodDays, &operator.GraceOverrideDays, &operator.PilgrimCount,
+			&operator.GracePeriodDays, &operator.GraceOverrideDays, &operator.CreditBalanceIDR, &operator.PilgrimCount,
 			&operator.ProductCount, &operator.HeldOrderCount, &operator.CreatedAt,
 			&operator.SuspendedAt, &operator.DunningStage, &operator.OutstandingIDR); err != nil {
 			return nil, err

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -384,6 +385,60 @@ func (s *PlatformService) SetSubscriptionGracePeriod(ctx context.Context, req *h
 	return &hajjv1.SetSubscriptionGracePeriodResponse{
 		OperatorId: result.OperatorID, EffectiveGracePeriodDays: result.EffectiveDays,
 		OverrideGracePeriodDays: result.OverrideDays,
+	}, nil
+}
+
+func (s *PlatformService) PreviewSubscriptionPlanChange(ctx context.Context, req *hajjv1.PreviewSubscriptionPlanChangeRequest) (*hajjv1.PreviewSubscriptionPlanChangeResponse, error) {
+	if _, err := s.requirePlatformAdmin(ctx); err != nil {
+		return nil, err
+	}
+	if req == nil || !isUUID(req.OperatorId) || !validPlan(req.NewPlan) {
+		return nil, serviceError("PlatformService.PreviewSubscriptionPlanChange", apperror.ErrValidation)
+	}
+	preview, err := s.subscriptionRepository.PreviewPlanChange(ctx, req.OperatorId, req.NewPlan)
+	if err != nil {
+		if errors.Is(err, repository.ErrNoProration) {
+			err = fmt.Errorf("%w: langganan tidak memiliki waktu berbayar yang dapat diprorata", apperror.ErrFailedPrecondition)
+		}
+		return nil, serviceError("PlatformService.PreviewSubscriptionPlanChange", err)
+	}
+	return &hajjv1.PreviewSubscriptionPlanChangeResponse{
+		OperatorId: preview.OperatorID, OperatorName: preview.OperatorName,
+		CurrentPlan: preview.CurrentPlan, NewPlan: preview.NewPlan,
+		CurrentMonthlyIdr: preview.CurrentMonthly, NewMonthlyIdr: preview.NewMonthly,
+		RemainingDays:     (preview.RemainingSeconds + 86399) / 86400,
+		BillingPeriodDays: int32(repository.BillingPeriodDays), AdjustmentIdr: preview.AdjustmentIDR,
+		CurrentCreditBalanceIdr: preview.CreditBalanceIDR,
+		AccessUntil:             timestamppb.New(preview.AccessUntil),
+	}, nil
+}
+
+func (s *PlatformService) ApplySubscriptionPlanChange(ctx context.Context, req *hajjv1.ApplySubscriptionPlanChangeRequest) (*hajjv1.ApplySubscriptionPlanChangeResponse, error) {
+	userID, err := s.requirePlatformAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req == nil || !isUUID(req.OperatorId) || !validPlan(req.NewPlan) || strings.TrimSpace(req.Reason) == "" ||
+		strings.TrimSpace(req.Confirmation) == "" || strings.TrimSpace(req.IdempotencyKey) == "" || req.ExpectedAdjustmentIdr == 0 {
+		return nil, serviceError("PlatformService.ApplySubscriptionPlanChange", apperror.ErrValidation)
+	}
+	result, err := s.subscriptionRepository.ApplyPlanChange(ctx, repository.PlanChange{
+		OperatorID: req.OperatorId, NewPlan: req.NewPlan, ExpectedAdjustment: req.ExpectedAdjustmentIdr,
+		Reason: strings.TrimSpace(req.Reason), Confirmation: strings.TrimSpace(req.Confirmation),
+		ActorUserID: userID, IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+	})
+	if err != nil {
+		if errors.Is(err, repository.ErrNoProration) || errors.Is(err, repository.ErrPendingInvoice) ||
+			errors.Is(err, repository.ErrBillingPreviewChanged) || errors.Is(err, repository.ErrTransferAmountUnavailable) {
+			err = fmt.Errorf("%w: %v", apperror.ErrFailedPrecondition, err)
+		}
+		return nil, serviceError("PlatformService.ApplySubscriptionPlanChange", err)
+	}
+	return &hajjv1.ApplySubscriptionPlanChangeResponse{
+		AdjustmentId: result.AdjustmentID, OperatorId: result.OperatorID,
+		FromPlan: result.FromPlan, ToPlan: result.ToPlan, AdjustmentIdr: result.AdjustmentIDR,
+		InvoiceId: result.InvoiceID, InvoiceAmountIdr: result.InvoiceAmountIDR,
+		Status: result.Status, CreditBalanceIdr: result.CreditBalanceIDR,
 	}, nil
 }
 

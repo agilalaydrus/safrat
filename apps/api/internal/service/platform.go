@@ -193,6 +193,7 @@ func (s *PlatformService) ListOperators(ctx context.Context) (*hajjv1.ListOperat
 			HeldOrderCount: operator.HeldOrderCount, CreatedAt: timestamppb.New(operator.CreatedAt),
 			DunningStage: operator.DunningStage, OutstandingIdr: operator.OutstandingIDR,
 			GracePeriodDays: operator.GracePeriodDays, GracePeriodOverrideDays: operator.GraceOverrideDays,
+			CreditBalanceIdr: operator.CreditBalanceIDR,
 		}
 		if operator.AccessUntil != nil {
 			message.AccessUntil = timestamppb.New(*operator.AccessUntil)

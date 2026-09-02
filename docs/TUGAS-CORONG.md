@@ -53,6 +53,13 @@ Menyentuh dua permukaan: `/dashboard` (travel melihat corongnya sendiri) dan
       `SELESAI` saat operator tercipta. `operator_id` NULL.
 - [ ] **K2.5** Isi `crm_leads.source` dan `campaign` dari `utm_source` bila ada.
       Hari ini kolom itu diketik manual oleh staf travel.
+- [ ] **K2.6** Simpan `utm_source` dan `utm_campaign` **di baris pendaftaran**
+      (`pilgrim_registrations`, `season_waitlists`), bukan hanya di event.
+      Tanpa cookie, atribusi lintas hari hilang; ini yang menangkap kanal pada
+      kunjungan tempat orang benar-benar mendaftar.
+- [ ] **K2.7** Langkah `ARTIKEL` dengan `article_slug` di `/p/[slug]/blog/...`
+- [ ] **K2.8** Geolokasi kota/provinsi dari IP (MaxMind GeoLite2). **IP tidak
+      pernah ditulis** — hanya nama daerahnya. Tingkat kota, tidak lebih halus.
 
 # TAHAP K3 — Rollup & retensi
 
@@ -68,9 +75,17 @@ Menyentuh dua permukaan: `/dashboard` (travel melihat corongnya sendiri) dan
 - [ ] **K4.1** Bagian corong di `/dashboard/analytics` (§8.1)
 - [ ] **K4.2** Sumber diurutkan menurut **pendaftar**, bukan pengunjung. Kanal
       dengan 1.000 penonton dan nol pendaftar bukan kanal yang bagus.
+- [ ] **K4.5** Jam aktif: sebaran pengunjung per jam dan per hari, agregat dari
+      `occurred_at`. Dipakai untuk jam publikasi artikel dan jam kirim broadcast.
+- [ ] **K4.6** Asal daerah: pengunjung dan pendaftar per provinsi/kota
+- [ ] **K4.7** Usia pendaftar per kanal, dari `pilgrim_registrations.date_of_birth`
+      yang sudah ada. **Usia pengunjung tidak ada dan tidak boleh ditebak.**
+- [ ] **K4.8** Kinerja artikel: dibaca berapa kali, berapa pembacanya lanjut
+      mendaftar. Ini yang membuat strategi konten terukur.
 - [ ] **K4.3** Catatan Metodologi: apa yang dihitung, apa yang dibuang sebagai
-      bot, dan bahwa pengunjung dihitung **per hari** — orang yang sama di dua
-      hari terhitung dua kali.
+      bot, bahwa pengunjung dihitung **per hari** — orang yang sama di dua hari
+      terhitung dua kali — dan bahwa **atribusi lintas hari tidak akurat** karena
+      tidak memakai cookie, sehingga angka kanal bias ke yang mengonversi cepat.
 - [ ] **K4.4** Uji dua arah: travel melihat corongnya sendiri, **dan tidak bisa**
       melihat milik travel lain.
 

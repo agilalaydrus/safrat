@@ -107,6 +107,28 @@ func (h *PlatformHandler) SetSubscriptionGracePeriod(ctx context.Context, req *c
 	return connect.NewResponse(result), nil
 }
 
+func (h *PlatformHandler) PreviewSubscriptionPlanChange(ctx context.Context, req *connect.Request[hajjv1.PreviewSubscriptionPlanChangeRequest]) (*connect.Response[hajjv1.PreviewSubscriptionPlanChangeResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.PreviewSubscriptionPlanChange(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) ApplySubscriptionPlanChange(ctx context.Context, req *connect.Request[hajjv1.ApplySubscriptionPlanChangeRequest]) (*connect.Response[hajjv1.ApplySubscriptionPlanChangeResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.ApplySubscriptionPlanChange(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *PlatformHandler) SetPlanOverride(ctx context.Context, req *connect.Request[hajjv1.SetPlanOverrideRequest]) (*connect.Response[hajjv1.SetPlanOverrideResponse], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

@@ -14,7 +14,8 @@ Diperbarui: **2 September 2026**
 |---|---|---|---|
 | **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **54/74 butir** · sisa Tahap 3–4 |
 | **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1 selesai** · 16/68 butir · berikutnya B2 |
-| **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | dirancang, **antre** · 0/24 butir |
+| **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | dirancang, **antre** · 0/33 butir |
+| **SEO & Konten** | storefront | [TUGAS-SEO-KONTEN.md](TUGAS-SEO-KONTEN.md) | dirancang, **antre** · 0/17 butir |
 
 Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
 `admin/page.tsx`.
@@ -25,9 +26,12 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
    mendekatinya.
 2. **B3** Halaman detail tenant.
 3. **Tahap 3 Dashboard Travel** — CRM Leads, WhatsApp, rundown, tier kamar.
-4. **Corong pengunjung** — dirancang penuh, menunggu giliran. Hari ini tidak ada
-   pelacakan pengunjung sama sekali: berapa orang membuka storefront sebuah
-   travel, tidak ada yang tahu.
+4. **SEO & Konten** — **tidak ada `sitemap.xml` dan `robots.txt` sama sekali.**
+   Artikel baru bisa berminggu-minggu tidak terindeks, jadi strategi konten
+   tidak akan terlihat hasilnya dan tidak akan ketahuan kenapa.
+5. **Corong pengunjung** — dirancang penuh. Hari ini tidak ada pelacakan
+   pengunjung sama sekali: berapa orang membuka storefront sebuah travel, tidak
+   ada yang tahu.
 
 **Dunning masih mode kering.** Ia berjalan tiap 24 jam, mengisi `dunning_log`,
 dan **tidak mengirim apa pun** sampai `DUNNING_LIVE=true` diset. Bandingkan satu
@@ -76,6 +80,12 @@ belum di-push                34 commit
 - **Implementasi panel SaaS dikerjakan Codex**; Claude menulis spesifikasi dan
   menjalankan pass verifikasi.
 - **Live location mentah tidak dibagikan ke keluarga** — momen dan kabar boleh.
+- **Corong pengunjung memakai tabel sendiri**, bukan Google Analytics atau
+  Plausible: nilainya justru pada sambungan ke data pendaftaran dan pembayaran,
+  dan itu hilang kalau datanya di server orang lain.
+- **Tanpa cookie dan tanpa menyimpan IP**, supaya storefront pelanggan tidak
+  perlu banner persetujuan. Konsekuensinya atribusi lintas hari tidak akurat,
+  dan itu harus tertulis di layar.
 - Marketplace B2B, aplikasi terpisah, AI berfatwa: **ditunda/ditolak**.
 
 ## Pekerjaan pemilik yang belum beres

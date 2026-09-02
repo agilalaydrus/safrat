@@ -106,11 +106,19 @@ CREATE TABLE funnel_events (
   operator_id  UUID REFERENCES operators(id) ON DELETE CASCADE,
   visitor_hash TEXT NOT NULL,
   step         TEXT NOT NULL CHECK (step IN (
-                 'LANDING','KATALOG','MULAI_ISI','KIRIM','SELESAI')),
+                 'LANDING','KATALOG','ARTIKEL','MULAI_ISI','KIRIM','SELESAI')),
   path         TEXT NOT NULL DEFAULT '',
+  -- Slug artikel saat step = ARTIKEL. Inilah yang membuat konten terukur:
+  -- tanpa ini, semua pembacaan artikel jadi satu angka tak berguna.
+  article_slug TEXT NOT NULL DEFAULT '',
   referrer_host TEXT NOT NULL DEFAULT '',
   utm_source   TEXT NOT NULL DEFAULT '',
   utm_campaign TEXT NOT NULL DEFAULT '',
+  -- Hasil geolokasi, disimpan sebagai nama daerah. IP-nya sendiri tidak pernah
+  -- ditulis ke kolom mana pun — itu yang menjaga tabel ini tetap agregat.
+  -- Tingkat kota sudah cukup dan sengaja tidak lebih halus.
+  city         TEXT NOT NULL DEFAULT '',
+  province     TEXT NOT NULL DEFAULT '',
   -- Diisi saat langkah SELESAI, supaya corong bisa disambungkan ke uang.
   entity_id    UUID,
   occurred_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -147,7 +155,8 @@ menjawab apa pun; lima langkah ini yang membentuk corong.
 | Langkah | Dicatat di | Arti |
 |---|---|---|
 | `LANDING` | middleware, saat `/p/[slug]` atau `/` dimuat | Ada yang datang |
-| `KATALOG` | middleware, saat halaman paket/artikel dibuka | Cukup tertarik untuk melihat isi |
+| `KATALOG` | middleware, saat halaman paket dibuka | Cukup tertarik untuk melihat isi |
+| `ARTIKEL` | middleware, saat `/p/[slug]/blog/...` dibuka | Datang karena konten, bukan karena mencari travel |
 | `MULAI_ISI` | klien, saat kolom pertama form disentuh | Berniat, belum tentu jadi |
 | `KIRIM` | server, saat RPC pendaftaran dipanggil | Mengirim |
 | `SELESAI` | server, saat pendaftaran/tenant benar-benar tercipta | Jadi |
@@ -212,6 +221,56 @@ sekadar analitik**, karena hanya di sini dua corong bisa dibaca berdampingan.
 
 Menautkan ke `/admin/tenant/[id]` (B3) supaya corong satu tenant terbaca
 bersama langganan dan pemakaiannya.
+
+## 8b. Empat pertanyaan pemilik, dan jawaban jujurnya
+
+Ditulis di sini supaya tidak ada yang membangun versi yang tidak bisa bekerja.
+
+**"Berapa orang mencari topik tertentu?"** — Bisa, tetapi **bukan dari
+pelacakan kita**. Google berhenti mengirim kata pencarian di referrer sejak
+2011; semuanya masuk sebagai `google.com` tanpa query, dan tidak ada cara
+mengakalinya. Sumbernya adalah Google Search Console
+([TUGAS-SEO-KONTEN.md](TUGAS-SEO-KONTEN.md) §S3), yang agregat dan sah.
+Yang bisa dari sistem sendiri: **berapa kali sebuah artikel dibaca dan berapa
+pembacanya lanjut mendaftar** — dan itu justru lebih berguna daripada kata
+kuncinya.
+
+**"Siapa orangnya?"** — Tidak, dan sengaja tidak. Identitas per orang adalah
+data pribadi, membutuhkan cookie dan persetujuan, dan mengubah tabel ini dari
+agregat menjadi sesuatu yang masuk kewajiban pelaporan kebocoran. Ia juga yang
+paling tidak berguna: mengetahui seorang bernama tertentu membaca artikel visa
+tidak mengubah keputusan apa pun; mengetahui 340 orang membacanya dan 12
+mendaftar, mengubah.
+
+**"Dari mana asalnya?"** — Bisa, tingkat kota dan provinsi, dari geolokasi IP.
+IP-nya tidak disimpan; yang ditulis hanya nama daerahnya. Butuh basis data
+GeoIP di server (MaxMind GeoLite2, gratis, diperbarui berkala).
+
+**"Berapa usianya?"** — Untuk **pengunjung**: tidak bisa, dan angka "demografi"
+di alat analitik adalah tebakan dari profil iklan, bukan pengukuran. Untuk
+**pendaftar**: bisa, dan datanya sudah ada hari ini —
+`pilgrim_registrations.date_of_birth`. Jadi "pendaftar dari Instagram rata-rata
+47 tahun, dari Google 38 tahun" nyata dan tidak perlu tabel baru.
+
+**"Jam berapa mereka aktif?"** — Bisa, mudah, agregat murni dari `occurred_at`.
+Berguna langsung: jam publikasi artikel dan jam kirim broadcast.
+
+### Batas yang harus disebut di layar
+
+**Atribusi lintas hari tidak akurat.** Konsekuensi langsung dari pilihan tanpa
+cookie: kalau orang datang dari Instagram hari ini, memikirkannya tiga minggu,
+lalu mendaftar lewat pencarian — Instagram tidak dapat kreditnya, karena
+hash-nya sudah berganti belasan kali.
+
+Umroh adalah keputusan besar dan siklus pertimbangannya memang berminggu-minggu,
+jadi **angka kanal akan bias ke yang mengonversi cepat.** Peredamnya:
+`utm_source` ikut disimpan **di baris pendaftaran**, bukan hanya di event —
+menangkap kanal yang membawa orang pada kunjungan tempat ia benar-benar
+mendaftar. Tidak sempurna, jujur, dan tanpa cookie.
+
+Ini harus tertulis di Catatan Metodologi, bukan hanya di dokumen ini.
+
+---
 
 ## 9. Retensi
 
