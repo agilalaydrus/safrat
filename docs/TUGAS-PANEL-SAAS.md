@@ -59,11 +59,8 @@ jangan merancang ulang. `dunning_log`, `privileged_actions`, dan
 
 ## A1 — Paket & Kuota 🔴 paling mendesak
 
-> **Status 2 September 2026: backend selesai, layar belum.** Codex kehabisan
-> kuota di tengah jalan; pekerjaannya diselamatkan di `789d7d9` — enam RPC,
-> migrasi 138, worker pencabut override, dan uji gerbang dua arah, semuanya
-> lulus. Yang tersisa adalah **layarnya**. Sampai itu ada, RPC-nya tidak punya
-> pemanggil — persis kegagalan yang panel ini dirancang untuk mengakhirinya.
+> **A1 SELESAI.** Backend oleh Codex (`789d7d9`) sebelum kuotanya habis; layar
+> oleh Claude. Enam RPC sekarang punya pemanggil.
 
 T2.2 sudah menegakkan batas lewat trigger, tapi `plan_limits` dan
 `plan_overrides` **tidak punya satu pun RPC**. Menaikkan kuota satu pelanggan
@@ -76,7 +73,7 @@ hari ini = menulis SQL di produksi.
 - [x] `PreviewPlanLimitChange` mengembalikan tenant beserta **namanya** (`789d7d9`)
 - [x] Grandfathering: dikunci di angka lama, tidak ditendang (`789d7d9`)
 - [x] Perubahan batas ditulis ke `audit_logs`, plus `privileged_actions` (`789d7d9`)
-- [C] Tab **Paket & Kuota** di `/admin`
+- [x] Tab **Paket & Kuota** di `/admin` (`5140128`)
 - [x] Uji dua arah: override naik untuk satu tenant, tidak bocor ke tenant lain;
       plus uji idempotensi (kunci sama payload beda → `ErrConflict`) (`789d7d9`)
 
