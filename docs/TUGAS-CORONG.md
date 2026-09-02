@@ -24,19 +24,19 @@ Menyentuh dua permukaan: `/dashboard` (travel melihat corongnya sendiri) dan
 
 # TAHAP K1 — Fondasi
 
-- [ ] **K1.1** Migrasi: `funnel_events` + `funnel_daily` sesuai §5 RENCANA.
-      **Putuskan dan tulis alasannya** bagaimana `operator_id` NULL diperlakukan
-      di PK `funnel_daily` — `COALESCE` ke UUID nol atau `NULLS NOT DISTINCT`.
-      Kalau dilewatkan, baris ringkasan platform menggandakan diri diam-diam.
-- [ ] **K1.2** `FUNNEL_SALT` sebagai environment variable, **tidak di database**.
-      Tanpa garam, ruang IPv4 cukup kecil untuk membalik hash dari sebuah dump.
-      Dokumentasikan di `DEPLOY.md` bersama kunci lain.
-- [ ] **K1.3** Helper hash: `SHA256(salt ‖ tanggal ‖ IP ‖ user_agent)`, dengan
-      uji bahwa hash **berubah saat tanggal berganti** dan **sama dalam satu
-      hari** untuk masukan yang sama.
-- [ ] **K1.4** Penyaring bot (§7): buang user-agent yang mengaku bot, dan
-      `visitor_hash` yang menyentuh banyak path dalam hitungan detik tanpa pernah
-      melewati `LANDING`.
+- [x] **K1.1** Migrasi 146. Bukan PRIMARY KEY — PK tidak boleh memuat kolom
+      nullable, jadi itu akan memaksa baris platform membawa operator palsu.
+      Dipakai `UNIQUE ... NULLS NOT DISTINCT`, dan dibuktikan: tanpa klausul itu
+      dua ringkasan platform identik lolos (`fa98c91`)
+- [x] **K1.2** `FUNNEL_SALT` di environment, didokumentasikan di `DEPLOY.md`
+      bersama alasan dan cara rotasinya (`fa98c91`)
+- [x] **K1.3** `internal/funnel`, diuji: stabil dalam satu hari, berubah lintas
+      hari, terpengaruh garam, dan **menolak mencatat tanpa garam layak** —
+      tabel yang hanya terlihat anonim lebih buruk daripada tabel kosong
+      (`fa98c91`)
+- [x] **K1.4** Penyaring user-agent, diuji dua arah terhadap enam bot dan tiga
+      peramban sungguhan. Penyaring berbasis pola lalu lintas menyusul di K3
+      saat sudah ada data untuk mengujinya (`fa98c91`)
 
 # TAHAP K2 — Pencatatan
 

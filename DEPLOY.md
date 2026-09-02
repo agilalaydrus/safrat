@@ -843,6 +843,27 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod exec postgres \
 
 Empty output is the healthy answer.
 
+
+### FUNNEL_SALT — visitor funnel
+
+Set alongside the other secrets in `.env.prod`:
+
+    FUNNEL_SALT=$(openssl rand -base64 32)
+
+Visitor tokens are `SHA256(salt ‖ date ‖ IP ‖ user agent)`, and the salt is the
+only thing that stops that hash being reversed. The IPv4 space is small enough
+to enumerate, so anybody holding a database dump *and* the salt could turn the
+tokens back into a list of addresses — which is why the salt belongs in the
+environment and never in the database beside the hashes it protects.
+
+**Without it, nothing is recorded at all.** That is deliberate: a table that
+only looks anonymous is worse than an empty one, so recording is skipped rather
+than writing reversible tokens.
+
+Rotating it is safe and costs only continuity: tokens before and after the
+rotation cannot be matched, so one day's visitor counts are split in two. Rotate
+on a day boundary if the number matters.
+
 ## 12c. The KYC encryption key
 
 > **Sejak 30 Agustus 2026 kunci ini juga wajib untuk membuat jamaah.** Nomor
