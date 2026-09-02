@@ -325,24 +325,24 @@ menyusul sebagai lapisan pengalaman, bukan satu-satunya pengaman.
 
 ## T2.3 — Pembayaran bercicilan
 
-- [ ] Skema: Bayar penuh · DP 50% + pelunasan · Cicilan 6× · Cicilan 12× ·
-      Bonus Pelunasan Tunai
-- [ ] Jadwal angsuran per jamaah, dengan **kunci idempotensi per angsuran**
-- [ ] Umur piutang (aging) menurut jatuh tempo
-- [ ] Verifikasi transaksi manual + Kirim Kwitansi
-- [ ] Pengingat jatuh tempo (massal & satuan)
-- [ ] Layar sesuai §4.3 DESAIN
+- [x] Skema: Bayar penuh · DP 50% + pelunasan · Cicilan 6× · Cicilan 12× ·
+      Bonus Pelunasan Tunai (`d49add5`)
+- [x] Jadwal angsuran per jamaah, dengan **kunci idempotensi per angsuran**
+      yang dipaksakan database (`d49add5`)
+- [x] Umur piutang (aging) menurut jatuh tempo (`481816f`)
+- [x] Verifikasi transaksi manual + Kirim Kwitansi (`d49add5`, `209993d`)
+- [x] Pengingat jatuh tempo (massal & satuan) (`209993d`)
+- [x] Layar sesuai §4.3 DESAIN (`481816f`, `209993d`)
 
 > Ini cara mayoritas jamaah Indonesia membayar. Bukan fitur pembeda — **syarat
 > masuk pasar.** Tanpanya banyak travel tidak bisa memakai TawafiqHub sama sekali.
 
-**Progres aktif (belum menutup T2.3):** ledger cicilan append-only, skema dan
-jadwal beku, idempotensi database, reversal, aging, isolasi cabang dua arah,
-entitlement, serta workspace UI sudah tersedia di `d49add5` dan `481816f`.
-Integration test juga membuktikan overpayment konkuren ditolak dan KPI kas
-masuk membaca ledger. Yang masih memblokir tanda selesai: pengiriman kwitansi
-melalui email, pengingat jatuh tempo satuan dan massal yang durable, serta uji
-visual browser untuk layar final.
+**Selesai:** ledger cicilan append-only, skema dan jadwal beku, idempotensi
+database, reversal, aging, isolasi cabang dua arah, entitlement, workspace UI,
+kwitansi email, serta pengingat satuan dan massal tersedia di `d49add5`,
+`481816f`, dan `209993d`. Integration test membuktikan overpayment konkuren
+ditolak, KPI kas membaca ledger, dan antrean email tidak bocor antar cabang.
+Worker memakai SMTP TLS dengan lease, retry, stable Message-ID, dan dead-letter.
 
 ---
 
