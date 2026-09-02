@@ -38,6 +38,9 @@ func TestPlanUpgradeWaitsForPaymentAndIsIdempotentIntegration(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT plan::text FROM subscriptions WHERE operator_id=$1`, operatorID).Scan(&plan); err != nil || plan != "STARTER" {
 		t.Fatalf("unpaid upgrade activated plan %q err=%v", plan, err)
 	}
+	if _, err := repo.PreviewPlanChange(ctx, operatorID, "PRO"); !errors.Is(err, ErrNoProration) {
+		t.Fatalf("second plan change while invoice pending = %v, want refused", err)
+	}
 	replayed, err := repo.ApplyPlanChange(ctx, change)
 	if err != nil || replayed.AdjustmentID != result.AdjustmentID || replayed.InvoiceID != result.InvoiceID {
 		t.Fatalf("replay = %+v err=%v, want original", replayed, err)
@@ -104,5 +107,33 @@ func TestPlanDowngradeAppliesCreditWithoutRewritingInvoicesIntegration(t *testin
 	}
 	if invoiceCount != 0 || adjustmentCount != 1 {
 		t.Fatalf("downgrade wrote invoices=%d adjustments=%d, want 0/1", invoiceCount, adjustmentCount)
+	}
+
+	// The credit is reserved in the next renewal's payable amount, but remains
+	// on the balance until money actually settles. An abandoned invoice must
+	// not consume value the tenant owns.
+	renewal, _, created, err := repo.IssueBillingPeriod(ctx, operatorID, "STARTER", accessUntil, 589000, "proration-test")
+	if err != nil || !created {
+		t.Fatalf("issue credited renewal: created=%v err=%v", created, err)
+	}
+	if renewal.Amount >= 589000 || renewal.Amount <= 589000-credit {
+		t.Fatalf("credited invoice amount=%d, gross=589000 credit=%d", renewal.Amount, credit)
+	}
+	var beforePayment int64
+	if err := pool.QueryRow(ctx, `SELECT credit_balance_idr FROM subscriptions WHERE operator_id=$1`, operatorID).Scan(&beforePayment); err != nil || beforePayment != credit {
+		t.Fatalf("credit consumed before payment: balance=%d err=%v", beforePayment, err)
+	}
+	if err := repo.MarkPaid(ctx, renewal.ID); err != nil {
+		t.Fatalf("pay credited renewal: %v", err)
+	}
+	var afterPayment, applications int64
+	if err := pool.QueryRow(ctx, `SELECT credit_balance_idr FROM subscriptions WHERE operator_id=$1`, operatorID).Scan(&afterPayment); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM subscription_credit_applications WHERE invoice_id=$1`, renewal.ID).Scan(&applications); err != nil {
+		t.Fatal(err)
+	}
+	if afterPayment != 0 || applications != 1 {
+		t.Fatalf("settled credit balance=%d applications=%d, want 0/1", afterPayment, applications)
 	}
 }

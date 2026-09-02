@@ -158,14 +158,15 @@ func (r *SubscriptionRepository) IssueBillingPeriod(ctx context.Context, operato
 	var currentPlan string
 	var currentStart time.Time
 	var currentBase int64
+	var currentCredit int64
 	err = tx.QueryRow(ctx, `
-		SELECT o.name, s.plan::text, s.access_until, p.monthly_idr
+		SELECT o.name, s.plan::text, s.access_until, p.monthly_idr, s.credit_balance_idr
 		FROM subscriptions s
 		JOIN operators o ON o.id = s.operator_id
 		JOIN plan_prices p ON p.plan = s.plan
 		WHERE s.operator_id = $1 AND s.status IN ('ACTIVE','PAST_DUE')
 		  AND s.cancelled_at IS NULL
-		FOR UPDATE OF s`, operator).Scan(&operatorName, &currentPlan, &currentStart, &currentBase)
+		FOR UPDATE OF s`, operator).Scan(&operatorName, &currentPlan, &currentStart, &currentBase, &currentCredit)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Invoice{}, operatorName, false, ErrBillingPreviewChanged
 	}
@@ -189,15 +190,20 @@ func (r *SubscriptionRepository) IssueBillingPeriod(ctx context.Context, operato
 		if periodStart.After(dueAt) {
 			dueAt = periodStart
 		}
+		creditApplied := currentCredit
+		if creditApplied >= expectedBase {
+			creditApplied = expectedBase - 1
+		}
+		netBase := expectedBase - creditApplied
 		insertErr := attemptTx.QueryRow(ctx, `
 			INSERT INTO subscription_invoices
-				(operator_id, plan, channel, base_amount_idr, amount_idr, period_start, period_end, due_at)
+				(operator_id, plan, channel, base_amount_idr, amount_idr, period_start, period_end, due_at, credit_applied_idr)
 			VALUES ($1, $2::plan, 'BANK_TRANSFER', $3, $4, $5::timestamptz,
-			        $5::timestamptz + make_interval(days => $6::int), $7)
+			        $5::timestamptz + make_interval(days => $6::int), $7, $8)
 			RETURNING id::text, plan::text, status::text, channel::text,
 			          base_amount_idr, amount_idr, period_start, period_end, due_at,
 			          COALESCE(checkout_url, '')`, operator, plan, expectedBase,
-			expectedBase+suffix, periodStart, BillingPeriodDays, dueAt).
+			netBase+suffix, periodStart, BillingPeriodDays, dueAt, creditApplied).
 			Scan(&invoice.ID, &invoice.Plan, &invoice.Status, &invoice.Channel,
 				&invoice.BaseAmount, &invoice.Amount, &invoice.PeriodStart,
 				&invoice.PeriodEnd, &invoice.DueAt, &invoice.CheckoutURL)
@@ -418,10 +424,12 @@ func (r *SubscriptionRepository) MarkPaid(ctx context.Context, invoiceID string)
 	var operatorID string
 	var plan string
 	var purpose string
+	var creditApplied int64
 	err = tx.QueryRow(ctx, `
 		UPDATE subscription_invoices SET status = 'PAID', paid_at = NOW(), updated_at = NOW()
 		WHERE id = $1 AND status = 'PENDING'
-		RETURNING operator_id::text, plan::text, purpose`, target).Scan(&operatorID, &plan, &purpose)
+		RETURNING operator_id::text, plan::text, purpose, credit_applied_idr`, target).
+		Scan(&operatorID, &plan, &purpose, &creditApplied)
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Already settled, or cancelled. Treated as success so a webhook or a
 		// mutation sweep can safely deliver the same payment twice.
@@ -449,8 +457,26 @@ func (r *SubscriptionRepository) MarkPaid(ctx context.Context, invoiceID string)
 		if _, err := tx.Exec(ctx, `UPDATE operators SET plan=$2::plan WHERE id=$1`, operator, targetPlan); err != nil {
 			return err
 		}
-	} else if err := extendAccess(ctx, tx, operatorID, plan); err != nil {
-		return err
+	} else {
+		if creditApplied > 0 {
+			operator, parseErr := pgUUID(operatorID)
+			if parseErr != nil {
+				return parseErr
+			}
+			command, err := tx.Exec(ctx, `UPDATE subscriptions SET credit_balance_idr=credit_balance_idr-$2 WHERE operator_id=$1 AND credit_balance_idr >= $2`, operator, creditApplied)
+			if err != nil {
+				return err
+			}
+			if command.RowsAffected() != 1 {
+				return apperror.ErrFailedPrecondition
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO subscription_credit_applications (invoice_id,operator_id,amount_idr) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, target, operator, creditApplied); err != nil {
+				return err
+			}
+		}
+		if err := extendAccess(ctx, tx, operatorID, plan); err != nil {
+			return err
+		}
 	}
 	return tx.Commit(ctx)
 }

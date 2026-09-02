@@ -49,8 +49,15 @@ type PlanChangeResult struct {
 }
 
 func proratedAmount(priceDelta int64, remainingSeconds int32) int64 {
-	period := int64(BillingPeriodDays * 24 * 60 * 60)
-	numerator := priceDelta * int64(remainingSeconds)
+	// Commercial proration is per calendar day. Besides being explainable on
+	// an invoice, this keeps an approved preview stable while a person reads
+	// and confirms it; a per-second amount could change between two clicks.
+	remainingDays := int64((remainingSeconds + 86399) / 86400)
+	if remainingDays > BillingPeriodDays {
+		remainingDays = BillingPeriodDays
+	}
+	period := int64(BillingPeriodDays)
+	numerator := priceDelta * remainingDays
 	if numerator >= 0 {
 		return (numerator + period/2) / period
 	}
@@ -73,7 +80,8 @@ func (r *SubscriptionRepository) PreviewPlanChange(ctx context.Context, operator
 		JOIN plan_prices old_price ON old_price.plan=s.plan
 		JOIN plan_prices new_price ON new_price.plan=$2::plan
 		WHERE s.operator_id=$1 AND s.plan<>$2::plan AND s.cancelled_at IS NULL
-		  AND s.suspended_at IS NULL AND s.access_until>NOW()`, id, newPlan).
+		  AND s.suspended_at IS NULL AND s.access_until>NOW()
+		  AND NOT EXISTS (SELECT 1 FROM subscription_invoices i WHERE i.operator_id=s.operator_id AND i.status='PENDING')`, id, newPlan).
 		Scan(&result.OperatorID, &result.OperatorName, &result.CurrentPlan, &result.NewPlan,
 			&result.CurrentMonthly, &result.NewMonthly, &result.RemainingSeconds,
 			&result.CreditBalanceIDR, &result.AccessUntil)
@@ -132,6 +140,7 @@ func (r *SubscriptionRepository) ApplyPlanChange(ctx context.Context, change Pla
 		JOIN plan_prices new_price ON new_price.plan=$2::plan
 		WHERE s.operator_id=$1 AND s.plan<>$2::plan AND s.cancelled_at IS NULL
 		  AND s.suspended_at IS NULL AND s.access_until>NOW()
+		  AND NOT EXISTS (SELECT 1 FROM subscription_invoices i WHERE i.operator_id=s.operator_id AND i.status='PENDING')
 		FOR UPDATE OF s,o`, operator, change.NewPlan, BillingPeriodDays*24*60*60).
 		Scan(&operatorName, &currentPlan, &oldMonthly, &newMonthly, &credit, &accessUntil, &remaining)
 	if errors.Is(err, pgx.ErrNoRows) {

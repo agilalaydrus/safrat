@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { IconAlertTriangle, IconBan, IconReceipt, IconRefresh } from "@tabler/icons-react";
 import type {
   PlatformOperator,
+  PreviewSubscriptionPlanChangeResponse,
   SubscriptionBillingCandidate,
   SubscriptionBillingResult,
   SubscriptionInvoiceRow,
@@ -44,6 +45,12 @@ export default function SubscriptionsTab() {
   const [graceConfirmation, setGraceConfirmation] = useState("");
   const [useDefaultGrace, setUseDefaultGrace] = useState(false);
   const [graceBusy, setGraceBusy] = useState(false);
+  const [planOperatorId, setPlanOperatorId] = useState("");
+  const [newPlan, setNewPlan] = useState("GROWTH");
+  const [planPreview, setPlanPreview] = useState<PreviewSubscriptionPlanChangeResponse | null>(null);
+  const [planReason, setPlanReason] = useState("");
+  const [planConfirmation, setPlanConfirmation] = useState("");
+  const [planBusy, setPlanBusy] = useState(false);
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -154,6 +161,51 @@ export default function SubscriptionsTab() {
     }
   }
 
+  const selectedPlanOperator = operators.find((operator) => operator.id === planOperatorId);
+
+  async function previewPlanChange() {
+    if (!planOperatorId || !newPlan || selectedPlanOperator?.plan === newPlan) return;
+    setPlanBusy(true);
+    try {
+      const response = await platformClient.previewSubscriptionPlanChange({ operatorId: planOperatorId, newPlan });
+      setPlanPreview(response);
+      setNotice("");
+    } catch {
+      setPlanPreview(null);
+      setNotice("Prorata tidak dapat dihitung. Pastikan langganan masih aktif, tidak ditangguhkan, dan paketnya berbeda.");
+    } finally {
+      setPlanBusy(false);
+    }
+  }
+
+  async function applyPlanChange() {
+    if (!planPreview || !planReason.trim() || !planConfirmation.trim()) return;
+    setPlanBusy(true);
+    try {
+      const response = await platformClient.applySubscriptionPlanChange({
+        operatorId: planPreview.operatorId,
+        newPlan: planPreview.newPlan,
+        expectedAdjustmentIdr: planPreview.adjustmentIdr,
+        reason: planReason.trim(),
+        confirmation: planConfirmation.trim(),
+        idempotencyKey: crypto.randomUUID(),
+      });
+      setNotice(
+        response.status === "PENDING_PAYMENT"
+          ? `Upgrade menunggu pembayaran invoice ${rupiah(response.invoiceAmountIdr)}. Paket belum berubah.`
+          : `Downgrade diterapkan. Kredit tenant sekarang ${rupiah(response.creditBalanceIdr)}.`,
+      );
+      setPlanPreview(null);
+      setPlanReason("");
+      setPlanConfirmation("");
+      refresh();
+    } catch {
+      setNotice("Perubahan paket tidak diterapkan. Muat ulang pratinjau; nominal atau kondisi langganan mungkin berubah.");
+    } finally {
+      setPlanBusy(false);
+    }
+  }
+
   if (loading) return <p style={muted}>Memuat data langganan…</p>;
 
   return (
@@ -216,6 +268,38 @@ export default function SubscriptionsTab() {
               {graceBusy ? "Menyimpan…" : "Simpan grace period"}
             </button>
           </div>
+        </div>
+      </details>
+
+      <details className="admin-plan-change tw-card">
+        <summary>
+          <span><strong>Ubah paket dengan prorata</strong><small>Upgrade aktif setelah dibayar · downgrade menjadi kredit tenant</small></span>
+          <span className="tw-badge tw-badge--neutral">Ledger append-only</span>
+        </summary>
+        <div className="admin-plan-change__body">
+          <div className="admin-plan-change__selectors">
+            <label><span>Travel</span><select value={planOperatorId} onChange={(event) => { setPlanOperatorId(event.target.value); setPlanPreview(null); setPlanConfirmation(""); }}><option value="">Pilih travel</option>{operators.map((operator) => <option key={operator.id} value={operator.id}>{operator.name} · {operator.plan}{operator.creditBalanceIdr > 0n ? ` · kredit ${rupiah(operator.creditBalanceIdr)}` : ""}</option>)}</select></label>
+            <label><span>Paket baru</span><select value={newPlan} onChange={(event) => { setNewPlan(event.target.value); setPlanPreview(null); }}>{["STARTER", "GROWTH", "PRO"].map((plan) => <option key={plan} value={plan} disabled={selectedPlanOperator?.plan === plan}>{plan}{selectedPlanOperator?.plan === plan ? " (saat ini)" : ""}</option>)}</select></label>
+            <button className="tw-btn tw-btn--outline tw-btn--md" onClick={previewPlanChange} disabled={planBusy || !planOperatorId || selectedPlanOperator?.plan === newPlan}>{planBusy ? "Menghitung…" : "Hitung prorata"}</button>
+          </div>
+          {planPreview && (
+            <div className="admin-plan-change__preview">
+              <div className="admin-plan-change__summary">
+                <span><small>Perubahan</small><strong>{planPreview.currentPlan} → {planPreview.newPlan}</strong></span>
+                <span><small>Sisa periode</small><strong>{planPreview.remainingDays} hari</strong></span>
+                <span><small>{planPreview.adjustmentIdr > 0n ? "Perlu dibayar" : "Kredit baru"}</small><strong>{rupiah(planPreview.adjustmentIdr > 0n ? planPreview.adjustmentIdr : -planPreview.adjustmentIdr)}</strong></span>
+              </div>
+              <p>{planPreview.adjustmentIdr > 0n ? "Paket baru belum aktif sampai invoice prorata lunas; pembayaran tidak menambah masa akses." : `Paket baru berlaku langsung. Kredit ditambahkan ke saldo ${rupiah(planPreview.currentCreditBalanceIdr)} yang sudah ada.`}</p>
+              <div className="admin-plan-change__form">
+                <label><span>Alasan perubahan</span><input value={planReason} maxLength={500} onChange={(event) => setPlanReason(event.target.value)} /></label>
+                <label><span>Konfirmasi dengan mengetik {planPreview.operatorName}</span><input value={planConfirmation} onChange={(event) => setPlanConfirmation(event.target.value)} /></label>
+              </div>
+              <div className="admin-plan-change__footer">
+                <button className="tw-btn tw-btn--ghost tw-btn--sm" onClick={() => setPlanPreview(null)} disabled={planBusy}>Batal</button>
+                <button className="tw-btn tw-btn--outline tw-btn--md" onClick={applyPlanChange} disabled={planBusy || !planReason.trim() || planConfirmation.trim().toLocaleLowerCase("id-ID") !== planPreview.operatorName.trim().toLocaleLowerCase("id-ID")}>{planBusy ? "Menerapkan…" : planPreview.adjustmentIdr > 0n ? "Terbitkan invoice upgrade" : "Terapkan downgrade & kredit"}</button>
+              </div>
+            </div>
+          )}
         </div>
       </details>
 

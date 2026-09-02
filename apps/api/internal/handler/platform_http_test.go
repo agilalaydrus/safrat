@@ -173,6 +173,24 @@ func TestPlatformPlanControlRPCAccessRevocationAndMutationIntegration(t *testing
 		t.Fatalf("prepare billing subscription: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), `DELETE FROM operators WHERE id=$1`, billingOperatorID) })
+	prorationOperatorID := uuid.NewString()
+	prorationAccessUntil := time.Now().UTC().Truncate(time.Microsecond).Add(15 * 24 * time.Hour)
+	if _, err := pool.Exec(ctx, `INSERT INTO operators (id,better_auth_org_id,name,country,email,slug,plan)
+		VALUES ($1,$2,'Proration Row Success','ID',$3,$4,'STARTER')`, prorationOperatorID, "proration-"+prorationOperatorID,
+		prorationOperatorID[:8]+"@example.com", "proration-"+prorationOperatorID[:8]); err != nil {
+		t.Fatalf("prepare proration operator: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO subscriptions (operator_id,plan,status,access_until)
+		VALUES ($1,'STARTER','ACTIVE',$2)`, prorationOperatorID, prorationAccessUntil); err != nil {
+		t.Fatalf("prepare proration subscription: %v", err)
+	}
+	prorationPreview, err := repository.NewSubscriptionRepository(pool).PreviewPlanChange(ctx, prorationOperatorID, "GROWTH")
+	if err != nil {
+		t.Fatalf("prepare proration preview: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM operators WHERE id=$1`, prorationOperatorID)
+	})
 	auth := func(request interface{ Header() http.Header }, token string) {
 		if token != "" {
 			request.Header().Set("Authorization", "Bearer "+token)
@@ -257,6 +275,22 @@ func TestPlatformPlanControlRPCAccessRevocationAndMutationIntegration(t *testing
 			})
 			auth(req, token)
 			_, err := client.SetSubscriptionGracePeriod(ctx, req)
+			return err
+		}},
+		{"PreviewSubscriptionPlanChange", func(token string) error {
+			req := connect.NewRequest(&hajjv1.PreviewSubscriptionPlanChangeRequest{OperatorId: prorationOperatorID, NewPlan: "GROWTH"})
+			auth(req, token)
+			_, err := client.PreviewSubscriptionPlanChange(ctx, req)
+			return err
+		}},
+		{"ApplySubscriptionPlanChange", func(token string) error {
+			req := connect.NewRequest(&hajjv1.ApplySubscriptionPlanChangeRequest{
+				OperatorId: prorationOperatorID, NewPlan: "GROWTH", ExpectedAdjustmentIdr: prorationPreview.AdjustmentIDR,
+				Reason: "verifikasi HTTP prorata", Confirmation: "Proration Row Success",
+				IdempotencyKey: "proration-http-" + prorationOperatorID,
+			})
+			auth(req, token)
+			_, err := client.ApplySubscriptionPlanChange(ctx, req)
 			return err
 		}},
 	}
