@@ -81,11 +81,13 @@ hari ini = menulis SQL di produksi.
 
 Menutup mesin tanpa pemicu. RPC-nya sudah ada, teruji, tidak dipanggil siapa pun.
 
-- [C] Layar routing memakai `ListProductRoutes` + `SaveProductRoute`
-- [C] Produk **tanpa routing** ditampilkan sebagai antrean kerja, bukan
-      disembunyikan — inilah yang memicu respons "Produk Belum di Atur Routing"
-- [C] Log supplier memakai `ListSupplierLogs`: permintaan, respons, latensi,
-      aturan yang cocok
+- [x] Layar routing memakai `ListProductRoutes` + `SaveProductRoute` (`7107574`)
+- [x] Produk **tanpa routing** jadi antrean kerja di atas. Query-nya diperbaiki
+      lebih dulu — dulu berangkat `FROM product_routes` sehingga yang belum
+      dirutekan tidak pernah muncul (`ff77d8d`)
+- [x] Log supplier memakai `ListSupplierLogs`: permintaan, respons, HTTP,
+      hasil, referensi, biaya. **Latensi tidak ada di data** — tidak dikarang
+      (`7107574`)
 - [C] Tautan dari transaksi menggantung → log supplier terkait
 
 ---

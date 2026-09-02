@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { IconBuildingStore, IconCurrencyDollar, IconShieldLock, IconAlertTriangle, IconTruckDelivery, IconPackage, IconBuildingBank, IconReceipt2, IconUsers, IconId, IconAdjustments } from "@tabler/icons-react";
+import { IconBuildingStore, IconCurrencyDollar, IconShieldLock, IconAlertTriangle, IconTruckDelivery, IconPackage, IconBuildingBank, IconReceipt2, IconUsers, IconId, IconAdjustments, IconPlugConnected } from "@tabler/icons-react";
 import { PlatformOperator, PlatformProduct } from "@hajj-saas/proto-gen/hajj/v1/platform_pb";
 import { platformClient } from "@/lib/rpc";
 import CatalogueTab from "@/components/admin/CatalogueTab";
@@ -13,6 +13,7 @@ import TransactionsTab from "@/components/admin/TransactionsTab";
 import AccountsTab from "@/components/admin/AccountsTab";
 import IdentityTab from "@/components/admin/IdentityTab";
 import PlanQuotaTab from "@/components/admin/PlanQuotaTab";
+import RoutingTab from "@/components/admin/RoutingTab";
 
 const rupiah = (n: bigint) => `Rp${Number(n).toLocaleString("id-ID")}`;
 
@@ -24,7 +25,7 @@ export default function PlatformAdminPage() {
   // actually happened.
   const [access, setAccess] = useState<"checking" | "granted" | "enrol" | "denied" | "error">("checking");
   const [failure, setFailure] = useState("");
-  const [tab, setTab] = useState<"transactions" | "operators" | "catalogue" | "transfers" | "costs" | "suppliers" | "accounts" | "identity" | "quotas">("transactions");
+  const [tab, setTab] = useState<"transactions" | "operators" | "catalogue" | "transfers" | "costs" | "suppliers" | "accounts" | "identity" | "quotas" | "routing">("transactions");
 
   useEffect(() => {
     platformClient.amIPlatformAdmin({})
@@ -95,7 +96,7 @@ export default function PlatformAdminPage() {
       <div className="gold-divider" />
 
       <div style={tabBar}>
-        {([["transactions", "Transaksi", IconReceipt2], ["operators", "Travel", IconBuildingStore], ["catalogue", "Katalog", IconPackage], ["transfers", "Transfer", IconBuildingBank], ["costs", "Harga Modal", IconCurrencyDollar], ["suppliers", "Supplier", IconTruckDelivery], ["accounts", "Akun", IconUsers], ["identity", "Identitas", IconId], ["quotas", "Paket & Kuota", IconAdjustments]] as const).map(([id, label, Icon]) => (
+        {([["transactions", "Transaksi", IconReceipt2], ["operators", "Travel", IconBuildingStore], ["catalogue", "Katalog", IconPackage], ["transfers", "Transfer", IconBuildingBank], ["costs", "Harga Modal", IconCurrencyDollar], ["suppliers", "Supplier", IconTruckDelivery], ["accounts", "Akun", IconUsers], ["identity", "Identitas", IconId], ["quotas", "Paket & Kuota", IconAdjustments], ["routing", "Routing & Log", IconPlugConnected]] as const).map(([id, label, Icon]) => (
           <button key={id} onClick={() => setTab(id)} style={tab === id ? tabActive : tabInactive}>
             <Icon size={17} />{label}
           </button>
@@ -103,6 +104,7 @@ export default function PlatformAdminPage() {
       </div>
 
       {tab === "quotas" && <PlanQuotaTab />}
+      {tab === "routing" && <RoutingTab />}
       {tab === "transactions" && <TransactionsTab />}
       {tab === "operators" && <OperatorsTab />}
       {tab === "catalogue" && <CatalogueTab />}
