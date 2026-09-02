@@ -14,6 +14,10 @@
 
 ## Continuation after this snapshot
 
+> **Mulai dari [docs/STATUS.md](docs/STATUS.md)** — satu halaman berisi posisi
+> terkini kedua jalur, kondisi terverifikasi, dan jebakan yang sudah menipu kami.
+> Berkas ini adalah riwayat; STATUS.md adalah posisi.
+
 ### Panel SaaS — rencana lengkap (2026-09-02)
 
 Panel pemilik platform (`/admin`). Sudah ada delapan permukaan berjalan dan 30

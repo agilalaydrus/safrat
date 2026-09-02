@@ -59,23 +59,26 @@ jangan merancang ulang. `dunning_log`, `privileged_actions`, dan
 
 ## A1 — Paket & Kuota 🔴 paling mendesak
 
+> **Status 2 September 2026: backend selesai, layar belum.** Codex kehabisan
+> kuota di tengah jalan; pekerjaannya diselamatkan di `789d7d9` — enam RPC,
+> migrasi 138, worker pencabut override, dan uji gerbang dua arah, semuanya
+> lulus. Yang tersisa adalah **layarnya**. Sampai itu ada, RPC-nya tidak punya
+> pemanggil — persis kegagalan yang panel ini dirancang untuk mengakhirinya.
+
 T2.2 sudah menegakkan batas lewat trigger, tapi `plan_limits` dan
 `plan_overrides` **tidak punya satu pun RPC**. Menaikkan kuota satu pelanggan
 hari ini = menulis SQL di produksi.
 
-- [C] Proto: `ListPlanLimits`, `SetPlanLimit`, `ListPlanOverrides`,
-      `SetPlanOverride`, `DeletePlanOverride`, `PreviewPlanLimitChange`
-- [C] Override wajib punya **alasan**; tambah kolom `expires_at` di
-      `plan_overrides` + worker harian yang mencabut yang kedaluwarsa
-- [C] `PreviewPlanLimitChange` mengembalikan tenant yang akan seketika melampaui
-      batas baru, **beserta namanya** — bukan hanya jumlahnya
-- [C] Grandfathering: tenant yang sudah lewat batas dikunci di angka lamanya,
-      tidak ditendang
-- [C] Perubahan batas ditulis ke `audit_logs` (keputusan komersial, bukan
-      konfigurasi)
+- [x] Proto: `ListPlanLimits`, `SetPlanLimit`, `ListPlanOverrides`,
+      `SetPlanOverride`, `DeletePlanOverride`, `PreviewPlanLimitChange` (`789d7d9`)
+- [x] Override wajib punya **alasan**; kolom `expires_at` + worker harian yang
+      mencabut yang kedaluwarsa (`789d7d9`)
+- [x] `PreviewPlanLimitChange` mengembalikan tenant beserta **namanya** (`789d7d9`)
+- [x] Grandfathering: dikunci di angka lama, tidak ditendang (`789d7d9`)
+- [x] Perubahan batas ditulis ke `audit_logs`, plus `privileged_actions` (`789d7d9`)
 - [C] Tab **Paket & Kuota** di `/admin`
-- [C] Uji dua arah: override menaikkan batas satu tenant **dan** tidak bocor ke
-      tenant lain
+- [x] Uji dua arah: override naik untuk satu tenant, tidak bocor ke tenant lain;
+      plus uji idempotensi (kunci sama payload beda → `ErrConflict`) (`789d7d9`)
 
 ## A2 — Routing produk & log supplier 🟠
 
