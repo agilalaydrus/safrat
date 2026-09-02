@@ -1,6 +1,7 @@
 # Tugas: Panel SaaS TawafiqHub
 
 Rancangan: [RENCANA-PANEL-SAAS.md](RENCANA-PANEL-SAAS.md).
+Spesifikasi layar: [DESAIN-PANEL-SAAS.md](DESAIN-PANEL-SAAS.md).
 Sistem desain: [DESAIN-DASHBOARD-TRAVEL.md](DESAIN-DASHBOARD-TRAVEL.md).
 Dibuat 2 September 2026. **Belum ada tugas yang dikerjakan.**
 
@@ -54,7 +55,8 @@ hari ini = menulis SQL di produksi.
 
 - [ ] Proto: `ListPlanLimits`, `SetPlanLimit`, `ListPlanOverrides`,
       `SetPlanOverride`, `DeletePlanOverride`, `PreviewPlanLimitChange`
-- [ ] Override wajib punya **alasan**; kedaluwarsa opsional
+- [ ] Override wajib punya **alasan**; tambah kolom `expires_at` di
+      `plan_overrides` + worker harian yang mencabut yang kedaluwarsa
 - [ ] `PreviewPlanLimitChange` mengembalikan tenant yang akan seketika melampaui
       batas baru, **beserta namanya** — bukan hanya jumlahnya
 - [ ] Grandfathering: tenant yang sudah lewat batas dikunci di angka lamanya,
@@ -85,11 +87,17 @@ Menutup mesin tanpa pemicu. RPC-nya sudah ada, teruji, tidak dipanggil siapa pun
 - [ ] Siklus tagihan massal: tinjau dulu daftar invoice + nominalnya, terbitkan
       sekaligus
 - [ ] Dunning H+1, H+7, H+14 → penangguhan otomatis H+21
-- [ ] **Kunci idempotensi per invoice dan per pesan dunning**, di database
+- [ ] **Kunci idempotensi di database**: `(operator_id, period_start)` unik
+      pada invoice, `(invoice_id, stage)` unik pada jejak dunning
+- [ ] Siklus massal tunduk pada indeks nominal unik transfer — kegagalan
+      sufiks dilaporkan **per baris**, tidak membatalkan seluruh siklus
 - [ ] Grace period yang bisa diatur, per tenant bila perlu
 - [ ] Void invoice + pulihkan, dengan jejak (jangan DELETE)
 - [ ] Prorata saat upgrade/downgrade di tengah periode
-- [ ] Penangguhan **memutus akses, data tetap utuh** — dan layarnya mengatakan itu
+- [ ] Penangguhan lewat **waktu, bukan status**: berhenti memperpanjang
+      `access_until` + kolom `suspended_at`. Interceptor tidak berubah
+- [ ] Pembayaran kapan pun **membatalkan rangkaian dan memulihkan akses**,
+      termasuk sesudah H+21, tanpa campur tangan manual
 - [ ] Tab **Langganan** di `/admin`
 
 ## B2 — Meter pemakaian 🔴
@@ -117,7 +125,8 @@ Menutup mesin tanpa pemicu. RPC-nya sudah ada, teruji, tidak dipanggil siapa pun
 ## C1 — Impersonate dengan jejak penuh 🔴
 
 - [ ] Sesi impersonasi ditandai berbeda di seluruh sistem
-- [ ] **Read-only secara bawaan**; menulis butuh langkah terpisah yang eksplisit
+- [ ] **Read-only, tanpa mode tulis sama sekali.** Perubahan untuk pelanggan
+      lewat RPC platform yang punya jejaknya sendiri — jangan menyamar
 - [ ] Berbatas waktu, otomatis berakhir
 - [ ] Dicatat lengkap: siapa, tenant mana, IP, alasan, durasi
 - [ ] Uji: sesi impersonasi tidak bisa menulis sebelum ditingkatkan
@@ -129,8 +138,8 @@ global, mengubah rekening settlement.
 
 - [ ] Selama admin platform hanya satu: **konfirmasi ulang dengan mengetik nama
       tenant**
-- [ ] Rancang jalurnya supaya bisa dinaikkan ke persetujuan admin kedua tanpa
-      menulis ulang — kolom `approved_by` sejak awal, walau belum dipakai
+- [ ] Tabel `privileged_actions` sejak hari pertama, dengan
+      `approved_by = requested_by` selama admin masih satu
 - [ ] Setiap tindakan ini masuk `audit_logs` dengan alasannya
 
 ## C3 — Audit pembacaan data pribadi 🟠

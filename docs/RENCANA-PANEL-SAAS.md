@@ -6,7 +6,8 @@ tenant, dan itu menentukan hampir semua keputusan di dokumen ini.
 
 Ditulis 2 September 2026. Referensi pesaing: `devmeeqot.dul.co.id` (prototipe,
 tanpa backend — lihat [BENCHMARK-MEEQOT.md](BENCHMARK-MEEQOT.md)).
-Pendamping: [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md).
+Pendamping: [DESAIN-PANEL-SAAS.md](DESAIN-PANEL-SAAS.md) (spesifikasi tingkat
+layar) dan [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) (daftar tugas).
 
 ---
 
