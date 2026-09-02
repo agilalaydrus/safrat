@@ -8,6 +8,9 @@
 node_modules
 .turbo
 .next
+# Next.js alternate distDir outputs used by verification/debug builds.
+# These can contain gigabytes of machine-local webpack caches.
+apps/web/.next-*/
 dist
 coverage
 apps/api/db/generated

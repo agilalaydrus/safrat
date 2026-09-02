@@ -32,8 +32,7 @@
     ".next-e2e/types/**/*.ts",
     ".next-verify/types/**/*.ts",
     ".next/types/**/*.ts",
-    "next-env.d.ts",
-    ".next-crm-verify/types/**/*.ts"
+    "next-env.d.ts"
   ],
   "exclude": [
     "node_modules",
