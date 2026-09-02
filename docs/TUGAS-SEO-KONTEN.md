@@ -76,6 +76,17 @@ Diperiksa sebelum menulis daftar ini:
 
 # TAHAP S3 — Search Console
 
+> **Menunggu keputusan pemilik.** Seluruh tahap ini bergantung pada satu hal
+> yang tidak bisa disediakan agen: **proyek Google Cloud dengan service account,
+> Search Console API dan Site Verification API diaktifkan, dan kredensialnya
+> di `.env.prod`**.
+>
+> Tanpa itu, apa pun yang ditulis di sini tidak bisa dijalankan sekali pun —
+> dan membangun poller yang tidak pernah bisa menyala adalah persis pola "mesin
+> tanpa pemicu" yang berulang di proyek ini. Ditunda dengan sengaja, bukan
+> terlewat.
+
+
 Ini yang menjawab pertanyaan pemilik: *siapa dan berapa orang yang mencari
 "Visa Umroh Mandiri"*. Kata pencarian **tidak pernah** sampai ke server kita —
 Google berhenti mengirimnya di referrer sejak 2011 — jadi Search Console adalah
@@ -101,12 +112,16 @@ satu-satunya sumber yang sah, dan datanya agregat.
 Peringkat dipengaruhi Core Web Vitals, dan storefront adalah halaman yang paling
 sering dibuka orang dari luar.
 
-- [ ] **S4.1** Ukur dulu: LCP, CLS, INP pada satu storefront nyata. **Jangan
-      optimalkan sebelum ada angkanya** — tanpa dasar, tidak ada yang tahu apakah
-      perubahan membantu.
-- [ ] **S4.2** Gambar storefront lewat `next/image` dengan ukuran eksplisit;
-      gambar tanpa dimensi adalah penyebab CLS paling umum.
-- [ ] **S4.3** Font: `display: swap` dan preload untuk yang dipakai di paruh atas.
+- [x] **S4.1** Diukur dengan Chromium pada **build produksi**, bukan dev — dev
+      membuang import fontnya sehingga angkanya tidak mewakili. Hasil:
+      **LCP 252 ms, CLS 0,0048** (`e520f7d`)
+- [x] **S4.2 — sengaja TIDAK dikerjakan.** Keempat gambar memang tanpa atribut
+      dimensi, tetapi CSS sudah memesan ruangnya: CLS terukur 0,0048, jauh di
+      bawah ambang 0,1. Mengubahnya berarti mengoptimalkan yang tidak rusak, dan
+      aturan §S4.1 melarang itu (`e520f7d`)
+- [x] **S4.3** `display=swap` ternyata sudah ada. Yang kurang **preconnect**:
+      font baru diminta 4 ms setelah CSS selesai lalu butuh 128 ms lagi — rantai
+      yang hampir gratis di localhost dan tidak gratis di ponsel (`e520f7d`)
 
 ---
 
