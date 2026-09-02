@@ -130,11 +130,16 @@ func TestDunningSequenceIsIdempotentAndPaymentLiftsSuspensionIntegration(t *test
 	}
 
 	// Payment lifts it, at any stage, with nobody intervening.
+	// GATEWAY, not BANK_TRANSFER. A pending transfer invoice must hold an amount
+	// that is unique among today's transfers — that uniqueness is what ties an
+	// incoming bank credit to one invoice — so a fixture inventing amounts
+	// collides with itself across runs. This test is about the dunning
+	// sequence, not about matching credits.
 	invoiceID := uuid.NewString()
 	exec(`INSERT INTO subscription_invoices
 	      (id,operator_id,plan,status,channel,base_amount_idr,amount_idr,period_start,period_end,due_at)
-	      VALUES ($1,$2,'GROWTH','PENDING','BANK_TRANSFER',789000,789000+$3,NOW(),NOW()+INTERVAL '30 days',NOW()+INTERVAL '7 days')`,
-		invoiceID, operatorID, timeSuffix())
+	      VALUES ($1,$2,'GROWTH','PENDING','GATEWAY',789000,789000,NOW(),NOW()+INTERVAL '30 days',NOW()+INTERVAL '7 days')`,
+		invoiceID, operatorID)
 	if err := repo.MarkPaid(ctx, invoiceID); err != nil {
 		t.Fatalf("mark paid: %v", err)
 	}
@@ -160,6 +165,3 @@ func itoa(n int) string {
 	}
 	return digits
 }
-
-// A unique amount suffix, since pending bank transfers must not share one.
-func timeSuffix() int64 { return time.Now().UnixNano() % 900 }

@@ -35,6 +35,11 @@ service PlatformService {
   rpc PreviewPlanLimitChange(PreviewPlanLimitChangeRequest) returns (PreviewPlanLimitChangeResponse);
   rpc SetPlanLimit(SetPlanLimitRequest) returns (SetPlanLimitResponse);
   rpc ListPlanOverrides(ListPlanOverridesRequest) returns (ListPlanOverridesResponse);
+
+  // Subscription billing. Voiding keeps the row: deleting an invoice puts a
+  // hole in the billing history exactly where somebody will later look.
+  rpc ListSubscriptionInvoices(ListSubscriptionInvoicesRequest) returns (ListSubscriptionInvoicesResponse);
+  rpc VoidSubscriptionInvoice(VoidSubscriptionInvoiceRequest) returns (VoidSubscriptionInvoiceResponse);
   rpc SetPlanOverride(SetPlanOverrideRequest) returns (SetPlanOverrideResponse);
   rpc DeletePlanOverride(DeletePlanOverrideRequest) returns (DeletePlanOverrideResponse);
 
@@ -176,6 +181,14 @@ message PlatformOperator {
   // is waiting on somebody's decision.
   int32 held_order_count = 9;
   google.protobuf.Timestamp created_at = 10;
+  // Set only when entry was closed deliberately. Access itself is decided by
+  // access_until; this separates "has not paid yet" from "frozen on purpose".
+  google.protobuf.Timestamp suspended_at = 11;
+  // Furthest dunning stage reached for the current lapse: H1 | H7 | H14 |
+  // SUSPEND, empty when nothing has been sent.
+  string dunning_stage = 12;
+  // What is currently billed and unpaid.
+  int64 outstanding_idr = 13;
 }
 
 message ListOperatorsRequest {}
@@ -247,6 +260,34 @@ message PlatformPlanOverride {
 }
 
 message ListPlanOverridesRequest { bool include_expired = 1; }
+
+message SubscriptionInvoiceRow {
+  string id = 1;
+  string operator_id = 2;
+  string operator_name = 3;
+  string plan = 4;
+  string status = 5;
+  string channel = 6;
+  int64 amount_idr = 7;
+  google.protobuf.Timestamp due_at = 8;
+  google.protobuf.Timestamp paid_at = 9;
+  google.protobuf.Timestamp voided_at = 10;
+  string voided_reason = 11;
+  google.protobuf.Timestamp created_at = 12;
+}
+
+message ListSubscriptionInvoicesRequest {
+  // Empty lists across every tenant.
+  string operator_id = 1;
+  int32 limit = 2;
+}
+message ListSubscriptionInvoicesResponse { repeated SubscriptionInvoiceRow invoices = 1; }
+
+message VoidSubscriptionInvoiceRequest {
+  string invoice_id = 1 [(buf.validate.field).string.uuid = true];
+  string reason = 2 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+}
+message VoidSubscriptionInvoiceResponse {}
 message ListPlanOverridesResponse { repeated PlatformPlanOverride overrides = 1; }
 
 message SetPlanOverrideRequest {

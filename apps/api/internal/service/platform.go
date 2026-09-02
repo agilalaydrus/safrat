@@ -191,9 +191,13 @@ func (s *PlatformService) ListOperators(ctx context.Context) (*hajjv1.ListOperat
 			Plan: operator.Plan, SubscriptionStatus: operator.SubscriptionStatus,
 			PilgrimCount: operator.PilgrimCount, ProductCount: operator.ProductCount,
 			HeldOrderCount: operator.HeldOrderCount, CreatedAt: timestamppb.New(operator.CreatedAt),
+			DunningStage: operator.DunningStage, OutstandingIdr: operator.OutstandingIDR,
 		}
 		if operator.AccessUntil != nil {
 			message.AccessUntil = timestamppb.New(*operator.AccessUntil)
+		}
+		if operator.SuspendedAt != nil {
+			message.SuspendedAt = timestamppb.New(*operator.SuspendedAt)
 		}
 		result.Operators = append(result.Operators, message)
 	}

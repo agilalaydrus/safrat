@@ -217,3 +217,55 @@ func cloneFlags(flags map[string]bool) map[string]bool {
 	}
 	return copy
 }
+
+func (s *PlatformService) ListSubscriptionInvoices(ctx context.Context, req *hajjv1.ListSubscriptionInvoicesRequest) (*hajjv1.ListSubscriptionInvoicesResponse, error) {
+	if _, err := s.requirePlatformAdmin(ctx); err != nil {
+		return nil, err
+	}
+	operatorID := ""
+	if req != nil {
+		operatorID = strings.TrimSpace(req.OperatorId)
+		if operatorID != "" && !isUUID(operatorID) {
+			return nil, serviceError("PlatformService.ListSubscriptionInvoices", apperror.ErrValidation)
+		}
+	}
+	limit := int32(0)
+	if req != nil {
+		limit = req.Limit
+	}
+	invoices, err := s.subscriptionRepository.ListSubscriptionInvoices(ctx, operatorID, limit)
+	if err != nil {
+		return nil, serviceError("PlatformService.ListSubscriptionInvoices", err)
+	}
+	response := &hajjv1.ListSubscriptionInvoicesResponse{Invoices: make([]*hajjv1.SubscriptionInvoiceRow, 0, len(invoices))}
+	for _, invoice := range invoices {
+		row := &hajjv1.SubscriptionInvoiceRow{
+			Id: invoice.ID, OperatorId: invoice.OperatorID, OperatorName: invoice.OperatorName,
+			Plan: invoice.Plan, Status: invoice.Status, Channel: invoice.Channel,
+			AmountIdr: invoice.AmountIDR, DueAt: timestamppb.New(invoice.DueAt),
+			VoidedReason: invoice.VoidedReason, CreatedAt: timestamppb.New(invoice.CreatedAt),
+		}
+		if invoice.PaidAt != nil {
+			row.PaidAt = timestamppb.New(*invoice.PaidAt)
+		}
+		if invoice.VoidedAt != nil {
+			row.VoidedAt = timestamppb.New(*invoice.VoidedAt)
+		}
+		response.Invoices = append(response.Invoices, row)
+	}
+	return response, nil
+}
+
+func (s *PlatformService) VoidSubscriptionInvoice(ctx context.Context, req *hajjv1.VoidSubscriptionInvoiceRequest) (*hajjv1.VoidSubscriptionInvoiceResponse, error) {
+	userID, err := s.requirePlatformAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req == nil || !isUUID(req.InvoiceId) || strings.TrimSpace(req.Reason) == "" {
+		return nil, serviceError("PlatformService.VoidSubscriptionInvoice", apperror.ErrValidation)
+	}
+	if err := s.subscriptionRepository.VoidInvoice(ctx, req.InvoiceId, strings.TrimSpace(req.Reason), userID); err != nil {
+		return nil, serviceError("PlatformService.VoidSubscriptionInvoice", err)
+	}
+	return &hajjv1.VoidSubscriptionInvoiceResponse{}, nil
+}

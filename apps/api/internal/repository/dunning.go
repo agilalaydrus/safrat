@@ -259,3 +259,60 @@ func (r *SubscriptionRepository) VoidInvoice(ctx context.Context, invoiceID, rea
 	}
 	return tx.Commit(ctx)
 }
+
+// SubscriptionInvoiceRow is one billing line, across tenants or within one.
+type SubscriptionInvoiceRow struct {
+	ID           string
+	OperatorID   string
+	OperatorName string
+	Plan         string
+	Status       string
+	Channel      string
+	AmountIDR    int64
+	DueAt        time.Time
+	PaidAt       *time.Time
+	VoidedAt     *time.Time
+	VoidedReason string
+	CreatedAt    time.Time
+}
+
+// ListSubscriptionInvoices returns billing history. An empty operatorID lists
+// across every tenant, which is what the platform screen wants; passing one
+// narrows to that tenant's page.
+//
+// Voided invoices are included rather than filtered out. They are part of the
+// record — an invoice that was issued and withdrawn is a thing that happened,
+// and hiding it is how billing history stops answering questions.
+func (r *SubscriptionRepository) ListSubscriptionInvoices(ctx context.Context, operatorID string, limit int32) ([]SubscriptionInvoiceRow, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	operator, err := nullableUUID(operatorID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	rows, err := r.pool.Query(ctx, `
+		SELECT i.id::text, i.operator_id::text, o.name, i.plan::text, i.status::text,
+		       i.channel::text, i.amount_idr, i.due_at, i.paid_at, i.voided_at,
+		       i.voided_reason, i.created_at
+		FROM subscription_invoices i
+		JOIN operators o ON o.id = i.operator_id
+		WHERE ($1::uuid IS NULL OR i.operator_id = $1)
+		ORDER BY i.created_at DESC
+		LIMIT $2`, operator, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	invoices := make([]SubscriptionInvoiceRow, 0)
+	for rows.Next() {
+		var row SubscriptionInvoiceRow
+		if err := rows.Scan(&row.ID, &row.OperatorID, &row.OperatorName, &row.Plan, &row.Status,
+			&row.Channel, &row.AmountIDR, &row.DueAt, &row.PaidAt, &row.VoidedAt,
+			&row.VoidedReason, &row.CreatedAt); err != nil {
+			return nil, err
+		}
+		invoices = append(invoices, row)
+	}
+	return invoices, rows.Err()
+}

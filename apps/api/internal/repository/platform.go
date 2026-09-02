@@ -64,6 +64,9 @@ type PlatformOperator struct {
 	ProductCount       int32
 	HeldOrderCount     int32
 	CreatedAt          time.Time
+	SuspendedAt        *time.Time
+	DunningStage       string
+	OutstandingIDR     int64
 }
 
 // ListOperators returns tenants, most urgent first, up to limit.
@@ -75,7 +78,20 @@ func (r *PlatformRepository) ListOperators(ctx context.Context, limit int32) ([]
 		SELECT o.id::text, o.name, COALESCE(o.slug, ''),
 		       COALESCE(s.plan::text, ''), COALESCE(s.status::text, ''), s.access_until,
 		       COALESCE(p.count, 0)::int, COALESCE(pr.count, 0)::int, COALESCE(h.count, 0)::int,
-		       o.created_at
+		       o.created_at, s.suspended_at,
+		       -- Furthest stage reached for the lapse currently in progress.
+		       -- Matched on access_until so a stage from an earlier, settled
+		       -- lapse never shows against a tenant who has since paid.
+		       COALESCE((
+		         SELECT d.stage FROM dunning_log d
+		         WHERE d.operator_id = o.id AND d.lapsed_at = s.access_until
+		         ORDER BY d.sent_at DESC LIMIT 1
+		       ), ''),
+		       COALESCE((
+		         SELECT i.amount_idr FROM subscription_invoices i
+		         WHERE i.operator_id = o.id AND i.status = 'PENDING'
+		         ORDER BY i.created_at DESC LIMIT 1
+		       ), 0)
 		FROM operators o
 		LEFT JOIN subscriptions s ON s.operator_id = o.id
 		LEFT JOIN (SELECT operator_id, COUNT(*) AS count FROM pilgrims WHERE is_substituted = false GROUP BY operator_id) p ON p.operator_id = o.id
@@ -99,7 +115,8 @@ func (r *PlatformRepository) ListOperators(ctx context.Context, limit int32) ([]
 		var operator PlatformOperator
 		if err := rows.Scan(&operator.ID, &operator.Name, &operator.Slug, &operator.Plan,
 			&operator.SubscriptionStatus, &operator.AccessUntil, &operator.PilgrimCount,
-			&operator.ProductCount, &operator.HeldOrderCount, &operator.CreatedAt); err != nil {
+			&operator.ProductCount, &operator.HeldOrderCount, &operator.CreatedAt,
+			&operator.SuspendedAt, &operator.DunningStage, &operator.OutstandingIDR); err != nil {
 			return nil, err
 		}
 		operators = append(operators, &operator)

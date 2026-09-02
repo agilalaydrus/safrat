@@ -374,3 +374,22 @@ func (h *PlatformHandler) IgnoreBankMutation(ctx context.Context, req *connect.R
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) ListSubscriptionInvoices(ctx context.Context, req *connect.Request[hajjv1.ListSubscriptionInvoicesRequest]) (*connect.Response[hajjv1.ListSubscriptionInvoicesResponse], error) {
+	result, err := h.platformService.ListSubscriptionInvoices(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) VoidSubscriptionInvoice(ctx context.Context, req *connect.Request[hajjv1.VoidSubscriptionInvoiceRequest]) (*connect.Response[hajjv1.VoidSubscriptionInvoiceResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.VoidSubscriptionInvoice(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

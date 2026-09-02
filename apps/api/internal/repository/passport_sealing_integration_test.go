@@ -127,13 +127,27 @@ func TestPassportsAreSealedAndStillFindableIntegration(t *testing.T) {
 		t.Fatalf("backfill: %v", err)
 	}
 
-	// Re-running finds nothing, and must not double-seal what it already sealed.
-	again, err := pilgrims.MigrateLegacyPassports(ctx, 500)
-	if err != nil {
+	// Re-running must not touch what it already sealed.
+	//
+	// Scoped to this test's own row rather than asserting the global count came
+	// back zero. That assertion was racy: another package's fixtures run against
+	// the same database in parallel, and one unsealed pilgrim inserted between
+	// the two calls failed this test while nothing was actually wrong.
+	var sealedBefore, blindBefore string
+	if err := pool.QueryRow(ctx, `SELECT passport_number, passport_number_blind FROM pilgrims WHERE id = $1`, legacyID).
+		Scan(&sealedBefore, &blindBefore); err != nil {
+		t.Fatalf("baca baris setelah backfill: %v", err)
+	}
+	if _, err := pilgrims.MigrateLegacyPassports(ctx, 500); err != nil {
 		t.Fatalf("backfill ulang: %v", err)
 	}
-	if again != 0 {
-		t.Fatalf("backfill ulang memindahkan %d baris; seharusnya nol", again)
+	var sealedAfter, blindAfter string
+	if err := pool.QueryRow(ctx, `SELECT passport_number, passport_number_blind FROM pilgrims WHERE id = $1`, legacyID).
+		Scan(&sealedAfter, &blindAfter); err != nil {
+		t.Fatalf("baca baris setelah backfill kedua: %v", err)
+	}
+	if sealedAfter != sealedBefore || blindAfter != blindBefore {
+		t.Fatal("backfill kedua menulis ulang baris yang sudah tersegel — enkripsi berlapis")
 	}
 
 	migrated, err := pilgrims.GetByPassport(ctx, operatorID, seasonID, "D7654321")
