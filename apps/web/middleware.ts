@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { NextFetchEvent } from "next/server";
 import type { NextRequest } from "next/server";
 import { PLATFORM_BASE_HOSTS, extractTenantSlug, isUsableTenantSlug, platformBaseHostname } from "@/lib/tenant-host";
 
@@ -160,7 +161,64 @@ async function resolveSeason(operatorId: string, seasonSlug: string): Promise<st
   return seasonId;
 }
 
-export async function middleware(request: NextRequest) {
+/**
+ * Which funnel step, if any, this path represents.
+ *
+ * There is no separate catalogue page — packages are listed on the storefront
+ * itself — so KATALOG is mapped to reaching a specific offer's form instead.
+ * That is the real signal it was meant to capture: somebody moved from looking
+ * at an agency to looking at one journey.
+ */
+function funnelStepFor(pathname: string): { step: string; articleSlug?: string } | null {
+  if (pathname === "/") return { step: "LANDING" };
+  const article = pathname.match(/^\/(?:blog|berita)\/([^/]+)\/?$/);
+  if (article) return { step: "ARTIKEL", articleSlug: article[1] };
+  if (/^\/(register|waitlist|apply)\//.test(pathname)) return { step: "KATALOG" };
+  return null;
+}
+
+/**
+ * Records a visit without making the visitor wait for it.
+ *
+ * waitUntil lets the response go out first, and every failure is swallowed: a
+ * page must render whether or not its visit was counted. Analytics that can
+ * take a storefront down is worse than no analytics.
+ */
+function recordFunnelStep(request: NextRequest, event: NextFetchEvent, operatorSlug: string) {
+  const step = funnelStepFor(request.nextUrl.pathname);
+  if (!step) return;
+  const params = request.nextUrl.searchParams;
+  let referrerHost = "";
+  try {
+    referrerHost = new URL(request.headers.get("referer") ?? "").hostname;
+  } catch {
+    // No referrer, or one that is not a URL. Both are ordinary.
+  }
+  event.waitUntil(
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/hajj.v1.FunnelService/RecordEvent`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Connect-Protocol-Version": "1",
+        // The visitor's address and agent, not the middleware's — the token is
+        // derived from them and neither is stored.
+        "User-Agent": request.headers.get("user-agent") ?? "",
+        "X-Real-IP": request.headers.get("x-real-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "",
+      },
+      body: JSON.stringify({
+        operatorSlug,
+        step: step.step,
+        path: request.nextUrl.pathname,
+        articleSlug: step.articleSlug ?? "",
+        referrerHost,
+        utmSource: params.get("utm_source") ?? "",
+        utmCampaign: params.get("utm_campaign") ?? "",
+      }),
+    }).catch(() => undefined),
+  );
+}
+
+export async function middleware(request: NextRequest, event: NextFetchEvent) {
   const { pathname } = request.nextUrl;
 
   const host = request.headers.get("host") ?? "";
@@ -184,6 +242,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const slug = extractTenantSlug(host) || (await resolveCustomDomainSlug(host));
+  recordFunnelStep(request, event, slug ?? "");
 
   // /p/{slug} was the original public URL. Keep old bookmarks working, but
   // make the tenant subdomain root the one canonical address visitors see.

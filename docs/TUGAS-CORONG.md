@@ -44,9 +44,12 @@ Menyentuh dua permukaan: `/dashboard` (travel melihat corongnya sendiri) dan
 > publik dan ber-rate-limit, dengan penyaring bot dan penolakan slug asing.
 > Yang tersisa di tahap ini adalah **memanggilnya** dari lima titik corong.
 
-- [ ] **K2.1** Hook di `middleware.ts` untuk `LANDING` dan `KATALOG`.
-      Matcher-nya sudah menyentuh setiap permintaan halaman, jadi tidak ada
-      matcher baru. **Tulisnya asinkron dan gagal diam-diam.**
+- [x] **K2.1** Hook di `middleware.ts`, lewat `waitUntil` sehingga respons
+      keluar lebih dulu dan setiap kegagalan ditelan (`ff4ebea`).
+      **`KATALOG` dipetakan ulang**: tidak ada halaman katalog terpisah — paket
+      tampil di halaman utama — jadi ia dipasang pada saat pengunjung membuka
+      formulir satu paket. Itu sinyal yang sebenarnya dimaksud: berpindah dari
+      melihat travel ke melihat satu perjalanan.
 - [ ] **K2.2** `MULAI_ISI` dari klien saat kolom pertama form disentuh —
       `PublicRegistrationForm`, form waitlist, dan `/apply/[operatorId]`.
 - [ ] **K2.3** `KIRIM` dan `SELESAI` di sisi server, di service pendaftaran dan
@@ -61,7 +64,7 @@ Menyentuh dua permukaan: `/dashboard` (travel melihat corongnya sendiri) dan
       (`pilgrim_registrations`, `season_waitlists`), bukan hanya di event.
       Tanpa cookie, atribusi lintas hari hilang; ini yang menangkap kanal pada
       kunjungan tempat orang benar-benar mendaftar.
-- [ ] **K2.7** Langkah `ARTIKEL` dengan `article_slug` di `/p/[slug]/blog/...`
+- [x] **K2.7** Langkah `ARTIKEL` dengan `article_slug` (`ff4ebea`)
 - [ ] **K2.8** Geolokasi kota/provinsi dari IP (MaxMind GeoLite2). **IP tidak
       pernah ditulis** — hanya nama daerahnya. Tingkat kota, tidak lebih halus.
 
