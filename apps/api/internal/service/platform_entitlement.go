@@ -455,3 +455,25 @@ func (s *PlatformService) VoidSubscriptionInvoice(ctx context.Context, req *hajj
 	}
 	return &hajjv1.VoidSubscriptionInvoiceResponse{}, nil
 }
+
+func (s *PlatformService) ListUsage(ctx context.Context) (*hajjv1.ListUsageResponse, error) {
+	if _, err := s.requirePlatformAdmin(ctx); err != nil {
+		return nil, err
+	}
+	rows, err := s.subscriptionRepository.ListUsage(ctx)
+	if err != nil {
+		return nil, serviceError("PlatformService.ListUsage", err)
+	}
+	response := &hajjv1.ListUsageResponse{Rows: make([]*hajjv1.UsageRow, 0, len(rows))}
+	for _, row := range rows {
+		message := &hajjv1.UsageRow{
+			OperatorId: row.OperatorID, OperatorName: row.OperatorName, Plan: row.Plan,
+			Metric: row.Metric, Value: row.Value, ComputedAt: timestamppb.New(row.ComputedAt),
+		}
+		if row.Limit != nil {
+			message.Limit = row.Limit
+		}
+		response.Rows = append(response.Rows, message)
+	}
+	return response, nil
+}

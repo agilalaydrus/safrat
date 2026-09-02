@@ -38,6 +38,10 @@ service PlatformService {
 
   // Subscription billing. Voiding keeps the row: deleting an invoice puts a
   // hole in the billing history exactly where somebody will later look.
+  // Who is near a plan ceiling. Read from a daily snapshot rather than counted
+  // live: counting every tenant's rows on each panel load would be the most
+  // expensive query here, and it would slow down as the business grew.
+  rpc ListUsage(ListUsageRequest) returns (ListUsageResponse);
   rpc ListSubscriptionInvoices(ListSubscriptionInvoicesRequest) returns (ListSubscriptionInvoicesResponse);
   rpc PreviewSubscriptionBilling(PreviewSubscriptionBillingRequest) returns (PreviewSubscriptionBillingResponse);
   rpc IssueSubscriptionBilling(IssueSubscriptionBillingRequest) returns (IssueSubscriptionBillingResponse);
@@ -285,6 +289,21 @@ message SubscriptionInvoiceRow {
   string voided_reason = 11;
   google.protobuf.Timestamp created_at = 12;
 }
+
+message UsageRow {
+  string operator_id = 1;
+  string operator_name = 2;
+  string plan = 3;
+  // pilgrims | branches | storage_bytes
+  string metric = 4;
+  int64 value = 5;
+  // Absent means unlimited. Zero is a real limit and must not read the same.
+  optional int64 limit = 6;
+  google.protobuf.Timestamp computed_at = 7;
+}
+
+message ListUsageRequest {}
+message ListUsageResponse { repeated UsageRow rows = 1; }
 
 message ListSubscriptionInvoicesRequest {
   // Empty lists across every tenant.

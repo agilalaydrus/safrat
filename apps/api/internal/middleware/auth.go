@@ -148,6 +148,7 @@ var sessionOnlyProcedures = map[string]bool{
 	"/hajj.v1.PlatformService/ListPlanOverrides":        true,
 	"/hajj.v1.PlatformService/SetPlanOverride":          true,
 	"/hajj.v1.PlatformService/DeletePlanOverride":       true,
+	"/hajj.v1.PlatformService/ListUsage":                true,
 	"/hajj.v1.PlatformService/ListSubscriptionInvoices": true,
 	"/hajj.v1.PlatformService/VoidSubscriptionInvoice":  true,
 	"/hajj.v1.PlatformService/ListProductsNeedingCost":  true,

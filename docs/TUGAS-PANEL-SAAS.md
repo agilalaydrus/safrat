@@ -122,14 +122,15 @@ Menutup mesin tanpa pemicu. RPC-nya sudah ada, teruji, tidak dipanggil siapa pun
 
 ## B2 — Meter pemakaian 🔴
 
-- [C] Tabel `usage_counters` (operator_id, metric, period_start, value)
-- [C] Worker harian yang mengisinya — **jangan** hitung ulang per permintaan;
-      menghitung jamaah lintas tenant tiap panel dibuka akan jadi query
-      termahal di sistem ini
-- [C] Metrik: jamaah, cabang, penyimpanan, panggilan API, pesan WhatsApp
-- [C] Tab **Pemakaian**: pemakaian vs batas, peringatan 80% dan 100%
-- [C] Subjudul menyebut **tanggal reset** — kuota tanpa tanggal reset tidak bisa
-      ditindak
+- [x] Tabel `usage_counters` (`0c32e52`)
+- [x] Worker harian, satu transaksi ber-`FOR SHARE` atas daftar operator supaya
+      tenant yang dihapus di tengah jalan tidak merobek snapshot (`0c32e52`)
+- [x] Metrik: jamaah, cabang, penyimpanan. **Panggilan API dan pesan WhatsApp
+      sengaja tidak ada** — belum ada yang mencatatnya, dan nol palsu akan
+      terbaca sebagai travel yang tidak memakainya (`0c32e52`)
+- [x] Tab **Pemakaian**: pemakaian vs batas, peringatan 80% dan 100% (`0c32e52`)
+- [x] Subjudul menyebut kapan dihitung, dan mengaku angkanya bisa tertinggal
+      beberapa jam (`0c32e52`)
 
 ## B3 — Detail tenant `/admin/tenant/[id]` 🟠
 

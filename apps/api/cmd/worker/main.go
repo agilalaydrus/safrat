@@ -127,6 +127,7 @@ func main() {
 	// Dry run until the owner has compared one cycle's output against a list
 	// made by hand. A demand sent to an agency that already paid costs more
 	// than a week of delay.
+	usageHandler := worker.NewUsageHandler(logger, subscriptionRepository)
 	dunningHandler := worker.NewDunningHandler(logger, subscriptionRepository, os.Getenv("DUNNING_LIVE") != "true")
 	commissionHandler := worker.NewCommissionHandler(logger, ledgerRepository)
 	// The poller settles through the same service the webhook does, so there
@@ -187,6 +188,10 @@ func main() {
 	// subscription is already locked out by access_until regardless of status.
 	if _, err := scheduler.Register("@every 1h", worker.NewSubscriptionSweepTask()); err != nil {
 		logger.Error("register subscription sweep schedule", "error", err)
+		os.Exit(1)
+	}
+	if _, err := scheduler.Register("@every 24h", worker.NewUsageRecomputeTask()); err != nil {
+		logger.Error("register usage recompute schedule", "error", err)
 		os.Exit(1)
 	}
 	if _, err := scheduler.Register("@every 24h", worker.NewSubscriptionDunningTask()); err != nil {
@@ -274,6 +279,7 @@ func main() {
 	mux.HandleFunc(worker.TaskSubscriptionSweep, subscriptionHandler.HandleSweep)
 	mux.HandleFunc(worker.TaskPlanOverrideExpire, planOverrideHandler.HandleExpire)
 	mux.HandleFunc(worker.TaskSubscriptionDunning, dunningHandler.HandleRun)
+	mux.HandleFunc(worker.TaskUsageRecompute, usageHandler.HandleRecompute)
 	mux.HandleFunc(worker.TaskCommissionReconcile, commissionHandler.HandleReconcile)
 	mux.HandleFunc(worker.TaskPaymentPoll, paymentHandler.HandlePoll)
 	mux.HandleFunc(worker.TaskRefundPayoutDispatch, refundPayoutHandler.HandleDispatch)

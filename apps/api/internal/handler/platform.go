@@ -456,3 +456,11 @@ func (h *PlatformHandler) VoidSubscriptionInvoice(ctx context.Context, req *conn
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) ListUsage(ctx context.Context, _ *connect.Request[hajjv1.ListUsageRequest]) (*connect.Response[hajjv1.ListUsageResponse], error) {
+	result, err := h.platformService.ListUsage(ctx)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
