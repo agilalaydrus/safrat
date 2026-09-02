@@ -10,6 +10,7 @@ import (
 	"github.com/hajj-saas/api/internal/crypto"
 	"github.com/hajj-saas/api/internal/events"
 	"github.com/hajj-saas/api/internal/gen/db"
+	"github.com/hajj-saas/api/internal/mailer"
 	"github.com/hajj-saas/api/internal/notification"
 	"github.com/hajj-saas/api/internal/payment"
 	"github.com/hajj-saas/api/internal/queue"
@@ -111,7 +112,15 @@ func main() {
 	sosHandler := worker.NewSOSHandler(logger, sosService)
 	waitlistHandler := worker.NewWaitlistHandler(logger, waitlistRepository)
 	cashFlowHandler := worker.NewCashFlowHandler(logger, queries)
-	outboxHandler := worker.NewOutboxHandler(logger, outboxRepository, firebasePusher, journeyService, eventBus)
+	smtpMailer, err := mailer.FromEnv(strings.TrimSpace(os.Getenv("SMTP_HOST")), envOrDefault("SMTP_PORT", "465"), strings.TrimSpace(os.Getenv("SMTP_USER")), os.Getenv("SMTP_PASSWORD"), strings.TrimSpace(os.Getenv("SMTP_FROM_EMAIL")))
+	if err != nil {
+		logger.Error("init SMTP mailer", "error", err)
+		os.Exit(1)
+	}
+	if smtpMailer == nil {
+		logger.Warn("finance email delivery disabled", "reason", "SMTP_USER/SMTP_PASSWORD are not configured")
+	}
+	outboxHandler := worker.NewOutboxHandler(logger, outboxRepository, firebasePusher, journeyService, eventBus, queries, smtpMailer)
 	subscriptionHandler := worker.NewSubscriptionHandler(logger, subscriptionRepository)
 	commissionHandler := worker.NewCommissionHandler(logger, ledgerRepository)
 	// The poller settles through the same service the webhook does, so there
@@ -272,6 +281,13 @@ func main() {
 
 // slogAdapter satisfies asynq's minimal logger interface with our existing slog.Logger.
 type slogAdapter struct{ logger *slog.Logger }
+
+func envOrDefault(key, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value
+	}
+	return fallback
+}
 
 func (a slogAdapter) Debug(args ...interface{}) { a.logger.Debug(fmt.Sprint(args...)) }
 func (a slogAdapter) Info(args ...interface{})  { a.logger.Info(fmt.Sprint(args...)) }

@@ -380,6 +380,109 @@ func (r *InstallmentRepository) ReversePayment(ctx context.Context, operatorID, 
 	return &payment, true, nil
 }
 
+func (r *InstallmentRepository) QueueReceipt(ctx context.Context, operatorID, paymentID, idempotencyKey string) (bool, error) {
+	op, err := pgUUID(operatorID)
+	if err != nil || strings.TrimSpace(idempotencyKey) == "" {
+		return false, apperror.ErrValidation
+	}
+	payment, err := pgUUID(paymentID)
+	if err != nil {
+		return false, apperror.ErrValidation
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := r.queries.WithTx(tx)
+	scope, err := branchScope(ctx, q, op)
+	if err != nil {
+		return false, err
+	}
+	if _, err := q.GetInstallmentPaymentForReversal(ctx, db.GetInstallmentPaymentForReversalParams{ID: payment, OperatorID: op, BranchScope: scope}); err != nil {
+		return false, databaseError(err)
+	}
+	delivery, err := q.GetInstallmentReceiptDelivery(ctx, db.GetInstallmentReceiptDeliveryParams{ID: payment, OperatorID: op})
+	if err != nil {
+		return false, databaseError(err)
+	}
+	if !delivery.PilgrimEmail.Valid || strings.TrimSpace(delivery.PilgrimEmail.String) == "" {
+		return false, apperror.ErrFailedPrecondition
+	}
+	created, err := NewOutboxRepository(r.queries).EnqueueIdempotentTx(ctx, tx, operatorID, domain.EventInstallmentReceipt, paymentID, strings.TrimSpace(idempotencyKey), struct{}{})
+	if err != nil {
+		return false, databaseError(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return created, nil
+}
+
+func (r *InstallmentRepository) QueueReminders(ctx context.Context, operatorID, seasonID string, requestedPlanIDs []string, allDue bool, idempotencyKey string) (int32, int32, error) {
+	op, err := pgUUID(operatorID)
+	if err != nil || strings.TrimSpace(idempotencyKey) == "" || (!allDue && len(requestedPlanIDs) == 0) {
+		return 0, 0, apperror.ErrValidation
+	}
+	season, err := pgUUID(seasonID)
+	if err != nil {
+		return 0, 0, apperror.ErrValidation
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := r.queries.WithTx(tx)
+	scope, err := branchScope(ctx, q, op)
+	if err != nil {
+		return 0, 0, err
+	}
+	planIDs := requestedPlanIDs
+	if allDue {
+		rows, listErr := q.ListDueInstallmentPlanIDs(ctx, db.ListDueInstallmentPlanIDsParams{OperatorID: op, SeasonID: season, BranchScope: scope})
+		if listErr != nil {
+			return 0, 0, databaseError(listErr)
+		}
+		planIDs = make([]string, 0, len(rows))
+		for _, id := range rows {
+			planIDs = append(planIDs, uuidString(id))
+		}
+	}
+	var queued, skipped int32
+	outbox := NewOutboxRepository(r.queries)
+	for _, planID := range planIDs {
+		id, parseErr := pgUUID(planID)
+		if parseErr != nil {
+			return 0, 0, apperror.ErrValidation
+		}
+		if _, getErr := q.GetInstallmentPlanByID(ctx, db.GetInstallmentPlanByIDParams{OperatorID: op, ID: id, BranchScope: scope}); getErr != nil {
+			return 0, 0, databaseError(getErr)
+		}
+		delivery, deliveryErr := q.GetInstallmentReminderDelivery(ctx, db.GetInstallmentReminderDeliveryParams{ID: id, OperatorID: op})
+		if deliveryErr != nil {
+			return 0, 0, databaseError(deliveryErr)
+		}
+		if !delivery.PilgrimEmail.Valid || strings.TrimSpace(delivery.PilgrimEmail.String) == "" {
+			skipped++
+			continue
+		}
+		created, enqueueErr := outbox.EnqueueIdempotentTx(ctx, tx, operatorID, domain.EventInstallmentReminder, planID, strings.TrimSpace(idempotencyKey)+":"+planID, struct{}{})
+		if enqueueErr != nil {
+			return 0, 0, databaseError(enqueueErr)
+		}
+		if created {
+			queued++
+		} else {
+			skipped++
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, 0, err
+	}
+	return queued, skipped, nil
+}
+
 func installmentPaymentFromDB(row db.InstallmentPaymentEntry) domain.InstallmentPayment {
 	return domain.InstallmentPayment{
 		ID: uuidString(row.ID), PlanID: uuidString(row.PlanID), InstallmentID: uuidString(row.InstallmentID),

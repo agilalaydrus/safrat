@@ -297,6 +297,47 @@ func (s *CashFlowService) ReverseInstallmentPayment(ctx context.Context, authent
 	}, nil
 }
 
+func (s *CashFlowService) QueueInstallmentReceipt(ctx context.Context, authenticatedOrgID string, req *hajjv1.QueueInstallmentReceiptRequest) (*hajjv1.QueueFinanceMessageResponse, error) {
+	if req == nil || !isUUID(req.PaymentId) || strings.TrimSpace(req.IdempotencyKey) == "" {
+		return nil, serviceError("CashFlowService.QueueInstallmentReceipt", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("CashFlowService.QueueInstallmentReceipt", err)
+	}
+	if err := s.entitlements.Check(ctx, operator.ID, "installments"); err != nil {
+		return nil, serviceError("CashFlowService.QueueInstallmentReceipt", err)
+	}
+	created, err := s.installments.QueueReceipt(ctx, operator.ID, req.PaymentId, req.IdempotencyKey)
+	if err != nil {
+		return nil, serviceError("CashFlowService.QueueInstallmentReceipt", err)
+	}
+	response := &hajjv1.QueueFinanceMessageResponse{SkippedCount: 1}
+	if created {
+		response.QueuedCount, response.SkippedCount = 1, 0
+	}
+	return response, nil
+}
+
+func (s *CashFlowService) QueueInstallmentReminders(ctx context.Context, authenticatedOrgID string, req *hajjv1.QueueInstallmentRemindersRequest) (*hajjv1.QueueFinanceMessageResponse, error) {
+	if req == nil || !isUUID(req.SeasonId) || strings.TrimSpace(req.IdempotencyKey) == "" ||
+		(req.AllDueWithin_7Days && len(req.PlanIds) != 0) || (!req.AllDueWithin_7Days && len(req.PlanIds) == 0) {
+		return nil, serviceError("CashFlowService.QueueInstallmentReminders", apperror.ErrValidation)
+	}
+	operator, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, authenticatedOrgID)
+	if err != nil {
+		return nil, serviceError("CashFlowService.QueueInstallmentReminders", err)
+	}
+	if err := s.entitlements.Check(ctx, operator.ID, "installments"); err != nil {
+		return nil, serviceError("CashFlowService.QueueInstallmentReminders", err)
+	}
+	queued, skipped, err := s.installments.QueueReminders(ctx, operator.ID, req.SeasonId, req.PlanIds, req.AllDueWithin_7Days, req.IdempotencyKey)
+	if err != nil {
+		return nil, serviceError("CashFlowService.QueueInstallmentReminders", err)
+	}
+	return &hajjv1.QueueFinanceMessageResponse{QueuedCount: queued, SkippedCount: skipped}, nil
+}
+
 func installmentScheme(value hajjv1.InstallmentScheme) (string, int, error) {
 	switch value {
 	case hajjv1.InstallmentScheme_INSTALLMENT_SCHEME_FULL:

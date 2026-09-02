@@ -8,6 +8,8 @@ const (
 	EventGroupCityUpdated    = "group.city_updated"
 	EventKloterStatusUpdated = "kloter.status_updated"
 	EventRitualBulkCompleted = "ritual.bulk_completed"
+	EventInstallmentReceipt  = "finance.installment_receipt"
+	EventInstallmentReminder = "finance.installment_reminder"
 )
 
 // HealthReportCreatedPayload is the JSON payload for EventHealthReportCreated.

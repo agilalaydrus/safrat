@@ -54,6 +54,25 @@ func (r *OutboxRepository) EnqueueTx(ctx context.Context, tx pgx.Tx, operatorID,
 	return err
 }
 
+func (r *OutboxRepository) EnqueueIdempotentTx(ctx context.Context, tx pgx.Tx, operatorID, eventType, entityID, idempotencyKey string, payload any) (bool, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return false, err
+	}
+	entityUUID, err := nullableUUID(entityID)
+	if err != nil {
+		return false, err
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return false, err
+	}
+	row, err := r.queries.WithTx(tx).EnqueueIdempotentCascadeEvent(ctx, db.EnqueueIdempotentCascadeEventParams{
+		OperatorID: opUUID, EventType: eventType, EntityID: entityUUID, Payload: raw, IdempotencyKey: pgtype.Text{String: idempotencyKey, Valid: true},
+	})
+	return row.Created, err
+}
+
 // Claim atomically grabs a batch of unprocessed events (skipping rows locked by
 // a concurrent relay) and increments their attempt counter.
 func (r *OutboxRepository) Claim(ctx context.Context, maxAttempts, limit int32) ([]domain.CascadeEvent, error) {

@@ -3,6 +3,13 @@ INSERT INTO cascade_events (operator_id, event_type, entity_id, payload)
 VALUES ($1, $2, $3, $4)
 RETURNING id;
 
+-- name: EnqueueIdempotentCascadeEvent :one
+INSERT INTO cascade_events (operator_id, event_type, entity_id, payload, idempotency_key)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (operator_id, idempotency_key) WHERE idempotency_key IS NOT NULL
+DO UPDATE SET idempotency_key = EXCLUDED.idempotency_key
+RETURNING id, (xmax = 0) AS created;
+
 -- name: ClaimCascadeEvents :many
 -- Atomically lease a batch of due events. The lease survives this statement's
 -- row lock, preventing another worker from processing the same event while an

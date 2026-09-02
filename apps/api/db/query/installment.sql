@@ -205,3 +205,45 @@ FROM installments i
 JOIN installment_plans ip ON ip.id = i.plan_id
 WHERE i.id = $1 AND i.operator_id = $2
   AND (sqlc.narg(branch_scope)::uuid IS NULL OR i.branch_id = sqlc.narg(branch_scope)::uuid);
+
+-- name: GetInstallmentReceiptDelivery :one
+SELECT pe.id, pe.receipt_number, pe.amount_idr, pe.method, pe.reference, pe.created_at,
+       p.full_name AS pilgrim_name, p.email AS pilgrim_email,
+       op.name AS operator_name, op.email AS operator_email
+FROM installment_payment_entries pe
+JOIN installment_plans ip ON ip.id = pe.plan_id
+JOIN pilgrims p ON p.id = ip.pilgrim_id
+JOIN operators op ON op.id = pe.operator_id
+WHERE pe.id = $1 AND pe.operator_id = $2 AND pe.kind = 'PAYMENT';
+
+-- name: GetInstallmentReminderDelivery :one
+SELECT ip.id, ip.payable_amount_idr, p.full_name AS pilgrim_name,
+       p.email AS pilgrim_email, op.name AS operator_name, op.email AS operator_email,
+       COALESCE((SELECT SUM(entry.amount_idr) FROM installment_payment_entries entry WHERE entry.plan_id = ip.id), 0)::bigint AS paid_amount_idr,
+       MIN(i.due_date) FILTER (
+         WHERE i.amount_due_idr > COALESCE(paid.paid_idr, 0)
+       )::date AS next_due_date
+FROM installment_plans ip
+JOIN pilgrims p ON p.id = ip.pilgrim_id
+JOIN operators op ON op.id = ip.operator_id
+JOIN installments i ON i.plan_id = ip.id
+LEFT JOIN (
+  SELECT installment_id, SUM(amount_idr)::bigint AS paid_idr
+  FROM installment_payment_entries GROUP BY installment_id
+) paid ON paid.installment_id = i.id
+WHERE ip.id = $1 AND ip.operator_id = $2 AND ip.status = 'ACTIVE'
+GROUP BY ip.id, p.id, op.id;
+
+-- name: ListDueInstallmentPlanIDs :many
+SELECT DISTINCT ip.id
+FROM installment_plans ip
+JOIN installments i ON i.plan_id = ip.id
+LEFT JOIN (
+  SELECT installment_id, SUM(amount_idr)::bigint AS paid_idr
+  FROM installment_payment_entries GROUP BY installment_id
+) paid ON paid.installment_id = i.id
+WHERE ip.operator_id = $1 AND ip.season_id = $2 AND ip.status = 'ACTIVE'
+  AND i.amount_due_idr > COALESCE(paid.paid_idr, 0)
+  AND i.due_date <= CURRENT_DATE + 7
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR ip.branch_id = sqlc.narg(branch_scope)::uuid)
+ORDER BY ip.id;

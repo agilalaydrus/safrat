@@ -138,3 +138,25 @@ func (h *CashFlowHandler) ReverseInstallmentPayment(ctx context.Context, req *co
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *CashFlowHandler) QueueInstallmentReceipt(ctx context.Context, req *connect.Request[hajjv1.QueueInstallmentReceiptRequest]) (*connect.Response[hajjv1.QueueFinanceMessageResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.cashFlowService.QueueInstallmentReceipt(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *CashFlowHandler) QueueInstallmentReminders(ctx context.Context, req *connect.Request[hajjv1.QueueInstallmentRemindersRequest]) (*connect.Response[hajjv1.QueueFinanceMessageResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.cashFlowService.QueueInstallmentReminders(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

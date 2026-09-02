@@ -23,6 +23,8 @@ service CashFlowService {
   rpc ListInstallmentReceivables(ListInstallmentReceivablesRequest) returns (ListInstallmentReceivablesResponse);
   rpc RecordInstallmentPayment(RecordInstallmentPaymentRequest) returns (RecordInstallmentPaymentResponse);
   rpc ReverseInstallmentPayment(ReverseInstallmentPaymentRequest) returns (ReverseInstallmentPaymentResponse);
+  rpc QueueInstallmentReceipt(QueueInstallmentReceiptRequest) returns (QueueFinanceMessageResponse);
+  rpc QueueInstallmentReminders(QueueInstallmentRemindersRequest) returns (QueueFinanceMessageResponse);
 }
 
 enum InstallmentScheme {
@@ -154,6 +156,23 @@ message ReverseInstallmentPaymentResponse {
   InstallmentPayment reversal = 1;
   InstallmentPlanDetail detail = 2;
   bool created = 3;
+}
+
+message QueueInstallmentReceiptRequest {
+  string payment_id = 1 [(buf.validate.field).string.uuid = true];
+  string idempotency_key = 2 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+}
+
+message QueueInstallmentRemindersRequest {
+  string season_id = 1 [(buf.validate.field).string.uuid = true];
+  repeated string plan_ids = 2 [(buf.validate.field).repeated = {max_items: 200, unique: true}, (buf.validate.field).repeated.items.string.uuid = true];
+  bool all_due_within_7_days = 3;
+  string idempotency_key = 4 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+}
+
+message QueueFinanceMessageResponse {
+  int32 queued_count = 1;
+  int32 skipped_count = 2;
 }
 
 message VendorPayment {

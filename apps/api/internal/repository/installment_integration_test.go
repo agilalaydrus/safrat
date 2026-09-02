@@ -45,15 +45,19 @@ func TestInstallmentRepositoryEncapsulatesMoneyAndBranchScopeIntegration(t *test
 	exec(`INSERT INTO branch_members (better_auth_user_id,branch_id,operator_id) VALUES ($1,$2,$3)`, head, bandung, op)
 	for index, pilgrim := range pilgrims {
 		var branch any
+		var email any
 		switch index {
 		case 0:
 			branch = bandung
+			email = "bandung-" + uuid.NewString() + "@example.test"
 		case 1:
 			branch = medan
+			email = "medan-" + uuid.NewString() + "@example.test"
 		default:
 			branch = nil
+			email = nil
 		}
-		exec(`INSERT INTO pilgrims (id,season_id,operator_id,branch_id,full_name,passport_number,nationality,date_of_birth,gender) VALUES ($1,$2,$3,$4,$5,$6,'ID','1990-01-01','MALE')`, pilgrim, season, op, branch, "Jamaah "+string(rune('A'+index)), "CIC-"+uuid.NewString())
+		exec(`INSERT INTO pilgrims (id,season_id,operator_id,branch_id,full_name,passport_number,nationality,date_of_birth,gender,email) VALUES ($1,$2,$3,$4,$5,$6,'ID','1990-01-01','MALE',$7)`, pilgrim, season, op, branch, "Jamaah "+string(rune('A'+index)), "CIC-"+uuid.NewString(), email)
 	}
 
 	repo := NewInstallmentRepository(pool)
@@ -98,6 +102,13 @@ func TestInstallmentRepositoryEncapsulatesMoneyAndBranchScopeIntegration(t *test
 	if _, _, err := repo.RecordPayment(bandungCtx, op, head, medanPlan.Installments[0].ID, 1, "CASH", "", "", "cross-branch-"+uuid.NewString()); !errors.Is(err, apperror.ErrNotFound) {
 		t.Fatalf("kepala Bandung membayar angsuran Medan: %v", err)
 	}
+	medanPayment, _, err := repo.RecordPayment(ctx, op, staff, medanPlan.Installments[0].ID, 1, "CASH", "", "", "medan-payment-"+uuid.NewString())
+	if err != nil {
+		t.Fatalf("catat pembayaran Medan: %v", err)
+	}
+	if _, err := repo.QueueReceipt(bandungCtx, op, medanPayment.ID, "cross-receipt-"+uuid.NewString()); !errors.Is(err, apperror.ErrNotFound) {
+		t.Fatalf("kepala Bandung mengantre kwitansi Medan: %v", err)
+	}
 	branchRows, err := repo.ListReceivables(bandungCtx, op, domain.InstallmentReceivableFilter{SeasonID: season})
 	if err != nil || len(branchRows.Plans) != 1 || branchRows.Plans[0].PilgrimID != pilgrims[0] {
 		t.Fatalf("buku piutang Bandung bocor: %#v (%v)", branchRows, err)
@@ -129,6 +140,25 @@ func TestInstallmentRepositoryEncapsulatesMoneyAndBranchScopeIntegration(t *test
 	cashSummary, err := NewCashFlowRepository(db.New(pool)).GetSummary(bandungCtx, op, season)
 	if err != nil || cashSummary.TotalCollectedIDR != 30_000 {
 		t.Fatalf("kas masuk tidak menjumlah ledger cicilan: %#v (%v)", cashSummary, err)
+	}
+	receiptKey := "receipt-bandung-" + uuid.NewString()
+	if created, err := repo.QueueReceipt(bandungCtx, op, payment.ID, receiptKey); err != nil || !created {
+		t.Fatalf("antrekan kwitansi: created=%v err=%v", created, err)
+	}
+	if created, err := repo.QueueReceipt(bandungCtx, op, payment.ID, receiptKey); err != nil || created {
+		t.Fatalf("replay kwitansi membuat event kedua: created=%v err=%v", created, err)
+	}
+	reminderKey := "reminder-bandung-" + uuid.NewString()
+	queued, skipped, err := repo.QueueReminders(bandungCtx, op, season, []string{bandungPlan.Plan.ID}, false, reminderKey)
+	if err != nil || queued != 1 || skipped != 0 {
+		t.Fatalf("antrekan pengingat: queued=%d skipped=%d err=%v", queued, skipped, err)
+	}
+	queued, skipped, err = repo.QueueReminders(bandungCtx, op, season, []string{bandungPlan.Plan.ID}, false, reminderKey)
+	if err != nil || queued != 0 || skipped != 1 {
+		t.Fatalf("replay pengingat membuat event kedua: queued=%d skipped=%d err=%v", queued, skipped, err)
+	}
+	if _, _, err := repo.QueueReminders(bandungCtx, op, season, []string{medanPlan.Plan.ID}, false, "cross-reminder-"+uuid.NewString()); !errors.Is(err, apperror.ErrNotFound) {
+		t.Fatalf("kepala Bandung mengantre pengingat Medan: %v", err)
 	}
 	assertPilgrimPaymentStatus(t, pool, pilgrims[0], "DP")
 
@@ -202,6 +232,10 @@ func TestInstallmentRepositoryEncapsulatesMoneyAndBranchScopeIntegration(t *test
 	}
 	if successes != 1 || refused != 1 {
 		t.Fatalf("hasil konkurensi: sukses=%d ditolak=%d", successes, refused)
+	}
+	queued, skipped, err = repo.QueueReminders(ctx, op, season, []string{concurrentPlan.Plan.ID}, false, "missing-email-"+uuid.NewString())
+	if err != nil || queued != 0 || skipped != 1 {
+		t.Fatalf("pengingat tanpa email tidak dilewati dengan jelas: queued=%d skipped=%d err=%v", queued, skipped, err)
 	}
 
 	// Deferred database constraint rejects an incomplete or unbalanced schedule.
