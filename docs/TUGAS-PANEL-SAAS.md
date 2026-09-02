@@ -106,7 +106,8 @@ Menutup mesin tanpa pemicu. RPC-nya sudah ada, teruji, tidak dipanggil siapa pun
       `(operator_id, lapsed_at, stage)` (`db9fa97`)
 - [x] Siklus massal tunduk pada indeks nominal unik transfer — kegagalan
       sufiks dilaporkan **per baris**, tidak membatalkan seluruh siklus (`7692809`)
-- [C] Grace period yang bisa diatur, per tenant bila perlu
+- [x] Grace period yang bisa diatur, global dan override per tenant; akses,
+      dunning, dan penangguhan membaca batas efektif yang sama (`7b7d834`)
 - [x] Void invoice menyimpan barisnya + alasan + audit; yang sudah lunas tidak
       bisa dibatalkan (`9233cf1`)
 - [C] Prorata saat upgrade/downgrade di tengah periode
