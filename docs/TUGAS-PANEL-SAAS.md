@@ -181,11 +181,11 @@ global, mengubah rekening settlement.
 
 Lihat §7 DESAIN. Bagian ini sebelumnya tidak dirancang di mana pun.
 
-- [C] **D1** `TrialDays` → **10 hari**, dan jadi setelan yang bisa diubah dari
-      panel, bukan konstanta di `repository/subscription.go:20` (sekarang 3).
-      **Keputusan pemilik 2 September 2026.** Mengubah setelan **tidak boleh**
-      memendekkan trial yang sedang berjalan — tenant memakai angka yang berlaku
-      saat ia mulai.
+- [x] **D1** `TrialDays` → **10 hari**, dibaca dari `platform_settings` lewat
+      `platform_trial_days()` saat langganan dibuat. Mengubah setelan tidak bisa
+      memendekkan trial yang sedang berjalan, karena panjangnya hanya dibaca
+      sekali di awal. Nilai rusak jatuh ke 10, bukan menghentikan pendaftaran
+      (`80fa6fd`)
 - [C] **D2** Perpanjang trial per tenant, alasan wajib
 - [C] **D3** Layar Langganan menampilkan trial yang berakhir pekan ini
 - [C] **D4** Antrean tenant baru 7 hari terakhir + penanda kelengkapan

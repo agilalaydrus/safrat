@@ -17,8 +17,18 @@ func TestPlanUpgradeWaitsForPaymentAndIsIdempotentIntegration(t *testing.T) {
 	if err := repo.EnsureForOperator(ctx, operatorID); err != nil {
 		t.Fatalf("ensure: %v", err)
 	}
-	accessUntil := time.Now().UTC().Truncate(time.Microsecond).Add(15 * 24 * time.Hour)
-	if _, err := pool.Exec(ctx, `UPDATE subscriptions SET status='ACTIVE', access_until=$2 WHERE operator_id=$1`, operatorID, accessUntil); err != nil {
+	// Off a whole-day boundary, and built by Postgres.
+	//
+	// Proration rounds remaining time up to whole days, so a subscription at
+	// exactly fifteen days sits on the boundary. Preview and apply read the
+	// clock at two different instants, and with the value coming from Go while
+	// the remaining time is measured against NOW(), microseconds decided
+	// whether the preview saw fifteen days or sixteen. The guard then correctly
+	// refused to charge an amount nobody approved.
+	const accessInterval = "15 days 6 hours"
+	var accessUntil time.Time
+	if err := pool.QueryRow(ctx, `UPDATE subscriptions SET status='ACTIVE', access_until=NOW() + $2::interval
+		WHERE operator_id=$1 RETURNING access_until`, operatorID, accessInterval).Scan(&accessUntil); err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
 	preview, err := repo.PreviewPlanChange(ctx, operatorID, "GROWTH")
@@ -73,8 +83,18 @@ func TestPlanDowngradeAppliesCreditWithoutRewritingInvoicesIntegration(t *testin
 	if err := repo.EnsureForOperator(ctx, operatorID); err != nil {
 		t.Fatalf("ensure: %v", err)
 	}
-	accessUntil := time.Now().UTC().Truncate(time.Microsecond).Add(15 * 24 * time.Hour)
-	if _, err := pool.Exec(ctx, `UPDATE subscriptions SET status='ACTIVE', access_until=$2 WHERE operator_id=$1`, operatorID, accessUntil); err != nil {
+	// Off a whole-day boundary, and built by Postgres.
+	//
+	// Proration rounds remaining time up to whole days, so a subscription at
+	// exactly fifteen days sits on the boundary. Preview and apply read the
+	// clock at two different instants, and with the value coming from Go while
+	// the remaining time is measured against NOW(), microseconds decided
+	// whether the preview saw fifteen days or sixteen. The guard then correctly
+	// refused to charge an amount nobody approved.
+	const accessInterval = "15 days 6 hours"
+	var accessUntil time.Time
+	if err := pool.QueryRow(ctx, `UPDATE subscriptions SET status='ACTIVE', access_until=NOW() + $2::interval
+		WHERE operator_id=$1 RETURNING access_until`, operatorID, accessInterval).Scan(&accessUntil); err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
 	preview, err := repo.PreviewPlanChange(ctx, operatorID, "STARTER")

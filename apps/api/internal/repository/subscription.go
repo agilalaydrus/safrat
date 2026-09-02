@@ -16,8 +16,12 @@ import (
 )
 
 const (
-	// TrialDays is how long a new operator can use the dashboard before paying.
-	TrialDays = 3
+	// TrialDays is the fallback trial length in days. The authority is the
+	// trial_days row in platform_settings, read by platform_trial_days() at the
+	// moment a subscription is created — so changing the setting can never
+	// shorten a trial already running. This constant only covers a database
+	// with no setting at all.
+	TrialDays = 10
 	// BillingPeriodDays is the length a paid invoice buys.
 	BillingPeriodDays = 30
 	// InvoiceDueDays is how long a pending invoice stays payable. A bank
@@ -258,11 +262,14 @@ func (r *SubscriptionRepository) EnsureForOperator(ctx context.Context, operator
 	if err != nil {
 		return apperror.ErrValidation
 	}
+	// Length read at creation, never after: a subscription carries the terms
+	// that applied when it started, so lowering the setting tomorrow cannot cut
+	// short somebody who is halfway through evaluating.
 	_, err = r.pool.Exec(ctx, `
 		INSERT INTO subscriptions (operator_id, plan, status, access_until)
-		SELECT id, plan, 'TRIALING', NOW() + make_interval(days => $2::int)
+		SELECT id, plan, 'TRIALING', NOW() + make_interval(days => platform_trial_days())
 		FROM operators WHERE id = $1
-		ON CONFLICT (operator_id) DO NOTHING`, id, TrialDays)
+		ON CONFLICT (operator_id) DO NOTHING`, id)
 	return err
 }
 

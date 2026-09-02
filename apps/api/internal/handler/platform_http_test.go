@@ -174,14 +174,25 @@ func TestPlatformPlanControlRPCAccessRevocationAndMutationIntegration(t *testing
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), `DELETE FROM operators WHERE id=$1`, billingOperatorID) })
 	prorationOperatorID := uuid.NewString()
-	prorationAccessUntil := time.Now().UTC().Truncate(time.Microsecond).Add(15 * 24 * time.Hour)
+	// Deliberately off a whole-day boundary, and built by Postgres rather than
+	// by Go.
+	//
+	// Proration rounds remaining time up to whole days. A subscription sitting
+	// at exactly fifteen days sits exactly on that boundary, and the preview and
+	// the apply read the clock at two different instants — through two different
+	// clocks, since one value came from Go and the other from NOW(). A few
+	// microseconds either way flipped the preview to sixteen days while the
+	// apply saw fifteen, and the guard correctly refused to charge an amount
+	// nobody had approved. The production code was right; the fixture was
+	// balanced on a knife edge.
+	prorationInterval := "15 days 6 hours"
 	if _, err := pool.Exec(ctx, `INSERT INTO operators (id,better_auth_org_id,name,country,email,slug,plan)
 		VALUES ($1,$2,'Proration Row Success','ID',$3,$4,'STARTER')`, prorationOperatorID, "proration-"+prorationOperatorID,
 		prorationOperatorID[:8]+"@example.com", "proration-"+prorationOperatorID[:8]); err != nil {
 		t.Fatalf("prepare proration operator: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO subscriptions (operator_id,plan,status,access_until)
-		VALUES ($1,'STARTER','ACTIVE',$2)`, prorationOperatorID, prorationAccessUntil); err != nil {
+		VALUES ($1,'STARTER','ACTIVE',NOW() + $2::interval)`, prorationOperatorID, prorationInterval); err != nil {
 		t.Fatalf("prepare proration subscription: %v", err)
 	}
 	prorationPreview, err := repository.NewSubscriptionRepository(pool).PreviewPlanChange(ctx, prorationOperatorID, "GROWTH")
