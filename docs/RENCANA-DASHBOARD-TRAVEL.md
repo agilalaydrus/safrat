@@ -1,4 +1,11 @@
-# Rencana: Dashboard Admin Travel
+# Rencana: Dashboard Travel (`/dashboard`)
+
+> **Yang mana panel ini.** Berkas ini soal **`/dashboard`** — dashboard yang
+> dipakai staf travel pelanggan kita, satu tenant saja. **Bukan** `/admin`,
+> panel platform milik pemilik TawafiqHub yang melihat seluruh tenant. Panel itu
+> punya berkasnya sendiri: [RENCANA-PANEL-SAAS.md](RENCANA-PANEL-SAAS.md) dan
+> [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md).
+
 
 Dokumen kerja untuk melengkapi dashboard operator TawafiqHub (`/dashboard`)
 sampai setara dan melampaui `admmeeqt.dul.co.id`, lalu menaikkan mutu UI/UX-nya

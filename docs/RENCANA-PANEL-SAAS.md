@@ -194,7 +194,7 @@ terakhir berhasil kapan. Setiap butir menyebut **berapa tenant terdampak**.
 ## 5. Rancangan UI/UX
 
 Mengikuti sistem yang sudah dibangun di Tahap 0 —
-[DESAIN-DASHBOARD-ADMIN.md](DESAIN-DASHBOARD-ADMIN.md). Panel ini **tidak
+[DESAIN-DASHBOARD-TRAVEL.md](DESAIN-DASHBOARD-TRAVEL.md). Panel ini **tidak
 boleh** punya bahasa visual sendiri.
 
 - Komponen yang sama: `PageHeader`, `StatCard`, `ActionCenter`, `Badge`,

@@ -1,6 +1,13 @@
-# Desain Dashboard Admin — spesifikasi tingkat layar
+# Desain Dashboard Travel (`/dashboard`) — spesifikasi tingkat layar
 
-Pendamping [RENCANA-DASHBOARD-ADMIN.md](RENCANA-DASHBOARD-ADMIN.md). Kalau
+> **Yang mana panel ini.** Berkas ini soal **`/dashboard`** — dashboard yang
+> dipakai staf travel pelanggan kita, satu tenant saja. **Bukan** `/admin`,
+> panel platform milik pemilik TawafiqHub yang melihat seluruh tenant. Panel itu
+> punya berkasnya sendiri: [RENCANA-PANEL-SAAS.md](RENCANA-PANEL-SAAS.md) dan
+> [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md).
+
+
+Pendamping [RENCANA-DASHBOARD-TRAVEL.md](RENCANA-DASHBOARD-TRAVEL.md). Kalau
 dokumen itu menjawab *modul apa yang kurang*, dokumen ini menjawab **kenapa
 layar mereka terasa lebih matang dan bagaimana menyamainya.**
 
@@ -550,7 +557,7 @@ modul baru.
 arus kas, monitoring.
 
 **Tahap 2 dan seterusnya** mengikuti gelombang di
-[RENCANA-DASHBOARD-ADMIN.md](RENCANA-DASHBOARD-ADMIN.md).
+[RENCANA-DASHBOARD-TRAVEL.md](RENCANA-DASHBOARD-TRAVEL.md).
 
 ---
 

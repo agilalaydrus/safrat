@@ -36,12 +36,12 @@ Tiga hal yang ditemukan saat merancang dan berlaku lintas pekerjaan:
 ### Dashboard Admin Travel — rencana lengkap (2026-08-30)
 
 Pekerjaan berikutnya yang sudah direncanakan penuh tapi **belum dimulai**.
-Daftar tugas berurutan ada di **`docs/TUGAS-DASHBOARD-ADMIN.md`** — mulai dari
+Daftar tugas berurutan ada di **`docs/TUGAS-DASHBOARD-TRAVEL.md`** — mulai dari
 sana, bukan dari berkas ini.
 
 - `docs/BENCHMARK-MEEQOT.md` — analisa pesaing (Meeqot): rencana, harga, roadmap
-- `docs/RENCANA-DASHBOARD-ADMIN.md` — 22 rute mereka vs 27 menu kita
-- `docs/DESAIN-DASHBOARD-ADMIN.md` — 8 pola UI, sistem `tone`, resep visual
+- `docs/RENCANA-DASHBOARD-TRAVEL.md` — 22 rute mereka vs 27 menu kita
+- `docs/DESAIN-DASHBOARD-TRAVEL.md` — 8 pola UI, sistem `tone`, resep visual
 - `docs/referensi/meeqot/` — data mentah hasil ekstraksi bundle mereka
 
 Dua hal yang ditemukan saat merencanakan dan berlaku lintas pekerjaan:

@@ -1,6 +1,6 @@
 # Angka desain terukur — admmeeqt vs TawafiqHub
 
-Dihitung dari bundle, bukan perkiraan. Dipakai sebagai dasar §2b DESAIN-DASHBOARD-ADMIN.md.
+Dihitung dari bundle, bukan perkiraan. Dipakai sebagai dasar §2b DESAIN-DASHBOARD-TRAVEL.md.
 
 ## rounded-* (total 1213)
 ```

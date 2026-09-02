@@ -1,7 +1,14 @@
-# Tugas: Dashboard Admin Travel
+# Tugas: Dashboard Travel (`/dashboard`)
+
+> **Yang mana panel ini.** Berkas ini soal **`/dashboard`** — dashboard yang
+> dipakai staf travel pelanggan kita, satu tenant saja. **Bukan** `/admin`,
+> panel platform milik pemilik TawafiqHub yang melihat seluruh tenant. Panel itu
+> punya berkasnya sendiri: [RENCANA-PANEL-SAAS.md](RENCANA-PANEL-SAAS.md) dan
+> [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md).
+
 
 Berkas kerja untuk agen berikutnya (Codex). Dibuat 30 Agustus 2026.
-**Belum ada satu tugas pun yang dikerjakan** — semuanya masih T0.
+Tahap 0, 1, dan 2 selesai (lihat centang di bawah). Sisa: Tahap 3 dan 4.
 
 ## Cara memakai berkas ini
 
@@ -12,8 +19,8 @@ Berkas kerja untuk agen berikutnya (Codex). Dibuat 30 Agustus 2026.
 > **Penanda pemilik** dipakai di kedua berkas: `[C]` Codex, `[K]` Claude,
 > `[ ]` belum diklaim. Klaim sebelum menyentuh kode.
 
-1. Baca `docs/RENCANA-DASHBOARD-ADMIN.md` (modul apa yang kurang & kenapa).
-2. Baca `docs/DESAIN-DASHBOARD-ADMIN.md` (bagaimana layarnya harus terlihat).
+1. Baca `docs/RENCANA-DASHBOARD-TRAVEL.md` (modul apa yang kurang & kenapa).
+2. Baca `docs/DESAIN-DASHBOARD-TRAVEL.md` (bagaimana layarnya harus terlihat).
 3. Kerjakan tugas di bawah **berurutan**. Nomor kecil memblokir nomor besar.
 4. Tandai `[x]` di berkas ini setiap tugas selesai **dan terverifikasi**,
    sertakan hash commit-nya. Ringkasan di chat tidak bertahan; berkas ini iya.
@@ -23,8 +30,8 @@ Berkas kerja untuk agen berikutnya (Codex). Dibuat 30 Agustus 2026.
 | Berkas | Isi |
 |---|---|
 | `docs/BENCHMARK-MEEQOT.md` | Analisa pesaing: rencana, harga, roadmap, apa yang tidak ditiru |
-| `docs/RENCANA-DASHBOARD-ADMIN.md` | Peta 22 rute mereka vs 27 menu kita, urutan gelombang |
-| `docs/DESAIN-DASHBOARD-ADMIN.md` | 8 pola UI, sistem `tone`, anatomi halaman, §2b resep visual |
+| `docs/RENCANA-DASHBOARD-TRAVEL.md` | Peta 22 rute mereka vs 27 menu kita, urutan gelombang |
+| `docs/DESAIN-DASHBOARD-TRAVEL.md` | 8 pola UI, sistem `tone`, anatomi halaman, §2b resep visual |
 | `docs/referensi/meeqot/rute.md` | Rute lengkap 9 aplikasi mereka |
 | `docs/referensi/meeqot/judul-subjudul.md` | **310 pasang judul+subjudul** — contoh nyata pola subjudul hidup |
 | `docs/referensi/meeqot/angka-desain.md` | Hitungan radius/shadow/transition/ring/hover, token `tone` |

@@ -1,8 +1,13 @@
 # Tugas: Panel SaaS TawafiqHub
 
 Rancangan: [RENCANA-PANEL-SAAS.md](RENCANA-PANEL-SAAS.md).
-Sistem desain: [DESAIN-DASHBOARD-ADMIN.md](DESAIN-DASHBOARD-ADMIN.md).
+Sistem desain: [DESAIN-DASHBOARD-TRAVEL.md](DESAIN-DASHBOARD-TRAVEL.md).
 Dibuat 2 September 2026. **Belum ada tugas yang dikerjakan.**
+
+> **Yang mana panel ini.** Berkas ini soal **`/admin`** — panel platform milik
+> pemilik TawafiqHub, satu-satunya permukaan yang melihat seluruh tenant.
+> **Bukan** `/dashboard`, yang dipakai staf travel pelanggan kita. Panel itu
+> punya berkasnya sendiri: [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md).
 
 ## Pembagian kerja
 
