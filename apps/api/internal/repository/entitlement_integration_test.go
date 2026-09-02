@@ -55,8 +55,8 @@ func TestPlanEntitlementsAreDatabaseEnforcedIntegration(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO branches (id, operator_id, name, city) VALUES ($1,$2,'Bandung','Bandung')`, uuid.NewString(), operatorID); !constraintIs(err, "operator_branch_feature") {
 		t.Fatalf("cabang STARTER harus dikunci: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO plan_overrides (operator_id, max_pilgrims, max_branches, feature_flag_overrides)
-		VALUES ($1,201,1,'{"branches":true}'::jsonb)`, operatorID); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO plan_overrides (operator_id, max_pilgrims, max_branches, feature_flag_overrides, note)
+		VALUES ($1,201,1,'{"branches":true}'::jsonb,'uji entitlement')`, operatorID); err != nil {
 		t.Fatalf("override: %v", err)
 	}
 	if err := insertPilgrim(201); err != nil {

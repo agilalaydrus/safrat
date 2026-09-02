@@ -61,6 +61,7 @@ func main() {
 	outboxRepository := repository.NewOutboxRepository(queries)
 	storefrontAssetRepository := repository.NewStorefrontAssetRepository(pool)
 	subscriptionRepository := repository.NewSubscriptionRepository(pool)
+	platformRepository := repository.NewPlatformRepository(pool)
 	journeyRepository := repository.NewJourneyRepository(queries)
 	orderRepository := repository.NewOrderRepository(queries, pool)
 	seasonRepository := repository.NewSeasonRepository(queries)
@@ -122,6 +123,7 @@ func main() {
 	}
 	outboxHandler := worker.NewOutboxHandler(logger, outboxRepository, firebasePusher, journeyService, eventBus, queries, smtpMailer)
 	subscriptionHandler := worker.NewSubscriptionHandler(logger, subscriptionRepository)
+	planOverrideHandler := worker.NewPlanOverrideHandler(logger, platformRepository)
 	commissionHandler := worker.NewCommissionHandler(logger, ledgerRepository)
 	// The poller settles through the same service the webhook does, so there
 	// is one definition of settlement and one place the amount is verified.
@@ -181,6 +183,10 @@ func main() {
 	// subscription is already locked out by access_until regardless of status.
 	if _, err := scheduler.Register("@every 1h", worker.NewSubscriptionSweepTask()); err != nil {
 		logger.Error("register subscription sweep schedule", "error", err)
+		os.Exit(1)
+	}
+	if _, err := scheduler.Register("@every 24h", worker.NewPlanOverrideExpireTask()); err != nil {
+		logger.Error("register plan override expiration schedule", "error", err)
 		os.Exit(1)
 	}
 	// Every 10 minutes rather than hourly: the gap this closes is an agent not
@@ -258,6 +264,7 @@ func main() {
 	mux.HandleFunc(worker.TaskMarkOverdueVendorPayments, cashFlowHandler.HandleMarkOverdue)
 	mux.HandleFunc(worker.TaskCascadeDispatch, outboxHandler.HandleDispatch)
 	mux.HandleFunc(worker.TaskSubscriptionSweep, subscriptionHandler.HandleSweep)
+	mux.HandleFunc(worker.TaskPlanOverrideExpire, planOverrideHandler.HandleExpire)
 	mux.HandleFunc(worker.TaskCommissionReconcile, commissionHandler.HandleReconcile)
 	mux.HandleFunc(worker.TaskPaymentPoll, paymentHandler.HandlePoll)
 	mux.HandleFunc(worker.TaskRefundPayoutDispatch, refundPayoutHandler.HandleDispatch)

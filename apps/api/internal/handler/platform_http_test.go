@@ -121,6 +121,134 @@ func TestPlatformPanelIsClosedToOperatorStaffIntegration(t *testing.T) {
 	}
 }
 
+func TestPlatformPlanControlRPCAccessRevocationAndMutationIntegration(t *testing.T) {
+	databaseURL := os.Getenv("STOREFRONT_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("STOREFRONT_TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	fixture := newHTTPFixture(t, pool)
+	var userID string
+	if err := pool.QueryRow(ctx, `SELECT "userId" FROM session WHERE token=$1`, fixture.sessionToken).Scan(&userID); err != nil {
+		t.Fatalf("read session user: %v", err)
+	}
+
+	queries := db.New(pool)
+	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
+		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool),
+		repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool),
+		repository.NewKYCRepository(pool), repository.NewAuditRepository(queries))
+	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
+		handler.NewPlatformHandler(platform),
+		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
+			repository.NewIdentityRepository(queries, repository.NewAgentRepository(queries)),
+			repository.NewSubscriptionRepository(pool))),
+	)
+	mux := http.NewServeMux()
+	mux.Handle(path, serviceHandler)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	client := hajjv1connect.NewPlatformServiceClient(server.Client(), server.URL)
+
+	planKey := "plan-http-" + fixture.operatorID
+	overrideKey := "override-http-" + fixture.operatorID
+	deleteKey := "delete-http-" + fixture.operatorID
+	auth := func(request interface{ Header() http.Header }, token string) {
+		if token != "" {
+			request.Header().Set("Authorization", "Bearer "+token)
+		}
+	}
+	calls := []struct {
+		name string
+		call func(string) error
+	}{
+		{"ListPlanLimits", func(token string) error {
+			req := connect.NewRequest(&hajjv1.ListPlanLimitsRequest{})
+			auth(req, token)
+			_, err := client.ListPlanLimits(ctx, req)
+			return err
+		}},
+		{"PreviewPlanLimitChange", func(token string) error {
+			req := connect.NewRequest(&hajjv1.PreviewPlanLimitChangeRequest{Plan: "STARTER",
+				MaxPilgrims: &hajjv1.QuotaValue{Value: 200}, MaxBranches: &hajjv1.QuotaValue{Value: 0}})
+			auth(req, token)
+			_, err := client.PreviewPlanLimitChange(ctx, req)
+			return err
+		}},
+		{"SetPlanLimit", func(token string) error {
+			req := connect.NewRequest(&hajjv1.SetPlanLimitRequest{Plan: "STARTER",
+				MaxPilgrims: &hajjv1.QuotaValue{Value: 200}, MaxBranches: &hajjv1.QuotaValue{Value: 0},
+				Reason: "verifikasi HTTP", Confirmation: "STARTER", IdempotencyKey: planKey})
+			auth(req, token)
+			_, err := client.SetPlanLimit(ctx, req)
+			return err
+		}},
+		{"ListPlanOverrides", func(token string) error {
+			req := connect.NewRequest(&hajjv1.ListPlanOverridesRequest{})
+			auth(req, token)
+			_, err := client.ListPlanOverrides(ctx, req)
+			return err
+		}},
+		{"SetPlanOverride", func(token string) error {
+			max := int32(201)
+			req := connect.NewRequest(&hajjv1.SetPlanOverrideRequest{OperatorId: fixture.operatorID,
+				MaxPilgrims: &max, Note: "verifikasi HTTP", IdempotencyKey: overrideKey})
+			auth(req, token)
+			_, err := client.SetPlanOverride(ctx, req)
+			return err
+		}},
+		{"DeletePlanOverride", func(token string) error {
+			req := connect.NewRequest(&hajjv1.DeletePlanOverrideRequest{OperatorId: fixture.operatorID,
+				Reason: "verifikasi HTTP selesai", IdempotencyKey: deleteKey})
+			auth(req, token)
+			_, err := client.DeletePlanOverride(ctx, req)
+			return err
+		}},
+	}
+
+	for _, call := range calls {
+		if err := call.call(""); connect.CodeOf(err) != connect.CodeUnauthenticated {
+			t.Fatalf("%s tanpa sesi = %v (%v), want unauthenticated", call.name, connect.CodeOf(err), err)
+		}
+		if err := call.call(fixture.sessionToken); connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Fatalf("%s oleh owner operator = %v (%v), want permission_denied", call.name, connect.CodeOf(err), err)
+		}
+	}
+
+	if _, err := pool.Exec(ctx, `INSERT INTO platform_admins (user_id,note) VALUES ($1,'uji plan control')`, userID); err != nil {
+		t.Fatalf("grant: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE "user" SET "twoFactorEnabled"=true WHERE id=$1`, userID); err != nil {
+		t.Fatalf("enrol: %v", err)
+	}
+	t.Cleanup(func() {
+		bg := context.Background()
+		_, _ = pool.Exec(bg, `DELETE FROM platform_admins WHERE user_id=$1`, userID)
+		_, _ = pool.Exec(bg, `DELETE FROM privileged_actions WHERE requested_by=$1`, userID)
+		_, _ = pool.Exec(bg, `DELETE FROM audit_logs WHERE user_id=$1 AND action IN ('plan_limit_changed','plan_override_set','plan_override_deleted')`, userID)
+		_, _ = pool.Exec(bg, `DELETE FROM plan_overrides WHERE operator_id=$1`, fixture.operatorID)
+	})
+	for _, call := range calls {
+		if err := call.call(fixture.sessionToken); err != nil {
+			t.Fatalf("%s oleh admin platform: %v", call.name, err)
+		}
+	}
+
+	if _, err := pool.Exec(ctx, `DELETE FROM platform_admins WHERE user_id=$1`, userID); err != nil {
+		t.Fatalf("revoke: %v", err)
+	}
+	for _, call := range calls {
+		if err := call.call(fixture.sessionToken); connect.CodeOf(err) != connect.CodePermissionDenied {
+			t.Fatalf("%s sesudah revoke = %v (%v), want permission_denied", call.name, connect.CodeOf(err), err)
+		}
+	}
+}
+
 // A manual cost must not overwrite what a supplier actually charged, and that
 // has to hold through the panel, not only in the repository.
 func TestPlatformCostSettingRespectsObservedCostsIntegration(t *testing.T) {

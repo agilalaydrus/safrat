@@ -31,6 +31,66 @@ func (h *PlatformHandler) ListOperators(ctx context.Context, _ *connect.Request[
 	return connect.NewResponse(result), nil
 }
 
+func (h *PlatformHandler) ListPlanLimits(ctx context.Context, _ *connect.Request[hajjv1.ListPlanLimitsRequest]) (*connect.Response[hajjv1.ListPlanLimitsResponse], error) {
+	result, err := h.platformService.ListPlanLimits(ctx)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) PreviewPlanLimitChange(ctx context.Context, req *connect.Request[hajjv1.PreviewPlanLimitChangeRequest]) (*connect.Response[hajjv1.PreviewPlanLimitChangeResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.PreviewPlanLimitChange(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) SetPlanLimit(ctx context.Context, req *connect.Request[hajjv1.SetPlanLimitRequest]) (*connect.Response[hajjv1.SetPlanLimitResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.SetPlanLimit(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) ListPlanOverrides(ctx context.Context, req *connect.Request[hajjv1.ListPlanOverridesRequest]) (*connect.Response[hajjv1.ListPlanOverridesResponse], error) {
+	result, err := h.platformService.ListPlanOverrides(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) SetPlanOverride(ctx context.Context, req *connect.Request[hajjv1.SetPlanOverrideRequest]) (*connect.Response[hajjv1.SetPlanOverrideResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.SetPlanOverride(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) DeletePlanOverride(ctx context.Context, req *connect.Request[hajjv1.DeletePlanOverrideRequest]) (*connect.Response[hajjv1.DeletePlanOverrideResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.DeletePlanOverride(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *PlatformHandler) ListProductsNeedingCost(ctx context.Context, req *connect.Request[hajjv1.ListProductsNeedingCostRequest]) (*connect.Response[hajjv1.ListProductsNeedingCostResponse], error) {
 	result, err := h.platformService.ListProductsNeedingCost(ctx, req.Msg)
 	if err != nil {

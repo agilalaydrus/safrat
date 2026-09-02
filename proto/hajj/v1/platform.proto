@@ -29,6 +29,15 @@ service PlatformService {
   // matter for running it.
   rpc ListOperators(ListOperatorsRequest) returns (ListOperatorsResponse);
 
+  // Package limits and per-tenant exceptions. These live on the platform
+  // surface because changing them affects commercial terms across tenants.
+  rpc ListPlanLimits(ListPlanLimitsRequest) returns (ListPlanLimitsResponse);
+  rpc PreviewPlanLimitChange(PreviewPlanLimitChangeRequest) returns (PreviewPlanLimitChangeResponse);
+  rpc SetPlanLimit(SetPlanLimitRequest) returns (SetPlanLimitResponse);
+  rpc ListPlanOverrides(ListPlanOverridesRequest) returns (ListPlanOverridesResponse);
+  rpc SetPlanOverride(SetPlanOverrideRequest) returns (SetPlanOverrideResponse);
+  rpc DeletePlanOverride(DeletePlanOverrideRequest) returns (DeletePlanOverrideResponse);
+
   // ListProductsNeedingCost surfaces products with no supplier cost recorded.
   // Those sell with no price floor beneath them, so this is the queue that
   // makes the floor real rather than theoretical.
@@ -171,6 +180,92 @@ message PlatformOperator {
 
 message ListOperatorsRequest {}
 message ListOperatorsResponse { repeated PlatformOperator operators = 1; }
+
+// QuotaValue keeps zero distinct from unlimited. An absent integer cannot do
+// that reliably across Go and TypeScript protobuf runtimes.
+message QuotaValue {
+  bool unlimited = 1;
+  int32 value = 2 [(buf.validate.field).int32.gte = 0];
+}
+
+message PlatformPlanLimit {
+  string plan = 1;
+  QuotaValue max_pilgrims = 2;
+  QuotaValue max_branches = 3;
+  map<string, bool> feature_flags = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+message ListPlanLimitsRequest {}
+message ListPlanLimitsResponse { repeated PlatformPlanLimit limits = 1; }
+
+message AffectedTenant {
+  string operator_id = 1;
+  string name = 2;
+  int32 pilgrim_count = 3;
+  int32 active_branch_count = 4;
+  QuotaValue current_max_pilgrims = 5;
+  QuotaValue current_max_branches = 6;
+  repeated string reasons = 7;
+}
+
+message PreviewPlanLimitChangeRequest {
+  string plan = 1 [(buf.validate.field).string = {in: ["STARTER", "GROWTH", "PRO"]}];
+  QuotaValue max_pilgrims = 2 [(buf.validate.field).required = true];
+  QuotaValue max_branches = 3 [(buf.validate.field).required = true];
+  map<string, bool> feature_flags = 4;
+}
+message PreviewPlanLimitChangeResponse { repeated AffectedTenant affected_tenants = 1; }
+
+message SetPlanLimitRequest {
+  string plan = 1 [(buf.validate.field).string = {in: ["STARTER", "GROWTH", "PRO"]}];
+  QuotaValue max_pilgrims = 2 [(buf.validate.field).required = true];
+  QuotaValue max_branches = 3 [(buf.validate.field).required = true];
+  map<string, bool> feature_flags = 4;
+  string reason = 5 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+  // The plan name must be typed again for today's single-admin approval path.
+  string confirmation = 6 [(buf.validate.field).string = {min_len: 1, max_len: 20}];
+  string idempotency_key = 7 [(buf.validate.field).string = {min_len: 8, max_len: 128}];
+  bool grandfather_affected = 8;
+}
+message SetPlanLimitResponse {
+  PlatformPlanLimit limit = 1;
+  int32 grandfathered_tenants = 2;
+}
+
+message PlatformPlanOverride {
+  string operator_id = 1;
+  string operator_name = 2;
+  string plan = 3;
+  optional int32 max_pilgrims = 4 [(buf.validate.field).int32.gte = 0];
+  optional int32 max_branches = 5 [(buf.validate.field).int32.gte = 0];
+  map<string, bool> feature_flag_overrides = 6;
+  string note = 7;
+  google.protobuf.Timestamp expires_at = 8;
+  string updated_by = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+message ListPlanOverridesRequest { bool include_expired = 1; }
+message ListPlanOverridesResponse { repeated PlatformPlanOverride overrides = 1; }
+
+message SetPlanOverrideRequest {
+  string operator_id = 1 [(buf.validate.field).string.uuid = true];
+  optional int32 max_pilgrims = 2 [(buf.validate.field).int32.gte = 0];
+  optional int32 max_branches = 3 [(buf.validate.field).int32.gte = 0];
+  map<string, bool> feature_flag_overrides = 4;
+  string note = 5 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+  google.protobuf.Timestamp expires_at = 6;
+  string idempotency_key = 7 [(buf.validate.field).string = {min_len: 8, max_len: 128}];
+}
+message SetPlanOverrideResponse { PlatformPlanOverride override = 1; }
+
+message DeletePlanOverrideRequest {
+  string operator_id = 1 [(buf.validate.field).string.uuid = true];
+  string reason = 2 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+  string idempotency_key = 3 [(buf.validate.field).string = {min_len: 8, max_len: 128}];
+}
+message DeletePlanOverrideResponse {}
 
 message PlatformProduct {
   string id = 1;

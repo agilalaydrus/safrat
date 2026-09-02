@@ -142,6 +142,12 @@ var sessionOnlyProcedures = map[string]bool{
 	// about the caller, so any signed-in user may ask.
 	"/hajj.v1.PlatformService/AmIPlatformAdmin":        true,
 	"/hajj.v1.PlatformService/ListOperators":           true,
+	"/hajj.v1.PlatformService/ListPlanLimits":          true,
+	"/hajj.v1.PlatformService/PreviewPlanLimitChange":  true,
+	"/hajj.v1.PlatformService/SetPlanLimit":            true,
+	"/hajj.v1.PlatformService/ListPlanOverrides":       true,
+	"/hajj.v1.PlatformService/SetPlanOverride":         true,
+	"/hajj.v1.PlatformService/DeletePlanOverride":      true,
 	"/hajj.v1.PlatformService/ListProductsNeedingCost": true,
 	"/hajj.v1.PlatformService/SetProductSupplierCost":  true,
 	// The supplier catalogue — same gate, same reason: every one of these

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/hajj-saas/api/internal/apperror"
+	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -14,11 +15,12 @@ import (
 // and the reason nothing here takes an operator id to scope by. Authorisation
 // happens above it, in the service, and must never be skipped.
 type PlatformRepository struct {
-	pool *pgxpool.Pool
+	pool    *pgxpool.Pool
+	queries *db.Queries
 }
 
 func NewPlatformRepository(pool *pgxpool.Pool) *PlatformRepository {
-	return &PlatformRepository{pool: pool}
+	return &PlatformRepository{pool: pool, queries: db.New(pool)}
 }
 
 // PlatformAccess is what the platform gate needs to know about a caller.

@@ -6,6 +6,7 @@ SELECT
 FROM operators o
 JOIN plan_limits pl ON pl.plan = o.plan
 LEFT JOIN plan_overrides po ON po.operator_id = o.id
+  AND (po.expires_at IS NULL OR po.expires_at > NOW())
 WHERE o.id = $1;
 
 -- name: GetOperatorEntitlementUsage :one
