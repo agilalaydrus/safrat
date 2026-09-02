@@ -154,6 +154,8 @@ func (h *OutboxHandler) dispatch(ctx context.Context, ev domain.CascadeEvent) er
 		return h.sendInstallmentReceipt(ctx, ev)
 	case domain.EventInstallmentReminder:
 		return h.sendInstallmentReminder(ctx, ev)
+	case domain.EventSubscriptionDunning:
+		return h.sendSubscriptionDunning(ctx, ev)
 	default:
 		return fmt.Errorf("unsupported cascade event type %q", ev.EventType)
 	}
@@ -228,4 +230,43 @@ func pgUUIDWorker(value string) (pgtype.UUID, error) {
 		return pgtype.UUID{}, err
 	}
 	return pgtype.UUID{Bytes: parsed, Valid: true}, nil
+}
+
+// sendSubscriptionDunning tells a travel agency their subscription is overdue.
+//
+// Everything it needs is in the payload rather than re-read here, so the
+// message says what it would have said when the stage was reached even if the
+// relay runs a day later. An agency told "1 hari" when it is really eleven
+// stops trusting the next one.
+func (h *OutboxHandler) sendSubscriptionDunning(ctx context.Context, ev domain.CascadeEvent) error {
+	if h.mailer == nil {
+		return fmt.Errorf("SMTP is not configured")
+	}
+	var payload domain.SubscriptionDunningPayload
+	if err := json.Unmarshal(ev.Payload, &payload); err != nil {
+		return err
+	}
+	to := strings.TrimSpace(payload.Email)
+	if to == "" {
+		return fmt.Errorf("operator %s has no email address", payload.OperatorName)
+	}
+
+	subject := fmt.Sprintf("Tagihan langganan TawafiqHub terlambat %d hari", payload.DaysOverdue)
+	closing := "<p>Bila pembayaran sudah dikirim, abaikan email ini — akses terbuka kembali otomatis begitu dana tercocokkan.</p>"
+	if payload.Suspended {
+		subject = "Akses TawafiqHub ditangguhkan — tagihan belum dibayar"
+		// Says plainly that nothing was deleted, because that is the first
+		// thing anybody reading this will fear.
+		closing = "<p><strong>Data Anda tetap utuh.</strong> Yang ditutup hanya akses masuk, dan akses terbuka kembali otomatis begitu pembayaran tercocokkan.</p>"
+	}
+	amount := "sesuai tagihan terakhir"
+	if payload.AmountIDR > 0 {
+		amount = formatWorkerIDR(payload.AmountIDR)
+	}
+	body := financeEmailShell(subject, fmt.Sprintf(
+		"<p>Assalamualaikum, tim %s.</p><p>Langganan TawafiqHub Anda terlambat <strong>%d hari</strong>.</p>"+
+			"<table role=\"presentation\" style=\"width:100%%;border-collapse:collapse\"><tr><td>Nominal</td><td><strong>%s</strong></td></tr></table>%s",
+		html.EscapeString(payload.OperatorName), payload.DaysOverdue, html.EscapeString(amount), closing))
+	return h.mailer.SendHTML(ctx, to, subject, body,
+		fmt.Sprintf("billing-dunning-%s-%s@tawafiqhub.id", ev.OperatorID, payload.Stage))
 }

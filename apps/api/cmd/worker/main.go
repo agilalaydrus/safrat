@@ -124,6 +124,10 @@ func main() {
 	outboxHandler := worker.NewOutboxHandler(logger, outboxRepository, firebasePusher, journeyService, eventBus, queries, smtpMailer)
 	subscriptionHandler := worker.NewSubscriptionHandler(logger, subscriptionRepository)
 	planOverrideHandler := worker.NewPlanOverrideHandler(logger, platformRepository)
+	// Dry run until the owner has compared one cycle's output against a list
+	// made by hand. A demand sent to an agency that already paid costs more
+	// than a week of delay.
+	dunningHandler := worker.NewDunningHandler(logger, subscriptionRepository, os.Getenv("DUNNING_LIVE") != "true")
 	commissionHandler := worker.NewCommissionHandler(logger, ledgerRepository)
 	// The poller settles through the same service the webhook does, so there
 	// is one definition of settlement and one place the amount is verified.
@@ -183,6 +187,10 @@ func main() {
 	// subscription is already locked out by access_until regardless of status.
 	if _, err := scheduler.Register("@every 1h", worker.NewSubscriptionSweepTask()); err != nil {
 		logger.Error("register subscription sweep schedule", "error", err)
+		os.Exit(1)
+	}
+	if _, err := scheduler.Register("@every 24h", worker.NewSubscriptionDunningTask()); err != nil {
+		logger.Error("register dunning schedule", "error", err)
 		os.Exit(1)
 	}
 	if _, err := scheduler.Register("@every 24h", worker.NewPlanOverrideExpireTask()); err != nil {
@@ -265,6 +273,7 @@ func main() {
 	mux.HandleFunc(worker.TaskCascadeDispatch, outboxHandler.HandleDispatch)
 	mux.HandleFunc(worker.TaskSubscriptionSweep, subscriptionHandler.HandleSweep)
 	mux.HandleFunc(worker.TaskPlanOverrideExpire, planOverrideHandler.HandleExpire)
+	mux.HandleFunc(worker.TaskSubscriptionDunning, dunningHandler.HandleRun)
 	mux.HandleFunc(worker.TaskCommissionReconcile, commissionHandler.HandleReconcile)
 	mux.HandleFunc(worker.TaskPaymentPoll, paymentHandler.HandlePoll)
 	mux.HandleFunc(worker.TaskRefundPayoutDispatch, refundPayoutHandler.HandleDispatch)

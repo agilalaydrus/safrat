@@ -283,7 +283,12 @@ func extendAccess(ctx context.Context, tx pgx.Tx, operatorID, plan string) error
 	if _, err := tx.Exec(ctx, `UPDATE operators SET plan = $2::plan WHERE id = $1`, operator, plan); err != nil {
 		return err
 	}
-	return nil
+	// Payment ends a suspension wherever it lands, at any stage, including
+	// after the sequence ran to the end. An agency that has paid must not wait
+	// for somebody here to notice — and this sits inside extendAccess for the
+	// same reason the rest of it does: both settlement paths reach it, and a
+	// second copy is the one that would drift.
+	return clearSuspension(ctx, tx, operatorID)
 }
 
 // ExpireOverdueInvoices releases the amounts of invoices nobody paid, so those

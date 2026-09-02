@@ -10,6 +10,7 @@ const (
 	EventRitualBulkCompleted = "ritual.bulk_completed"
 	EventInstallmentReceipt  = "finance.installment_receipt"
 	EventInstallmentReminder = "finance.installment_reminder"
+	EventSubscriptionDunning = "billing.subscription_dunning"
 )
 
 // HealthReportCreatedPayload is the JSON payload for EventHealthReportCreated.
@@ -54,4 +55,17 @@ type CascadeEvent struct {
 	EntityID   string
 	Payload    []byte // raw JSON
 	Attempts   int32
+}
+
+// SubscriptionDunningPayload is the JSON payload for EventSubscriptionDunning.
+// Carries what the message needs so the relay does not re-read the database —
+// and so the message says the same thing it would have said when the stage was
+// reached, even if the relay runs later.
+type SubscriptionDunningPayload struct {
+	Stage        string `json:"stage"`
+	DaysOverdue  int    `json:"days_overdue"`
+	AmountIDR    int64  `json:"amount_idr"`
+	OperatorName string `json:"operator_name"`
+	Email        string `json:"email"`
+	Suspended    bool   `json:"suspended"`
 }
