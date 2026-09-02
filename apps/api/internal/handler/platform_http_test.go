@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"connectrpc.com/connect"
+	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/crypto"
 	"github.com/hajj-saas/api/internal/gen/db"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
@@ -428,9 +429,22 @@ func TestSupplierCatalogueOverHTTPIntegration(t *testing.T) {
 	t.Cleanup(func() {
 		_, _ = pool.Exec(context.Background(), `DELETE FROM platform_admins WHERE user_id = $1`, userID)
 	})
-	if err := pool.QueryRow(ctx, `SELECT id::text FROM products WHERE operator_id = $1`, fixture.operatorID).Scan(&productID); err != nil {
-		t.Fatalf("read product: %v", err)
+	// A route only means anything on a digital product: fulfilment skips
+	// TRAVEL_PACKAGE outright and treats EQUIPMENT as needing no supplier. The
+	// fixture's own product is a travel package, so this creates the kind of
+	// product a route is actually for — platform-owned, as migration 114
+	// requires of digital categories.
+	productID = uuid.NewString()
+	if _, err := pool.Exec(ctx, `INSERT INTO products (id,name,code,category,price_idr,base_price_idr,is_active)
+		VALUES ($1,'Pulsa Uji Routing',$2,'PPOB_CREDIT',10000,10000,true)`,
+		productID, "RTE-"+uuid.NewString()[:8]); err != nil {
+		t.Fatalf("create digital product: %v", err)
 	}
+	t.Cleanup(func() {
+		bg := context.Background()
+		_, _ = pool.Exec(bg, `DELETE FROM product_routes WHERE product_id = $1`, productID)
+		_, _ = pool.Exec(bg, `DELETE FROM products WHERE id = $1`, productID)
+	})
 
 	queries := db.New(pool)
 	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
