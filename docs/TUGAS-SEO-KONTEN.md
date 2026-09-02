@@ -32,20 +32,20 @@ Diperiksa sebelum menulis daftar ini:
 
 # TAHAP S1 — Bisa ditemukan
 
-- [ ] **S1.1** `robots.txt` sadar host. Untuk host platform: izinkan `/`,
+- [x] **S1.1** `robots.txt` sadar host (`c3ed52e`). Untuk host platform: izinkan `/`,
       larang `/dashboard`, `/admin`, `/leader`, `/pilgrim`, `/api`. Untuk host
       tenant: izinkan storefront dan artikelnya saja. **Subdomain yang
       dicadangkan dan domain yang belum terverifikasi harus `Disallow: /`** —
       halaman yang belum resmi milik siapa pun tidak boleh terindeks.
-- [ ] **S1.2** `sitemap.xml` per tenant, dibangun dari host: halaman utama,
+- [x] **S1.2** `sitemap.xml` per tenant (`c3ed52e`), dibangun dari host: halaman utama,
       tiap paket/musim yang aktif, tiap artikel. `lastmod` dari `updated_at`
       yang sebenarnya, bukan waktu render — `lastmod` yang selalu "sekarang"
       diabaikan Google setelah beberapa kali.
-- [ ] **S1.3** Sitemap platform terpisah untuk `/` dan halaman publiknya.
-- [ ] **S1.4** Uji: sitemap untuk domain travel A **tidak memuat** satu pun URL
-      travel B. Kebocoran di sini membocorkan daftar pelanggan Anda ke pesaing.
-- [ ] **S1.5** Tautkan sitemap dari `robots.txt`, dan cek `Content-Type` benar
-      (`application/xml`).
+- [x] **S1.3** Sitemap platform terpisah (`c3ed52e`).
+- [x] **S1.4** Diuji dua arah terhadap dua tenant nyata di server berjalan: nol
+      kemunculan silang (`c3ed52e`)
+- [x] **S1.5** Sitemap ditautkan dari `robots.txt`; `Content-Type` diverifikasi
+      `application/xml` (`c3ed52e`)
 
 # TAHAP S2 — Data terstruktur
 

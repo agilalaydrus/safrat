@@ -297,5 +297,9 @@ export const config = {
   // Keep public image assets out of tenant/auth routing. Without this,
   // /images/* is treated as an application page on a tenant subdomain and
   // redirects to /sign-in instead of returning the actual image file.
-  matcher: ["/((?!_next/static|_next/image|images|favicon.ico|icons|manifest.json|sw.js).*)"],
+  // robots.txt and sitemap.xml are excluded deliberately. They resolve the
+  // hostname themselves and must never be rewritten or gated — without this
+  // they fell through to the signed-out redirect, so every crawler asking for
+  // robots.txt got a 307 to /sign-in and none of them ever read a line of it.
+  matcher: ["/((?!_next/static|_next/image|images|favicon.ico|icons|manifest.json|sw.js|robots.txt|sitemap.xml).*)"],
 };
