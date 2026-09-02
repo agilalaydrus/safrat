@@ -58,9 +58,11 @@ func NewSubscriptionRepository(pool *pgxpool.Pool) *SubscriptionRepository {
 
 // Access is the single answer to "may this operator use the dashboard?".
 type Access struct {
-	Plan        string
-	Status      string
-	AccessUntil time.Time
+	Plan                 string
+	Status               string
+	AccessUntil          time.Time
+	EffectiveAccessUntil time.Time
+	GracePeriodDays      int
 	// Allowed is derived from time, never from status alone: a status left
 	// stale by a missed sweep must not hand out free access.
 	Allowed bool
@@ -265,9 +267,14 @@ func (r *SubscriptionRepository) GetAccess(ctx context.Context, operatorID strin
 	}
 	var access Access
 	err = r.pool.QueryRow(ctx, `
-		SELECT plan::text, status::text, access_until, access_until > NOW()
-		FROM subscriptions WHERE operator_id = $1`, id).
-		Scan(&access.Plan, &access.Status, &access.AccessUntil, &access.Allowed)
+		SELECT s.plan::text, s.status::text, s.access_until,
+		       subscription_effective_access_until(s.access_until, s.grace_period_days),
+		       COALESCE(s.grace_period_days, platform_grace_period_days()),
+		       s.suspended_at IS NULL AND subscription_effective_access_until(s.access_until, s.grace_period_days) > NOW()
+		FROM subscriptions s
+		WHERE s.operator_id = $1`, id).
+		Scan(&access.Plan, &access.Status, &access.AccessUntil, &access.EffectiveAccessUntil,
+			&access.GracePeriodDays, &access.Allowed)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Access{}, apperror.ErrNotFound
 	}
@@ -481,7 +488,8 @@ func (r *SubscriptionRepository) ExpireOverdueInvoices(ctx context.Context) (int
 func (r *SubscriptionRepository) MarkLapsed(ctx context.Context) (int64, error) {
 	command, err := r.pool.Exec(ctx, `
 		UPDATE subscriptions SET status = 'PAST_DUE', updated_at = NOW()
-		WHERE access_until < NOW() AND status IN ('TRIALING', 'ACTIVE')`)
+		WHERE subscription_effective_access_until(access_until, grace_period_days) < NOW()
+		AND status IN ('TRIALING', 'ACTIVE')`)
 	if err != nil {
 		return 0, err
 	}
@@ -570,11 +578,15 @@ func (r *SubscriptionRepository) GetAccessByOrgID(ctx context.Context, orgID str
 	}
 	var access Access
 	err := r.pool.QueryRow(ctx, `
-		SELECT s.plan::text, s.status::text, s.access_until, s.access_until > NOW()
+		SELECT s.plan::text, s.status::text, s.access_until,
+		       subscription_effective_access_until(s.access_until, s.grace_period_days),
+		       COALESCE(s.grace_period_days, platform_grace_period_days()),
+		       s.suspended_at IS NULL AND subscription_effective_access_until(s.access_until, s.grace_period_days) > NOW()
 		FROM subscriptions s
 		JOIN operators o ON o.id = s.operator_id
 		WHERE o.better_auth_org_id = $1`, orgID).
-		Scan(&access.Plan, &access.Status, &access.AccessUntil, &access.Allowed)
+		Scan(&access.Plan, &access.Status, &access.AccessUntil, &access.EffectiveAccessUntil,
+			&access.GracePeriodDays, &access.Allowed)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Access{}, apperror.ErrNotFound
 	}

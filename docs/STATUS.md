@@ -14,6 +14,7 @@ Diperbarui: **2 September 2026**
 |---|---|---|---|
 | **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **54/74 butir** · sisa Tahap 3–4 |
 | **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1 selesai** · 16/68 butir · berikutnya B2 |
+| **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | dirancang, **antre** · 0/24 butir |
 
 Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
 `admin/page.tsx`.
@@ -24,6 +25,9 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
    mendekatinya.
 2. **B3** Halaman detail tenant.
 3. **Tahap 3 Dashboard Travel** — CRM Leads, WhatsApp, rundown, tier kamar.
+4. **Corong pengunjung** — dirancang penuh, menunggu giliran. Hari ini tidak ada
+   pelacakan pengunjung sama sekali: berapa orang membuka storefront sebuah
+   travel, tidak ada yang tahu.
 
 **Dunning masih mode kering.** Ia berjalan tiap 24 jam, mengisi `dunning_log`,
 dan **tidak mengirim apa pun** sampai `DUNNING_LIVE=true` diset. Bandingkan satu

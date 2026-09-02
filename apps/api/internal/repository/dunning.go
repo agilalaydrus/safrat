@@ -21,9 +21,10 @@ type DunningSettings struct {
 	ReminderDays     []int
 	SuspendAfterDays int
 	TrialDays        int
+	GracePeriodDays  int
 }
 
-var defaultDunningSettings = DunningSettings{ReminderDays: []int{1, 7, 14}, SuspendAfterDays: 21, TrialDays: 10}
+var defaultDunningSettings = DunningSettings{ReminderDays: []int{1, 7, 14}, SuspendAfterDays: 21, TrialDays: 10, GracePeriodDays: 0}
 
 // Settings reads the platform settings, falling back to defaults for anything
 // missing or unparseable. A malformed row must not stop billing from running.
@@ -53,6 +54,10 @@ func (r *SubscriptionRepository) Settings(ctx context.Context) (DunningSettings,
 			if n, err := strconv.Atoi(strings.TrimSpace(value)); err == nil && n > 0 {
 				settings.TrialDays = n
 			}
+		case "grace_period_days":
+			if n, err := strconv.Atoi(strings.TrimSpace(value)); err == nil && n >= 0 && n <= 90 {
+				settings.GracePeriodDays = n
+			}
 		}
 	}
 	return settings, rows.Err()
@@ -66,6 +71,134 @@ func parseDayList(value string) []int {
 		}
 	}
 	return days
+}
+
+type GracePeriodChange struct {
+	OperatorID     string
+	Days           *int32
+	UseDefault     bool
+	Reason         string
+	Confirmation   string
+	ActorUserID    string
+	IdempotencyKey string
+}
+
+type GracePeriodResult struct {
+	OperatorID    string
+	EffectiveDays int32
+	OverrideDays  *int32
+}
+
+func (r *SubscriptionRepository) SetGracePeriod(ctx context.Context, change GracePeriodChange) (GracePeriodResult, error) {
+	if strings.TrimSpace(change.Reason) == "" || strings.TrimSpace(change.ActorUserID) == "" ||
+		strings.TrimSpace(change.IdempotencyKey) == "" || (change.Days != nil && (*change.Days < 0 || *change.Days > 90)) {
+		return GracePeriodResult{}, apperror.ErrValidation
+	}
+	global := strings.TrimSpace(change.OperatorID) == ""
+	if global && (change.UseDefault || change.Days == nil || !strings.EqualFold(strings.TrimSpace(change.Confirmation), "GLOBAL")) {
+		return GracePeriodResult{}, apperror.ErrValidation
+	}
+	if !global && ((!change.UseDefault && change.Days == nil) || (change.UseDefault && change.Days != nil)) {
+		return GracePeriodResult{}, apperror.ErrValidation
+	}
+
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	if err != nil {
+		return GracePeriodResult{}, databaseError(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	scope := "global"
+	var operator any
+	if !global {
+		id, parseErr := pgUUID(change.OperatorID)
+		if parseErr != nil {
+			return GracePeriodResult{}, apperror.ErrValidation
+		}
+		operator = id
+		scope = change.OperatorID
+		var name string
+		if err := tx.QueryRow(ctx, `SELECT name FROM operators WHERE id=$1 FOR UPDATE`, id).Scan(&name); errors.Is(err, pgx.ErrNoRows) {
+			return GracePeriodResult{}, apperror.ErrNotFound
+		} else if err != nil {
+			return GracePeriodResult{}, databaseError(err)
+		} else if !strings.EqualFold(strings.TrimSpace(change.Confirmation), strings.TrimSpace(name)) {
+			return GracePeriodResult{}, apperror.ErrValidation
+		}
+	}
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1,0))`, "subscription-grace:"+scope); err != nil {
+		return GracePeriodResult{}, databaseError(err)
+	}
+	fingerprint, _, err := requestFingerprint(change)
+	if err != nil {
+		return GracePeriodResult{}, err
+	}
+	duplicate, err := checkPlatformMutationKey(ctx, tx, change.ActorUserID, "subscription_grace_changed", change.IdempotencyKey, fingerprint)
+	if err != nil {
+		return GracePeriodResult{}, err
+	}
+	if duplicate {
+		return currentGracePeriod(ctx, tx, change.OperatorID)
+	}
+
+	if global {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO platform_settings (key,value,updated_by,updated_at)
+			VALUES ('grace_period_days',$1,$2,NOW())
+			ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_by=EXCLUDED.updated_by, updated_at=NOW()`,
+			strconv.Itoa(int(*change.Days)), change.ActorUserID); err != nil {
+			return GracePeriodResult{}, databaseError(err)
+		}
+	} else {
+		var value any
+		if !change.UseDefault {
+			value = *change.Days
+		}
+		command, err := tx.Exec(ctx, `UPDATE subscriptions SET grace_period_days=$2, updated_at=NOW() WHERE operator_id=$1`, operator, value)
+		if err != nil {
+			return GracePeriodResult{}, databaseError(err)
+		}
+		if command.RowsAffected() == 0 {
+			return GracePeriodResult{}, apperror.ErrNotFound
+		}
+	}
+	metadata := map[string]any{
+		"message": change.Reason, "idempotency_key": change.IdempotencyKey,
+		"request_fingerprint": fingerprint, "scope": scope,
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO audit_logs (operator_id,user_id,action,entity_type,entity_id,metadata)
+		VALUES ($1,$2,'subscription_grace_changed','subscription_grace',$3,$4)`,
+		operator, change.ActorUserID, scope, metadata); err != nil {
+		return GracePeriodResult{}, databaseError(err)
+	}
+	result, err := currentGracePeriod(ctx, tx, change.OperatorID)
+	if err != nil {
+		return GracePeriodResult{}, err
+	}
+	return result, databaseError(tx.Commit(ctx))
+}
+
+func currentGracePeriod(ctx context.Context, tx pgx.Tx, operatorID string) (GracePeriodResult, error) {
+	if strings.TrimSpace(operatorID) == "" {
+		var days int32
+		if err := tx.QueryRow(ctx, `SELECT platform_grace_period_days()`).Scan(&days); err != nil {
+			return GracePeriodResult{}, databaseError(err)
+		}
+		return GracePeriodResult{EffectiveDays: days}, nil
+	}
+	id, err := pgUUID(operatorID)
+	if err != nil {
+		return GracePeriodResult{}, apperror.ErrValidation
+	}
+	result := GracePeriodResult{OperatorID: operatorID}
+	if err := tx.QueryRow(ctx, `
+		SELECT COALESCE(grace_period_days, platform_grace_period_days()), grace_period_days
+		FROM subscriptions WHERE operator_id=$1`, id).Scan(&result.EffectiveDays, &result.OverrideDays); errors.Is(err, pgx.ErrNoRows) {
+		return GracePeriodResult{}, apperror.ErrNotFound
+	} else if err != nil {
+		return GracePeriodResult{}, databaseError(err)
+	}
+	return result, nil
 }
 
 // DunningStep is one reminder that is due and has not been sent.
@@ -90,8 +223,11 @@ type DunningStep struct {
 // leaving does not need three more demands.
 func (r *SubscriptionRepository) DueDunning(ctx context.Context, settings DunningSettings) ([]DunningStep, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT s.operator_id::text, o.name, COALESCE(o.email, ''), s.access_until,
-		       FLOOR(EXTRACT(EPOCH FROM (NOW() - s.access_until)) / 86400)::int AS days_overdue,
+		SELECT s.operator_id::text, o.name, COALESCE(o.email, ''),
+		       subscription_effective_access_until(s.access_until, s.grace_period_days),
+		       FLOOR(EXTRACT(EPOCH FROM (
+		         NOW() - subscription_effective_access_until(s.access_until, s.grace_period_days)
+		       ) / 86400))::int AS days_overdue,
 		       COALESCE((
 		         SELECT i.amount_idr FROM subscription_invoices i
 		         WHERE i.operator_id = s.operator_id AND i.status = 'PENDING'
@@ -100,7 +236,7 @@ func (r *SubscriptionRepository) DueDunning(ctx context.Context, settings Dunnin
 		FROM subscriptions s
 		JOIN operators o ON o.id = s.operator_id
 		WHERE s.cancelled_at IS NULL
-		  AND s.access_until < NOW()
+		  AND subscription_effective_access_until(s.access_until, s.grace_period_days) < NOW()
 		ORDER BY s.access_until ASC`)
 	if err != nil {
 		return nil, err

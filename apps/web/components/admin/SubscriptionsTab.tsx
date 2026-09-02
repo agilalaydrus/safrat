@@ -35,13 +35,29 @@ export default function SubscriptionsTab() {
   const [billingPreview, setBillingPreview] = useState<SubscriptionBillingCandidate[] | null>(null);
   const [billingResults, setBillingResults] = useState<SubscriptionBillingResult[] | null>(null);
   const [billingBusy, setBillingBusy] = useState(false);
+  const [defaultGraceDays, setDefaultGraceDays] = useState(0);
+  const [dunningDays, setDunningDays] = useState<number[]>([]);
+  const [suspendAfterDays, setSuspendAfterDays] = useState(0);
+  const [graceScope, setGraceScope] = useState("GLOBAL");
+  const [graceDays, setGraceDays] = useState("0");
+  const [graceReason, setGraceReason] = useState("");
+  const [graceConfirmation, setGraceConfirmation] = useState("");
+  const [useDefaultGrace, setUseDefaultGrace] = useState(false);
+  const [graceBusy, setGraceBusy] = useState(false);
 
   const refresh = useCallback(() => {
     setLoading(true);
-    Promise.all([platformClient.listOperators({}), platformClient.listSubscriptionInvoices({ limit: 100 })])
-      .then(([operatorResponse, invoiceResponse]) => {
+    Promise.all([
+      platformClient.listOperators({}),
+      platformClient.listSubscriptionInvoices({ limit: 100 }),
+      platformClient.getSubscriptionBillingSettings({}),
+    ])
+      .then(([operatorResponse, invoiceResponse, settingsResponse]) => {
         setOperators(operatorResponse.operators);
         setInvoices(invoiceResponse.invoices);
+        setDefaultGraceDays(settingsResponse.defaultGracePeriodDays);
+        setDunningDays(settingsResponse.dunningDays);
+        setSuspendAfterDays(settingsResponse.suspendAfterDays);
       })
       .catch(() => setNotice("Gagal memuat data langganan."))
       .finally(() => setLoading(false));
@@ -50,8 +66,8 @@ export default function SubscriptionsTab() {
 
   const lapsed = useMemo(
     () => operators
-      .filter((o) => o.accessUntil && o.accessUntil.toDate() < new Date())
-      .sort((a, b) => (a.accessUntil?.toDate().getTime() ?? 0) - (b.accessUntil?.toDate().getTime() ?? 0)),
+      .filter((o) => o.suspendedAt || (o.effectiveAccessUntil && o.effectiveAccessUntil.toDate() < new Date()))
+      .sort((a, b) => (a.effectiveAccessUntil?.toDate().getTime() ?? 0) - (b.effectiveAccessUntil?.toDate().getTime() ?? 0)),
     [operators],
   );
   const suspended = useMemo(() => operators.filter((o) => o.suspendedAt).length, [operators]);
@@ -112,6 +128,32 @@ export default function SubscriptionsTab() {
     }
   }
 
+  const selectedGraceOperator = operators.find((operator) => operator.id === graceScope);
+
+  async function saveGracePeriod() {
+    const parsedDays = Number(graceDays);
+    if ((!useDefaultGrace && (!Number.isInteger(parsedDays) || parsedDays < 0 || parsedDays > 90)) || !graceReason.trim() || !graceConfirmation.trim()) return;
+    setGraceBusy(true);
+    try {
+      await platformClient.setSubscriptionGracePeriod({
+        operatorId: graceScope === "GLOBAL" ? "" : graceScope,
+        gracePeriodDays: useDefaultGrace ? undefined : parsedDays,
+        usePlatformDefault: graceScope !== "GLOBAL" && useDefaultGrace,
+        reason: graceReason.trim(),
+        confirmation: graceConfirmation.trim(),
+        idempotencyKey: crypto.randomUUID(),
+      });
+      setNotice(graceScope === "GLOBAL" ? `Grace period global menjadi ${parsedDays} hari.` : useDefaultGrace ? `${selectedGraceOperator?.name ?? "Travel"} kembali mengikuti default global.` : `Grace period ${selectedGraceOperator?.name ?? "travel"} menjadi ${parsedDays} hari.`);
+      setGraceReason("");
+      setGraceConfirmation("");
+      refresh();
+    } catch {
+      setNotice("Grace period gagal disimpan. Pastikan konfirmasi sama persis dan muat ulang jika kebijakan berubah.");
+    } finally {
+      setGraceBusy(false);
+    }
+  }
+
   if (loading) return <p style={muted}>Memuat data langganan…</p>;
 
   return (
@@ -133,6 +175,49 @@ export default function SubscriptionsTab() {
           penangguhan menutup akses tanpa menghapus data apa pun.
         </p>
       )}
+
+      <details className="admin-grace-settings tw-card">
+        <summary>
+          <span><strong>Grace period akses</strong><small>Default {defaultGraceDays} hari · pengingat H+{dunningDays.join(", H+")} · suspend H+{suspendAfterDays}</small></span>
+          <span className="tw-badge tw-badge--neutral">Kebijakan billing</span>
+        </summary>
+        <div className="admin-grace-settings__body">
+          <p>Grace memperpanjang batas akses efektif tanpa mengubah tanggal akses yang sudah dibayar. Penangguhan manual tetap menutup akses.</p>
+          <div className="admin-grace-settings__grid">
+            <label>
+              <span>Cakupan</span>
+              <select value={graceScope} onChange={(event) => { setGraceScope(event.target.value); setUseDefaultGrace(false); setGraceConfirmation(""); }}>
+                <option value="GLOBAL">Default seluruh travel</option>
+                {operators.map((operator) => <option key={operator.id} value={operator.id}>{operator.name} · efektif {operator.gracePeriodDays} hari</option>)}
+              </select>
+            </label>
+            <label>
+              <span>Grace period (hari)</span>
+              <input type="number" min={0} max={90} value={graceDays} disabled={useDefaultGrace} onChange={(event) => setGraceDays(event.target.value)} />
+            </label>
+            <label className="admin-grace-settings__wide">
+              <span>Alasan perubahan</span>
+              <input value={graceReason} maxLength={500} onChange={(event) => setGraceReason(event.target.value)} placeholder="Contoh: waktu kliring transfer kontrak enterprise" />
+            </label>
+            {graceScope !== "GLOBAL" && (
+              <label className="admin-grace-settings__check">
+                <input type="checkbox" checked={useDefaultGrace} onChange={(event) => setUseDefaultGrace(event.target.checked)} />
+                <span>Hapus override dan ikuti default global ({defaultGraceDays} hari)</span>
+              </label>
+            )}
+            <label className="admin-grace-settings__wide">
+              <span>Konfirmasi dengan mengetik {graceScope === "GLOBAL" ? "GLOBAL" : selectedGraceOperator?.name ?? "nama travel"}</span>
+              <input value={graceConfirmation} onChange={(event) => setGraceConfirmation(event.target.value)} />
+            </label>
+          </div>
+          <div className="admin-grace-settings__footer">
+            <span>Perubahan dicatat di audit log dan aman terhadap submit ulang.</span>
+            <button className="tw-btn tw-btn--outline tw-btn--md" disabled={graceBusy || !graceReason.trim() || !graceConfirmation.trim() || (!useDefaultGrace && (!Number.isInteger(Number(graceDays)) || Number(graceDays) < 0 || Number(graceDays) > 90))} onClick={saveGracePeriod}>
+              {graceBusy ? "Menyimpan…" : "Simpan grace period"}
+            </button>
+          </div>
+        </div>
+      </details>
 
       <div className="admin-billing-cycle tw-card" aria-labelledby="billing-cycle-title">
         <div className="admin-billing-cycle__header">
@@ -232,16 +317,19 @@ export default function SubscriptionsTab() {
           <table style={table}>
             <caption style={caption}>Lintas seluruh travel · yang paling lama telat di atas</caption>
             <thead>
-              <tr>{["Travel", "Paket", "Akses habis", "Telat", "Tahap pengingat", "Belum dibayar", "Status"].map((h) => <th key={h} style={th}>{h}</th>)}</tr>
+              <tr>{["Travel", "Paket", "Akses efektif habis", "Telat", "Tahap pengingat", "Belum dibayar", "Status"].map((h) => <th key={h} style={th}>{h}</th>)}</tr>
             </thead>
             <tbody>
               {lapsed.map((operator) => {
-                const late = daysOverdue(operator.accessUntil?.toDate());
+                const late = daysOverdue(operator.effectiveAccessUntil?.toDate());
                 return (
                   <tr key={operator.id} style={operator.suspendedAt ? { ...tr, background: "var(--color-danger-100)" } : tr}>
                     <td style={{ ...td, fontWeight: 700 }}>{operator.name}</td>
                     <td style={td}>{operator.plan || "—"}</td>
-                    <td style={td}>{operator.accessUntil ? tanggal(operator.accessUntil.toDate()) : "—"}</td>
+                    <td style={td}>
+                      {operator.effectiveAccessUntil ? tanggal(operator.effectiveAccessUntil.toDate()) : "—"}
+                      {operator.gracePeriodDays > 0 && <small className="admin-grace-note">Dibayar s.d. {operator.accessUntil ? tanggal(operator.accessUntil.toDate()) : "—"} · grace {operator.gracePeriodDays} hari</small>}
+                    </td>
                     <td style={td}>{late} hari</td>
                     <td style={td}>
                       {operator.dunningStage

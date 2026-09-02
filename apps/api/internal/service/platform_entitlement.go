@@ -342,6 +342,51 @@ func billingIssueExplanation(err error) (string, string) {
 	}
 }
 
+func (s *PlatformService) GetSubscriptionBillingSettings(ctx context.Context) (*hajjv1.GetSubscriptionBillingSettingsResponse, error) {
+	if _, err := s.requirePlatformAdmin(ctx); err != nil {
+		return nil, err
+	}
+	settings, err := s.subscriptionRepository.Settings(ctx)
+	if err != nil {
+		return nil, serviceError("PlatformService.GetSubscriptionBillingSettings", err)
+	}
+	response := &hajjv1.GetSubscriptionBillingSettingsResponse{
+		DefaultGracePeriodDays: int32(settings.GracePeriodDays),
+		SuspendAfterDays:       int32(settings.SuspendAfterDays),
+		DunningDays:            make([]int32, 0, len(settings.ReminderDays)),
+	}
+	for _, day := range settings.ReminderDays {
+		response.DunningDays = append(response.DunningDays, int32(day))
+	}
+	return response, nil
+}
+
+func (s *PlatformService) SetSubscriptionGracePeriod(ctx context.Context, req *hajjv1.SetSubscriptionGracePeriodRequest) (*hajjv1.SetSubscriptionGracePeriodResponse, error) {
+	userID, err := s.requirePlatformAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req == nil || strings.TrimSpace(req.Reason) == "" || strings.TrimSpace(req.Confirmation) == "" ||
+		strings.TrimSpace(req.IdempotencyKey) == "" || (req.OperatorId != "" && !isUUID(req.OperatorId)) ||
+		(req.OperatorId == "" && (req.UsePlatformDefault || req.GracePeriodDays == nil)) ||
+		(req.OperatorId != "" && ((req.UsePlatformDefault && req.GracePeriodDays != nil) || (!req.UsePlatformDefault && req.GracePeriodDays == nil))) {
+		return nil, serviceError("PlatformService.SetSubscriptionGracePeriod", apperror.ErrValidation)
+	}
+	result, err := s.subscriptionRepository.SetGracePeriod(ctx, repository.GracePeriodChange{
+		OperatorID: strings.TrimSpace(req.OperatorId), Days: req.GracePeriodDays,
+		UseDefault: req.UsePlatformDefault, Reason: strings.TrimSpace(req.Reason),
+		Confirmation: strings.TrimSpace(req.Confirmation), ActorUserID: userID,
+		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+	})
+	if err != nil {
+		return nil, serviceError("PlatformService.SetSubscriptionGracePeriod", err)
+	}
+	return &hajjv1.SetSubscriptionGracePeriodResponse{
+		OperatorId: result.OperatorID, EffectiveGracePeriodDays: result.EffectiveDays,
+		OverrideGracePeriodDays: result.OverrideDays,
+	}, nil
+}
+
 func (s *PlatformService) VoidSubscriptionInvoice(ctx context.Context, req *hajjv1.VoidSubscriptionInvoiceRequest) (*hajjv1.VoidSubscriptionInvoiceResponse, error) {
 	userID, err := s.requirePlatformAdmin(ctx)
 	if err != nil {

@@ -41,6 +41,8 @@ service PlatformService {
   rpc ListSubscriptionInvoices(ListSubscriptionInvoicesRequest) returns (ListSubscriptionInvoicesResponse);
   rpc PreviewSubscriptionBilling(PreviewSubscriptionBillingRequest) returns (PreviewSubscriptionBillingResponse);
   rpc IssueSubscriptionBilling(IssueSubscriptionBillingRequest) returns (IssueSubscriptionBillingResponse);
+  rpc GetSubscriptionBillingSettings(GetSubscriptionBillingSettingsRequest) returns (GetSubscriptionBillingSettingsResponse);
+  rpc SetSubscriptionGracePeriod(SetSubscriptionGracePeriodRequest) returns (SetSubscriptionGracePeriodResponse);
   rpc VoidSubscriptionInvoice(VoidSubscriptionInvoiceRequest) returns (VoidSubscriptionInvoiceResponse);
   rpc SetPlanOverride(SetPlanOverrideRequest) returns (SetPlanOverrideResponse);
   rpc DeletePlanOverride(DeletePlanOverrideRequest) returns (DeletePlanOverrideResponse);
@@ -191,6 +193,9 @@ message PlatformOperator {
   string dunning_stage = 12;
   // What is currently billed and unpaid.
   int64 outstanding_idr = 13;
+  int32 grace_period_days = 14;
+  optional int32 grace_period_override_days = 15;
+  google.protobuf.Timestamp effective_access_until = 16;
 }
 
 message ListOperatorsRequest {}
@@ -331,6 +336,29 @@ message IssueSubscriptionBillingResponse {
   repeated SubscriptionBillingResult results = 1;
   int32 issued_count = 2;
   int32 failed_count = 3;
+}
+
+message GetSubscriptionBillingSettingsRequest {}
+message GetSubscriptionBillingSettingsResponse {
+  int32 default_grace_period_days = 1;
+  repeated int32 dunning_days = 2;
+  int32 suspend_after_days = 3;
+}
+
+message SetSubscriptionGracePeriodRequest {
+  // Empty updates the platform default. A UUID sets or clears one tenant's
+  // override without changing anybody else.
+  string operator_id = 1;
+  optional int32 grace_period_days = 2 [(buf.validate.field).int32 = {gte: 0, lte: 90}];
+  bool use_platform_default = 3;
+  string reason = 4 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+  string confirmation = 5 [(buf.validate.field).string = {min_len: 1, max_len: 160}];
+  string idempotency_key = 6 [(buf.validate.field).string = {min_len: 8, max_len: 128}];
+}
+message SetSubscriptionGracePeriodResponse {
+  string operator_id = 1;
+  int32 effective_grace_period_days = 2;
+  optional int32 override_grace_period_days = 3;
 }
 
 message VoidSubscriptionInvoiceRequest {

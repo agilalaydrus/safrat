@@ -54,19 +54,22 @@ func (r *PlatformRepository) PlatformAccessFor(ctx context.Context, userID strin
 
 // PlatformOperator is one tenant as the platform sees it.
 type PlatformOperator struct {
-	ID                 string
-	Name               string
-	Slug               string
-	Plan               string
-	SubscriptionStatus string
-	AccessUntil        *time.Time
-	PilgrimCount       int32
-	ProductCount       int32
-	HeldOrderCount     int32
-	CreatedAt          time.Time
-	SuspendedAt        *time.Time
-	DunningStage       string
-	OutstandingIDR     int64
+	ID                   string
+	Name                 string
+	Slug                 string
+	Plan                 string
+	SubscriptionStatus   string
+	AccessUntil          *time.Time
+	PilgrimCount         int32
+	ProductCount         int32
+	HeldOrderCount       int32
+	CreatedAt            time.Time
+	SuspendedAt          *time.Time
+	DunningStage         string
+	OutstandingIDR       int64
+	GracePeriodDays      int32
+	GraceOverrideDays    *int32
+	EffectiveAccessUntil *time.Time
 }
 
 // ListOperators returns tenants, most urgent first, up to limit.
@@ -77,6 +80,9 @@ func (r *PlatformRepository) ListOperators(ctx context.Context, limit int32) ([]
 	rows, err := r.pool.Query(ctx, `
 		SELECT o.id::text, o.name, COALESCE(o.slug, ''),
 		       COALESCE(s.plan::text, ''), COALESCE(s.status::text, ''), s.access_until,
+		       CASE WHEN s.operator_id IS NULL THEN NULL ELSE subscription_effective_access_until(s.access_until, s.grace_period_days) END,
+		       COALESCE(s.grace_period_days, platform_grace_period_days())::int,
+		       s.grace_period_days,
 		       COALESCE(p.count, 0)::int, COALESCE(pr.count, 0)::int, COALESCE(h.count, 0)::int,
 		       o.created_at, s.suspended_at,
 		       -- Furthest stage reached for the lapse currently in progress.
@@ -84,7 +90,8 @@ func (r *PlatformRepository) ListOperators(ctx context.Context, limit int32) ([]
 		       -- lapse never shows against a tenant who has since paid.
 		       COALESCE((
 		         SELECT d.stage FROM dunning_log d
-		         WHERE d.operator_id = o.id AND d.lapsed_at = s.access_until
+		         WHERE d.operator_id = o.id
+		           AND d.lapsed_at = subscription_effective_access_until(s.access_until, s.grace_period_days)
 		         ORDER BY d.sent_at DESC LIMIT 1
 		       ), ''),
 		       COALESCE((
@@ -114,7 +121,8 @@ func (r *PlatformRepository) ListOperators(ctx context.Context, limit int32) ([]
 	for rows.Next() {
 		var operator PlatformOperator
 		if err := rows.Scan(&operator.ID, &operator.Name, &operator.Slug, &operator.Plan,
-			&operator.SubscriptionStatus, &operator.AccessUntil, &operator.PilgrimCount,
+			&operator.SubscriptionStatus, &operator.AccessUntil, &operator.EffectiveAccessUntil,
+			&operator.GracePeriodDays, &operator.GraceOverrideDays, &operator.PilgrimCount,
 			&operator.ProductCount, &operator.HeldOrderCount, &operator.CreatedAt,
 			&operator.SuspendedAt, &operator.DunningStage, &operator.OutstandingIDR); err != nil {
 			return nil, err

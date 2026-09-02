@@ -2,11 +2,13 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hajj-saas/api/internal/apperror"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -151,6 +153,64 @@ func TestDunningSequenceIsIdempotentAndPaymentLiftsSuspensionIntegration(t *test
 	}
 	if !accessUntil.After(time.Now()) {
 		t.Fatalf("akses tidak pulih setelah bayar: %v", accessUntil)
+	}
+}
+
+func TestTenantGracePeriodControlsAccessAndIdempotencyIntegration(t *testing.T) {
+	pool := subscriptionTestPool(t)
+	ctx := context.Background()
+	repo := NewSubscriptionRepository(pool)
+	operatorID := newTestOperator(t, pool, "STARTER")
+	if err := repo.EnsureForOperator(ctx, operatorID); err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+	paidUntil := time.Now().UTC().Truncate(time.Microsecond).Add(-24 * time.Hour)
+	if _, err := pool.Exec(ctx, `UPDATE subscriptions SET status='ACTIVE', access_until=$2 WHERE operator_id=$1`, operatorID, paidUntil); err != nil {
+		t.Fatalf("prepare lapse: %v", err)
+	}
+	before, err := repo.GetAccess(ctx, operatorID)
+	if err != nil || before.Allowed {
+		t.Fatalf("access before grace = %+v err=%v, want closed", before, err)
+	}
+
+	days := int32(3)
+	change := GracePeriodChange{
+		OperatorID: operatorID, Days: &days, Reason: "beri waktu kliring transfer",
+		Confirmation: "Sub Test", ActorUserID: "grace-test", IdempotencyKey: "grace-test-" + operatorID,
+	}
+	result, err := repo.SetGracePeriod(ctx, change)
+	if err != nil || result.EffectiveDays != 3 || result.OverrideDays == nil || *result.OverrideDays != 3 {
+		t.Fatalf("set grace = %+v err=%v", result, err)
+	}
+	after, err := repo.GetAccess(ctx, operatorID)
+	if err != nil || !after.Allowed || after.GracePeriodDays != 3 {
+		t.Fatalf("access in grace = %+v err=%v, want allowed", after, err)
+	}
+	if !after.AccessUntil.Equal(paidUntil) || !after.EffectiveAccessUntil.Equal(paidUntil.Add(72*time.Hour)) {
+		t.Fatalf("paid/effective horizon changed incorrectly: %+v", after)
+	}
+	if _, err := repo.MarkLapsed(ctx); err != nil {
+		t.Fatalf("mark lapsed: %v", err)
+	}
+	var status string
+	if err := pool.QueryRow(ctx, `SELECT status::text FROM subscriptions WHERE operator_id=$1`, operatorID).Scan(&status); err != nil || status != "ACTIVE" {
+		t.Fatalf("status during grace = %q err=%v, want ACTIVE", status, err)
+	}
+
+	if _, err := pool.Exec(ctx, `UPDATE subscriptions SET suspended_at=NOW(), suspended_reason='uji' WHERE operator_id=$1`, operatorID); err != nil {
+		t.Fatalf("suspend: %v", err)
+	}
+	suspended, _ := repo.GetAccess(ctx, operatorID)
+	if suspended.Allowed {
+		t.Fatal("grace reopened a deliberately suspended tenant")
+	}
+	if _, err := repo.SetGracePeriod(ctx, change); err != nil {
+		t.Fatalf("idempotent replay: %v", err)
+	}
+	other := int32(4)
+	change.Days = &other
+	if _, err := repo.SetGracePeriod(ctx, change); !errors.Is(err, apperror.ErrConflict) {
+		t.Fatalf("same key with different grace = %v, want conflict", err)
 	}
 }
 

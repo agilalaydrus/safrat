@@ -243,6 +243,22 @@ func TestPlatformPlanControlRPCAccessRevocationAndMutationIntegration(t *testing
 			}
 			return err
 		}},
+		{"GetSubscriptionBillingSettings", func(token string) error {
+			req := connect.NewRequest(&hajjv1.GetSubscriptionBillingSettingsRequest{})
+			auth(req, token)
+			_, err := client.GetSubscriptionBillingSettings(ctx, req)
+			return err
+		}},
+		{"SetSubscriptionGracePeriod", func(token string) error {
+			days := int32(2)
+			req := connect.NewRequest(&hajjv1.SetSubscriptionGracePeriodRequest{
+				OperatorId: billingOperatorID, GracePeriodDays: &days, Reason: "verifikasi HTTP grace",
+				Confirmation: "Billing Row Success", IdempotencyKey: "grace-http-" + billingOperatorID,
+			})
+			auth(req, token)
+			_, err := client.SetSubscriptionGracePeriod(ctx, req)
+			return err
+		}},
 	}
 
 	for _, call := range calls {

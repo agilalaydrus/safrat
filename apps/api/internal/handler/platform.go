@@ -88,6 +88,25 @@ func (h *PlatformHandler) IssueSubscriptionBilling(ctx context.Context, req *con
 	return connect.NewResponse(result), nil
 }
 
+func (h *PlatformHandler) GetSubscriptionBillingSettings(ctx context.Context, _ *connect.Request[hajjv1.GetSubscriptionBillingSettingsRequest]) (*connect.Response[hajjv1.GetSubscriptionBillingSettingsResponse], error) {
+	result, err := h.platformService.GetSubscriptionBillingSettings(ctx)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) SetSubscriptionGracePeriod(ctx context.Context, req *connect.Request[hajjv1.SetSubscriptionGracePeriodRequest]) (*connect.Response[hajjv1.SetSubscriptionGracePeriodResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.SetSubscriptionGracePeriod(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *PlatformHandler) SetPlanOverride(ctx context.Context, req *connect.Request[hajjv1.SetPlanOverrideRequest]) (*connect.Response[hajjv1.SetPlanOverrideResponse], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
