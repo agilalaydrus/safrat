@@ -13,18 +13,22 @@ Diperbarui: **2 September 2026**
 | Jalur | Rute | Berkas tugas | Posisi |
 |---|---|---|---|
 | **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **54/74 butir** · sisa Tahap 3–4 |
-| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | A1 backend selesai · **6/68 butir** · sisa layar A1 lalu A2 |
+| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1 selesai** · 7/68 butir · berikutnya A2 |
 
 Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
 `admin/page.tsx`.
 
 ## Yang sedang menunggu, berurutan
 
-1. **Layar Paket & Kuota** (`/admin`, tab baru). Enam RPC-nya sudah ada dan
-   **belum ada yang memanggilnya** — persis kegagalan yang panel ini dirancang
-   untuk mengakhirinya. Ini pekerjaan berikutnya.
-2. **A2** Routing produk & log supplier — dua RPC lagi tanpa pemanggil.
+1. **A2** Routing produk & log supplier — `ListProductRoutes`, `SaveProductRoute`,
+   `ListSupplierLogs` masih tanpa pemanggil. Routing hanya bisa diubah lewat
+   terminal.
+2. **B1/B2** Langganan & dunning, lalu meter pemakaian.
 3. **Tahap 3 Dashboard Travel** — CRM Leads, WhatsApp, rundown, tier kamar.
+
+**Belum diverifikasi di browser:** tab Paket & Kuota. Ia butuh sesi admin
+platform dengan 2FA, yang tidak bisa dibuat agen. Pemilik perlu membukanya
+sekali dan memastikan tabel terisi.
 
 ## Kondisi terverifikasi (2 September 2026)
 
@@ -33,9 +37,10 @@ go build · go vet            bersih
 suite Go                     15 paket lulus, 0 gagal
 tsc --noEmit · next lint     bersih
 migrasi                      138, terpasang di DB dev dan DB uji
+build:verify                 sukses
 scripts/uji-batas-cabang.sh  15 pengaman lolos, dua arah
 working tree                 bersih
-belum di-push                25 commit
+belum di-push                27 commit
 ```
 
 `main` = deploy. **Jangan push tanpa perintah pemilik.**
