@@ -26,7 +26,7 @@ const DELIVERY: Record<string, { label: string; tone: string }> = {
   NEEDS_REVIEW: { label: "Perlu ditinjau", tone: "var(--color-danger-600)" },
 };
 
-export default function TransactionsTab() {
+export default function TransactionsTab({ onOpenSupplierLog }: { onOpenSupplierLog: (orderId: string) => void }) {
   const [transactions, setTransactions] = useState<PlatformTransaction[]>([]);
   const [needsAttention, setNeedsAttention] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -135,7 +135,12 @@ export default function TransactionsTab() {
                           money already taken. Only shown where a decision is
                           actually open. */}
                       {(transaction.fulfilmentStatus === "NEEDS_REVIEW" || transaction.fulfilmentStatus === "FAILED") && (
-                        <button style={ghost} onClick={() => setReviewing(transaction)}>Tinjau</button>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          <button style={ghost} onClick={() => setReviewing(transaction)}>Tinjau</button>
+                          {transaction.supplierName && (
+                            <button style={ghost} onClick={() => onOpenSupplierLog(transaction.orderId)}>Log supplier</button>
+                          )}
+                        </div>
                       )}
                     </td>
                   </tr>

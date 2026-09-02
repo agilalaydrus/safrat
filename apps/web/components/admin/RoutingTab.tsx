@@ -11,8 +11,15 @@ const rupiah = (n: bigint) =>
 const waktu = (d: Date) =>
   d.toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 
-export default function RoutingTab() {
-  const [view, setView] = useState<"routes" | "logs">("routes");
+export default function RoutingTab({ initialOrderId = "" }: { initialOrderId?: string }) {
+  const [view, setView] = useState<"routes" | "logs">(initialOrderId ? "logs" : "routes");
+  const [orderId, setOrderId] = useState(initialOrderId);
+  useEffect(() => {
+    if (initialOrderId) {
+      setOrderId(initialOrderId);
+      setView("logs");
+    }
+  }, [initialOrderId]);
   return (
     <section style={{ display: "grid", gap: 18 }}>
       <div style={switcher}>
@@ -23,7 +30,7 @@ export default function RoutingTab() {
           <IconFileSearch size={16} />Log Supplier
         </button>
       </div>
-      {view === "routes" ? <Routes /> : <Logs />}
+      {view === "routes" ? <Routes /> : <Logs orderId={orderId} onClearOrder={() => setOrderId("")} />}
     </section>
   );
 }
@@ -170,7 +177,7 @@ function Routes() {
   );
 }
 
-function Logs() {
+function Logs({ orderId, onClearOrder }: { orderId: string; onClearOrder: () => void }) {
   const [logs, setLogs] = useState<SupplierLogEntry[]>([]);
   const [unmatchedOnly, setUnmatchedOnly] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -180,11 +187,11 @@ function Logs() {
   useEffect(() => {
     setLoading(true);
     platformClient
-      .listSupplierLogs({ unmatchedOnly, limit: 200 })
+      .listSupplierLogs({ unmatchedOnly, limit: 200, orderId: orderId || undefined })
       .then((response) => setLogs(response.logs))
       .catch(() => setNotice("Gagal memuat log supplier."))
       .finally(() => setLoading(false));
-  }, [unmatchedOnly]);
+  }, [unmatchedOnly, orderId]);
 
   if (loading) return <p style={muted}>Memuat log supplier…</p>;
 
@@ -204,6 +211,13 @@ function Logs() {
       </div>
 
       {notice && <p role="status" style={noticeBox}>{notice}</p>}
+
+      {orderId && (
+        <p role="status" style={focusBox}>
+          Menampilkan jejak untuk transaksi <code>{orderId.slice(0, 8)}</code>.
+          <button type="button" style={inlineButton} onClick={onClearOrder}>Lihat semua log</button>
+        </p>
+      )}
 
       {logs.length === 0 ? (
         <div style={emptyBox}>
@@ -283,6 +297,8 @@ const tr: React.CSSProperties = { borderBottom: "1px solid var(--color-cream-300
 const td: React.CSSProperties = { padding: 12, color: "var(--color-warm-700)", verticalAlign: "top", fontSize: 13 };
 const checkRow: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--color-warm-700)" };
 const noticeBox: React.CSSProperties = { margin: 0, padding: "10px 14px", borderRadius: 8, background: "var(--color-emerald-50)", color: "var(--color-emerald-800)", fontSize: 13 };
+const focusBox: React.CSSProperties = { margin: 0, padding: "10px 14px", borderRadius: 8, background: "var(--color-cream-100)", color: "var(--color-warm-700)", fontSize: 13, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" };
+const inlineButton: React.CSSProperties = { border: 0, padding: 0, background: "transparent", color: "var(--color-emerald-800)", textDecoration: "underline", font: "inherit", fontWeight: 700, cursor: "pointer" };
 const warnBox: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, margin: 0, padding: "12px 16px", background: "var(--color-warning-50)", border: "1px solid var(--color-warning-200)", borderRadius: 8, color: "var(--color-warning-700)", fontSize: 13, fontWeight: 600 };
 const emptyBox: React.CSSProperties = { padding: "20px 18px", border: "1px dashed var(--color-cream-400)", borderRadius: 10, background: "#fff" };
 const pre: React.CSSProperties = { margin: 0, padding: 10, background: "#fff", border: "1px solid var(--color-cream-300)", borderRadius: 8, fontSize: 12, maxHeight: 220, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-word" };

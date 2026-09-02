@@ -289,9 +289,17 @@ type LogEntry struct {
 // ListLogs returns recent exchanges, newest first. unmatchedOnly narrows it to
 // responses no rule recognised — the queue that keeps the rules honest, since
 // every entry is a supplier saying something nobody taught the system to read.
-func (r *SupplierRepository) ListLogs(ctx context.Context, unmatchedOnly bool, limit int32) ([]*LogEntry, error) {
+func (r *SupplierRepository) ListLogs(ctx context.Context, unmatchedOnly bool, orderID string, limit int32) ([]*LogEntry, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
+	}
+	var order any
+	if orderID != "" {
+		parsed, err := pgUUID(orderID)
+		if err != nil {
+			return nil, apperror.ErrValidation
+		}
+		order = parsed
 	}
 	rows, err := r.pool.Query(ctx, `
 		SELECT l.id::text, s.name, COALESCE(l.order_id::text, ''), l.direction, l.endpoint,
@@ -299,9 +307,10 @@ func (r *SupplierRepository) ListLogs(ctx context.Context, unmatchedOnly bool, l
 		       l.supplier_reference, l.cost_idr, l.error, l.created_at
 		FROM supplier_request_logs l
 		JOIN suppliers s ON s.id = l.supplier_id
-		WHERE NOT $1::bool OR l.outcome = 'UNMATCHED'
+		WHERE (NOT $1::bool OR l.outcome = 'UNMATCHED')
+		  AND ($2::uuid IS NULL OR l.order_id = $2::uuid)
 		ORDER BY l.created_at DESC
-		LIMIT $2`, unmatchedOnly, limit)
+		LIMIT $3`, unmatchedOnly, order, limit)
 	if err != nil {
 		return nil, err
 	}

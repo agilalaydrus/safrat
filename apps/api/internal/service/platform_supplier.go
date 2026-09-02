@@ -211,11 +211,15 @@ func (s *PlatformService) ListSupplierLogs(ctx context.Context, req *hajjv1.List
 		return nil, err
 	}
 	unmatchedOnly := req != nil && req.UnmatchedOnly
+	orderID := ""
+	if req != nil {
+		orderID = req.GetOrderId()
+	}
 	limit := int32(50)
 	if req != nil && req.Limit > 0 {
 		limit = req.Limit
 	}
-	logs, err := s.supplierRepository.ListLogs(ctx, unmatchedOnly, limit)
+	logs, err := s.supplierRepository.ListLogs(ctx, unmatchedOnly, orderID, limit)
 	if err != nil {
 		return nil, serviceError("PlatformService.ListSupplierLogs", err)
 	}

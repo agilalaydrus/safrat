@@ -193,6 +193,9 @@ func (h *PlatformHandler) TestResponseRules(ctx context.Context, req *connect.Re
 }
 
 func (h *PlatformHandler) ListSupplierLogs(ctx context.Context, req *connect.Request[hajjv1.ListSupplierLogsRequest]) (*connect.Response[hajjv1.ListSupplierLogsResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
 	result, err := h.platformService.ListSupplierLogs(ctx, req.Msg)
 	if err != nil {
 		return nil, connectError(err)

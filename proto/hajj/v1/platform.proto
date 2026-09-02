@@ -597,6 +597,8 @@ message ListSupplierLogsRequest {
   // honest, since each one is a supplier saying something unreadable.
   bool unmatched_only = 1;
   int32 limit = 2;
+  // Set when opening the log from a transaction that is waiting for review.
+  optional string order_id = 3 [(buf.validate.field).string.uuid = true];
 }
 message ListSupplierLogsResponse { repeated SupplierLogEntry logs = 1; }
 

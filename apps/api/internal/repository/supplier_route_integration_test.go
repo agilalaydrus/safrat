@@ -32,7 +32,7 @@ func TestUnroutedDigitalProductsAreListedFirstIntegration(t *testing.T) {
 
 	suffix := uuid.NewString()[:8]
 	routedID, unroutedID, packageID, supplierID := uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()
-	operatorID, seasonID := uuid.NewString(), uuid.NewString()
+	operatorID, seasonID, pilgrimID, orderID := uuid.NewString(), uuid.NewString(), uuid.NewString(), uuid.NewString()
 
 	exec := func(query string, args ...any) {
 		t.Helper()
@@ -58,9 +58,17 @@ func TestUnroutedDigitalProductsAreListedFirstIntegration(t *testing.T) {
 		packageID, operatorID, seasonID, "PK-"+suffix)
 	exec(`INSERT INTO product_routes (product_id,supplier_id,supplier_sku,is_active)
 	      VALUES ($1,$2,'SKU-1',true)`, routedID, supplierID)
+	exec(`INSERT INTO pilgrims (id,season_id,operator_id,full_name,passport_number,nationality,date_of_birth,gender)
+	      VALUES ($1,$2,$3,'Jamaah Log',$4,'ID','1990-01-01','MALE')`, pilgrimID, seasonID, operatorID, "LOG-"+suffix)
+	exec(`INSERT INTO orders (id,operator_id,season_id,pilgrim_id,product_id,unit_price_idr,total_price_idr,status)
+	      VALUES ($1,$2,$3,$4,$5,25000000,25000000,'PAID')`, orderID, operatorID, seasonID, pilgrimID, packageID)
+	exec(`INSERT INTO supplier_request_logs (supplier_id,order_id,direction,endpoint,request_body,response_body,outcome)
+	      VALUES ($1,$2,'REQUEST','/order','{}','{"status":"pending"}','PENDING'),
+	             ($1,NULL,'CALLBACK','/callback','{}','{"status":"other"}','UNMATCHED')`, supplierID, orderID)
 
 	t.Cleanup(func() {
 		bg := context.Background()
+		_, _ = pool.Exec(bg, `DELETE FROM supplier_request_logs WHERE supplier_id = $1`, supplierID)
 		_, _ = pool.Exec(bg, `DELETE FROM product_routes WHERE product_id IN ($1,$2)`, routedID, unroutedID)
 		_, _ = pool.Exec(bg, `DELETE FROM products WHERE id IN ($1,$2,$3)`, routedID, unroutedID, packageID)
 		_, _ = pool.Exec(bg, `DELETE FROM suppliers WHERE id = $1`, supplierID)
@@ -104,6 +112,11 @@ func TestUnroutedDigitalProductsAreListedFirstIntegration(t *testing.T) {
 	// name alone this would fail, which is the point.
 	if firstRoutedAt >= 0 && firstUnroutedAt > firstRoutedAt {
 		t.Fatalf("yang belum dirutekan tidak di atas: unrouted=%d routed=%d", firstUnroutedAt, firstRoutedAt)
+	}
+
+	logs, err := NewSupplierRepository(pool).ListLogs(ctx, false, orderID, 20)
+	if err != nil || len(logs) != 1 || logs[0].OrderID != orderID {
+		t.Fatalf("filter log transaksi tidak tepat: %#v (%v)", logs, err)
 	}
 	_ = db.New(pool)
 }

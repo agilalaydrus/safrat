@@ -27,6 +27,7 @@ export default function PlatformAdminPage() {
   const [access, setAccess] = useState<"checking" | "granted" | "enrol" | "denied" | "error">("checking");
   const [failure, setFailure] = useState("");
   const [tab, setTab] = useState<"transactions" | "operators" | "catalogue" | "transfers" | "costs" | "suppliers" | "accounts" | "identity" | "quotas" | "routing" | "subscriptions">("transactions");
+  const [supplierLogOrderId, setSupplierLogOrderId] = useState("");
 
   useEffect(() => {
     platformClient.amIPlatformAdmin({})
@@ -105,9 +106,12 @@ export default function PlatformAdminPage() {
       </div>
 
       {tab === "quotas" && <PlanQuotaTab />}
-      {tab === "routing" && <RoutingTab />}
+      {tab === "routing" && <RoutingTab initialOrderId={supplierLogOrderId} />}
       {tab === "subscriptions" && <SubscriptionsTab />}
-      {tab === "transactions" && <TransactionsTab />}
+      {tab === "transactions" && <TransactionsTab onOpenSupplierLog={(orderId) => {
+        setSupplierLogOrderId(orderId);
+        setTab("routing");
+      }} />}
       {tab === "operators" && <OperatorsTab />}
       {tab === "catalogue" && <CatalogueTab />}
       {tab === "transfers" && <TransfersTab />}
