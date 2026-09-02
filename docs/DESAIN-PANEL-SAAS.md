@@ -374,11 +374,16 @@ pekan.
 Pembanding: Meeqot memberi **14 hari seluruh fitur Growth, tanpa kartu kredit,
 dengan dashboard terisi data contoh yang bisa dikosongkan sekali klik.**
 
-Ini keputusan komersial pemilik, bukan keputusan teknis, jadi rancangan ini
-tidak mengubah angkanya — tetapi menuntut tiga hal:
+**Keputusan pemilik, 2 September 2026: 10 hari.** Cukup untuk melewati satu
+akhir pekan penuh, mengimpor data, dan menjalankan satu pendaftaran sungguhan —
+tanpa memberi masa gratis selama pesaing. Angka ini yang dipakai.
 
-- **`TrialDays` jadi setelan, bukan konstanta.** Baris di `plan_limits` atau
-  tabel setelan platform, bisa diubah dari panel tanpa deploy.
+Tiga hal yang tetap dituntut rancangan:
+
+- **`TrialDays` jadi setelan, bukan konstanta**, dengan nilai awal **10**.
+  Baris di tabel setelan platform, bisa diubah dari panel tanpa deploy.
+  Mengubahnya **tidak boleh** mengubah trial yang sedang berjalan — tenant yang
+  sudah mulai memakai angka lamanya sampai selesai.
 - **Perpanjang trial per tenant** sebagai aksi panel, dengan alasan wajib.
   Prospek yang sedang serius mengevaluasi tidak boleh terkunci karena kalender.
 - **Layar Langganan menampilkan "trial berakhir dalam n hari"** dan siapa saja
@@ -564,9 +569,11 @@ bahwa setelah batas percobaan, event **berhenti diklaim dan tinggal sebagai
 baris dead-letter untuk diperiksa ops**. Selama tidak ada layar yang
 menampilkannya, "untuk diperiksa ops" berarti tidak akan diperiksa.
 
-Setiap butir sehat ditampilkan hijau dengan waktu terakhirnya — **bukan
-disembunyikan**. Layar yang hanya menampilkan masalah tidak bisa dibedakan dari
-layar yang rusak.
+**Keputusan pemilik, 2 September 2026: yang sehat ikut ditampilkan.** Setiap
+sinyal muncul hijau dengan waktu pemeriksaan terakhirnya, bukan disembunyikan.
+Layar yang hanya menampilkan masalah tidak bisa dibedakan dari layar yang rusak
+— dan "tidak ada peringatan" harus berarti "sudah diperiksa, aman", bukan
+"mungkin tidak ada yang memeriksa".
 
 ### 10.3 Audit
 
