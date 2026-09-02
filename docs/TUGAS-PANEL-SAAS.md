@@ -96,16 +96,16 @@ Menutup mesin tanpa pemicu. RPC-nya sudah ada, teruji, tidak dipanggil siapa pun
 
 ## B1 — Langganan & dunning 🔴
 
-- [C] Siklus tagihan massal: tinjau dulu daftar invoice + nominalnya, terbitkan
-      sekaligus
+- [x] Siklus tagihan massal: tinjau dulu daftar invoice + nominalnya, terbitkan
+      sekaligus (`7692809`)
 - [x] Dunning H+1, H+7, H+14 → penangguhan otomatis H+21, jadwalnya dari
       `platform_settings` (`db9fa97`)
 - [x] **Kunci idempotensi di database.** Bukan `(invoice_id, stage)` seperti
       rancangan: invoice kedaluwarsa tepat saat akses habis lalu diterbitkan
       ulang, jadi bukan jangkar yang stabil. Kuncinya
       `(operator_id, lapsed_at, stage)` (`db9fa97`)
-- [C] Siklus massal tunduk pada indeks nominal unik transfer — kegagalan
-      sufiks dilaporkan **per baris**, tidak membatalkan seluruh siklus
+- [x] Siklus massal tunduk pada indeks nominal unik transfer — kegagalan
+      sufiks dilaporkan **per baris**, tidak membatalkan seluruh siklus (`7692809`)
 - [C] Grace period yang bisa diatur, per tenant bila perlu
 - [x] Void invoice menyimpan barisnya + alasan + audit; yang sudah lunas tidak
       bisa dibatalkan (`9233cf1`)
