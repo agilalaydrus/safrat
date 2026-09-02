@@ -88,7 +88,7 @@ Menutup mesin tanpa pemicu. RPC-nya sudah ada, teruji, tidak dipanggil siapa pun
 - [x] Log supplier memakai `ListSupplierLogs`: permintaan, respons, HTTP,
       hasil, referensi, biaya. **Latensi tidak ada di data** — tidak dikarang
       (`7107574`)
-- [C] Tautan dari transaksi menggantung → log supplier terkait
+- [x] Tautan dari transaksi menggantung → log supplier terkait (`98d64fa`)
 
 ---
 
