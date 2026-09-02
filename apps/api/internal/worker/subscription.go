@@ -38,7 +38,7 @@ type subscriptionSweeper interface {
 	ExpireOverdueInvoices(context.Context) (int64, error)
 	MarkLapsed(context.Context) (int64, error)
 	ListDueForRenewal(context.Context, time.Duration) ([]repository.RenewalDue, error)
-	IssueBankTransferInvoice(ctx context.Context, operatorID, plan string) (repository.Invoice, error)
+	IssueBillingPeriod(ctx context.Context, operatorID, plan string, periodStart time.Time, expectedBase int64, actorUserID string) (repository.Invoice, string, bool, error)
 	CountStaleUnmatched(context.Context, time.Duration) (int, int64, error)
 }
 
@@ -93,12 +93,16 @@ func (h *SubscriptionHandler) issueRenewals(ctx context.Context) int {
 	}
 	issued := 0
 	for _, item := range due {
-		invoice, err := h.sweeper.IssueBankTransferInvoice(ctx, item.OperatorID, item.Plan)
+		invoice, _, created, err := h.sweeper.IssueBillingPeriod(ctx, item.OperatorID, item.Plan,
+			item.PeriodStart, item.BaseAmount, "system")
 		if err != nil {
 			// One failure must not stop the rest: every operator skipped here
 			// is one nobody is billing.
 			h.logger.Error("issue renewal invoice",
 				"operator_id", item.OperatorID, "plan", item.Plan, "error", err)
+			continue
+		}
+		if !created {
 			continue
 		}
 		h.logger.Info("renewal invoice issued",

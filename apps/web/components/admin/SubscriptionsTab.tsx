@@ -1,8 +1,13 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { IconAlertTriangle, IconBan } from "@tabler/icons-react";
-import type { PlatformOperator, SubscriptionInvoiceRow } from "@hajj-saas/proto-gen/hajj/v1/platform_pb";
+import { IconAlertTriangle, IconBan, IconReceipt, IconRefresh } from "@tabler/icons-react";
+import type {
+  PlatformOperator,
+  SubscriptionBillingCandidate,
+  SubscriptionBillingResult,
+  SubscriptionInvoiceRow,
+} from "@hajj-saas/proto-gen/hajj/v1/platform_pb";
 import { platformClient } from "@/lib/rpc";
 
 const rupiah = (n: bigint | number) =>
@@ -27,6 +32,9 @@ export default function SubscriptionsTab() {
   const [notice, setNotice] = useState("");
   const [voiding, setVoiding] = useState("");
   const [reason, setReason] = useState("");
+  const [billingPreview, setBillingPreview] = useState<SubscriptionBillingCandidate[] | null>(null);
+  const [billingResults, setBillingResults] = useState<SubscriptionBillingResult[] | null>(null);
+  const [billingBusy, setBillingBusy] = useState(false);
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -64,6 +72,46 @@ export default function SubscriptionsTab() {
     }
   }
 
+  async function previewBilling() {
+    setBillingBusy(true);
+    setBillingResults(null);
+    try {
+      const response = await platformClient.previewSubscriptionBilling({});
+      setBillingPreview(response.candidates);
+      setNotice(response.candidates.length === 0 ? "Tidak ada periode langganan yang perlu ditagih sekarang." : "");
+    } catch {
+      setNotice("Gagal menyiapkan pratinjau tagihan. Tidak ada invoice yang diterbitkan.");
+    } finally {
+      setBillingBusy(false);
+    }
+  }
+
+  async function issueBilling() {
+    if (!billingPreview?.length) return;
+    setBillingBusy(true);
+    try {
+      const response = await platformClient.issueSubscriptionBilling({
+        targets: billingPreview.map((candidate) => ({
+          operatorId: candidate.operatorId,
+          plan: candidate.plan,
+          periodStart: candidate.periodStart,
+          expectedBaseAmountIdr: candidate.baseAmountIdr,
+        })),
+      });
+      setBillingResults(response.results);
+      setNotice(
+        response.failedCount > 0
+          ? `${response.issuedCount} invoice terbit; ${response.failedCount} gagal dan perlu ditinjau.`
+          : `${response.issuedCount} invoice berhasil diterbitkan tanpa kegagalan.`,
+      );
+      refresh();
+    } catch {
+      setNotice("Siklus tagihan tidak dapat dijalankan. Tidak ada hasil yang disembunyikan; coba muat ulang pratinjau.");
+    } finally {
+      setBillingBusy(false);
+    }
+  }
+
   if (loading) return <p style={muted}>Memuat data langganan…</p>;
 
   return (
@@ -85,6 +133,91 @@ export default function SubscriptionsTab() {
           penangguhan menutup akses tanpa menghapus data apa pun.
         </p>
       )}
+
+      <div className="admin-billing-cycle tw-card" aria-labelledby="billing-cycle-title">
+        <div className="admin-billing-cycle__header">
+          <div>
+            <h3 id="billing-cycle-title">Siklus tagihan massal</h3>
+            <p style={muted}>Tinjau travel, periode, dan nominal sebelum satu invoice pun diterbitkan.</p>
+          </div>
+          {billingPreview === null ? (
+            <button className="tw-btn tw-btn--emerald tw-btn--md" onClick={previewBilling} disabled={billingBusy}>
+              <IconReceipt size={17} />{billingBusy ? "Menyiapkan…" : "Tinjau siklus"}
+            </button>
+          ) : (
+            <button className="tw-btn tw-btn--ghost tw-btn--sm" onClick={previewBilling} disabled={billingBusy}>
+              <IconRefresh size={15} />Muat ulang pratinjau
+            </button>
+          )}
+        </div>
+
+        {billingPreview !== null && !billingResults && (
+          billingPreview.length === 0 ? (
+            <div style={emptyBox}>
+              <p style={{ margin: 0, fontWeight: 700 }}>Tidak ada yang perlu diterbitkan</p>
+              <p style={{ ...muted, marginTop: 6 }}>Travel dengan invoice tertunda atau periode yang sudah ditagih tidak dimasukkan lagi.</p>
+            </div>
+          ) : (
+            <div className="admin-billing-cycle__body">
+              <div className="tw-data-table admin-billing-cycle__table">
+                <div className="tw-data-table__scroller">
+                  <table>
+                    <caption style={caption}>Pratinjau saja · belum ada perubahan data</caption>
+                    <thead><tr>{["Travel", "Paket", "Periode", "Jatuh tempo", "Nominal"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {billingPreview.map((candidate) => (
+                        <tr key={`${candidate.operatorId}-${candidate.periodStart?.toDate().toISOString()}`}>
+                          <td><strong>{candidate.operatorName}</strong></td>
+                          <td>{candidate.plan}</td>
+                          <td>{candidate.periodStart && candidate.periodEnd ? `${tanggal(candidate.periodStart.toDate())}–${tanggal(candidate.periodEnd.toDate())}` : "—"}</td>
+                          <td>{candidate.dueAt ? tanggal(candidate.dueAt.toDate()) : "—"}</td>
+                          <td data-align="right">{rupiah(candidate.baseAmountIdr)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot><tr><td colSpan={4}><strong>Total {billingPreview.length} invoice</strong></td><td data-align="right"><strong>{rupiah(billingPreview.reduce((sum, item) => sum + Number(item.baseAmountIdr), 0))}</strong></td></tr></tfoot>
+                  </table>
+                </div>
+              </div>
+              <div className="admin-billing-cycle__actions">
+                <p>Setiap travel diproses terpisah. Kegagalan satu nominal tidak membatalkan invoice lain.</p>
+                <button className="tw-btn tw-btn--emerald tw-btn--md" onClick={issueBilling} disabled={billingBusy}>
+                  <IconReceipt size={17} />{billingBusy ? "Menerbitkan…" : `Terbitkan ${billingPreview.length} invoice`}
+                </button>
+              </div>
+            </div>
+          )
+        )}
+
+        {billingResults && (
+          <div className="admin-billing-cycle__body">
+            <div className="tw-data-table admin-billing-cycle__table">
+              <div className="tw-data-table__scroller">
+                <table>
+                  <caption style={caption}>Hasil siklus · setiap baris dilaporkan</caption>
+                  <thead><tr>{["Travel", "Hasil", "Nominal", "Keterangan"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
+                  <tbody>{billingResults.map((result, index) => (
+                    <tr key={`${result.operatorId}-${index}`}>
+                      <td><strong>{result.operatorName || result.operatorId}</strong></td>
+                      <td>
+                        <span className={`tw-badge ${result.errorCode ? "tw-badge--danger" : result.alreadyIssued ? "tw-badge--neutral" : "tw-badge--success"}`}>
+                          {result.errorCode ? "Gagal" : result.alreadyIssued ? "Sudah ada" : "Terbit"}
+                        </span>
+                      </td>
+                      <td>{result.amountIdr > 0n ? rupiah(result.amountIdr) : "—"}</td>
+                      <td>{result.message}{result.errorCode ? ` (${result.errorCode})` : ""}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            </div>
+            <div className="admin-billing-cycle__actions">
+              <p>Hasil ini aman dimuat ulang: periode yang sudah terbit tidak akan ditagih dua kali.</p>
+              <button className="tw-btn tw-btn--outline tw-btn--sm" onClick={() => { setBillingPreview(null); setBillingResults(null); }}>Selesai</button>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div>
         <h3 style={{ margin: "0 0 4px", fontSize: 15 }}>Yang lewat jatuh tempo</h3>

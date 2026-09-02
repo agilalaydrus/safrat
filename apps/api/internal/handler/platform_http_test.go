@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
@@ -20,6 +21,7 @@ import (
 	"github.com/hajj-saas/api/internal/repository"
 	"github.com/hajj-saas/api/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // The platform panel reads across every tenant, so the only thing standing
@@ -159,6 +161,18 @@ func TestPlatformPlanControlRPCAccessRevocationAndMutationIntegration(t *testing
 	planKey := "plan-http-" + fixture.operatorID
 	overrideKey := "override-http-" + fixture.operatorID
 	deleteKey := "delete-http-" + fixture.operatorID
+	billingOperatorID := uuid.NewString()
+	billingPeriod := time.Now().UTC().Truncate(time.Microsecond).Add(72 * time.Hour)
+	if _, err := pool.Exec(ctx, `INSERT INTO operators (id,better_auth_org_id,name,country,email,slug,plan)
+		VALUES ($1,$2,'Billing Row Success','ID',$3,$4,'STARTER')`, billingOperatorID, "billing-"+billingOperatorID,
+		billingOperatorID[:8]+"@example.com", "billing-"+billingOperatorID[:8]); err != nil {
+		t.Fatalf("prepare billing operator: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO subscriptions (operator_id,plan,status,access_until)
+		VALUES ($1,'STARTER','ACTIVE',$2)`, billingOperatorID, billingPeriod); err != nil {
+		t.Fatalf("prepare billing subscription: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), `DELETE FROM operators WHERE id=$1`, billingOperatorID) })
 	auth := func(request interface{ Header() http.Header }, token string) {
 		if token != "" {
 			request.Header().Set("Authorization", "Bearer "+token)
@@ -208,6 +222,25 @@ func TestPlatformPlanControlRPCAccessRevocationAndMutationIntegration(t *testing
 				Reason: "verifikasi HTTP selesai", IdempotencyKey: deleteKey})
 			auth(req, token)
 			_, err := client.DeletePlanOverride(ctx, req)
+			return err
+		}},
+		{"PreviewSubscriptionBilling", func(token string) error {
+			req := connect.NewRequest(&hajjv1.PreviewSubscriptionBillingRequest{})
+			auth(req, token)
+			_, err := client.PreviewSubscriptionBilling(ctx, req)
+			return err
+		}},
+		{"IssueSubscriptionBilling", func(token string) error {
+			req := connect.NewRequest(&hajjv1.IssueSubscriptionBillingRequest{Targets: []*hajjv1.SubscriptionBillingTarget{
+				{OperatorId: fixture.operatorID, Plan: "STARTER", PeriodStart: timestamppb.Now(), ExpectedBaseAmountIdr: 1},
+				{OperatorId: billingOperatorID, Plan: "STARTER", PeriodStart: timestamppb.New(billingPeriod), ExpectedBaseAmountIdr: 589000},
+			}})
+			auth(req, token)
+			response, err := client.IssueSubscriptionBilling(ctx, req)
+			if err == nil && (response.Msg.IssuedCount != 1 || response.Msg.FailedCount != 1 || len(response.Msg.Results) != 2) {
+				t.Fatalf("per-row billing result = issued %d failed %d rows %d, want 1/1/2",
+					response.Msg.IssuedCount, response.Msg.FailedCount, len(response.Msg.Results))
+			}
 			return err
 		}},
 	}

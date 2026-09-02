@@ -69,6 +69,25 @@ func (h *PlatformHandler) ListPlanOverrides(ctx context.Context, req *connect.Re
 	return connect.NewResponse(result), nil
 }
 
+func (h *PlatformHandler) PreviewSubscriptionBilling(ctx context.Context, _ *connect.Request[hajjv1.PreviewSubscriptionBillingRequest]) (*connect.Response[hajjv1.PreviewSubscriptionBillingResponse], error) {
+	result, err := h.platformService.PreviewSubscriptionBilling(ctx)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) IssueSubscriptionBilling(ctx context.Context, req *connect.Request[hajjv1.IssueSubscriptionBillingRequest]) (*connect.Response[hajjv1.IssueSubscriptionBillingResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.IssueSubscriptionBilling(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *PlatformHandler) SetPlanOverride(ctx context.Context, req *connect.Request[hajjv1.SetPlanOverrideRequest]) (*connect.Response[hajjv1.SetPlanOverrideResponse], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

@@ -39,6 +39,8 @@ service PlatformService {
   // Subscription billing. Voiding keeps the row: deleting an invoice puts a
   // hole in the billing history exactly where somebody will later look.
   rpc ListSubscriptionInvoices(ListSubscriptionInvoicesRequest) returns (ListSubscriptionInvoicesResponse);
+  rpc PreviewSubscriptionBilling(PreviewSubscriptionBillingRequest) returns (PreviewSubscriptionBillingResponse);
+  rpc IssueSubscriptionBilling(IssueSubscriptionBillingRequest) returns (IssueSubscriptionBillingResponse);
   rpc VoidSubscriptionInvoice(VoidSubscriptionInvoiceRequest) returns (VoidSubscriptionInvoiceResponse);
   rpc SetPlanOverride(SetPlanOverrideRequest) returns (SetPlanOverrideResponse);
   rpc DeletePlanOverride(DeletePlanOverrideRequest) returns (DeletePlanOverrideResponse);
@@ -282,6 +284,54 @@ message ListSubscriptionInvoicesRequest {
   int32 limit = 2;
 }
 message ListSubscriptionInvoicesResponse { repeated SubscriptionInvoiceRow invoices = 1; }
+
+message SubscriptionBillingCandidate {
+  string operator_id = 1 [(buf.validate.field).string.uuid = true];
+  string operator_name = 2;
+  string plan = 3;
+  google.protobuf.Timestamp period_start = 4;
+  google.protobuf.Timestamp period_end = 5;
+  google.protobuf.Timestamp due_at = 6;
+  int64 base_amount_idr = 7;
+}
+
+// Preview is deliberately parameter-free. The billing window is a platform
+// policy, not a number a browser may quietly widen.
+message PreviewSubscriptionBillingRequest {}
+message PreviewSubscriptionBillingResponse {
+  repeated SubscriptionBillingCandidate candidates = 1;
+  int64 total_base_amount_idr = 2;
+}
+
+message SubscriptionBillingTarget {
+  string operator_id = 1 [(buf.validate.field).string.uuid = true];
+  string plan = 2 [(buf.validate.field).string = {in: ["STARTER", "GROWTH", "PRO"]}];
+  google.protobuf.Timestamp period_start = 3 [(buf.validate.field).required = true];
+  int64 expected_base_amount_idr = 4 [(buf.validate.field).int64.gt = 0];
+}
+
+message IssueSubscriptionBillingRequest {
+  repeated SubscriptionBillingTarget targets = 1 [(buf.validate.field).repeated = {min_items: 1, max_items: 200}];
+}
+
+message SubscriptionBillingResult {
+  string operator_id = 1;
+  string operator_name = 2;
+  string invoice_id = 3;
+  int64 amount_idr = 4;
+  bool issued = 5;
+  // Stable machine code for support and tests; message is the Indonesian
+  // explanation shown to the platform operator.
+  string error_code = 6;
+  string message = 7;
+  bool already_issued = 8;
+}
+
+message IssueSubscriptionBillingResponse {
+  repeated SubscriptionBillingResult results = 1;
+  int32 issued_count = 2;
+  int32 failed_count = 3;
+}
 
 message VoidSubscriptionInvoiceRequest {
   string invoice_id = 1 [(buf.validate.field).string.uuid = true];

@@ -40,12 +40,12 @@ func (f *fakeSubscriptionSweeper) ListDueForRenewal(context.Context, time.Durati
 	return f.due, f.dueErr
 }
 
-func (f *fakeSubscriptionSweeper) IssueBankTransferInvoice(_ context.Context, operatorID, plan string) (repository.Invoice, error) {
+func (f *fakeSubscriptionSweeper) IssueBillingPeriod(_ context.Context, operatorID, plan string, _ time.Time, _ int64, _ string) (repository.Invoice, string, bool, error) {
 	if f.issueErr != nil {
-		return repository.Invoice{}, f.issueErr
+		return repository.Invoice{}, "", false, f.issueErr
 	}
 	f.issued = append(f.issued, operatorID+"/"+plan)
-	return repository.Invoice{Amount: 1_500_007}, nil
+	return repository.Invoice{Amount: 1_500_007}, "Travel", true, nil
 }
 
 func (f *fakeSubscriptionSweeper) CountStaleUnmatched(context.Context, time.Duration) (int, int64, error) {
@@ -57,8 +57,8 @@ func (f *fakeSubscriptionSweeper) CountStaleUnmatched(context.Context, time.Dura
 // stopped and revenue ended without anybody deciding it should.
 func TestSweepIssuesRenewalInvoices(t *testing.T) {
 	sweeper := &fakeSubscriptionSweeper{due: []repository.RenewalDue{
-		{OperatorID: "op-1", Plan: "STARTER"},
-		{OperatorID: "op-2", Plan: "GROWTH"},
+		{OperatorID: "op-1", Plan: "STARTER", PeriodStart: time.Now(), BaseAmount: 589000},
+		{OperatorID: "op-2", Plan: "GROWTH", PeriodStart: time.Now(), BaseAmount: 789000},
 	}}
 	handler := &SubscriptionHandler{logger: slog.New(slog.NewTextHandler(io.Discard, nil)), sweeper: sweeper}
 
@@ -74,7 +74,7 @@ func TestSweepIssuesRenewalInvoices(t *testing.T) {
 // nobody is billing.
 func TestOneFailedRenewalDoesNotStopTheSweep(t *testing.T) {
 	sweeper := &fakeSubscriptionSweeper{
-		due:      []repository.RenewalDue{{OperatorID: "op-1", Plan: "STARTER"}},
+		due:      []repository.RenewalDue{{OperatorID: "op-1", Plan: "STARTER", PeriodStart: time.Now(), BaseAmount: 589000}},
 		issueErr: errors.New("gagal"),
 		expired:  1,
 	}

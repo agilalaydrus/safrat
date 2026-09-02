@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"strings"
 	"time"
@@ -254,6 +255,91 @@ func (s *PlatformService) ListSubscriptionInvoices(ctx context.Context, req *haj
 		response.Invoices = append(response.Invoices, row)
 	}
 	return response, nil
+}
+
+const platformBillingLeadTime = 7 * 24 * time.Hour
+
+func (s *PlatformService) PreviewSubscriptionBilling(ctx context.Context) (*hajjv1.PreviewSubscriptionBillingResponse, error) {
+	if _, err := s.requirePlatformAdmin(ctx); err != nil {
+		return nil, err
+	}
+	candidates, err := s.subscriptionRepository.ListBillingCandidates(ctx, platformBillingLeadTime)
+	if err != nil {
+		return nil, serviceError("PlatformService.PreviewSubscriptionBilling", err)
+	}
+	response := &hajjv1.PreviewSubscriptionBillingResponse{
+		Candidates: make([]*hajjv1.SubscriptionBillingCandidate, 0, len(candidates)),
+	}
+	for _, candidate := range candidates {
+		response.Candidates = append(response.Candidates, &hajjv1.SubscriptionBillingCandidate{
+			OperatorId: candidate.OperatorID, OperatorName: candidate.OperatorName,
+			Plan: candidate.Plan, PeriodStart: timestamppb.New(candidate.PeriodStart),
+			PeriodEnd: timestamppb.New(candidate.PeriodEnd), DueAt: timestamppb.New(candidate.DueAt),
+			BaseAmountIdr: candidate.BaseAmount,
+		})
+		response.TotalBaseAmountIdr += candidate.BaseAmount
+	}
+	return response, nil
+}
+
+func (s *PlatformService) IssueSubscriptionBilling(ctx context.Context, req *hajjv1.IssueSubscriptionBillingRequest) (*hajjv1.IssueSubscriptionBillingResponse, error) {
+	userID, err := s.requirePlatformAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req == nil || len(req.Targets) == 0 || len(req.Targets) > 200 {
+		return nil, serviceError("PlatformService.IssueSubscriptionBilling", apperror.ErrValidation)
+	}
+	response := &hajjv1.IssueSubscriptionBillingResponse{
+		Results: make([]*hajjv1.SubscriptionBillingResult, 0, len(req.Targets)),
+	}
+	for _, target := range req.Targets {
+		result := &hajjv1.SubscriptionBillingResult{}
+		if target != nil {
+			result.OperatorId = target.OperatorId
+		}
+		if target == nil || !isUUID(target.OperatorId) || !validPlan(target.Plan) ||
+			target.PeriodStart == nil || target.PeriodStart.CheckValid() != nil || target.ExpectedBaseAmountIdr <= 0 {
+			result.ErrorCode = "INVALID_TARGET"
+			result.Message = "Data pratinjau tidak valid. Muat ulang siklus tagihan."
+			response.FailedCount++
+			response.Results = append(response.Results, result)
+			continue
+		}
+		invoice, operatorName, created, issueErr := s.subscriptionRepository.IssueBillingPeriod(ctx,
+			target.OperatorId, target.Plan, target.PeriodStart.AsTime(), target.ExpectedBaseAmountIdr, userID)
+		result.OperatorName = operatorName
+		if issueErr != nil {
+			result.ErrorCode, result.Message = billingIssueExplanation(issueErr)
+			response.FailedCount++
+		} else {
+			result.InvoiceId = invoice.ID
+			result.AmountIdr = invoice.Amount
+			result.Issued = created
+			result.AlreadyIssued = !created
+			if created {
+				result.Message = "Invoice berhasil diterbitkan."
+				response.IssuedCount++
+			} else {
+				result.Message = "Invoice periode ini sudah pernah diterbitkan; tidak dibuat ulang."
+			}
+		}
+		response.Results = append(response.Results, result)
+	}
+	return response, nil
+}
+
+func billingIssueExplanation(err error) (string, string) {
+	switch {
+	case errors.Is(err, repository.ErrBillingPreviewChanged):
+		return "PREVIEW_CHANGED", "Paket, periode, atau harga berubah sejak pratinjau. Muat ulang sebelum menerbitkan."
+	case errors.Is(err, repository.ErrPendingInvoice):
+		return "PENDING_INVOICE", "Travel masih memiliki invoice tertunda untuk periode lain."
+	case errors.Is(err, repository.ErrTransferAmountUnavailable):
+		return "TRANSFER_AMOUNT_UNAVAILABLE", "Nominal transfer unik tidak tersedia. Coba lagi pada siklus berikutnya."
+	default:
+		return "INTERNAL_ERROR", "Invoice gagal diterbitkan. Periksa log server dengan ID travel ini."
+	}
 }
 
 func (s *PlatformService) VoidSubscriptionInvoice(ctx context.Context, req *hajjv1.VoidSubscriptionInvoiceRequest) (*hajjv1.VoidSubscriptionInvoiceResponse, error) {

@@ -1038,6 +1038,14 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-seri
 }
 .tw-card:hover { border-color: var(--color-cream-400); box-shadow: var(--shadow-lift); transform: translateY(-1px); }
 .tw-card--large { border-radius: 16px; }
+.admin-billing-cycle { overflow: hidden; }
+.admin-billing-cycle__header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 18px; }
+.admin-billing-cycle__header h3 { margin: 0 0 4px; font-size: 15px; }
+.admin-billing-cycle__body { border-top: 1px solid var(--color-cream-300); }
+.admin-billing-cycle__table { border: 0; border-radius: 0; box-shadow: none; }
+.admin-billing-cycle__table tfoot td { border-top: 1px solid var(--color-cream-400); background: var(--color-cream-100); }
+.admin-billing-cycle__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--color-cream-300); padding: 14px 18px; background: var(--color-cream-100); }
+.admin-billing-cycle__actions p { margin: 0; color: var(--color-warm-500); font-size: 12px; }
 .tw-radius-pill { border-radius: 9999px; }
 .tw-ring-brand { border-color: transparent; box-shadow: 0 0 0 4px color-mix(in srgb, var(--dashboard-accent, var(--color-gold-500)) 12%, transparent); }
 .tw-badge {

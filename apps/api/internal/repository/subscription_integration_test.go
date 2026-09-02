@@ -475,6 +475,67 @@ func TestRenewalIsIssuedOnceAndNotForTheCancelledIntegration(t *testing.T) {
 	}
 }
 
+func TestMassBillingPreviewAndDatabaseIdempotencyIntegration(t *testing.T) {
+	pool := subscriptionTestPool(t)
+	ctx := context.Background()
+	subscriptions := NewSubscriptionRepository(pool)
+	operatorID := newTestOperator(t, pool, "STARTER")
+	if err := subscriptions.EnsureForOperator(ctx, operatorID); err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+	periodStart := time.Now().UTC().Truncate(time.Microsecond).Add(72 * time.Hour)
+	if _, err := pool.Exec(ctx, `UPDATE subscriptions SET status='ACTIVE', access_until=$2 WHERE operator_id=$1`, operatorID, periodStart); err != nil {
+		t.Fatalf("prepare period: %v", err)
+	}
+
+	candidates, err := subscriptions.ListBillingCandidates(ctx, 7*24*time.Hour)
+	if err != nil {
+		t.Fatalf("preview: %v", err)
+	}
+	var candidate *BillingCandidate
+	for i := range candidates {
+		if candidates[i].OperatorID == operatorID {
+			candidate = &candidates[i]
+			break
+		}
+	}
+	if candidate == nil {
+		t.Fatal("periode yang jatuh tempo tidak muncul di pratinjau")
+	}
+	if candidate.BaseAmount != 589000 || !candidate.PeriodStart.Equal(periodStart) {
+		t.Fatalf("candidate = %+v, want STARTER price and stable period", *candidate)
+	}
+
+	first, _, created, err := subscriptions.IssueBillingPeriod(ctx, operatorID, "STARTER", periodStart, 589000, "billing-test")
+	if err != nil || !created {
+		t.Fatalf("first issue: created=%v err=%v", created, err)
+	}
+	second, _, createdAgain, err := subscriptions.IssueBillingPeriod(ctx, operatorID, "STARTER", periodStart, 589000, "billing-test")
+	if err != nil || createdAgain {
+		t.Fatalf("replay: created=%v err=%v", createdAgain, err)
+	}
+	if second.ID != first.ID {
+		t.Fatalf("replay returned invoice %s, want original %s", second.ID, first.ID)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM subscription_invoices WHERE operator_id=$1 AND period_start=$2`, operatorID, periodStart).Scan(&count); err != nil {
+		t.Fatalf("count invoices: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("database contains %d invoices for one commercial period", count)
+	}
+
+	after, err := subscriptions.ListBillingCandidates(ctx, 7*24*time.Hour)
+	if err != nil {
+		t.Fatalf("preview after issue: %v", err)
+	}
+	for _, item := range after {
+		if item.OperatorID == operatorID {
+			t.Fatal("periode yang sudah ditagih masih muncul di pratinjau")
+		}
+	}
+}
+
 // The travel has to be told, and by the same signal whichever route settled
 // their payment — automatic matching, an attached credit, or an amount typed
 // off the statement. Learning whether you were notified based on which path ran

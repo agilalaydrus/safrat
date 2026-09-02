@@ -39,6 +39,15 @@ const (
 // suffix is the only thing tying a bank mutation to an invoice.
 var ErrTransferAmountUnavailable = errors.New("no unique transfer amount available")
 
+// ErrBillingPreviewChanged means a commercial value shown in the preview no
+// longer matches the database. The caller must refresh rather than silently
+// issuing a different plan or amount from the one a person approved.
+var ErrBillingPreviewChanged = errors.New("billing preview no longer matches")
+
+// ErrPendingInvoice means another commercial period is still payable for this
+// operator. Two live amounts for one travel are deliberately forbidden.
+var ErrPendingInvoice = errors.New("operator already has a pending invoice")
+
 type SubscriptionRepository struct {
 	pool *pgxpool.Pool
 }
@@ -68,6 +77,169 @@ type Invoice struct {
 	PeriodEnd   time.Time
 	DueAt       time.Time
 	CheckoutURL string
+}
+
+// BillingCandidate is one stable commercial period ready to be billed. The
+// period starts at access_until, not at preview time, so refreshing a screen or
+// retrying a request cannot invent a second identity for the same charge.
+type BillingCandidate struct {
+	OperatorID   string
+	OperatorName string
+	Plan         string
+	PeriodStart  time.Time
+	PeriodEnd    time.Time
+	DueAt        time.Time
+	BaseAmount   int64
+}
+
+// ListBillingCandidates is the read-only half of a mass billing cycle.
+// Existing periods (including expired or voided invoices) are excluded: a
+// financial row does not become eligible for duplication because its status
+// changed later.
+func (r *SubscriptionRepository) ListBillingCandidates(ctx context.Context, within time.Duration) ([]BillingCandidate, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT s.operator_id::text, o.name, s.plan::text, s.access_until,
+		       s.access_until + make_interval(days => $2::int),
+		       GREATEST(s.access_until, NOW() + make_interval(days => $3::int)),
+		       p.monthly_idr
+		FROM subscriptions s
+		JOIN operators o ON o.id = s.operator_id
+		JOIN plan_prices p ON p.plan = s.plan
+		WHERE s.status IN ('ACTIVE', 'PAST_DUE')
+		  AND s.cancelled_at IS NULL
+		  AND s.access_until < NOW() + make_interval(secs => $1::int)
+		  AND NOT EXISTS (
+		    SELECT 1 FROM subscription_invoices i
+		    WHERE i.operator_id = s.operator_id AND i.period_start = s.access_until
+		  )
+		  AND NOT EXISTS (
+		    SELECT 1 FROM subscription_invoices i
+		    WHERE i.operator_id = s.operator_id AND i.status = 'PENDING'
+		  )
+		ORDER BY s.access_until ASC, o.name ASC
+		LIMIT 200`, int32(within.Seconds()), BillingPeriodDays, InvoiceDueDays)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	candidates := make([]BillingCandidate, 0)
+	for rows.Next() {
+		var item BillingCandidate
+		if err := rows.Scan(&item.OperatorID, &item.OperatorName, &item.Plan,
+			&item.PeriodStart, &item.PeriodEnd, &item.DueAt, &item.BaseAmount); err != nil {
+			return nil, err
+		}
+		candidates = append(candidates, item)
+	}
+	return candidates, rows.Err()
+}
+
+// IssueBillingPeriod issues exactly the commercial values a platform admin
+// previewed. It owns one transaction for one operator; the service deliberately
+// calls it row-by-row so a suffix collision or stale preview cannot roll back
+// invoices already issued for other tenants.
+//
+// created=false with no error is an idempotent replay of the same period.
+func (r *SubscriptionRepository) IssueBillingPeriod(ctx context.Context, operatorID, plan string,
+	periodStart time.Time, expectedBase int64, actorUserID string) (invoice Invoice, operatorName string, created bool, err error) {
+	operator, err := pgUUID(operatorID)
+	if err != nil || strings.TrimSpace(actorUserID) == "" || expectedBase <= 0 {
+		return Invoice{}, "", false, apperror.ErrValidation
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return Invoice{}, "", false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var currentPlan string
+	var currentStart time.Time
+	var currentBase int64
+	err = tx.QueryRow(ctx, `
+		SELECT o.name, s.plan::text, s.access_until, p.monthly_idr
+		FROM subscriptions s
+		JOIN operators o ON o.id = s.operator_id
+		JOIN plan_prices p ON p.plan = s.plan
+		WHERE s.operator_id = $1 AND s.status IN ('ACTIVE','PAST_DUE')
+		  AND s.cancelled_at IS NULL
+		FOR UPDATE OF s`, operator).Scan(&operatorName, &currentPlan, &currentStart, &currentBase)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Invoice{}, operatorName, false, ErrBillingPreviewChanged
+	}
+	if err != nil {
+		return Invoice{}, operatorName, false, err
+	}
+	if currentPlan != plan || !currentStart.Equal(periodStart) || currentBase != expectedBase {
+		return Invoice{}, operatorName, false, ErrBillingPreviewChanged
+	}
+
+	for attempt := 0; attempt < transferAttempts; attempt++ {
+		suffix, suffixErr := randomSuffix()
+		if suffixErr != nil {
+			return Invoice{}, operatorName, false, suffixErr
+		}
+		attemptTx, beginErr := tx.Begin(ctx) // PostgreSQL savepoint.
+		if beginErr != nil {
+			return Invoice{}, operatorName, false, beginErr
+		}
+		dueAt := time.Now().Add(InvoiceDueDays * 24 * time.Hour)
+		if periodStart.After(dueAt) {
+			dueAt = periodStart
+		}
+		insertErr := attemptTx.QueryRow(ctx, `
+			INSERT INTO subscription_invoices
+				(operator_id, plan, channel, base_amount_idr, amount_idr, period_start, period_end, due_at)
+			VALUES ($1, $2::plan, 'BANK_TRANSFER', $3, $4, $5::timestamptz,
+			        $5::timestamptz + make_interval(days => $6::int), $7)
+			RETURNING id::text, plan::text, status::text, channel::text,
+			          base_amount_idr, amount_idr, period_start, period_end, due_at,
+			          COALESCE(checkout_url, '')`, operator, plan, expectedBase,
+			expectedBase+suffix, periodStart, BillingPeriodDays, dueAt).
+			Scan(&invoice.ID, &invoice.Plan, &invoice.Status, &invoice.Channel,
+				&invoice.BaseAmount, &invoice.Amount, &invoice.PeriodStart,
+				&invoice.PeriodEnd, &invoice.DueAt, &invoice.CheckoutURL)
+		if insertErr == nil {
+			if err := attemptTx.Commit(ctx); err != nil {
+				return Invoice{}, operatorName, false, err
+			}
+			message := fmt.Sprintf("tagihan %s untuk periode %s", plan, periodStart.Format(time.DateOnly))
+			if err := insertPlatformMutationAudit(ctx, tx, operatorID, actorUserID,
+				"subscription_invoice_issued", "subscription_invoice", invoice.ID, message, "", ""); err != nil {
+				return Invoice{}, operatorName, false, err
+			}
+			if err := tx.Commit(ctx); err != nil {
+				return Invoice{}, operatorName, false, err
+			}
+			return invoice, operatorName, true, nil
+		}
+		_ = attemptTx.Rollback(ctx)
+
+		if IsUniqueViolation(insertErr, "subscription_invoices_operator_period_idx") ||
+			IsUniqueViolation(insertErr, "subscription_invoices_one_pending_idx") {
+			err = tx.QueryRow(ctx, `
+				SELECT id::text, plan::text, status::text, channel::text,
+				       base_amount_idr, amount_idr, period_start, period_end, due_at,
+				       COALESCE(checkout_url, '')
+				FROM subscription_invoices WHERE operator_id=$1 AND period_start=$2`,
+				operator, periodStart).Scan(&invoice.ID, &invoice.Plan, &invoice.Status,
+				&invoice.Channel, &invoice.BaseAmount, &invoice.Amount, &invoice.PeriodStart,
+				&invoice.PeriodEnd, &invoice.DueAt, &invoice.CheckoutURL)
+			if errors.Is(err, pgx.ErrNoRows) && IsUniqueViolation(insertErr, "subscription_invoices_one_pending_idx") {
+				return Invoice{}, operatorName, false, ErrPendingInvoice
+			}
+			if err != nil {
+				return Invoice{}, operatorName, false, err
+			}
+			return invoice, operatorName, false, tx.Commit(ctx)
+		}
+		if IsUniqueViolation(insertErr, "subscription_invoices_transfer_amount_idx") ||
+			IsUniqueViolation(insertErr, "subscription_invoices_transfer_daily_idx") {
+			continue
+		}
+		return Invoice{}, operatorName, false, databaseError(insertErr)
+	}
+	return Invoice{}, operatorName, false, ErrTransferAmountUnavailable
 }
 
 // EnsureForOperator starts a trial the first time an operator is seen, and is
@@ -500,15 +672,15 @@ func (r *SubscriptionRepository) ListPendingTransfers(ctx context.Context) ([]*P
 
 // BankMutation is one credit that arrived in the account.
 type BankMutation struct {
-	ID           string
-	ExternalID   string
-	Source       string
-	AmountIDR    int64
-	Description  string
-	OccurredAt   time.Time
-	Status       string
+	ID               string
+	ExternalID       string
+	Source           string
+	AmountIDR        int64
+	Description      string
+	OccurredAt       time.Time
+	Status           string
 	MatchedInvoiceID string
-	Note         string
+	Note             string
 }
 
 // RecordMutation stores an incoming credit and reports whether this call is the
@@ -673,8 +845,10 @@ func (r *SubscriptionRepository) IgnoreMutation(ctx context.Context, mutationID,
 // RenewalDue is a subscription approaching its expiry with nothing billed for
 // the next period.
 type RenewalDue struct {
-	OperatorID string
-	Plan       string
+	OperatorID  string
+	Plan        string
+	PeriodStart time.Time
+	BaseAmount  int64
 }
 
 // ListDueForRenewal finds subscriptions that need an invoice.
@@ -693,14 +867,19 @@ type RenewalDue struct {
 // receive a bill.
 func (r *SubscriptionRepository) ListDueForRenewal(ctx context.Context, within time.Duration) ([]RenewalDue, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT s.operator_id::text, s.plan::text
+		SELECT s.operator_id::text, s.plan::text, s.access_until, p.monthly_idr
 		FROM subscriptions s
+		JOIN plan_prices p ON p.plan = s.plan
 		WHERE s.status IN ('ACTIVE', 'PAST_DUE')
 		  AND s.cancelled_at IS NULL
 		  AND s.access_until < NOW() + make_interval(secs => $1::int)
 		  AND NOT EXISTS (
 		    SELECT 1 FROM subscription_invoices i
 		    WHERE i.operator_id = s.operator_id AND i.status = 'PENDING'
+		  )
+		  AND NOT EXISTS (
+		    SELECT 1 FROM subscription_invoices i
+		    WHERE i.operator_id = s.operator_id AND i.period_start = s.access_until
 		  )
 		ORDER BY s.access_until ASC
 		LIMIT 200`, int32(within.Seconds()))
@@ -711,7 +890,7 @@ func (r *SubscriptionRepository) ListDueForRenewal(ctx context.Context, within t
 	due := make([]RenewalDue, 0)
 	for rows.Next() {
 		var item RenewalDue
-		if err := rows.Scan(&item.OperatorID, &item.Plan); err != nil {
+		if err := rows.Scan(&item.OperatorID, &item.Plan, &item.PeriodStart, &item.BaseAmount); err != nil {
 			return nil, err
 		}
 		due = append(due, item)
