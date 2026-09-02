@@ -98,17 +98,32 @@ type ProductRoute struct {
 	IsActive     bool
 }
 
-// ListRoutes returns routed products. Digital categories only: a travel package
-// is fulfilled by the operator, not bought from anybody.
+// ListRoutes returns every digital product, routed or not.
+//
+// It starts FROM products rather than FROM product_routes on purpose. A product
+// with no route is the one that matters most — it is what makes an order come
+// back "Produk Belum di Atur Routing" — and a query anchored on the routes
+// table can never show it. Unrouted rows come back with an empty supplier_id.
+//
+// Digital categories only, and migration 114 already requires those to be
+// platform-owned: a travel package is fulfilled by the operator, not bought
+// from anybody, so listing packages here would bury the real queue under
+// hundreds of rows that are not missing anything.
 func (r *SupplierRepository) ListRoutes(ctx context.Context) ([]*ProductRoute, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT pr.id::text, p.id::text, p.name, COALESCE(o.name, 'TawafiqHub'), p.category,
-		       s.id::text, s.name, pr.supplier_sku, pr.is_active
-		FROM product_routes pr
-		JOIN products p ON p.id = pr.product_id
+		SELECT COALESCE(pr.id::text, ''), p.id::text, p.name,
+		       COALESCE(o.name, 'TawafiqHub'), p.category,
+		       COALESCE(s.id::text, ''), COALESCE(s.name, ''),
+		       COALESCE(pr.supplier_sku, ''), COALESCE(pr.is_active, false)
+		FROM products p
+		LEFT JOIN product_routes pr ON pr.product_id = p.id
 		LEFT JOIN operators o ON o.id = p.operator_id
-		JOIN suppliers s ON s.id = pr.supplier_id
-		ORDER BY pr.is_active DESC, p.name ASC
+		LEFT JOIN suppliers s ON s.id = pr.supplier_id
+		WHERE p.category IN ('ROAMING_DATA', 'PPOB_CREDIT')
+		  AND p.is_active
+		-- Unrouted first, then inactive routes: both are work, and the work
+		-- belongs at the top rather than behind a filter nobody opens.
+		ORDER BY (pr.id IS NULL) DESC, COALESCE(pr.is_active, false) ASC, p.name ASC
 		LIMIT 500`)
 	if err != nil {
 		return nil, err

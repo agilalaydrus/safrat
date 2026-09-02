@@ -444,6 +444,9 @@ message SaveSupplierRequest {
 message SaveSupplierResponse { PlatformSupplier supplier = 1; }
 
 message PlatformProductRoute {
+  // Empty when the product has no route at all. Those rows are the work queue:
+  // an order for an unrouted product comes back "Produk Belum di Atur Routing",
+  // so they are listed first rather than hidden.
   string id = 1;
   string product_id = 2;
   string product_name = 3;
