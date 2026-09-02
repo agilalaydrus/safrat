@@ -70,6 +70,7 @@ message EntitlementUsage {
   int32 max_branches = 5;
   bool branches_unlimited = 6;
   bool branches_enabled = 7;
+  bool crm_enabled = 8;
 }
 
 message ListMyInvoicesRequest {

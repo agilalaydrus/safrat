@@ -43,6 +43,10 @@ func (c *EntitlementChecker) Check(ctx context.Context, operatorID, resource str
 		if !entitlement.Features["installments"] {
 			return fmt.Errorf("%w: fitur pembayaran bercicilan tidak tersedia di paket ini", apperror.ErrFailedPrecondition)
 		}
+	case "crm":
+		if !entitlement.Features["crm"] {
+			return fmt.Errorf("%w: CRM Leads tersedia mulai paket Growth", apperror.ErrFailedPrecondition)
+		}
 	default:
 		return fmt.Errorf("%w: resource entitlement tidak dikenal", apperror.ErrValidation)
 	}

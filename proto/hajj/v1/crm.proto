@@ -8,14 +8,14 @@ import "google/protobuf/timestamp.proto";
 option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 
 service CRMService {
-  rpc CreateLead(CreateCRMLeadRequest) returns (CreateCRMLeadResponse);
-  rpc ListLeads(ListCRMLeadsRequest) returns (ListCRMLeadsResponse);
-  rpc GetLead(GetCRMLeadRequest) returns (CRMLeadDetail);
-  rpc UpdateLead(UpdateCRMLeadRequest) returns (CRMLead);
-  rpc MoveLeadStage(MoveCRMLeadStageRequest) returns (CRMLead);
-  rpc AddLeadActivity(AddCRMLeadActivityRequest) returns (CRMLeadActivity);
-  rpc GetDashboard(GetCRMDashboardRequest) returns (CRMDashboard);
-  rpc ListAssignees(ListCRMAssigneesRequest) returns (ListCRMAssigneesResponse);
+  rpc CreateLead(CreateLeadRequest) returns (CreateLeadResponse);
+  rpc ListLeads(ListLeadsRequest) returns (ListLeadsResponse);
+  rpc GetLead(GetLeadRequest) returns (CRMLeadDetail);
+  rpc UpdateLead(UpdateLeadRequest) returns (CRMLead);
+  rpc MoveLeadStage(MoveLeadStageRequest) returns (CRMLead);
+  rpc AddLeadActivity(AddLeadActivityRequest) returns (CRMLeadActivity);
+  rpc GetDashboard(GetDashboardRequest) returns (CRMDashboard);
+  rpc ListAssignees(ListAssigneesRequest) returns (ListAssigneesResponse);
 }
 
 enum CRMLeadStage {
@@ -92,7 +92,7 @@ message CRMLeadDetail {
   repeated CRMLeadActivity activities = 2;
 }
 
-message CreateCRMLeadRequest {
+message CreateLeadRequest {
   string full_name = 1 [(buf.validate.field).string = {min_len: 2, max_len: 150}];
   string phone = 2 [(buf.validate.field).string.max_len = 40];
   string email = 3 [(buf.validate.field).string.max_len = 254];
@@ -109,12 +109,12 @@ message CreateCRMLeadRequest {
   string idempotency_key = 14 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
 }
 
-message CreateCRMLeadResponse {
+message CreateLeadResponse {
   CRMLead lead = 1;
   bool created = 2;
 }
 
-message ListCRMLeadsRequest {
+message ListLeadsRequest {
   CRMLeadStage stage = 1 [(buf.validate.field).enum.defined_only = true];
   CRMLeadSource source = 2 [(buf.validate.field).enum.defined_only = true];
   string search = 3 [(buf.validate.field).string.max_len = 100];
@@ -122,16 +122,16 @@ message ListCRMLeadsRequest {
   int32 offset = 5 [(buf.validate.field).int32.gte = 0];
 }
 
-message ListCRMLeadsResponse {
+message ListLeadsResponse {
   repeated CRMLead leads = 1;
   int64 total_count = 2;
 }
 
-message GetCRMLeadRequest {
+message GetLeadRequest {
   string lead_id = 1 [(buf.validate.field).string.uuid = true];
 }
 
-message UpdateCRMLeadRequest {
+message UpdateLeadRequest {
   string lead_id = 1 [(buf.validate.field).string.uuid = true];
   string full_name = 2 [(buf.validate.field).string = {min_len: 2, max_len: 150}];
   string phone = 3 [(buf.validate.field).string.max_len = 40];
@@ -149,14 +149,14 @@ message UpdateCRMLeadRequest {
   string idempotency_key = 15 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
 }
 
-message MoveCRMLeadStageRequest {
+message MoveLeadStageRequest {
   string lead_id = 1 [(buf.validate.field).string.uuid = true];
   CRMLeadStage stage = 2 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3, 4, 5, 6]}];
   string reason = 3 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
   string idempotency_key = 4 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
 }
 
-message AddCRMLeadActivityRequest {
+message AddLeadActivityRequest {
   string lead_id = 1 [(buf.validate.field).string.uuid = true];
   CRMActivityKind kind = 2 [(buf.validate.field).enum = {defined_only: true, in: [3, 4, 5]}];
   string note = 3 [(buf.validate.field).string = {min_len: 1, max_len: 2000}];
@@ -166,9 +166,9 @@ message AddCRMLeadActivityRequest {
   string idempotency_key = 7 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
 }
 
-message GetCRMDashboardRequest {}
+message GetDashboardRequest {}
 
-message ListCRMAssigneesRequest {}
+message ListAssigneesRequest {}
 
 message CRMAssignee {
   string user_id = 1;
@@ -176,7 +176,7 @@ message CRMAssignee {
   string email = 3;
 }
 
-message ListCRMAssigneesResponse {
+message ListAssigneesResponse {
   repeated CRMAssignee assignees = 1;
 }
 

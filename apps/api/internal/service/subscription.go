@@ -87,6 +87,7 @@ func entitlementMessage(entitlement domain.Entitlement) *hajjv1.EntitlementUsage
 	message := &hajjv1.EntitlementUsage{
 		PilgrimCount: entitlement.PilgrimCount, ActiveBranchCount: entitlement.BranchCount,
 		BranchesEnabled: entitlement.Features["branches"],
+		CrmEnabled:      entitlement.Features["crm"],
 	}
 	if entitlement.MaxPilgrims == nil {
 		message.PilgrimsUnlimited = true
