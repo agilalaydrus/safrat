@@ -14,6 +14,25 @@
 
 ## Continuation after this snapshot
 
+### Panel SaaS — rencana lengkap (2026-09-02)
+
+Panel pemilik platform (`/admin`). Sudah ada delapan permukaan berjalan dan 30
+RPC; yang kurang adalah sisi komersialnya. Rancangan di
+**`docs/RENCANA-PANEL-SAAS.md`**, tugas berurutan di
+**`docs/TUGAS-PANEL-SAAS.md`**.
+
+Tiga hal yang ditemukan saat merancang dan berlaku lintas pekerjaan:
+
+1. **`plan_limits` dan `plan_overrides` tidak punya satu pun RPC.** T2.2
+   menegakkan batas lewat trigger database, tapi mengubah kuota satu pelanggan
+   hari ini berarti menulis SQL di produksi.
+2. **Tiga RPC platform masih tanpa UI** — `ListProductRoutes`,
+   `SaveProductRoute`, `ListSupplierLogs`. Routing produk hanya bisa diubah
+   lewat terminal, padahal panel ini lahir untuk menghapus kebutuhan itu.
+3. Panel ini satu-satunya permukaan yang **menembus batas tenant**, jadi
+   isolasi cabang Tahap 2 tidak berlaku di sini. Impersonate, four-eyes, dan
+   audit pembacaan data pribadi dijadwalkan sebelum admin kedua ditambahkan.
+
 ### Dashboard Admin Travel — rencana lengkap (2026-08-30)
 
 Pekerjaan berikutnya yang sudah direncanakan penuh tapi **belum dimulai**.

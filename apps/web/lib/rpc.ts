@@ -5,6 +5,7 @@ import { BroadcastService } from "@hajj-saas/proto-gen/hajj/v1/broadcast_connect
 import { BranchService } from "@hajj-saas/proto-gen/hajj/v1/branch_connect";
 import { CancellationService } from "@hajj-saas/proto-gen/hajj/v1/cancellation_connect";
 import { CashFlowService } from "@hajj-saas/proto-gen/hajj/v1/cashflow_connect";
+import { CRMService } from "@hajj-saas/proto-gen/hajj/v1/crm_connect";
 import { ChatService } from "@hajj-saas/proto-gen/hajj/v1/chat_connect";
 import { ChecklistService } from "@hajj-saas/proto-gen/hajj/v1/checklist_connect";
 import { FamilyTrackerService } from "@hajj-saas/proto-gen/hajj/v1/family_tracker_connect";
@@ -67,6 +68,7 @@ export const waitlistClient = createClient(WaitlistService, transport);
 export const cancellationClient = createClient(CancellationService, transport);
 export const familyTrackerClient = createClient(FamilyTrackerService, transport);
 export const cashFlowClient = createClient(CashFlowService, transport);
+export const crmClient = createClient(CRMService, transport);
 export const vendorClient = createClient(VendorService, transport);
 export const staffScheduleClient = createClient(StaffScheduleService, transport);
 export const insuranceClient = createClient(InsuranceService, transport);

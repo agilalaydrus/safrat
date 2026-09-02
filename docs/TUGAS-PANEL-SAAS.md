@@ -1,0 +1,172 @@
+# Tugas: Panel SaaS TawafiqHub
+
+Rancangan: [RENCANA-PANEL-SAAS.md](RENCANA-PANEL-SAAS.md).
+Sistem desain: [DESAIN-DASHBOARD-ADMIN.md](DESAIN-DASHBOARD-ADMIN.md).
+Dibuat 2 September 2026. **Belum ada tugas yang dikerjakan.**
+
+## Pembagian kerja
+
+Tandai pemilik sebelum mulai supaya dua agen tidak menyentuh berkas yang sama:
+
+- `[C]` Codex — implementasi panjang & terspesifikasi
+- `[K]` Claude — spesifikasi, verifikasi, keputusan lintas-modul & keamanan
+- `[ ]` belum diklaim
+
+**Aturan tabrakan.** Satu working tree dipakai bersama, jadi:
+1. Klaim tugas di berkas ini **sebelum** menyentuh kode.
+2. Jangan dua agen menyunting sekaligus. Kalau perlu paralel, pakai
+   `git worktree` — direktori dan branch terpisah.
+3. Berkas panas yang mudah bentrok: `apps/web/app/globals.css`,
+   `apps/web/app/admin/page.tsx`, `proto/hajj/v1/platform.proto`, dan berkas
+   tugas ini sendiri.
+4. Setelah tiap tahap, jalankan pass verifikasi: `go build`, `go vet`, suite Go,
+   `tsc --noEmit`, `next lint`, dan skrip pengaman yang relevan — **dan periksa
+   apakah ada yang hijau karena alasan salah.** Itu sudah terjadi dua kali di
+   proyek ini.
+
+## Aturan yang berlaku untuk semua tugas
+
+- proto → migrasi goose → sqlc → repository → service → handler → UI.
+  Repository **tidak boleh** mengimpor service.
+- `requirePlatformAdmin` tetap terlihat di awal setiap metode baru, bukan di
+  interceptor. Tidak ada apa pun di `PlatformService` yang di-scope tenant.
+- Setiap operasi yang bisa terulang (terbit invoice, kirim dunning,
+  menangguhkan) butuh kunci idempotensi **yang dipaksakan di database**.
+- Setiap perubahan komersial dan setiap **pembacaan data pribadi tenant** masuk
+  `audit_logs`.
+- Pakai komponen dan `tone` yang sudah ada. Jangan bikin bahasa visual baru.
+- Commit tiap unit yang selesai **dan terverifikasi**. **Jangan push ke `main`**.
+
+---
+
+# TAHAP A — Yang sudah terlanjur mendarat tanpa kendali
+
+## A1 — Paket & Kuota 🔴 paling mendesak
+
+T2.2 sudah menegakkan batas lewat trigger, tapi `plan_limits` dan
+`plan_overrides` **tidak punya satu pun RPC**. Menaikkan kuota satu pelanggan
+hari ini = menulis SQL di produksi.
+
+- [ ] Proto: `ListPlanLimits`, `SetPlanLimit`, `ListPlanOverrides`,
+      `SetPlanOverride`, `DeletePlanOverride`, `PreviewPlanLimitChange`
+- [ ] Override wajib punya **alasan**; kedaluwarsa opsional
+- [ ] `PreviewPlanLimitChange` mengembalikan tenant yang akan seketika melampaui
+      batas baru, **beserta namanya** — bukan hanya jumlahnya
+- [ ] Grandfathering: tenant yang sudah lewat batas dikunci di angka lamanya,
+      tidak ditendang
+- [ ] Perubahan batas ditulis ke `audit_logs` (keputusan komersial, bukan
+      konfigurasi)
+- [ ] Tab **Paket & Kuota** di `/admin`
+- [ ] Uji dua arah: override menaikkan batas satu tenant **dan** tidak bocor ke
+      tenant lain
+
+## A2 — Routing produk & log supplier 🟠
+
+Menutup mesin tanpa pemicu. RPC-nya sudah ada, teruji, tidak dipanggil siapa pun.
+
+- [ ] Layar routing memakai `ListProductRoutes` + `SaveProductRoute`
+- [ ] Produk **tanpa routing** ditampilkan sebagai antrean kerja, bukan
+      disembunyikan — inilah yang memicu respons "Produk Belum di Atur Routing"
+- [ ] Log supplier memakai `ListSupplierLogs`: permintaan, respons, latensi,
+      aturan yang cocok
+- [ ] Tautan dari transaksi menggantung → log supplier terkait
+
+---
+
+# TAHAP B — Mesin komersial
+
+## B1 — Langganan & dunning 🔴
+
+- [ ] Siklus tagihan massal: tinjau dulu daftar invoice + nominalnya, terbitkan
+      sekaligus
+- [ ] Dunning H+1, H+7, H+14 → penangguhan otomatis H+21
+- [ ] **Kunci idempotensi per invoice dan per pesan dunning**, di database
+- [ ] Grace period yang bisa diatur, per tenant bila perlu
+- [ ] Void invoice + pulihkan, dengan jejak (jangan DELETE)
+- [ ] Prorata saat upgrade/downgrade di tengah periode
+- [ ] Penangguhan **memutus akses, data tetap utuh** — dan layarnya mengatakan itu
+- [ ] Tab **Langganan** di `/admin`
+
+## B2 — Meter pemakaian 🔴
+
+- [ ] Tabel `usage_counters` (operator_id, metric, period_start, value)
+- [ ] Worker harian yang mengisinya — **jangan** hitung ulang per permintaan;
+      menghitung jamaah lintas tenant tiap panel dibuka akan jadi query
+      termahal di sistem ini
+- [ ] Metrik: jamaah, cabang, penyimpanan, panggilan API, pesan WhatsApp
+- [ ] Tab **Pemakaian**: pemakaian vs batas, peringatan 80% dan 100%
+- [ ] Subjudul menyebut **tanggal reset** — kuota tanpa tanggal reset tidak bisa
+      ditindak
+
+## B3 — Detail tenant `/admin/tenant/[id]` 🟠
+
+- [ ] Langganan & riwayat tagihan · pemakaian vs kuota · override berlaku
+- [ ] Jamaah & cabang · transaksi & transfer · KYC
+- [ ] Tim & status 2FA · domain · jejak audit tenant itu
+- [ ] Tombol tindakan: ubah override, tangguhkan, impersonate (lihat C1)
+
+---
+
+# TAHAP C — Keamanan sebelum tim bertambah
+
+## C1 — Impersonate dengan jejak penuh 🔴
+
+- [ ] Sesi impersonasi ditandai berbeda di seluruh sistem
+- [ ] **Read-only secara bawaan**; menulis butuh langkah terpisah yang eksplisit
+- [ ] Berbatas waktu, otomatis berakhir
+- [ ] Dicatat lengkap: siapa, tenant mana, IP, alasan, durasi
+- [ ] Uji: sesi impersonasi tidak bisa menulis sebelum ditingkatkan
+
+## C2 — Four-eyes untuk tindakan tak bisa ditarik 🔴
+
+Berlaku untuk: menangguhkan tenant, menghapus tenant, mengubah `plan_limits`
+global, mengubah rekening settlement.
+
+- [ ] Selama admin platform hanya satu: **konfirmasi ulang dengan mengetik nama
+      tenant**
+- [ ] Rancang jalurnya supaya bisa dinaikkan ke persetujuan admin kedua tanpa
+      menulis ulang — kolom `approved_by` sejak awal, walau belum dipakai
+- [ ] Setiap tindakan ini masuk `audit_logs` dengan alasannya
+
+## C3 — Audit pembacaan data pribadi 🟠
+
+- [ ] Membaca KYC / paspor / data jamaah dari panel platform tercatat, bukan
+      hanya perubahannya
+- [ ] Perbarui tabel inventaris data di
+      [INSIDEN-DATA-PRIBADI.md](INSIDEN-DATA-PRIBADI.md)
+
+## C4 — Rotasi kunci & ekspor auditor 🟡
+
+- [ ] Rotasi kunci API dengan tumpang tindih 24 jam (pola yang sama dengan kunci
+      KYC)
+- [ ] Ekspor auditor: CSV + hash manifes, ditandatangani kunci platform
+
+---
+
+# TAHAP D — Pertumbuhan & komunikasi
+
+- [ ] **D1** Analitik: MRR & pergerakannya, tenant aktif, konversi trial, churn,
+      NRR — dengan **Catatan Metodologi**. Komisi market **bukan** MRR; tulis
+      itu di layar. Skor churn ditandai sebagai heuristik, bukan vonis.
+- [ ] **D2** Pengumuman ke tenant: terjadwal, tertarget (semua / per paket /
+      trial / multi-cabang), pratinjau, riwayat kirim
+- [ ] **D3** Kesehatan platform: antrean tertinggal, webhook gagal, supplier
+      bermasalah, poller bank berhenti, backup terakhir. Setiap butir menyebut
+      **berapa tenant terdampak**
+
+---
+
+## Yang sengaja TIDAK dikerjakan
+
+- Konsol anggaran AI multi-provider, layar deploy, layar server, restart node,
+  mode maintenance sebagai tombol UI, konfigurasi Turnstile — itu PaaS di dalam
+  SaaS
+- Market / seller center platform — produk kedua, sudah ditunda
+- Skor churn sebagai angka menonjol tanpa peringatannya
+- Emoji di teks sistem
+
+## Pekerjaan pemilik
+
+- [ ] **Repo masih PUBLIC**
+- [ ] `BANK_FEED_SECRET` belum diset — poller bank tidak bisa jalan
+- [ ] Cron backup R2 belum dipasang

@@ -14,6 +14,7 @@ import {
   IconChecklist,
   IconChevronRight,
   IconClipboardList,
+  IconChartFunnel,
   IconFileAnalytics,
   IconFiles,
   IconHeartHandshake,
@@ -45,7 +46,7 @@ import { RequireAccess } from "@/components/auth/RequireAccess";
 import { RequireTwoFactor } from "@/components/auth/RequireTwoFactor";
 import { invalidateMyAccessCache } from "@/lib/access-cache";
 
-type NavItem = readonly [label: string, href: string, icon: typeof IconLayoutDashboard, feature?: "branches"];
+type NavItem = readonly [label: string, href: string, icon: typeof IconLayoutDashboard, feature?: "branches" | "crm"];
 type NavGroup = { readonly label: string; readonly items: readonly NavItem[] };
 
 const nav: readonly NavGroup[] = [
@@ -79,6 +80,7 @@ const nav: readonly NavGroup[] = [
   {
     label: "Bisnis",
     items: [
+      ["CRM Leads", "/dashboard/crm", IconChartFunnel, "crm"],
       ["Arus Kas", "/dashboard/cashflow", IconCash],
       ["Vendor", "/dashboard/vendors", IconHeartHandshake],
       ["Produk", "/dashboard/products", IconShoppingCart],
@@ -107,6 +109,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [operator, setOperator] = useState("");
   const [season, setSeason] = useState("");
   const [branchesEnabled, setBranchesEnabled] = useState<boolean>();
+  const [crmEnabled, setCRMEnabled] = useState<boolean>();
 
   useEffect(() => {
     operatorClient.getMyOperator({}).then((value) => setOperator(value.name)).catch(async (err) => {
@@ -140,7 +143,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     subscriptionClient.getMySubscription({}).then((value) => {
       setBranchesEnabled(value.entitlement?.branchesEnabled ?? false);
-    }).catch(() => setBranchesEnabled(false));
+      setCRMEnabled(value.entitlement?.crmEnabled ?? false);
+    }).catch(() => { setBranchesEnabled(false); setCRMEnabled(false); });
   }, []);
 
   async function signOut() {
@@ -183,9 +187,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {group.items.map(([label, href, Icon, feature]) => {
                 const active = isActiveRoute(pathname, href);
                 const locked = feature === "branches" && branchesEnabled === false;
+                const featureLocked = locked || (feature === "crm" && crmEnabled === false);
                 return (
                   <li key={href}>
-                    {locked ? <button type="button" className="dashboard-nav-item is-locked" onClick={() => router.push("/dashboard/langganan")} aria-label="Cabang tersedia mulai paket Growth">
+                    {featureLocked ? <button type="button" className="dashboard-nav-item is-locked" onClick={() => router.push("/dashboard/langganan")} aria-label={`${label} tersedia mulai paket Growth`}>
                       <span className="dashboard-nav-icon"><Icon size={18} stroke={1.8} aria-hidden /></span>
                       <span>{label}</span><IconLock size={14} aria-hidden />
                     </button> : <Link className={`dashboard-nav-item${active ? " is-active" : ""}`} href={href} aria-current={active ? "page" : undefined}>

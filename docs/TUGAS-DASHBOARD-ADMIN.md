@@ -5,6 +5,13 @@ Berkas kerja untuk agen berikutnya (Codex). Dibuat 30 Agustus 2026.
 
 ## Cara memakai berkas ini
 
+> **Panel SaaS punya berkas sendiri:** [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md).
+> Berkas ini hanya dashboard operator. Keduanya bisa dikerjakan paralel — tidak
+> ada berkas yang beririsan kecuali `globals.css` dan `platform.proto`.
+>
+> **Penanda pemilik** dipakai di kedua berkas: `[C]` Codex, `[K]` Claude,
+> `[ ]` belum diklaim. Klaim sebelum menyentuh kode.
+
 1. Baca `docs/RENCANA-DASHBOARD-ADMIN.md` (modul apa yang kurang & kenapa).
 2. Baca `docs/DESAIN-DASHBOARD-ADMIN.md` (bagaimana layarnya harus terlihat).
 3. Kerjakan tugas di bawah **berurutan**. Nomor kecil memblokir nomor besar.
