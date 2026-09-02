@@ -162,39 +162,86 @@ global, mengubah rekening settlement.
 
 ---
 
-# TAHAP C2 — Siklus hidup tenant
+# TAHAP D — Siklus hidup tenant
 
 Lihat §7 DESAIN. Bagian ini sebelumnya tidak dirancang di mana pun.
 
-- [ ] **L1** `TrialDays` jadi setelan yang bisa diubah dari panel, bukan
+- [ ] **D1** `TrialDays` jadi setelan yang bisa diubah dari panel, bukan
       konstanta di `repository/subscription.go:20`. Nilainya sekarang **3 hari**
       — terlalu pendek untuk travel yang perlu impor Excel dan latih admin;
       pesaing memberi 14. Angkanya keputusan pemilik, tapi harus bisa diubah
       tanpa deploy.
-- [ ] **L2** Perpanjang trial per tenant, alasan wajib
-- [ ] **L3** Layar Langganan menampilkan trial yang berakhir pekan ini
-- [ ] **L4** Antrean tenant baru 7 hari terakhir + penanda kelengkapan
+- [ ] **D2** Perpanjang trial per tenant, alasan wajib
+- [ ] **D3** Layar Langganan menampilkan trial yang berakhir pekan ini
+- [ ] **D4** Antrean tenant baru 7 hari terakhir + penanda kelengkapan
       (sudah ada musim? jamaah? login kedua?)
-- [ ] **L5** Pembatalan: `cancelled_at`, akses tetap sampai `access_until`
+- [ ] **D5** Pembatalan: `cancelled_at`, akses tetap sampai `access_until`
       berjalan habis — sisa periode yang sudah dibayar adalah haknya
-- [ ] **L6** Penghapusan setelah 90 hari: **tawarkan ekspor data lebih dulu**
+- [ ] **D6** Penghapusan setelah 90 hari: **tawarkan ekspor data lebih dulu**
       (hak portabilitas UU PDP), four-eyes, dan **`audit_logs` tidak ikut
       dihapus** — ia bukti bahwa penghapusan itu sah
-- [ ] **L7** Hitung mundur penghapusan tampil sebagai tanggal, dan masuk Pusat
+- [ ] **D7** Hitung mundur penghapusan tampil sebagai tanggal, dan masuk Pusat
       Tindakan saat mendekat
 
 ---
 
-# TAHAP D — Pertumbuhan & komunikasi
+# TAHAP E — Pertumbuhan & komunikasi
 
-- [ ] **D1** Analitik: MRR & pergerakannya, tenant aktif, konversi trial, churn,
+- [ ] **E1** Analitik: MRR & pergerakannya, tenant aktif, konversi trial, churn,
       NRR — dengan **Catatan Metodologi**. Komisi market **bukan** MRR; tulis
       itu di layar. Skor churn ditandai sebagai heuristik, bukan vonis.
-- [ ] **D2** Pengumuman ke tenant: terjadwal, tertarget (semua / per paket /
-      trial / multi-cabang), pratinjau, riwayat kirim
-- [ ] **D3** Kesehatan platform: antrean tertinggal, webhook gagal, supplier
-      bermasalah, poller bank berhenti, backup terakhir. Setiap butir menyebut
-      **berapa tenant terdampak**
+- [ ] **E2** Pengumuman ke tenant (§10.1 DESAIN): wizard 4 langkah, penerima
+      **dihitung dari data**, Skor Kesiapan termasuk pemeriksaan "sudah ada
+      pengumuman lain ke penerima sama dalam 24 jam", riwayat baca.
+      **Tidak bisa diedit setelah terkirim** — kalau salah, kirim ralat
+- [ ] **E3** Kesehatan platform (§10.2 DESAIN): antrean tertinggal,
+      **event outbox dead-letter**, webhook gagal, poller bank berhenti,
+      supplier gagal beruntun, backup terakhir, invoice macet. Setiap butir
+      menyebut **berapa tenant terdampak**, dan yang sehat tetap ditampilkan
+      hijau — layar yang hanya menunjukkan masalah tak bisa dibedakan dari layar
+      yang rusak
+- [ ] **E4** Audit global (§10.3 DESAIN): saringan per tenant / aktor / tindakan
+      istimewa / impersonasi / pembacaan data pribadi. **Read-only tanpa
+      pengecualian** — jangan tawarkan tombol yang pasti gagal
+- [ ] **E5** Ekspor auditor: CSV + hash manifes, ditandatangani kunci platform,
+      streaming sejak awal
+
+---
+
+# TAHAP F — Lintas semua tugas
+
+Berlaku di sepanjang pengerjaan, bukan di akhir.
+
+- [ ] **F1** Dunning & pengumuman memakai outbox `cascade_events` yang ada,
+      **jangan buat jalur pengiriman baru** (§11 DESAIN). Efeknya harus
+      idempoten karena pengirimannya at-least-once — itulah gunanya PK
+      `(invoice_id, stage)`
+- [ ] **F2** `service/errors.go`: galat tak terpetakan **juga** ditulis ke
+      `slog` level error dengan nama metodenya. Sekarang hanya ke Sentry, dan
+      `sentry.Init` no-op saat `SENTRY_DSN` kosong — di pengembangan galat itu
+      hilang tanpa jejak (§12 DESAIN). Pesan ke klien tetap `internal error`
+- [ ] **F3** `scripts/uji-batas-platform.sh` — menguji constraint §9 langsung
+      terhadap skema, dan **dibuktikan bisa gagal** dengan mematikan salah satu
+      constraint, seperti pada skrip cabang
+- [ ] **F4** Setiap RPC platform baru diuji **dua arah**: tanpa sesi →
+      `unauthenticated`, sesi owner operator asli → `permission_denied`, admin
+      platform → berhasil, dicabut → ditolak pada panggilan **berikutnya**
+- [ ] **F5** Uji jejak: panggil RPC, periksa `audit_logs` bertambah — dan
+      **gagal kalau tidak**
+- [ ] **F6** Uji idempotensi dengan **menjalankan dua kali**, bukan membaca kode
+
+# TAHAP G — Rilis bertahap
+
+Panel ini menyentuh uang dan data seluruh tenant. Urutannya (§14 DESAIN):
+
+- [ ] **G1** Rilis yang hanya membaca lebih dulu: Pemakaian, Kesehatan, Audit
+- [ ] **G2** Lalu tulis yang bisa ditarik: override kuota, routing, pengumuman
+- [ ] **G3** Lalu tulis yang tidak bisa ditarik, **setelah four-eyes dan audit
+      berjalan**: penangguhan, `plan_limits` global, penghapusan tenant
+- [ ] **G4** Impersonate paling akhir, setelah audit terbukti mencatat semuanya
+- [ ] **G5** Dunning dijalankan **mode kering dulu**: rangkaian jalan,
+      `dunning_log` terisi, tidak ada pesan keluar. Bandingkan daftar yang
+      *akan* dihubungi dengan daftar manual sebelum satu email pun dikirim
 
 ---
 

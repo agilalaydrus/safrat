@@ -511,7 +511,178 @@ boleh menghapus `dunning_log`, `privileged_actions`, dan
 
 ---
 
-## 10. Yang membuat rancangan ini gagal
+## 10. Tiga layar terakhir
+
+### 10.1 Pengumuman
+
+Hari ini tidak ada kanal apa pun dari platform ke pelanggan. Saat ada
+pemeliharaan, insiden, atau fitur baru, tidak ada cara memberi tahu selain
+menghubungi satu per satu.
+
+**Subjudul:** `{n} terkirim 30 hari terakhir · {m} terjadwal`
+
+**Susun — empat langkah, meminjam wizard yang sudah ada:**
+
+1. **Penerima** — semua tenant · per paket · trial · multi-cabang · menunggak ·
+   pilih manual. Jumlah penerima **dihitung langsung dari data**, bukan
+   diperkirakan, dan ditampilkan sebelum lanjut.
+2. **Kanal** — in-app selalu; email opsional. Jangkauan email dihitung dari
+   tenant yang punya alamat PIC.
+3. **Isi** — judul, badan, tautan opsional, dengan pratinjau.
+4. **Jadwal** — sekarang atau terjadwal, plus **Skor Kesiapan** sebelum kirim.
+
+**Skor kesiapan** memeriksa: judul terisi, isi memadai, penerima > 0, dan
+**tidak ada pengumuman lain terkirim ke penerima yang sama dalam 24 jam
+terakhir**. Yang terakhir itu penting — dua pengumuman berturut membuat yang
+ketiga tidak dibaca.
+
+**Riwayat:** judul · penerima · terkirim · dibaca · kapan · oleh siapa.
+
+Pengumuman **tidak bisa diedit setelah terkirim**. Kalau salah, kirim ralat.
+Menyunting pesan yang sudah dibaca orang mengubah catatan tentang apa yang
+mereka baca.
+
+### 10.2 Kesehatan platform
+
+Bukan konsol infrastruktur (§8 RENCANA). **Hanya yang berdampak ke pelanggan**,
+dan setiap butir menyebut berapa tenant terdampak.
+
+**Subjudul:** `Diperbarui {waktu} · {n} butir perlu perhatian`
+
+| Sinyal | Sumber | Kenapa ada di sini |
+|---|---|---|
+| Antrean worker tertinggal | asynq | Fulfilment dan notifikasi telat sampai |
+| Event outbox dead-letter | `cascade_events` `last_error` terisi | Sudah berhenti dicoba ulang; tidak ada yang tahu kecuali dilihat |
+| Webhook pembayaran gagal | log webhook | Uang masuk tapi tidak tercatat |
+| Poller bank berhenti | `bank_mutations` terakhir | Transfer tidak akan pernah cocok |
+| Supplier gagal beruntun | `supplier_logs` | Produk terjual, tidak terpenuhi |
+| Backup terakhir | metadata R2 | Diketahui saat dibutuhkan sudah terlambat |
+| Invoice langganan macet | `subscription_invoices` | Pendapatan berhenti diam-diam |
+
+Dead-letter outbox layak disebut khusus: komentar di `worker/outbox.go` menulis
+bahwa setelah batas percobaan, event **berhenti diklaim dan tinggal sebagai
+baris dead-letter untuk diperiksa ops**. Selama tidak ada layar yang
+menampilkannya, "untuk diperiksa ops" berarti tidak akan diperiksa.
+
+Setiap butir sehat ditampilkan hijau dengan waktu terakhirnya — **bukan
+disembunyikan**. Layar yang hanya menampilkan masalah tidak bisa dibedakan dari
+layar yang rusak.
+
+### 10.3 Audit
+
+**Subjudul:** `{n} kejadian 30 hari terakhir · retensi {x} bulan`
+
+**Tabel:** waktu · aktor · peran · tindakan · tenant · objek · IP · alasan.
+
+**Saringan yang harus ada**, karena ini yang ditanya saat insiden:
+per tenant · per aktor · hanya tindakan istimewa · hanya sesi impersonasi ·
+hanya pembacaan data pribadi · rentang waktu.
+
+**Ekspor auditor:** CSV + hash manifes, ditandatangani kunci platform. Ekspor
+yang tidak bisa dibuktikan keutuhannya tidak menjawab pertanyaan auditor.
+Streaming sejak awal.
+
+Layar ini **read-only tanpa pengecualian**. Tidak ada tombol hapus, tidak ada
+tombol sunting. Migrasi 125 sudah mencabut `UPDATE` dan `DELETE` dari peran
+aplikasi; UI-nya harus mencerminkan itu, bukan menawarkan tombol yang akan
+gagal.
+
+---
+
+## 11. Pengiriman — pakai yang sudah ada
+
+Dunning (§5.2) dan pengumuman (§10.1) **tidak boleh membuat jalur pengiriman
+baru.** Sudah ada:
+
+- `cascade_events` sebagai outbox, dengan pengiriman **at-least-once** dan baris
+  dead-letter setelah batas percobaan
+- `internal/mailer` yang sudah dipakai kwitansi dan pengingat cicilan
+- Push notification lewat `RegisterPushSubscription`
+
+**Konsekuensi at-least-once:** efek samping harus idempoten. Itu sebabnya
+`dunning_log` ber-PK `(invoice_id, stage)` — pengiriman kedua menabrak PK dan
+tidak jadi apa-apa, alih-alih mengirim peringatan kedua ke pelanggan yang sama.
+
+Menambah tipe event ke outbox yang ada juga berarti dead-letter dunning muncul
+di layar Kesehatan tanpa kerja tambahan.
+
+---
+
+## 12. Kalau ada yang salah, harus terlihat
+
+Ditemukan saat menelusuri kegagalan lain: `service/errors.go` memetakan galat
+yang dikenal ke kode Connect, dan untuk yang **tidak dikenal** ia mengirim ke
+Sentry lalu mengembalikan `internal error` kosong.
+
+`sentry.Init` adalah no-op saat `SENTRY_DSN` kosong — **yang berarti di
+pengembangan, galat tak terpetakan hilang tanpa jejak sama sekali.** Saya harus
+menambal berkas itu sementara hanya untuk membaca satu pesan galat.
+
+Untuk panel yang menangani uang lintas tenant, itu tidak memadai. Rancangan ini
+menuntut:
+
+- Galat tak terpetakan **juga** ditulis ke `slog` pada level error, dengan nama
+  metodenya. Sentry untuk produksi, log untuk semua lingkungan.
+- Pesan ke klien tetap `internal error` — jangan bocorkan internal ke pemanggil.
+- Layar Kesehatan (§10.2) menampilkan hitungan galat internal 24 jam terakhir
+  per metode.
+
+Ini di luar lingkup panel, tetapi panel inilah yang paling dirugikan kalau
+tidak dikerjakan.
+
+---
+
+## 13. Cara menguji panel yang menembus batas tenant
+
+Isolasi tenant diuji dengan menanyakan "bisakah A melihat B?". Di sini
+jawabannya **ya, memang boleh** — jadi ujinya harus berbeda bentuk.
+
+**Yang harus diuji, dua arah:**
+
+1. **Gerbang akses.** Tanpa sesi → `unauthenticated`. Sesi owner operator asli →
+   `permission_denied`. Admin platform → berhasil. Dicabut → ditolak pada
+   panggilan **berikutnya**, bukan setelah cache kedaluwarsa. Pola ini sudah
+   dipakai saat PR 14 dan harus diulang untuk **setiap RPC baru**.
+2. **Jejak selalu ada.** Setiap tindakan istimewa dan setiap pembacaan data
+   pribadi meninggalkan baris audit. Uji yang memanggil RPC lalu memeriksa
+   `audit_logs` bertambah — dan **gagal kalau tidak**.
+3. **Idempotensi.** Terbitkan invoice dua kali untuk periode sama → satu baris.
+   Jalankan dunning dua kali → satu pesan. Ini diuji dengan **menjalankan dua
+   kali**, bukan dengan membaca kode.
+4. **Four-eyes.** Tindakan istimewa tanpa alasan → ditolak. Tanpa konfirmasi →
+   ditolak.
+5. **Impersonate tidak bisa menulis.** Sesi impersonasi memanggil RPC tulis →
+   ditolak. Ini uji terpenting di seluruh daftar.
+
+**Skrip pengaman terpisah**, sejalan dengan `scripts/uji-batas-cabang.sh`:
+`scripts/uji-batas-platform.sh`, yang menguji constraint di §9 langsung terhadap
+skema — dan **harus dibuktikan bisa gagal** dengan mematikan salah satu
+constraint, seperti yang dilakukan pada skrip cabang.
+
+---
+
+## 14. Urutan rilis
+
+Panel ini menyentuh uang dan data seluruh tenant, jadi tidak dirilis sekaligus.
+
+1. **Baca dulu, tulis belakangan.** Layar Pemakaian, Kesehatan, dan Audit
+   dirilis lebih dulu — tidak ada yang bisa rusak, dan ketiganya langsung
+   memberi tahu apakah rancangan ini membaca kenyataan dengan benar.
+2. **Tulis yang bisa ditarik.** Override kuota, routing produk, pengumuman.
+   Salah bisa diperbaiki dalam semenit.
+3. **Tulis yang tidak bisa ditarik**, setelah four-eyes dan audit berjalan:
+   penangguhan, perubahan `plan_limits` global, penghapusan tenant.
+4. **Impersonate paling akhir**, setelah audit terbukti mencatat semuanya.
+
+Dunning menyalakan pengiriman ke pelanggan sungguhan. Jalankan **mode kering
+dulu**: rangkaian berjalan, `dunning_log` terisi, tidak ada pesan keluar.
+Bandingkan siapa yang *akan* dihubungi dengan daftar yang dibuat manual sebelum
+satu email pun dikirim. Pesan penagihan yang salah kirim ke pelanggan yang sudah
+membayar lebih mahal daripada penundaan sepekan.
+
+---
+
+## 15. Yang membuat rancangan ini gagal
 
 Ditulis supaya bisa diperiksa, bukan supaya terdengar aman.
 
@@ -533,3 +704,9 @@ Ditulis supaya bisa diperiksa, bukan supaya terdengar aman.
   membuktikan penghapusan itu sah.
 - **Trial 3 hari dibiarkan sebagai konstanta di kode.** Angka komersial yang
   butuh deploy untuk diubah akan tetap salah selama berbulan-bulan.
+- **Membuat jalur pengiriman baru** alih-alih memakai outbox yang ada. Dead-letter
+  dunning tidak akan muncul di mana pun.
+- **Merilis dunning tanpa mode kering.** Satu pesan tagihan ke pelanggan yang
+  sudah membayar lebih mahal daripada menunda sepekan.
+- **Layar Kesehatan yang menyembunyikan yang sehat.** Tidak bisa dibedakan dari
+  layar yang rusak.
