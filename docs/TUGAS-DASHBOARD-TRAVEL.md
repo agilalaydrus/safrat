@@ -362,13 +362,23 @@ Worker memakai SMTP TLS dengan lease, retry, stable Message-ID, dan dead-letter.
 
 # TAHAP 3 — Modul komersial
 
-- [ ] **T3.1** CRM Leads `/dashboard/crm` — tahap `baru→kontak→penawaran→hot→closing`, §4.4
+- [x] **T3.1** CRM Leads `/dashboard/crm` — tahap `baru→kontak→penawaran→hot→closing`, §4.4
+      (`aecde68`, `b4bed4c`, `029ea6d`)
 - [ ] **T3.2** Gateway WhatsApp — wizard 4 langkah + Skor Kesiapan + Jam Tenang, §4.7.
       Tiru juga ide mereka yang lebih dalam: **WhatsApp sebagai antarmuka
       cadangan** untuk jamaah lansia, bukan sekadar kanal notifikasi.
 - [ ] **T3.3** Perjalanan & rundown — Rangkaian, Rundown, Manifes, Armada Bus,
       Roomlist, §4.5
 - [ ] **T3.4** Tier kamar (Quad/Triple/Double) + kuota kursi, §4.6 RENCANA
+
+**Selesai:** pipeline CRM memakai timeline append-only, transisi tahap yang
+divalidasi, idempotensi yang dipaksakan database, entitlement paket, serta
+isolasi cabang di repository untuk seluruh baca dan mutasi. Integration test
+membuktikan cabang dapat mengelola lead miliknya dan tidak dapat membaca atau
+memutasikan lead cabang lain. Workspace UI mencakup KPI, pencarian dan filter,
+kanban responsif, pembuatan lead, detail aktivitas, empty/error/loading state,
+serta menu terkunci untuk paket tanpa hak akses. Proto, migrasi goose, sqlc,
+repository, service, handler, dan UI telah terhubung utuh.
 
 ---
 

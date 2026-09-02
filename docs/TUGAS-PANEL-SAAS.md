@@ -32,6 +32,11 @@ Tandai pemilik sebelum mulai supaya dua agen tidak menyentuh berkas yang sama:
 
 ## Aturan yang berlaku untuk semua tugas
 
+DDL untuk semua tabel baru sudah dirancang di **§9 DESAIN** — pakai itu,
+jangan merancang ulang. `dunning_log`, `privileged_actions`, dan
+`impersonation_sessions` adalah **bukti, bukan cache**: ikuti pola
+`REVOKE UPDATE, DELETE` migrasi 125.
+
 - proto → migrasi goose → sqlc → repository → service → handler → UI.
   Repository **tidak boleh** mengimpor service.
 - `requirePlatformAdmin` tetap terlihat di awal setiap metode baru, bukan di
@@ -154,6 +159,29 @@ global, mengubah rekening settlement.
 - [ ] Rotasi kunci API dengan tumpang tindih 24 jam (pola yang sama dengan kunci
       KYC)
 - [ ] Ekspor auditor: CSV + hash manifes, ditandatangani kunci platform
+
+---
+
+# TAHAP C2 — Siklus hidup tenant
+
+Lihat §7 DESAIN. Bagian ini sebelumnya tidak dirancang di mana pun.
+
+- [ ] **L1** `TrialDays` jadi setelan yang bisa diubah dari panel, bukan
+      konstanta di `repository/subscription.go:20`. Nilainya sekarang **3 hari**
+      — terlalu pendek untuk travel yang perlu impor Excel dan latih admin;
+      pesaing memberi 14. Angkanya keputusan pemilik, tapi harus bisa diubah
+      tanpa deploy.
+- [ ] **L2** Perpanjang trial per tenant, alasan wajib
+- [ ] **L3** Layar Langganan menampilkan trial yang berakhir pekan ini
+- [ ] **L4** Antrean tenant baru 7 hari terakhir + penanda kelengkapan
+      (sudah ada musim? jamaah? login kedua?)
+- [ ] **L5** Pembatalan: `cancelled_at`, akses tetap sampai `access_until`
+      berjalan habis — sisa periode yang sudah dibayar adalah haknya
+- [ ] **L6** Penghapusan setelah 90 hari: **tawarkan ekspor data lebih dulu**
+      (hak portabilitas UU PDP), four-eyes, dan **`audit_logs` tidak ikut
+      dihapus** — ia bukti bahwa penghapusan itu sah
+- [ ] **L7** Hitung mundur penghapusan tampil sebagai tanggal, dan masuk Pusat
+      Tindakan saat mendekat
 
 ---
 

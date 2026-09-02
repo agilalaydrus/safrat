@@ -346,7 +346,172 @@ pemanggilannya. Perbarui tabel inventaris di
 
 ---
 
-## 7. Yang membuat rancangan ini gagal
+## 7. Siklus hidup tenant
+
+Bagian yang belum pernah dirancang di mana pun, padahal panel ini yang
+menjalankannya.
+
+```
+   dibuat ──> TRIALING ──bayar──> ACTIVE ──lewat tempo──> PAST_DUE
+      │           │                  │                        │
+      │           │                  │                    H+21 │
+      │      trial habis             │                         ▼
+      │           ▼                  │                    DITANGGUHKAN
+      │      KEDALUWARSA             │                         │
+      │           │                  ▼                    bayar│
+      │           └──────────> DIBATALKAN <───────────────────┘
+      │                             │
+      └─────────────────────────────┴──90 hari──> DIHAPUS
+```
+
+### 7.1 Trial — tiga hari terlalu pendek
+
+`TrialDays = 3` (`repository/subscription.go:20`). Untuk travel umroh itu
+hampir tidak berguna: mereka perlu mengimpor data dari Excel, melatih admin,
+dan mencoba satu pendaftaran sungguhan. Tiga hari kerja bisa jatuh di akhir
+pekan.
+
+Pembanding: Meeqot memberi **14 hari seluruh fitur Growth, tanpa kartu kredit,
+dengan dashboard terisi data contoh yang bisa dikosongkan sekali klik.**
+
+Ini keputusan komersial pemilik, bukan keputusan teknis, jadi rancangan ini
+tidak mengubah angkanya — tetapi menuntut tiga hal:
+
+- **`TrialDays` jadi setelan, bukan konstanta.** Baris di `plan_limits` atau
+  tabel setelan platform, bisa diubah dari panel tanpa deploy.
+- **Perpanjang trial per tenant** sebagai aksi panel, dengan alasan wajib.
+  Prospek yang sedang serius mengevaluasi tidak boleh terkunci karena kalender.
+- **Layar Langganan menampilkan "trial berakhir dalam n hari"** dan siapa saja
+  yang berakhir pekan ini. Trial yang habis tanpa ada yang menyadari adalah
+  pelanggan yang hilang tanpa pernah ditawari.
+
+### 7.2 Provisioning
+
+Operator lahir lewat `OperatorService.Create`, dan langganan trial dibuat
+menyertainya. Panel tidak membuat tenant — pendaftaran mandiri yang membuatnya.
+Yang panel lakukan adalah **melihat dan memperbaiki** apa yang lahir cacat:
+slug bentrok, domain gagal verifikasi, trial yang perlu diperpanjang.
+
+Antrean *"Tenant baru 7 hari terakhir"* di layar Tenant, dengan penanda
+kelengkapan: sudah punya musim? sudah ada jamaah? sudah pernah login kedua kali?
+Tenant yang mendaftar lalu tidak pernah kembali adalah sinyal paling awal
+tentang onboarding yang rusak.
+
+### 7.3 Pembatalan dan penghapusan
+
+**Pembatalan bukan penghapusan.** `cancelled_at` diisi, akses berhenti pada
+`access_until` yang berjalan — pelanggan tetap memakai sisa periode yang sudah
+dibayar. Itu bukan kemurahan hati, itu memang haknya.
+
+**Penghapusan menunggu 90 hari** sejak akses berakhir, dan sebelum dijalankan:
+
+1. **Ekspor data tenant wajib ditawarkan** — hak portabilitas UU PDP. Kalau
+   pelanggan pergi, datanya ikut, bukan hilang.
+2. **Four-eyes** (§6.2). Ini tindakan paling tidak bisa ditarik di sistem.
+3. Yang dihapus adalah data pribadi; **`audit_logs` tetap**, karena ia bukti
+   dan retensinya 24 bulan (migrasi 126). Menghapus jejak audit bersama
+   tenantnya akan menghapus justru catatan yang membuktikan penghapusan itu sah.
+
+Layar Tenant menampilkan hitung mundur penghapusan sebagai tanggal, bukan
+"90 hari" — dan tenant yang mendekatinya masuk Pusat Tindakan.
+
+---
+
+## 8. Delapan permukaan yang sudah ada
+
+Semuanya berjalan dan tidak ditulis ulang. Yang berubah hanya penempatan di
+navigasi baru (§2) dan penerapan sistem desain Tahap 0.
+
+| Permukaan | Perubahan yang diperlukan |
+|---|---|
+| **Travel** | Jadi **Tenant**; baris bisa diklik → `/admin/tenant/[id]` (§4.4). Ini perubahan terbesar di antara delapan. |
+| **Harga Modal** | Subjudul hidup: *"{n} produk tanpa harga modal · terjual tanpa lantai harga"*. Sudah benar mendahulukan yang kosong. |
+| **Katalog** | Subjudul hitung; keadaan kosong yang mengajar. |
+| **Akun** | Tambah kolom status 2FA dan sesi aktif. Beri/cabut akses platform masuk four-eyes (§6.2). |
+| **Identitas** | Tambah umur antrean — KYC menunggu > 48 jam masuk Pusat Tindakan. Setiap pembukaan berkas masuk audit (§6.3). |
+| **Supplier** | Tambah dua tab: Routing dan Log (§4.5). |
+| **Transaksi** | Tautan dua arah ke log supplier. Transaksi `HELD` dan fulfilment menggantung masuk Pusat Tindakan. |
+| **Transfer** | Sudah kuat. Tambahkan nilai rupiah belum direkonsiliasi ke Pusat Tindakan. |
+
+Aturan yang berlaku ke delapan-delapannya: satu tombol `primary` per layar,
+subjudul yang menghitung, keadaan kosong yang menyebut sebab dan langkah
+berikutnya, dan label **"Lintas seluruh tenant"** pada setiap tabel.
+
+---
+
+## 9. Kontrak data
+
+Bentuk tabel yang perlu ditambah. Ditulis di sini supaya keputusan integritas
+diambil sekarang, bukan saat menulis migrasi.
+
+```sql
+-- Kelonggaran yang tidak pernah berakhir bukan kelonggaran; itu paket baru
+-- yang tidak pernah diberi nama.
+ALTER TABLE plan_overrides ADD COLUMN expires_at TIMESTAMPTZ;
+
+-- Membedakan "belum bayar" dari "dibekukan sengaja". Akses tetap ditentukan
+-- access_until; kolom ini hanya menjelaskan kenapa.
+ALTER TABLE subscriptions ADD COLUMN suspended_at TIMESTAMPTZ;
+
+-- Diisi worker harian. PK-nya mencegah dua baris untuk periode yang sama,
+-- sehingga worker yang berjalan dua kali menimpa, bukan menggandakan.
+CREATE TABLE usage_counters (
+  operator_id  UUID NOT NULL REFERENCES operators(id) ON DELETE CASCADE,
+  metric       TEXT NOT NULL,              -- pilgrims | branches | storage | api | whatsapp
+  period_start DATE NOT NULL,
+  value        BIGINT NOT NULL CHECK (value >= 0),
+  computed_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (operator_id, metric, period_start)
+);
+
+-- Satu baris per tahap per invoice. Uniknya PK: worker yang berjalan dua kali
+-- tidak bisa mengirim peringatan kedua, dan pelanggan yang menerima dua kali
+-- tidak akan percaya yang ketiga.
+CREATE TABLE dunning_log (
+  invoice_id UUID NOT NULL REFERENCES subscription_invoices(id) ON DELETE CASCADE,
+  stage      TEXT NOT NULL,                -- H1 | H7 | H14 | SUSPEND
+  sent_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  channel    TEXT NOT NULL,
+  PRIMARY KEY (invoice_id, stage)
+);
+
+-- Ada sejak hari pertama walau admin masih satu, supaya menambah admin kedua
+-- hanya mengubah satu aturan, bukan seluruh alur.
+CREATE TABLE privileged_actions (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  kind          TEXT NOT NULL,             -- SUSPEND | DELETE_TENANT | SET_PLAN_LIMIT | SET_SETTLEMENT
+  payload       JSONB NOT NULL,
+  reason        TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+  requested_by  TEXT NOT NULL,
+  requested_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  approved_by   TEXT NOT NULL,
+  approved_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  executed_at   TIMESTAMPTZ
+);
+
+-- Tidak ada kolom untuk "mode tulis". Ketiadaannya disengaja: menulis atas
+-- nama orang lain menghapus beda antara tindakan kami dan tindakan mereka.
+CREATE TABLE impersonation_sessions (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_user_id  TEXT NOT NULL,
+  operator_id    UUID NOT NULL REFERENCES operators(id) ON DELETE CASCADE,
+  reason         TEXT NOT NULL CHECK (length(trim(reason)) > 0),
+  ip             INET,
+  started_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at     TIMESTAMPTZ NOT NULL,
+  ended_at       TIMESTAMPTZ,
+  request_count  INTEGER NOT NULL DEFAULT 0
+);
+```
+
+Semua tabel di atas mengikuti aturan yang sudah berlaku: peran aplikasi tidak
+boleh menghapus `dunning_log`, `privileged_actions`, dan
+`impersonation_sessions` — ketiganya bukti, bukan cache. Ikuti pola
+`REVOKE UPDATE, DELETE` pada migrasi 125.
+
+---
+
+## 10. Yang membuat rancangan ini gagal
 
 Ditulis supaya bisa diperiksa, bukan supaya terdengar aman.
 
@@ -364,3 +529,7 @@ Ditulis supaya bisa diperiksa, bukan supaya terdengar aman.
   akan diperiksa.
 - **Override tanpa alasan dan tanpa akhir.** Enam bulan kemudian tidak ada yang
   tahu kenapa satu tenant punya kuota berbeda.
+- **Menghapus `audit_logs` bersama tenantnya.** Menghapus justru catatan yang
+  membuktikan penghapusan itu sah.
+- **Trial 3 hari dibiarkan sebagai konstanta di kode.** Angka komersial yang
+  butuh deploy untuk diubah akan tetap salah selama berbulan-bulan.
