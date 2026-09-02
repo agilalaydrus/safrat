@@ -16,6 +16,7 @@ import (
 	"github.com/hajj-saas/api/internal/config"
 	"github.com/hajj-saas/api/internal/crypto"
 	"github.com/hajj-saas/api/internal/events"
+	"github.com/hajj-saas/api/internal/funnel"
 	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/hajj-saas/api/internal/gen/hajj/v1/hajjv1connect"
 	"github.com/hajj-saas/api/internal/handler"
@@ -389,6 +390,17 @@ func main() {
 		ritualPath, ritualServiceHandler := hajjv1connect.NewRitualServiceHandler(ritualHandler, handlerOptions...)
 		healthReportPath, healthReportServiceHandler := hajjv1connect.NewHealthReportServiceHandler(healthReportHandler, handlerOptions...)
 		monitoringPath, monitoringServiceHandler := hajjv1connect.NewMonitoringServiceHandler(monitoringHandler, handlerOptions...)
+		// Recording is skipped entirely when FUNNEL_SALT is unset: a visitor
+		// token without a salt can be reversed from a list of addresses, and a
+		// table that only looks anonymous is worse than an empty one. The
+		// service logs nothing and fails silently, so a missing salt degrades
+		// to "no measurements" rather than to errors on every page.
+		funnelHasher := funnel.NewHasher(strings.TrimSpace(os.Getenv("FUNNEL_SALT")))
+		if !funnelHasher.Configured() {
+			logger.Warn("FUNNEL_SALT is not set or too short; visitor funnel recording is disabled")
+		}
+		funnelHandler := handler.NewFunnelHandler(service.NewFunnelService(repository.NewFunnelRepository(pool), funnelHasher))
+		funnelPath, funnelServiceHandler := hajjv1connect.NewFunnelServiceHandler(funnelHandler, handlerOptions...)
 		mux.Handle(operatorPath, operatorServiceHandler)
 		mux.Handle(subscriptionPath, subscriptionServiceHandler)
 		mux.Handle(branchPath, branchServiceHandler)
@@ -427,6 +439,7 @@ func main() {
 		mux.Handle(ritualPath, ritualServiceHandler)
 		mux.Handle(healthReportPath, healthReportServiceHandler)
 		mux.Handle(monitoringPath, monitoringServiceHandler)
+		mux.Handle(funnelPath, funnelServiceHandler)
 		mux.HandleFunc("POST /webhooks/supplier/{token}", handler.NewSupplierCallbackHandler(logger, fulfilmentService))
 		// Bank credits from a poller or scraper. Signed over the body, and
 		// refused outright when the secret is unset — an endpoint that grants

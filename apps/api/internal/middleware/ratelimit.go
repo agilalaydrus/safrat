@@ -42,6 +42,11 @@ var rateLimitedProcedures = map[string]rate.Limit{
 	// closer to ApplyAsAgent than to the read endpoints above.
 	"/hajj.v1.OrderService/CreateOrder":           rate.Every(time.Hour / rateLimitBurst), // 5 per hour per IP
 	"/hajj.v1.PilgrimAppService/ListMyBroadcasts": rate.Every(time.Minute / 4),
+	// One page view per second per address, which is far above what a person
+	// browsing produces and far below what flooding the counts would need.
+	// A forged header costs an inflated number and nothing else, since no
+	// address is stored.
+	"/hajj.v1.FunnelService/RecordEvent": rate.Every(time.Second),
 	// A public registration submission is a one-shot form, same tier as
 	// ApplyAsAgent/CreateOrder. GetRegistrationForm is read-only (loading
 	// the form itself) so it gets the looser read-endpoint ceiling instead.

@@ -91,6 +91,11 @@ var publicProcedures = map[string]bool{
 	// Same reason: apps/web/middleware.ts resolves a client's own domain before
 	// any session exists. Only verified domains resolve.
 	"/hajj.v1.OperatorService/ResolveOperatorDomain": true,
+	// FunnelService records a visitor step. Public by necessity: the whole
+	// point is the visitor who has not identified themselves. It writes only,
+	// reads nothing back, and stores no address — the reporting side lives on
+	// the authenticated services, scoped to one operator.
+	"/hajj.v1.FunnelService/RecordEvent": true,
 	// Onboarding availability check contains no tenant data and runs before
 	// the new operator record exists.
 	"/hajj.v1.OperatorService/CheckOperatorSlug": true,

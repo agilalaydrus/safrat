@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// FunnelService records how far a visitor got.
+//
+// Public and unauthenticated by necessity: the whole point is the visitor who
+// has not identified themselves. Nothing here reads anything back — the
+// reporting side lives on the authenticated services, scoped to one operator.
+service FunnelService {
+  rpc RecordEvent(RecordFunnelEventRequest) returns (RecordFunnelEventResponse);
+}
+
+message RecordFunnelEventRequest {
+  // Empty for TawafiqHub's own site. An unknown slug is dropped rather than
+  // stored loose, so a caller cannot invent tenants.
+  string operator_slug = 1 [(buf.validate.field).string.max_len = 180];
+  string step = 2 [(buf.validate.field).string = {
+    in: ["LANDING", "KATALOG", "ARTIKEL", "MULAI_ISI", "KIRIM", "SELESAI"]
+  }];
+  string path = 3 [(buf.validate.field).string.max_len = 300];
+  string article_slug = 4 [(buf.validate.field).string.max_len = 180];
+  // Host only. A full referrer can carry a search query or a personal token in
+  // its own path, and none of that belongs here.
+  string referrer_host = 5 [(buf.validate.field).string.max_len = 180];
+  string utm_source = 6 [(buf.validate.field).string.max_len = 80];
+  string utm_campaign = 7 [(buf.validate.field).string.max_len = 120];
+}
+
+// Deliberately empty. The caller must not wait on this or change what it does
+// based on the answer: a page must render whether or not its visit was counted.
+message RecordFunnelEventResponse {}

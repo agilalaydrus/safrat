@@ -40,6 +40,10 @@ Menyentuh dua permukaan: `/dashboard` (travel melihat corongnya sendiri) dan
 
 # TAHAP K2 — Pencatatan
 
+> **Jalur pencatatannya sudah ada** (`2e242df`): `FunnelService.RecordEvent`,
+> publik dan ber-rate-limit, dengan penyaring bot dan penolakan slug asing.
+> Yang tersisa di tahap ini adalah **memanggilnya** dari lima titik corong.
+
 - [ ] **K2.1** Hook di `middleware.ts` untuk `LANDING` dan `KATALOG`.
       Matcher-nya sudah menyentuh setiap permintaan halaman, jadi tidak ada
       matcher baru. **Tulisnya asinkron dan gagal diam-diam.**
