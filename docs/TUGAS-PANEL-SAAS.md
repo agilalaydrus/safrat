@@ -98,19 +98,24 @@ Menutup mesin tanpa pemicu. RPC-nya sudah ada, teruji, tidak dipanggil siapa pun
 
 - [C] Siklus tagihan massal: tinjau dulu daftar invoice + nominalnya, terbitkan
       sekaligus
-- [C] Dunning H+1, H+7, H+14 → penangguhan otomatis H+21
-- [C] **Kunci idempotensi di database**: `(operator_id, period_start)` unik
-      pada invoice, `(invoice_id, stage)` unik pada jejak dunning
+- [x] Dunning H+1, H+7, H+14 → penangguhan otomatis H+21, jadwalnya dari
+      `platform_settings` (`db9fa97`)
+- [x] **Kunci idempotensi di database.** Bukan `(invoice_id, stage)` seperti
+      rancangan: invoice kedaluwarsa tepat saat akses habis lalu diterbitkan
+      ulang, jadi bukan jangkar yang stabil. Kuncinya
+      `(operator_id, lapsed_at, stage)` (`db9fa97`)
 - [C] Siklus massal tunduk pada indeks nominal unik transfer — kegagalan
       sufiks dilaporkan **per baris**, tidak membatalkan seluruh siklus
 - [C] Grace period yang bisa diatur, per tenant bila perlu
-- [C] Void invoice + pulihkan, dengan jejak (jangan DELETE)
+- [x] Void invoice menyimpan barisnya + alasan + audit; yang sudah lunas tidak
+      bisa dibatalkan (`9233cf1`)
 - [C] Prorata saat upgrade/downgrade di tengah periode
-- [C] Penangguhan lewat **waktu, bukan status**: berhenti memperpanjang
-      `access_until` + kolom `suspended_at`. Interceptor tidak berubah
-- [C] Pembayaran kapan pun **membatalkan rangkaian dan memulihkan akses**,
-      termasuk sesudah H+21, tanpa campur tangan manual
-- [C] Tab **Langganan** di `/admin`
+- [x] Penangguhan lewat **waktu, bukan status** + `suspended_at`. Interceptor
+      tidak berubah sama sekali (`db9fa97`)
+- [x] Pembayaran kapan pun **memulihkan akses**, termasuk sesudah H+21, tanpa
+      campur tangan manual — di dalam `extendAccess` supaya kedua jalur
+      pembayaran melewatinya (`db9fa97`)
+- [x] Tab **Langganan** di `/admin` (`4a8f514`)
 
 ## B2 — Meter pemakaian 🔴
 
