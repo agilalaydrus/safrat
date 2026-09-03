@@ -1,5 +1,6 @@
 import { createConnectTransport } from "@connectrpc/connect-web";
 import { authClient } from "./auth-client";
+import { impersonationToken } from "./impersonation";
 
 // authClient.getSession() is a real network round trip to
 // /api/auth/get-session. Attaching it as a per-RPC interceptor meant every
@@ -47,6 +48,22 @@ export const transport = createConnectTransport({
     (next) => async (request) => {
       const token = await resolveToken();
       if (token) request.header.set("Authorization", `Bearer ${token}`);
+      // Sent alongside the admin's own session, never instead of it: the
+      // server needs both to know who is looking and whose screen they are
+      // looking at. The server refuses this header on anything that writes, so
+      // attaching it to every tenant-facing call is safe — the client never
+      // decides what counts as a read.
+      //
+      // The platform's own surface is the one exception, and not because it is
+      // a read: talking to the platform panel is the admin acting as
+      // themselves, not as the customer. It is also what makes the session
+      // closable — the button that ends an impersonation is a PlatformService
+      // call, and a header the server refuses there would trap the admin
+      // inside the session they are trying to leave.
+      const impersonation = impersonationToken();
+      if (impersonation && request.service.typeName !== "hajj.v1.PlatformService") {
+        request.header.set("X-Impersonation-Token", impersonation);
+      }
       try {
         return await next(request);
       } catch (error) {

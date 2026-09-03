@@ -297,10 +297,19 @@ func NewAuthInterceptor(pool *pgxpool.Pool, identityRepository *repository.Ident
 	return &authInterceptor{pool: pool, identity: identityRepository, subscriptions: subscriptions}
 }
 
+// NewAuthInterceptorWithImpersonation is the same interceptor with platform
+// impersonation enabled. Kept as a separate constructor so that a server built
+// without it cannot accept an impersonation header at all — the feature is off
+// unless somebody wired it on purpose.
+func NewAuthInterceptorWithImpersonation(pool *pgxpool.Pool, identityRepository *repository.IdentityRepository, subscriptions *repository.SubscriptionRepository, impersonation *repository.ImpersonationRepository) connect.Interceptor {
+	return &authInterceptor{pool: pool, identity: identityRepository, subscriptions: subscriptions, impersonation: impersonation}
+}
+
 type authInterceptor struct {
 	pool          *pgxpool.Pool
 	identity      *repository.IdentityRepository
 	subscriptions *repository.SubscriptionRepository
+	impersonation *repository.ImpersonationRepository
 }
 
 func (a *authInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
@@ -333,6 +342,19 @@ func (a *authInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc
 // interceptor — same publicProcedures/sessionOnlyProcedures/
 // restrictedMemberProcedures checks, same three context values on success.
 func (a *authInterceptor) authenticate(ctx context.Context, procedure string, header http.Header) (context.Context, error) {
+	// An impersonation header on a procedure impersonation may not reach is
+	// refused before anything else is considered.
+	//
+	// The check lives here rather than only inside impersonate() because not
+	// every procedure reaches that code: PlatformService is session-only and
+	// returns earlier, so the header would simply be ignored there and the call
+	// would run as the admin's own identity. Ignoring it is not harmful — the
+	// caller is the same person either way — but "ignored" and "refused" are
+	// different promises, and the one worth making is the second.
+	if strings.TrimSpace(header.Get(ImpersonationHeader)) != "" && !ImpersonationAllows(procedure) {
+		return nil, connect.NewError(connect.CodePermissionDenied,
+			errors.New("sesi impersonasi hanya boleh membaca; lakukan perubahan lewat panel platform"))
+	}
 	if publicProcedures[procedure] {
 		return ctx, nil
 	}
@@ -363,6 +385,28 @@ func (a *authInterceptor) authenticate(ctx context.Context, procedure string, he
 	if err != nil {
 		return nil, err
 	}
+
+	// Impersonation replaces the tenant this request belongs to, before any of
+	// the checks below run against it. Placed here rather than at the top so an
+	// impersonation header is worthless without a real session of its own: the
+	// admin is always identifiable, whatever screen they are looking at.
+	if impersonated, active, impErr := a.impersonate(ctx, procedure, header, userID); impErr != nil {
+		return nil, impErr
+	} else if active {
+		impersonated = context.WithValue(impersonated, ctxKeyUserID, userID)
+		impersonated = context.WithValue(impersonated, ctxKeyUserName, userName)
+		// Deliberately not a staff actor: an impersonated request must never be
+		// able to author a row that names the customer's own staff as the one
+		// who did it.
+		//
+		// Returning here also skips the subscription gate, and that is the
+		// intended behaviour: a locked account is exactly the one support needs
+		// to look at. It is safe only because the session cannot write — the
+		// gate exists to stop an unpaid tenant using the product, and reading
+		// their own screen on our behalf is not that.
+		return impersonated, nil
+	}
+
 	if orgRole != "owner" && orgRole != "admin" {
 		access, err := a.identity.GetMyAccess(ctx, userID)
 		if err != nil {

@@ -326,7 +326,8 @@ func main() {
 				"reason", "REDIS_URL is not set")
 		}
 		orderService.AttachFulfilment(fulfilmentService, fulfilmentRepository)
-		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, productRepository, subscriptionRepository, repository.NewKYCRepository(pool), auditRepository, repository.NewFunnelRepository(pool))
+		impersonationRepository := repository.NewImpersonationRepository(pool)
+		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, productRepository, subscriptionRepository, repository.NewKYCRepository(pool), auditRepository, repository.NewFunnelRepository(pool), impersonationRepository)
 		// The platform review queue refunds when it resolves a failure, so it
 		// needs both — composed after construction because the order service is
 		// built later and takes the fulfilment service itself.
@@ -359,7 +360,7 @@ func main() {
 		}
 		handlerOptions := []connect.HandlerOption{connect.WithInterceptors(
 			rateLimitInterceptor,
-			middleware.NewAuthInterceptor(pool, identityRepository, subscriptionRepository),
+			middleware.NewAuthInterceptorWithImpersonation(pool, identityRepository, subscriptionRepository, impersonationRepository),
 		)}
 		operatorPath, operatorServiceHandler := hajjv1connect.NewOperatorServiceHandler(operatorHandler, handlerOptions...)
 		subscriptionPath, subscriptionServiceHandler := hajjv1connect.NewSubscriptionServiceHandler(subscriptionHandler, handlerOptions...)

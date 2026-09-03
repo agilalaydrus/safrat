@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"net/http"
+	"strings"
 
 	"buf.build/go/protovalidate"
 	"connectrpc.com/connect"
@@ -486,6 +488,50 @@ func (h *PlatformHandler) GetPlatformFunnel(ctx context.Context, req *connect.Re
 
 func (h *PlatformHandler) GetTenantDetail(ctx context.Context, req *connect.Request[hajjv1.GetTenantDetailRequest]) (*connect.Response[hajjv1.GetTenantDetailResponse], error) {
 	result, err := h.platformService.GetTenantDetail(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+// The address and browser are recorded on the session because "who looked at
+// this customer's account" is not fully answered by a user id: the same
+// account seen from an unfamiliar address is exactly what an incident review
+// needs to notice. X-Real-IP is set by nginx in front of us (DEPLOY.md §7),
+// with the connection address as the fallback for a direct call.
+func impersonationClient(req interface {
+	Header() http.Header
+	Peer() connect.Peer
+}) (ip, userAgent string) {
+	ip = strings.TrimSpace(req.Header().Get("X-Real-IP"))
+	if ip == "" {
+		ip = req.Peer().Addr
+	}
+	return ip, strings.TrimSpace(req.Header().Get("User-Agent"))
+}
+
+func (h *PlatformHandler) StartImpersonation(ctx context.Context, req *connect.Request[hajjv1.StartImpersonationRequest]) (*connect.Response[hajjv1.StartImpersonationResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	ip, userAgent := impersonationClient(req)
+	result, err := h.platformService.StartImpersonation(ctx, req.Msg, ip, userAgent)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) EndImpersonation(ctx context.Context, req *connect.Request[hajjv1.EndImpersonationRequest]) (*connect.Response[hajjv1.EndImpersonationResponse], error) {
+	result, err := h.platformService.EndImpersonation(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) ListImpersonations(ctx context.Context, req *connect.Request[hajjv1.ListImpersonationsRequest]) (*connect.Response[hajjv1.ListImpersonationsResponse], error) {
+	result, err := h.platformService.ListImpersonations(ctx, req.Msg)
 	if err != nil {
 		return nil, connectError(err)
 	}

@@ -23,14 +23,15 @@ import (
 // first — there is no interceptor doing it, so it must be visible at the top
 // of each one.
 type PlatformService struct {
-	platformRepository     *repository.PlatformRepository
-	supplierCostRepository *repository.SupplierCostRepository
-	supplierRepository     *repository.SupplierRepository
-	productRepository      *repository.ProductRepository
-	subscriptionRepository *repository.SubscriptionRepository
-	funnelRepository       *repository.FunnelRepository
-	kycRepository          *repository.KYCRepository
-	auditRepository        *repository.AuditRepository
+	platformRepository      *repository.PlatformRepository
+	supplierCostRepository  *repository.SupplierCostRepository
+	supplierRepository      *repository.SupplierRepository
+	productRepository       *repository.ProductRepository
+	subscriptionRepository  *repository.SubscriptionRepository
+	funnelRepository        *repository.FunnelRepository
+	impersonationRepository *repository.ImpersonationRepository
+	kycRepository           *repository.KYCRepository
+	auditRepository         *repository.AuditRepository
 
 	// Composed rather than reimplemented. Resolving a supplier failure has to
 	// refund, and a second copy of the refund path for this caller is the last
@@ -120,8 +121,8 @@ func (s *PlatformService) IgnoreBankMutation(ctx context.Context, req *hajjv1.Ig
 	return &hajjv1.IgnoreBankMutationResponse{}, nil
 }
 
-func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, products *repository.ProductRepository, subscriptions *repository.SubscriptionRepository, kyc *repository.KYCRepository, audit *repository.AuditRepository, funnel *repository.FunnelRepository) *PlatformService {
-	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, supplierRepository: suppliers, productRepository: products, subscriptionRepository: subscriptions, kycRepository: kyc, auditRepository: audit, funnelRepository: funnel}
+func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, products *repository.ProductRepository, subscriptions *repository.SubscriptionRepository, kyc *repository.KYCRepository, audit *repository.AuditRepository, funnel *repository.FunnelRepository, impersonation *repository.ImpersonationRepository) *PlatformService {
+	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, supplierRepository: suppliers, productRepository: products, subscriptionRepository: subscriptions, kycRepository: kyc, auditRepository: audit, funnelRepository: funnel, impersonationRepository: impersonation}
 }
 
 // requirePlatformAdmin is the only thing standing between a signed-in operator

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import ImpersonationBanner from "@/components/admin/ImpersonationBanner";
 
 export const metadata: Metadata = {
   // A template rather than one fixed string: every page under this layout used
@@ -55,7 +56,16 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
       </head>
-      <body>{children}</body>
+      <body>
+        {/*
+          Above everything, on every route. An impersonation session must not be
+          something a person can navigate away from and forget: whichever screen
+          they land on has to say whose account they are looking at. The
+          component renders nothing at all when no session is open.
+        */}
+        <ImpersonationBanner />
+        {children}
+      </body>
     </html>
   );
 }

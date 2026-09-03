@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   IconAlertTriangle, IconArrowLeft, IconBuildingStore, IconExternalLink,
-  IconShieldCheck, IconShieldOff, IconWorld,
+  IconEyeglass, IconShieldCheck, IconShieldOff, IconWorld,
 } from "@tabler/icons-react";
-import type { GetTenantDetailResponse } from "@hajj-saas/proto-gen/hajj/v1/platform_pb";
+import type { GetTenantDetailResponse, ImpersonationRow } from "@hajj-saas/proto-gen/hajj/v1/platform_pb";
+import { startImpersonationLocally } from "@/lib/impersonation";
 import { buildTenantLink } from "@/lib/tenant-link";
 import { platformClient } from "@/lib/rpc";
 
@@ -26,6 +27,7 @@ const formatUsage = (metric: string, value: bigint) => {
 
 export default function TenantDetail({ operatorId }: { operatorId: string }) {
   const [detail, setDetail] = useState<GetTenantDetailResponse>();
+  const [impersonations, setImpersonations] = useState<ImpersonationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState("");
 
@@ -36,6 +38,13 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
       .then(setDetail)
       .catch((error: unknown) => setFailure(error instanceof Error ? error.message : String(error)))
       .finally(() => setLoading(false));
+    // Its own call rather than part of the detail: the history of who looked at
+    // this account is worth showing even when it is empty, and a failure to
+    // read it must not blank the whole page.
+    platformClient
+      .listImpersonations({ operatorId, limit: 10 })
+      .then((response) => setImpersonations(response.sessions))
+      .catch(() => setImpersonations([]));
   }, [operatorId]);
 
   if (loading) return <main style={page}><p style={muted}>Memuat data travel…</p></main>;
@@ -78,11 +87,14 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
             {operator.slug || "tanpa slug"} · bergabung {date(operator.createdAt)} · {operator.plan || "tanpa paket"}
           </p>
         </div>
-        {storefront && (
-          <a href={storefront} target="_blank" rel="noreferrer" style={storefrontButton}>
-            <IconBuildingStore size={16} />Buka storefront<IconExternalLink size={13} />
-          </a>
-        )}
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <StartImpersonation operatorId={operator.id} operatorName={operator.name} />
+          {storefront && (
+            <a href={storefront} target="_blank" rel="noreferrer" style={storefrontButton}>
+              <IconBuildingStore size={16} />Buka storefront<IconExternalLink size={13} />
+            </a>
+          )}
+        </div>
       </header>
       <div className="gold-divider" />
 
@@ -310,12 +322,126 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
         )}
       </section>
 
+      <section style={{ ...card, marginTop: 16 }}>
+        <h2 style={cardTitle}><IconEyeglass size={16} style={{ verticalAlign: "-3px", marginRight: 6 }} />Riwayat sesi lihat-saja</h2>
+        <p style={{ ...muted, fontSize: 12, marginBottom: 12 }}>
+          Setiap kali seseorang dari TawafiqHub membuka akun ini sebagai pemiliknya. Barisnya tetap ada setelah
+          sesinya berakhir — itulah gunanya.
+        </p>
+        {impersonations.length === 0 ? (
+          <p style={muted}>Belum pernah ada yang membuka akun ini sebagai pemiliknya.</p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={table}>
+              <thead><tr>{["Mulai", "Oleh", "Alasan", "Alamat", "Selesai"].map((head) => <th key={head} style={th}>{head}</th>)}</tr></thead>
+              <tbody>
+                {impersonations.map((session) => (
+                  <tr key={session.id} style={tr}>
+                    <td style={td}>{dateTime(session.startedAt)}</td>
+                    <td style={td}>{session.admin}</td>
+                    <td style={{ ...td, maxWidth: 320 }}>{session.reason}</td>
+                    <td style={{ ...td, color: "var(--color-warm-400)" }}>{session.ip || "—"}</td>
+                    <td style={td}>
+                      {session.endedAt
+                        ? dateTime(session.endedAt)
+                        : session.expiresAt && session.expiresAt.toDate().getTime() < Date.now()
+                          ? <span style={{ color: "var(--color-warm-400)" }}>kedaluwarsa {dateTime(session.expiresAt)}</span>
+                          : <span style={{ color: "var(--color-warning-700)", fontWeight: 700 }}>masih terbuka</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <p style={{ ...muted, fontSize: 12, marginTop: 16 }}>
         Halaman ini hanya membaca. Mengubah paket, kuota, masa tenggang, atau menangguhkan travel dilakukan di tab
         yang punya konfirmasi dan jejaknya sendiri — <Link href="/admin" style={inlineLink}>Paket &amp; Kuota</Link> dan{" "}
         <Link href="/admin" style={inlineLink}>Langganan</Link>.
       </p>
     </main>
+  );
+}
+
+/**
+ * Opening a read-only window onto this tenant's own dashboard.
+ *
+ * The reason is required and typed by hand every time, on purpose. A dropdown
+ * of canned reasons produces a column full of the first option; a sentence
+ * somebody had to write is the only thing that will explain the session to
+ * whoever reads the audit trail a year from now.
+ */
+function StartImpersonation({ operatorId, operatorName }: { operatorId: string; operatorName: string }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [minutes, setMinutes] = useState(15);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState("");
+
+  const start = useCallback(async () => {
+    setBusy(true);
+    setFailure("");
+    try {
+      const response = await platformClient.startImpersonation({
+        operatorId, reason: reason.trim(), minutes,
+        // New for each attempt, not per tenant: a retry must not be able to
+        // settle a session opened minutes ago for a different reason.
+        idempotencyKey: `imp-${operatorId}-${crypto.randomUUID()}`,
+      });
+      startImpersonationLocally({
+        token: response.token,
+        operatorId,
+        operatorName: response.operatorName || operatorName,
+        expiresAt: response.expiresAt ? response.expiresAt.toDate().getTime() : Date.now() + minutes * 60_000,
+      });
+      // A full navigation, not a client-side push: every cached RPC result on
+      // this page belongs to the admin's own identity, and carrying it into the
+      // tenant's dashboard would show one customer's numbers under another's
+      // name.
+      window.location.href = "/dashboard";
+    } catch (error: unknown) {
+      setFailure(error instanceof Error ? error.message : String(error));
+      setBusy(false);
+    }
+  }, [operatorId, operatorName, reason, minutes]);
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} style={impersonateButton}>
+        <IconEyeglass size={16} />Lihat sebagai travel ini
+      </button>
+    );
+  }
+
+  return (
+    <div style={impersonateForm}>
+      <p style={{ margin: "0 0 10px", fontSize: 13, lineHeight: 1.6, color: "var(--color-warm-700)" }}>
+        Sesi <strong>hanya membaca</strong> dan berakhir sendiri. Perubahan untuk pelanggan tetap dilakukan lewat panel
+        platform, yang punya konfirmasi dan jejaknya sendiri. Alasan di bawah tercatat di jejak audit travel ini.
+      </p>
+      <label style={fieldLabel} htmlFor="impersonation-reason">Alasan (minimal 10 huruf)</label>
+      <textarea
+        id="impersonation-reason"
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        rows={2}
+        placeholder="mis. pelanggan melaporkan daftar jamaah kosong setelah impor"
+        style={textarea}
+      />
+      <label style={fieldLabel} htmlFor="impersonation-minutes">Durasi</label>
+      <select id="impersonation-minutes" value={minutes} onChange={(event) => setMinutes(Number(event.target.value))} style={select}>
+        {[15, 30, 60].map((value) => <option key={value} value={value}>{value} menit</option>)}
+      </select>
+      {failure && <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--color-danger-600)" }}>{failure}</p>}
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button type="button" onClick={start} disabled={busy || reason.trim().length < 10} style={confirmButton}>
+          {busy ? "Membuka…" : "Mulai sesi lihat-saja"}
+        </button>
+        <button type="button" onClick={() => { setOpen(false); setFailure(""); }} style={cancelButton}>Batal</button>
+      </div>
+    </div>
   );
 }
 
@@ -352,3 +478,10 @@ const domainRow: React.CSSProperties = { display: "flex", alignItems: "center", 
 const emptyState: React.CSSProperties = { minHeight: 280, display: "grid", placeItems: "center", alignContent: "center", gap: 12, textAlign: "center", border: "1px dashed var(--color-cream-400)", borderRadius: 12, padding: 32 };
 const failureBox: React.CSSProperties = { display: "block", maxWidth: 520, padding: 12, background: "var(--color-cream-100)", borderRadius: 8, fontSize: 13, color: "var(--color-danger-600)", overflowWrap: "anywhere" };
 const inlineLink: React.CSSProperties = { color: "var(--color-emerald-800)", fontWeight: 700 };
+const impersonateButton: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44, padding: "0 18px", borderRadius: 8, border: "1px solid var(--color-warning-200)", background: "var(--color-warning-50)", color: "var(--color-warning-700)", fontWeight: 700, fontSize: 13, cursor: "pointer" };
+const impersonateForm: React.CSSProperties = { width: "min(420px, 100%)", padding: 16, borderRadius: 10, border: "1px solid var(--color-warning-200)", background: "var(--color-warning-50)" };
+const fieldLabel: React.CSSProperties = { display: "block", margin: "0 0 4px", fontSize: 11, fontWeight: 700, color: "var(--color-warm-700)", letterSpacing: ".03em" };
+const textarea: React.CSSProperties = { width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--color-cream-400)", background: "#fff", font: "inherit", fontSize: 13, resize: "vertical", marginBottom: 10 };
+const select: React.CSSProperties = { minHeight: 40, padding: "0 10px", borderRadius: 8, border: "1px solid var(--color-cream-400)", background: "#fff", font: "inherit", fontSize: 13 };
+const confirmButton: React.CSSProperties = { minHeight: 42, padding: "0 18px", borderRadius: 8, border: 0, background: "var(--color-warning-700)", color: "#fff", font: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer" };
+const cancelButton: React.CSSProperties = { minHeight: 42, padding: "0 16px", borderRadius: 8, border: "1px solid var(--color-cream-400)", background: "#fff", font: "inherit", fontWeight: 700, fontSize: 13, color: "var(--color-warm-700)", cursor: "pointer" };

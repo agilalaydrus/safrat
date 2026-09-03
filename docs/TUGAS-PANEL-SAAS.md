@@ -139,10 +139,12 @@ Menutup mesin tanpa pemicu. RPC-nya sudah ada, teruji, tidak dipanggil siapa pun
 - [x] Tim & status 2FA · domain · jejak audit tenant itu
 - [x] Corong storefront 30 hari, sehingga langganan, pemakaian, dan permintaan
       terbaca bersama (menutup **K5.6**)
-- [ ] Tombol tindakan: ubah override, tangguhkan, impersonate — **belum**, dan
-      sengaja. Impersonate adalah C1 dan punya syaratnya sendiri; mengubah paket
-      dan menangguhkan sudah punya konfirmasi dan jejak di tabnya masing-masing.
-      Halaman ini hanya membaca, dan mengatakannya di kaki halaman.
+- [x] Tombol **Lihat sebagai travel ini** (C1), dengan alasan yang harus
+      diketik dan riwayat sesi lihat-saja di bawahnya.
+- [ ] Tombol ubah override dan tangguhkan — **sengaja tidak di sini**. Keduanya
+      sudah punya konfirmasi dan jejak di tabnya masing-masing; menyalinnya ke
+      sini berarti dua jalan menuju tindakan yang tidak bisa ditarik. Halaman
+      ini hanya membaca, dan mengatakannya di kaki halaman.
 
 **Catatan teknis:**
 
@@ -168,14 +170,54 @@ Menutup mesin tanpa pemicu. RPC-nya sudah ada, teruji, tidak dipanggil siapa pun
 
 # TAHAP C — Keamanan sebelum tim bertambah
 
-## C1 — Impersonate dengan jejak penuh 🔴
+## C1 — Impersonate dengan jejak penuh ✅
 
-- [C] Sesi impersonasi ditandai berbeda di seluruh sistem
-- [C] **Read-only, tanpa mode tulis sama sekali.** Perubahan untuk pelanggan
-      lewat RPC platform yang punya jejaknya sendiri — jangan menyamar
-- [C] Berbatas waktu, otomatis berakhir
-- [C] Dicatat lengkap: siapa, tenant mana, IP, alasan, durasi
-- [C] Uji: sesi impersonasi tidak bisa menulis sebelum ditingkatkan
+- [x] Sesi impersonasi ditandai berbeda di seluruh sistem: spanduk oranye
+      lengket di **setiap** halaman, dengan nama travel dan hitung mundur, dan
+      tidak bisa ditutup selain dengan mengakhiri sesinya.
+- [x] **Read-only, tanpa mode tulis sama sekali.** Ditegakkan di interceptor
+      dengan **tolak-secara-baku**: hanya awalan `List`/`Get`/`Preview`/`Count`/
+      `Am` yang lolos, dan `PlatformService`/`FunnelService` tertutup penuh.
+      RPC baru yang ditambahkan tahun depan otomatis tertolak sampai seseorang
+      memutuskan sebaliknya.
+- [x] Berbatas waktu (maksimal 60 menit, dipaksa di repository), berakhir
+      sendiri lewat kueri pencarian — bukan lewat timer yang harus diingat
+      seseorang untuk dijalankan.
+- [x] Dicatat lengkap sebelum sesinya mulai: siapa, travel mana, IP, user agent,
+      alasan (minimal 10 huruf, dipaksa oleh CHECK di database), durasi. Entri
+      audit ditulis pada **travel itu**, bukan pada platform — rekam jejak
+      pelanggan seharusnya memperlihatkan bahwa kami membuka akunnya.
+- [x] Token tidak pernah disimpan apa adanya, hanya SHA-256-nya. Diuji: token
+      hasil `StartImpersonation` tidak ditemukan di kolom mana pun.
+- [x] Kunci idempotensi unik di database, bukan cek-lalu-tulis: tombol yang
+      diklik dua kali tidak membuka dua sesi.
+
+**Diuji, dan diverifikasi dengan merusak:**
+
+- `impersonation_test.go` menelusuri **323 prosedur** dari deskriptor yang
+  dihasilkan dan memastikan tidak satu pun nama yang berawalan kata kerja tulis
+  bisa lolos (115 boleh dibaca). Daftar kata kerjanya ditulis terpisah dari
+  aturannya — kalau diturunkan dari aturan yang diuji, pernyataannya hanya
+  berbunyi "aturan ini setuju dengan dirinya sendiri".
+- `impersonation_http_test.go` menjalankan `CreateSeason` sungguhan lewat
+  interceptor sungguhan. Permintaannya sengaja **valid sepenuhnya**, supaya
+  tanpa pengaman barisnya benar-benar masuk. Dibuktikan: dengan `Create`
+  ditambahkan ke daftar awalan yang diizinkan, panggilannya **berhasil** dan
+  musim baru tertulis di akun pelanggan.
+- Token palsu, sesi kedaluwarsa, dan sesi yang sudah ditutup semuanya
+  `unauthenticated` dan tidak bisa dibedakan satu sama lain.
+
+**Keputusan yang perlu diketahui:**
+
+- Impersonasi **melewati gerbang langganan**. Akun yang terkunci justru yang
+  paling perlu dilihat, dan ini aman hanya karena sesinya tidak bisa menulis.
+- Header impersonasi **ditolak** (bukan diabaikan) pada prosedur yang tertutup,
+  di semua jalur autentikasi. Peramban sendiri tidak pernah mengirimkannya ke
+  `PlatformService` — panel platform selalu dijalankan sebagai admin itu
+  sendiri, dan itu juga yang membuat sesinya bisa ditutup: tombol "Akhiri"
+  adalah panggilan `PlatformService`.
+- Token disimpan di `sessionStorage`, bukan `localStorage`: sesi yang selamat
+  dari tab yang ditutup adalah sesi yang dilupakan orang.
 
 ## C2 — Four-eyes untuk tindakan tak bisa ditarik 🔴
 

@@ -185,7 +185,60 @@ service PlatformService {
   // invoices down to a screen about one of them, and be slower for the
   // trouble.
   rpc GetTenantDetail(GetTenantDetailRequest) returns (GetTenantDetailResponse);
+
+  // Impersonation: looking at a tenant's own dashboard as they see it.
+  //
+  // Read-only and time-bounded, and written down before it starts. Fixing
+  // something for a customer goes through the platform RPCs above, which have
+  // their own confirmation and their own audit trail — never by wearing the
+  // customer's face.
+  rpc StartImpersonation(StartImpersonationRequest) returns (StartImpersonationResponse);
+  rpc EndImpersonation(EndImpersonationRequest) returns (EndImpersonationResponse);
+  rpc ListImpersonations(ListImpersonationsRequest) returns (ListImpersonationsResponse);
 }
+
+message StartImpersonationRequest {
+  string operator_id = 1 [(buf.validate.field).string.min_len = 1];
+  // Long enough to be a sentence. This is the only thing that will explain the
+  // session a year from now, and "test" explains nothing.
+  string reason = 2 [(buf.validate.field).string = {min_len: 10, max_len: 500}];
+  // Capped server-side whatever is asked for.
+  int32 minutes = 3 [(buf.validate.field).int32 = {gte: 1, lte: 60}];
+  string idempotency_key = 4 [(buf.validate.field).string.min_len = 8];
+}
+
+message StartImpersonationResponse {
+  // Returned exactly once and never stored in a form that can be read back.
+  // Losing it means starting a new session.
+  string token = 1;
+  string session_id = 2;
+  string operator_name = 3;
+  google.protobuf.Timestamp expires_at = 4;
+}
+
+message EndImpersonationRequest {
+  string token = 1 [(buf.validate.field).string.min_len = 1];
+}
+message EndImpersonationResponse {}
+
+message ListImpersonationsRequest {
+  string operator_id = 1 [(buf.validate.field).string.min_len = 1];
+  int32 limit = 2;
+}
+
+message ImpersonationRow {
+  string id = 1;
+  // Email where the account still exists, the raw id otherwise.
+  string admin = 2;
+  string reason = 3;
+  string ip = 4;
+  google.protobuf.Timestamp started_at = 5;
+  google.protobuf.Timestamp expires_at = 6;
+  google.protobuf.Timestamp ended_at = 7;
+  string ended_reason = 8;
+}
+
+message ListImpersonationsResponse { repeated ImpersonationRow sessions = 1; }
 
 message GetTenantDetailRequest {
   string operator_id = 1 [(buf.validate.field).string.min_len = 1];
