@@ -26,7 +26,8 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
    mendekatinya.
 2. **C4 Rotasi kunci & ekspor auditor** — rotasi kunci API dengan tumpang tindih
    24 jam, dan ekspor auditor (CSV + manifes hash).
-3. **Tahap 3 Dashboard Travel** — CRM Leads, WhatsApp, rundown, tier kamar.
+3. **Tahap 3 Dashboard Travel** — sisa **T3.2** gateway WhatsApp dan **T3.3**
+   perjalanan & rundown. CRM Leads dan tier kamar sudah selesai.
 4. **SEO & Konten** — `sitemap.xml` dan `robots.txt` sudah ada dan sadar-host.
    Sisanya S3: Search Console, menunggu proyek Google Cloud milik pemilik.
 5. **Corong pengunjung** — K1–K6 selesai. Layar travel di `/dashboard/reports`
@@ -53,9 +54,9 @@ go build · go vet            bersih
 suite Go                     16 paket lulus, 0 gagal, tiga jalan berturut-turut
 tsc --noEmit · next lint     bersih
 next build                   sukses
-migrasi                      151, terpasang di DB dev dan DB uji
+migrasi                      152, terpasang di DB dev dan DB uji
 working tree                 bersih
-belum di-push                2 commit
+belum di-push                1 commit
 ```
 
 `main` = deploy. **Jangan push tanpa perintah pemilik.**

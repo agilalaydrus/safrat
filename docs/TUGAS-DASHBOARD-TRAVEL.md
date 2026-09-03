@@ -369,7 +369,33 @@ Worker memakai SMTP TLS dengan lease, retry, stable Message-ID, dan dead-letter.
       cadangan** untuk jamaah lansia, bukan sekadar kanal notifikasi.
 - [ ] **T3.3** Perjalanan & rundown — Rangkaian, Rundown, Manifes, Armada Bus,
       Roomlist, §4.5
-- [ ] **T3.4** Tier kamar (Quad/Triple/Double) + kuota kursi, §4.6 RENCANA
+- [x] **T3.4** Tier kamar (Quad/Triple/Double) + kuota kursi — migrasi 152,
+      `product_room_tiers`, editor di `/dashboard/products/harga`.
+
+      **Harga tier disimpan sebagai selisih, bukan angka tersendiri.** Alasannya
+      sama dengan alasan `ListProductPricing` menghitung dan tidak menyimpan:
+      salinan absolut jadi basi begitu harga paketnya bergerak, lalu dua angka
+      bertengkar tanpa ada yang bisa bilang mana yang benar. Selisih selamat
+      dari semua itu.
+
+      **Kuota ditegakkan database, bukan layanan.** Ada lebih dari satu jalur
+      yang membuat pesanan (dashboard, checkout publik, agen, manual), jadi
+      pemeriksaan di satu jalur adalah pemeriksaan yang hilang di jalur lain.
+      Pemicu `assert_room_tier_quota` menolak pesanan yang melewati batas, dan
+      memakai `pg_advisory_xact_lock` per tier.
+
+      Kuota kosong = tanpa batas; nol = tier ada tapi habis. Keduanya tidak
+      boleh terbaca sama, di database maupun di layar.
+
+      **Diverifikasi dengan merusak — dua kali.** Versi pertama uji balapannya
+      memakai autocommit dan **lulus walau kuncinya dilepas** (kedua pernyataan
+      tidak pernah benar-benar bertumpuk) — jadi ia tidak membuktikan apa pun.
+      Sekarang keduanya di transaksi terbuka masing-masing: dengan kunci
+      dilepas, pemesanan kedua **selesai sebelum yang pertama di-commit** dan
+      kursi terakhir terjual dua kali. Uji juga memastikan tier yang sudah
+      terjual tidak bisa dihapus, kuotanya tidak bisa disetel di bawah yang
+      sudah terjual, harga tidak bisa jatuh di bawah nol, dan travel lain tidak
+      bisa membaca maupun menulis tier paket ini.
 
 **Selesai:** pipeline CRM memakai timeline append-only, transisi tahap yang
 divalidasi, idempotensi yang dipaksakan database, entitlement paket, serta

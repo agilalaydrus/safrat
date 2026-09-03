@@ -25,6 +25,61 @@ service ProductService {
   // deliberately not settable here — it is what TawafiqHub charges the travel,
   // and a travel that could edit it could sell below the platform's cost.
   rpc SetProductMarkup(SetProductMarkupRequest) returns (SetProductMarkupResponse);
+
+  // Room tiers. The same umrah costs less four to a room than two to a room,
+  // and a catalogue that holds only one number forces a travel agency to
+  // create three near-identical packages and keep them in step by hand.
+  rpc ListProductRoomTiers(ListProductRoomTiersRequest) returns (ListProductRoomTiersResponse);
+  // Replaces the whole set for one product, rather than editing tiers one at a
+  // time. Three prices that must add up to a sensible ladder are one decision,
+  // and saving them one by one leaves the ladder briefly wrong — which is
+  // exactly when somebody's checkout reads it.
+  rpc SetProductRoomTiers(SetProductRoomTiersRequest) returns (SetProductRoomTiersResponse);
+}
+
+message ProductRoomTier {
+  // QUAD | TRIPLE | DOUBLE
+  string tier = 1 [(buf.validate.field).string = {in: ["QUAD", "TRIPLE", "DOUBLE"]}];
+  // Difference from the package's own price, not the price itself. Signed:
+  // quad is usually cheaper than the headline and double dearer.
+  //
+  // Stored as a difference for the same reason ListProductPricing computes
+  // rather than stores — an absolute copy goes stale the moment the base moves,
+  // and then two numbers disagree with nobody able to say which is right.
+  int64 price_delta_idr = 2;
+  // The resulting price, computed on read. Never stored.
+  int64 price_idr = 3;
+  // Absent means no limit, which is not the same as zero. Zero is a tier that
+  // exists and has nothing left to sell.
+  optional int32 seat_quota = 4 [(buf.validate.field).int32.gte = 0];
+  // Seats already held. Cancelled, expired, failed and refunded orders release
+  // theirs.
+  int32 seats_taken = 5;
+  bool is_active = 6;
+}
+
+message ListProductRoomTiersRequest {
+  string product_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message ListProductRoomTiersResponse {
+  repeated ProductRoomTier tiers = 1;
+  // The package price the deltas are measured against, so a screen never has to
+  // fetch the product separately to render a ladder.
+  int64 base_price_idr = 2;
+}
+
+message SetProductRoomTiersRequest {
+  string product_id = 1 [(buf.validate.field).string.min_len = 1];
+  // The complete set. Omitting a tier removes it — which is refused while it
+  // still holds seats, because a tier somebody has already bought cannot be
+  // made never to have existed.
+  repeated ProductRoomTier tiers = 2 [(buf.validate.field).repeated.max_items = 3];
+}
+
+message SetProductRoomTiersResponse {
+  repeated ProductRoomTier tiers = 1;
+  int64 base_price_idr = 2;
 }
 
 // `category` is a plain string, not an enum, matching the rest of this

@@ -73,3 +73,25 @@ func (h *ProductHandler) SetProductMarkup(ctx context.Context, req *connect.Requ
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *ProductHandler) ListProductRoomTiers(ctx context.Context, req *connect.Request[hajjv1.ListProductRoomTiersRequest]) (*connect.Response[hajjv1.ListProductRoomTiersResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.productService.ListRoomTiers(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *ProductHandler) SetProductRoomTiers(ctx context.Context, req *connect.Request[hajjv1.SetProductRoomTiersRequest]) (*connect.Response[hajjv1.SetProductRoomTiersResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.productService.SetRoomTiers(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

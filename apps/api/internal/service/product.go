@@ -133,6 +133,7 @@ func (s *ProductService) List(ctx context.Context, orgID string, req *hajjv1.Lis
 	}
 	return result, nil
 }
+
 // refuseIfPlatformOwned turns an attempted tenant write on a platform product
 // into an explanation.
 //
@@ -383,4 +384,71 @@ func refusalText(err error) string {
 		return connectErr.Message()
 	}
 	return "produk belum siap dijual"
+}
+
+// ListRoomTiers returns the ladder for one package, with the resulting price
+// computed rather than stored.
+func (s *ProductService) ListRoomTiers(ctx context.Context, orgID string, req *hajjv1.ListProductRoomTiersRequest) (*hajjv1.ListProductRoomTiersResponse, error) {
+	if req == nil || strings.TrimSpace(req.ProductId) == "" {
+		return nil, serviceError("ProductService.ListRoomTiers", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("ProductService.ListRoomTiers", err)
+	}
+	tiers, basePrice, err := s.productRepository.ListRoomTiers(ctx, op.ID, req.ProductId)
+	if err != nil {
+		return nil, serviceError("ProductService.ListRoomTiers", err)
+	}
+	return &hajjv1.ListProductRoomTiersResponse{
+		Tiers: roomTierMessages(tiers, basePrice), BasePriceIdr: basePrice,
+	}, nil
+}
+
+func (s *ProductService) SetRoomTiers(ctx context.Context, orgID string, req *hajjv1.SetProductRoomTiersRequest) (*hajjv1.SetProductRoomTiersResponse, error) {
+	if req == nil || strings.TrimSpace(req.ProductId) == "" {
+		return nil, serviceError("ProductService.SetRoomTiers", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("ProductService.SetRoomTiers", err)
+	}
+	tiers := make([]repository.RoomTier, 0, len(req.Tiers))
+	for _, tier := range req.Tiers {
+		row := repository.RoomTier{
+			Tier: repository.TrimTierName(tier.GetTier()), PriceDeltaIDR: tier.GetPriceDeltaIdr(),
+			IsActive: tier.GetIsActive(),
+		}
+		if tier.SeatQuota != nil {
+			quota := tier.GetSeatQuota()
+			row.SeatQuota = &quota
+		}
+		tiers = append(tiers, row)
+	}
+	saved, basePrice, err := s.productRepository.SetRoomTiers(ctx, op.ID, req.ProductId, tiers)
+	if err != nil {
+		return nil, serviceError("ProductService.SetRoomTiers", err)
+	}
+	return &hajjv1.SetProductRoomTiersResponse{
+		Tiers: roomTierMessages(saved, basePrice), BasePriceIdr: basePrice,
+	}, nil
+}
+
+func roomTierMessages(tiers []repository.RoomTier, basePrice int64) []*hajjv1.ProductRoomTier {
+	messages := make([]*hajjv1.ProductRoomTier, 0, len(tiers))
+	for _, tier := range tiers {
+		message := &hajjv1.ProductRoomTier{
+			Tier: tier.Tier, PriceDeltaIdr: tier.PriceDeltaIDR,
+			// Computed here, never stored. A stored total goes stale the moment
+			// the package price moves.
+			PriceIdr:   basePrice + tier.PriceDeltaIDR,
+			SeatsTaken: tier.SeatsTaken, IsActive: tier.IsActive,
+		}
+		if tier.SeatQuota != nil {
+			quota := *tier.SeatQuota
+			message.SeatQuota = &quota
+		}
+		messages = append(messages, message)
+	}
+	return messages
 }

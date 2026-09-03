@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { IconAlertTriangle, IconDeviceFloppy } from "@tabler/icons-react";
+import { IconAlertTriangle, IconBed, IconDeviceFloppy } from "@tabler/icons-react";
 import { ProductPricing } from "@hajj-saas/proto-gen/hajj/v1/product_pb";
+import RoomTierEditor from "./RoomTierEditor";
 import { productClient, seasonClient } from "@/lib/rpc";
 
 const money = (n: bigint) =>
@@ -44,6 +45,10 @@ export default function PricingDashboard() {
   }, [load]);
 
   const unsellable = rows.filter((r) => !r.sellable).length;
+  // One package's tiers open at a time. Three ladders side by side is three
+  // sets of numbers to confuse, and the decision is per package anyway.
+  const [tierProductId, setTierProductId] = useState("");
+  const tierProduct = rows.find((row) => row.productId === tierProductId);
 
   return (
     <section style={{ display: "grid", gap: 16 }}>
@@ -85,22 +90,38 @@ export default function PricingDashboard() {
               <th style={th}>MARKUP AGEN</th>
               <th style={th}>HARGA AGEN</th>
               <th style={th}>HARGA JAMAAH</th>
+              <th style={th}>TIER KAMAR</th>
               <th style={th} />
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <PricingRow key={row.productId} row={row} onSaved={(next) =>
-                setRows((current) => current.map((r) => (r.productId === next.productId ? next : r)))} />
+              <PricingRow
+                key={row.productId}
+                row={row}
+                tiersOpen={row.productId === tierProductId}
+                onToggleTiers={() => setTierProductId((current) => (current === row.productId ? "" : row.productId))}
+                onSaved={(next) =>
+                  setRows((current) => current.map((r) => (r.productId === next.productId ? next : r)))}
+              />
             ))}
           </tbody>
         </table>
       </div>
+
+      {tierProduct && (
+        <RoomTierEditor key={tierProduct.productId} productId={tierProduct.productId} productName={tierProduct.productName} />
+      )}
     </section>
   );
 }
 
-function PricingRow({ row, onSaved }: { row: ProductPricing; onSaved: (next: ProductPricing) => void }) {
+function PricingRow({ row, onSaved, tiersOpen, onToggleTiers }: {
+  row: ProductPricing;
+  onSaved: (next: ProductPricing) => void;
+  tiersOpen: boolean;
+  onToggleTiers: () => void;
+}) {
   const [operatorMarkup, setOperatorMarkup] = useState(String(row.operatorMarkupIdr));
   const [agentMarkup, setAgentMarkup] = useState(String(row.agentMarkupIdr));
   const [saving, setSaving] = useState(false);
@@ -157,6 +178,11 @@ function PricingRow({ row, onSaved }: { row: ProductPricing; onSaved: (next: Pro
       </td>
       <td style={td}>{row.sellable ? money(row.agentPriceIdr) : "—"}</td>
       <td style={{ ...td, fontWeight: 700 }}>{row.sellable ? money(row.pilgrimPriceIdr) : "—"}</td>
+      <td style={td}>
+        <button style={ghost} onClick={onToggleTiers} aria-expanded={tiersOpen}>
+          <IconBed size={15} />{tiersOpen ? "Tutup" : "Atur"}
+        </button>
+      </td>
       <td style={td}>
         <button style={ghost} onClick={save} disabled={saving || !dirty}>
           <IconDeviceFloppy size={15} />
