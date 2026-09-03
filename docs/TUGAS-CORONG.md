@@ -51,12 +51,16 @@ Menyentuh dua permukaan: `/dashboard` (travel melihat corongnya sendiri) dan
       formulir satu paket. Itu sinyal yang sebenarnya dimaksud: berpindah dari
       melihat travel ke melihat satu perjalanan.
 - [x] **K2.2** `MULAI_ISI` di `PublicRegistrationForm`, satu `onFocusCapture`
-      di form sehingga sekali saja pada kolom pertama yang disentuh (`bd09302`).
-      Form waitlist dan `/apply` menyusul.
+      di form sehingga sekali saja pada kolom pertama yang disentuh. Terpasang
+      di ketiga form publik: pendaftaran, waitlist, dan `/apply`
+      (`bd09302`, `35832e7`).
 - [x] **K2.3** `KIRIM` dan `SELESAI` terpisah di handler pendaftaran, dan
       `SELESAI` membawa id pendaftarannya sehingga corong bisa di-join ke apa
       yang dihasilkannya. Diuji dengan percobaan yang **ditolak**, bukan hanya
-      yang berhasil (`bd09302`). Waitlist menyusul.
+      yang berhasil. Waitlist ikut, dan di sana `SELESAI` hanya ditulis bila
+      entri benar-benar dibuat — `is_full=false` berarti musim masih ada kuota
+      dan pengunjung dialihkan ke pendaftaran, jadi menghitungnya akan
+      melaporkan konversi yang tidak terjadi (`bd09302`, `35832e7`).
 - [x] **K2.4** Corong platform: `LANDING` dari middleware, `KIRIM`/`SELESAI`
       saat operator dibuat, `operator_id` sengaja NULL — barisnya lalu lintas
       TawafiqHub, bukan milik tenant barunya (`8f83596`)
