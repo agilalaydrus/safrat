@@ -26,12 +26,15 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
    mendekatinya.
 2. **B3** Halaman detail tenant.
 3. **Tahap 3 Dashboard Travel** — CRM Leads, WhatsApp, rundown, tier kamar.
-4. **SEO & Konten** — **tidak ada `sitemap.xml` dan `robots.txt` sama sekali.**
-   Artikel baru bisa berminggu-minggu tidak terindeks, jadi strategi konten
-   tidak akan terlihat hasilnya dan tidak akan ketahuan kenapa.
-5. **Corong pengunjung** — dirancang penuh. Hari ini tidak ada pelacakan
-   pengunjung sama sekali: berapa orang membuka storefront sebuah travel, tidak
-   ada yang tahu.
+4. **SEO & Konten** — `sitemap.xml` dan `robots.txt` sudah ada dan sadar-host.
+   Sisanya S3: Search Console, menunggu proyek Google Cloud milik pemilik.
+5. **Corong pengunjung** — K1–K4 selesai. Layar travel sudah bisa dibaca di
+   `/dashboard/reports` → tab **Corong Pengunjung**. Sisanya:
+   **K5** tab corong di `/admin` (corong platform sendiri, agregat lintas
+   travel, papan peringkat storefront, storefront tanpa pengunjung masuk ke
+   Pusat Tindakan), **K6** dokumen insiden data pribadi + ukur biaya rollup, dan
+   **K2.8** geolokasi (GeoLite2) — sampai itu dipasang, bagian "Asal Daerah"
+   kosong dan layarnya mengatakan begitu.
 
 **Dunning masih mode kering.** Ia berjalan tiap 24 jam, mengisi `dunning_log`,
 dan **tidak mengirim apa pun** sampai `DUNNING_LIVE=true` diset. Bandingkan satu
@@ -43,17 +46,16 @@ Langganan (mass billing, grace, prorata). Tidak ada browser yang terhubung saat
 pass terakhir; semuanya juga butuh sesi admin platform dengan 2FA. Pemilik perlu
 membukanya sekali.
 
-## Kondisi terverifikasi (2 September 2026)
+## Kondisi terverifikasi (3 September 2026)
 
 ```
 go build · go vet            bersih
-suite Go                     15 paket lulus, 0 gagal
+suite Go                     16 paket lulus, 0 gagal, tiga jalan berturut-turut
 tsc --noEmit · next lint     bersih
-migrasi                      143, terpasang di DB dev dan dipakai integration test
-build:verify                 sukses
-scripts/uji-batas-cabang.sh  15 pengaman lolos, dua arah
+next build                   sukses
+migrasi                      147, terpasang di DB dev dan DB uji
 working tree                 bersih
-belum di-push                43 commit
+belum di-push                16 commit
 ```
 
 `main` = deploy. **Jangan push tanpa perintah pemilik.**
@@ -110,6 +112,20 @@ Ini sudah terjadi. Yang menyelamatkannya:
 ## Jebakan yang sudah menipu kami
 
 Tulis di sini setiap kali ketemu lagi.
+
+- **Volume Docker lokal bisa hilang saat daemon mati.** 3 September 2026:
+  Docker Desktop berhenti di tengah suite, dan saat dihidupkan lagi kedua
+  volume (`safrat_postgres_data`, `safrat_redis_data`) sudah tidak ada —
+  Postgres bootstrap cluster kosong. Image-nya selamat (umur dua minggu), jadi
+  disk VM tidak dihapus; yang hilang hanya container dan volumenya. Gejalanya
+  menyesatkan: tesnya gagal dengan *connection refused*, lalu setelah DB naik
+  lagi gagal dengan *relation does not exist* — dua-duanya terlihat seperti bug
+  kode. **Periksa `docker volume inspect <nama> --format '{{.CreatedAt}}'`**:
+  kalau waktunya sama dengan `docker compose up` barusan, volumenya baru, bukan
+  yang lama. Membangun ulang: `goose up` (berhenti di 025 karena tabel `"user"`
+  belum ada) → `npx @better-auth/cli migrate -y` dari `apps/web` → `goose up`
+  lagi → `createdb -T safrat safrat_limit_test`. Tidak ada data produksi yang
+  tersentuh; yang hilang hanya DB dev dan DB uji lokal.
 
 - **Kode hasil sqlc gitignored.** `git stash` tidak mengembalikannya, jadi uji
   "di HEAD" bisa memakai kode yang sudah berubah dan menghasilkan kesimpulan
