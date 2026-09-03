@@ -128,6 +128,7 @@ func main() {
 	// made by hand. A demand sent to an agency that already paid costs more
 	// than a week of delay.
 	usageHandler := worker.NewUsageHandler(logger, subscriptionRepository)
+	funnelRollUpHandler := worker.NewFunnelRollUpHandler(logger, repository.NewFunnelRepository(pool))
 	dunningHandler := worker.NewDunningHandler(logger, subscriptionRepository, os.Getenv("DUNNING_LIVE") != "true")
 	commissionHandler := worker.NewCommissionHandler(logger, ledgerRepository)
 	// The poller settles through the same service the webhook does, so there
@@ -188,6 +189,10 @@ func main() {
 	// subscription is already locked out by access_until regardless of status.
 	if _, err := scheduler.Register("@every 1h", worker.NewSubscriptionSweepTask()); err != nil {
 		logger.Error("register subscription sweep schedule", "error", err)
+		os.Exit(1)
+	}
+	if _, err := scheduler.Register("@every 24h", worker.NewFunnelRollUpTask()); err != nil {
+		logger.Error("register funnel rollup schedule", "error", err)
 		os.Exit(1)
 	}
 	if _, err := scheduler.Register("@every 24h", worker.NewUsageRecomputeTask()); err != nil {
@@ -280,6 +285,7 @@ func main() {
 	mux.HandleFunc(worker.TaskPlanOverrideExpire, planOverrideHandler.HandleExpire)
 	mux.HandleFunc(worker.TaskSubscriptionDunning, dunningHandler.HandleRun)
 	mux.HandleFunc(worker.TaskUsageRecompute, usageHandler.HandleRecompute)
+	mux.HandleFunc(worker.TaskFunnelRollUp, funnelRollUpHandler.HandleRollUp)
 	mux.HandleFunc(worker.TaskCommissionReconcile, commissionHandler.HandleReconcile)
 	mux.HandleFunc(worker.TaskPaymentPoll, paymentHandler.HandlePoll)
 	mux.HandleFunc(worker.TaskRefundPayoutDispatch, refundPayoutHandler.HandleDispatch)

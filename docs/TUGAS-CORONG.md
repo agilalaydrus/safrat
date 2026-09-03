@@ -35,8 +35,9 @@ Menyentuh dua permukaan: `/dashboard` (travel melihat corongnya sendiri) dan
       tabel yang hanya terlihat anonim lebih buruk daripada tabel kosong
       (`fa98c91`)
 - [x] **K1.4** Penyaring user-agent, diuji dua arah terhadap enam bot dan tiga
-      peramban sungguhan. Penyaring berbasis pola lalu lintas menyusul di K3
-      saat sudah ada data untuk mengujinya (`fa98c91`)
+      peramban sungguhan. Penyaring volume menyusul di rollup: token dengan
+      lebih dari 60 kejadian sehari dibuang **utuh** — setengah sesi crawler
+      bukan seorang manusia (`fa98c91`)
 
 # TAHAP K2 — Pencatatan
 
@@ -75,11 +76,11 @@ Menyentuh dua permukaan: `/dashboard` (travel melihat corongnya sendiri) dan
 
 # TAHAP K3 — Rollup & retensi
 
-- [ ] **K3.1** Worker harian mengisi `funnel_daily`. Layar **tidak pernah**
-      menghitung ulang baris mentah — pola yang sama dengan `usage_counters`.
-- [ ] **K3.2** Rollup idempoten: dijalankan dua kali untuk hari yang sama
-      menimpa, tidak menggandakan. Diuji dengan **menjalankan dua kali**.
-- [ ] **K3.3** Purge harian baris mentah > 90 hari. Ringkasan tetap.
+- [x] **K3.1** Worker harian mengisi `funnel_daily`, mengulang **kemarin dan
+      hari ini** karena hari baru lengkap setelah berakhir (`dfe9fec`)
+- [x] **K3.2** Idempoten, diuji dengan menjalankan dua kali (`dfe9fec`)
+- [x] **K3.3** Purge baris mentah > 90 hari dengan lantai 30 hari, ringkasan
+      disimpan selamanya (`dfe9fec`)
 - [ ] **K3.4** Retensi ditulis di layar, bukan hanya di dokumen.
 
 # TAHAP K4 — Layar travel
