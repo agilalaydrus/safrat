@@ -537,3 +537,33 @@ func (h *PlatformHandler) ListImpersonations(ctx context.Context, req *connect.R
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) SuspendTenant(ctx context.Context, req *connect.Request[hajjv1.SuspendTenantRequest]) (*connect.Response[hajjv1.SuspendTenantResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.SuspendTenant(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) ReinstateTenant(ctx context.Context, req *connect.Request[hajjv1.ReinstateTenantRequest]) (*connect.Response[hajjv1.ReinstateTenantResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.ReinstateTenant(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) ListPrivilegedActions(ctx context.Context, req *connect.Request[hajjv1.ListPrivilegedActionsRequest]) (*connect.Response[hajjv1.ListPrivilegedActionsResponse], error) {
+	result, err := h.platformService.ListPrivilegedActions(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

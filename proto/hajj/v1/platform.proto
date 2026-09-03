@@ -195,7 +195,68 @@ service PlatformService {
   rpc StartImpersonation(StartImpersonationRequest) returns (StartImpersonationResponse);
   rpc EndImpersonation(EndImpersonationRequest) returns (EndImpersonationResponse);
   rpc ListImpersonations(ListImpersonationsRequest) returns (ListImpersonationsResponse);
+
+  // Locking a travel agency out on purpose, and letting them back in. Both
+  // require the tenant's own name to be typed, and both leave a row in
+  // privileged_actions that outlives the decision.
+  rpc SuspendTenant(SuspendTenantRequest) returns (SuspendTenantResponse);
+  rpc ReinstateTenant(ReinstateTenantRequest) returns (ReinstateTenantResponse);
+  rpc ListPrivilegedActions(ListPrivilegedActionsRequest) returns (ListPrivilegedActionsResponse);
 }
+
+message SuspendTenantRequest {
+  string operator_id = 1 [(buf.validate.field).string.min_len = 1];
+  string reason = 2 [(buf.validate.field).string = {min_len: 10, max_len: 500}];
+  // The tenant's own name, typed by hand. Compared server-side against the real
+  // name — a confirmation the caller both supplies and is checked against would
+  // confirm nothing.
+  string confirmation = 3 [(buf.validate.field).string = {min_len: 1, max_len: 200}];
+  string idempotency_key = 4 [(buf.validate.field).string = {min_len: 8, max_len: 128}];
+}
+
+message SuspendTenantResponse {
+  string operator_id = 1;
+  string operator_name = 2;
+  google.protobuf.Timestamp suspended_at = 3;
+  // Left untouched by the suspension: the time already paid for keeps running,
+  // so lifting the lock returns exactly what the tenant bought.
+  google.protobuf.Timestamp access_until = 4;
+}
+
+message ReinstateTenantRequest {
+  string operator_id = 1 [(buf.validate.field).string.min_len = 1];
+  string reason = 2 [(buf.validate.field).string = {min_len: 10, max_len: 500}];
+  string confirmation = 3 [(buf.validate.field).string = {min_len: 1, max_len: 200}];
+  string idempotency_key = 4 [(buf.validate.field).string = {min_len: 8, max_len: 128}];
+}
+
+message ReinstateTenantResponse {
+  string operator_id = 1;
+  string operator_name = 2;
+  google.protobuf.Timestamp access_until = 3;
+}
+
+message ListPrivilegedActionsRequest {
+  string operator_id = 1 [(buf.validate.field).string.min_len = 1];
+  int32 limit = 2;
+}
+
+message PrivilegedActionRow {
+  string id = 1;
+  // SUSPEND | REINSTATE | SET_PLAN_LIMIT | SET_SETTLEMENT | DELETE_TENANT
+  string kind = 2;
+  string reason = 3;
+  string requested_by = 4;
+  string approved_by = 5;
+  google.protobuf.Timestamp requested_at = 6;
+  google.protobuf.Timestamp executed_at = 7;
+  // How many platform admins existed when this was requested. One means
+  // self-approval was the only path available, and the row says so rather than
+  // leaving a reader to assume the rule was ignored.
+  int32 admin_count_at_request = 8;
+}
+
+message ListPrivilegedActionsResponse { repeated PrivilegedActionRow actions = 1; }
 
 message StartImpersonationRequest {
   string operator_id = 1 [(buf.validate.field).string.min_len = 1];

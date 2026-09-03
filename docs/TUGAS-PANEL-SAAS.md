@@ -219,16 +219,52 @@ Menutup mesin tanpa pemicu. RPC-nya sudah ada, teruji, tidak dipanggil siapa pun
 - Token disimpan di `sessionStorage`, bukan `localStorage`: sesi yang selamat
   dari tab yang ditutup adalah sesi yang dilupakan orang.
 
-## C2 — Four-eyes untuk tindakan tak bisa ditarik 🔴
+## C2 — Four-eyes untuk tindakan tak bisa ditarik ✅ (sebagian, dengan alasan)
 
-Berlaku untuk: menangguhkan tenant, menghapus tenant, mengubah `plan_limits`
-global, mengubah rekening settlement.
+- [x] **Konfirmasi dengan mengetik nama tenant**, dibandingkan di repository
+      terhadap nama sungguhannya. Dicek di sana, bukan di service, karena di
+      situlah nama aslinya diketahui — konfirmasi yang dibandingkan dengan nilai
+      yang dikirim pemanggil sendiri tidak mengkonfirmasi apa pun. Huruf besar-
+      kecil dan spasi di ujung dimaafkan; katanya tidak.
+- [x] `privileged_actions` **sudah ada sejak migrasi 138**, dan sudah dipakai
+      `SET_PLAN_LIMIT`. Yang belum: `SUSPEND` dideklarasikan tapi **tidak ada
+      satu pun jalur yang menulisnya** — tidak ada RPC penangguhan manual sama
+      sekali. Sekarang ada, plus `REINSTATE` (migrasi 150) sebagai jenis
+      tersendiri: "kenapa dikunci" dan "siapa yang membuka" adalah dua
+      pertanyaan berbeda, dan field di dalam payload tidak bisa diindeks
+      atau dibaca sekilas.
+- [x] `approved_by = requested_by` selama admin masih satu, **dan barisnya
+      menyebut berapa admin yang ada saat itu**. Satu berarti persetujuan orang
+      kedua memang belum mungkin — bukan bahwa aturannya dilewati. Hari ada
+      admin kedua, tanda tangannya punya tempat dan baris-baris lama tidak
+      berpura-pura pernah memilikinya.
+- [x] Masuk `audit_logs` dengan alasannya, di transaksi yang sama dengan
+      perubahannya.
+- [x] Bisa dibaca: tabel **Tindakan yang tidak bisa ditarik** di halaman detail
+      tenant. Tabel yang tidak pernah dibaca adalah tabel yang tidak ada yang
+      sadar kalau kosong.
+- [ ] **Menghapus tenant** — sengaja belum. Itu D6, dan syaratnya lebih berat:
+      tawarkan ekspor data lebih dulu (hak portabilitas UU PDP), dan
+      `audit_logs` tidak ikut terhapus.
+- [ ] **Rekening settlement** — tidak ada yang bisa dirutekan. Nomornya hanya
+      ada di `.env.prod` di VPS, tidak pernah di database dan tidak pernah di
+      repo. Mengubahnya berarti masuk ke server, bukan menekan tombol. Kalau
+      suatu hari pindah ke database, jalurnya lewat sini.
 
-- [C] Selama admin platform hanya satu: **konfirmasi ulang dengan mengetik nama
-      tenant**
-- [C] Tabel `privileged_actions` sejak hari pertama, dengan
-      `approved_by = requested_by` selama admin masih satu
-- [C] Setiap tindakan ini masuk `audit_logs` dengan alasannya
+**Penangguhan bekerja lewat satu kolom, dan itu disengaja:**
+`suspended_at` diisi, `access_until` **tidak disentuh**. Akses ditentukan oleh
+`suspended_at IS NULL AND effective_access_until > NOW()`, jadi kolom itu
+menutup pintu seketika sementara waktu yang sudah dibayar terus berjalan di
+bawahnya. Membuka kembali mengembalikan persis yang mereka beli, tanpa
+aritmetika yang bisa salah.
+
+**Diuji, dan diverifikasi dengan merusak:** `suspension_http_test.go` memastikan
+nama yang salah tidak menangguhkan siapa pun, penangguhan benar-benar menutup
+akses travel yang **masih punya sisa waktu 30 hari**, `access_until` tidak
+berubah, pengulangan dengan kunci sama tidak membuat baris kedua, dan pemulihan
+mengembalikan waktu yang sama persis. Dengan pemeriksaan nama dilumpuhkan,
+ujinya gagal: `nama salah = unknown` — artinya nama yang salah benar-benar
+menangguhkan travelnya.
 
 ## C3 — Audit pembacaan data pribadi 🟠
 

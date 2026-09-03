@@ -24,8 +24,8 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
 
 1. **B2** Meter pemakaian — batas ditegakkan tapi tidak ada yang tahu siapa
    mendekatinya.
-2. **C2 Four-eyes** untuk tindakan yang tidak bisa ditarik (tangguhkan/hapus
-   tenant, ubah `plan_limits` global, ubah rekening settlement).
+2. **C3 Audit pembacaan data pribadi** — membaca KYC/paspor dari panel platform
+   harus tercatat, bukan hanya perubahannya.
 3. **Tahap 3 Dashboard Travel** — CRM Leads, WhatsApp, rundown, tier kamar.
 4. **SEO & Konten** — `sitemap.xml` dan `robots.txt` sudah ada dan sadar-host.
    Sisanya S3: Search Console, menunggu proyek Google Cloud milik pemilik.
@@ -53,9 +53,9 @@ go build · go vet            bersih
 suite Go                     16 paket lulus, 0 gagal, tiga jalan berturut-turut
 tsc --noEmit · next lint     bersih
 next build                   sukses
-migrasi                      149, terpasang di DB dev dan DB uji
+migrasi                      150, terpasang di DB dev dan DB uji
 working tree                 bersih
-belum di-push                21 commit
+belum di-push                1 commit
 ```
 
 `main` = deploy. **Jangan push tanpa perintah pemilik.**

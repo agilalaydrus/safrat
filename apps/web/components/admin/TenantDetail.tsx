@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   IconAlertTriangle, IconArrowLeft, IconBuildingStore, IconExternalLink,
-  IconEyeglass, IconShieldCheck, IconShieldOff, IconWorld,
+  IconEyeglass, IconLock, IconLockOpen, IconShieldCheck, IconShieldOff, IconWorld,
 } from "@tabler/icons-react";
-import type { GetTenantDetailResponse, ImpersonationRow } from "@hajj-saas/proto-gen/hajj/v1/platform_pb";
+import type { GetTenantDetailResponse, ImpersonationRow, PrivilegedActionRow } from "@hajj-saas/proto-gen/hajj/v1/platform_pb";
 import { startImpersonationLocally } from "@/lib/impersonation";
 import { buildTenantLink } from "@/lib/tenant-link";
 import { platformClient } from "@/lib/rpc";
@@ -28,6 +28,7 @@ const formatUsage = (metric: string, value: bigint) => {
 export default function TenantDetail({ operatorId }: { operatorId: string }) {
   const [detail, setDetail] = useState<GetTenantDetailResponse>();
   const [impersonations, setImpersonations] = useState<ImpersonationRow[]>([]);
+  const [privileged, setPrivileged] = useState<PrivilegedActionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState("");
 
@@ -45,6 +46,10 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
       .listImpersonations({ operatorId, limit: 10 })
       .then((response) => setImpersonations(response.sessions))
       .catch(() => setImpersonations([]));
+    platformClient
+      .listPrivilegedActions({ operatorId, limit: 20 })
+      .then((response) => setPrivileged(response.actions))
+      .catch(() => setPrivileged([]));
   }, [operatorId]);
 
   if (loading) return <main style={page}><p style={muted}>Memuat data travel…</p></main>;
@@ -89,6 +94,7 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <StartImpersonation operatorId={operator.id} operatorName={operator.name} />
+          <SuspensionControl operatorId={operator.id} operatorName={operator.name} suspended={suspended} />
           {storefront && (
             <a href={storefront} target="_blank" rel="noreferrer" style={storefrontButton}>
               <IconBuildingStore size={16} />Buka storefront<IconExternalLink size={13} />
@@ -323,6 +329,43 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
       </section>
 
       <section style={{ ...card, marginTop: 16 }}>
+        <h2 style={cardTitle}><IconLock size={16} style={{ verticalAlign: "-3px", marginRight: 6 }} />Tindakan yang tidak bisa ditarik</h2>
+        <p style={{ ...muted, fontSize: 12, marginBottom: 12 }}>
+          Penangguhan, pembukaan kembali, dan perubahan batas paket. Kolom terakhir menyebut berapa admin platform
+          yang ada saat itu — satu berarti persetujuan orang kedua memang belum mungkin, bukan bahwa aturannya
+          dilewati.
+        </p>
+        {privileged.length === 0 ? (
+          <p style={muted}>Belum ada tindakan istimewa pada travel ini.</p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={table}>
+              <thead><tr>{["Waktu", "Tindakan", "Alasan", "Diminta oleh", "Disetujui oleh", "Admin saat itu"].map((head) => <th key={head} style={th}>{head}</th>)}</tr></thead>
+              <tbody>
+                {privileged.map((action) => (
+                  <tr key={action.id} style={tr}>
+                    <td style={td}>{dateTime(action.requestedAt)}</td>
+                    <td style={{ ...td, fontWeight: 700 }}>{PRIVILEGED_LABEL[action.kind] ?? action.kind}</td>
+                    <td style={{ ...td, maxWidth: 280 }}>{action.reason}</td>
+                    <td style={td}>{action.requestedBy}</td>
+                    <td style={td}>
+                      {action.approvedBy}
+                      {action.approvedBy === action.requestedBy && action.adminCountAtRequest <= 1 && (
+                        <span style={{ ...tag, background: "var(--color-cream-200)", color: "var(--color-warm-700)", marginLeft: 6 }}>
+                          admin tunggal
+                        </span>
+                      )}
+                    </td>
+                    <td style={td}>{action.adminCountAtRequest}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section style={{ ...card, marginTop: 16 }}>
         <h2 style={cardTitle}><IconEyeglass size={16} style={{ verticalAlign: "-3px", marginRight: 6 }} />Riwayat sesi lihat-saja</h2>
         <p style={{ ...muted, fontSize: 12, marginBottom: 12 }}>
           Setiap kali seseorang dari TawafiqHub membuka akun ini sebagai pemiliknya. Barisnya tetap ada setelah
@@ -357,9 +400,11 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
       </section>
 
       <p style={{ ...muted, fontSize: 12, marginTop: 16 }}>
-        Halaman ini hanya membaca. Mengubah paket, kuota, masa tenggang, atau menangguhkan travel dilakukan di tab
-        yang punya konfirmasi dan jejaknya sendiri — <Link href="/admin" style={inlineLink}>Paket &amp; Kuota</Link> dan{" "}
-        <Link href="/admin" style={inlineLink}>Langganan</Link>.
+        Selain menangguhkan dan membuka kembali, halaman ini hanya membaca. Mengubah paket, kuota, dan masa tenggang
+        dilakukan di tab yang punya konfirmasi dan jejaknya sendiri —{" "}
+        <Link href="/admin" style={inlineLink}>Paket &amp; Kuota</Link> dan{" "}
+        <Link href="/admin" style={inlineLink}>Langganan</Link>. Dua jalan menuju tindakan yang sama berarti dua tempat
+        yang harus sama-sama benar.
       </p>
     </main>
   );
@@ -445,6 +490,100 @@ function StartImpersonation({ operatorId, operatorName }: { operatorId: string; 
   );
 }
 
+const PRIVILEGED_LABEL: Record<string, string> = {
+  SUSPEND: "Ditangguhkan",
+  REINSTATE: "Dibuka kembali",
+  SET_PLAN_LIMIT: "Batas paket diubah",
+  SET_SETTLEMENT: "Rekening settlement diubah",
+  DELETE_TENANT: "Travel dihapus",
+};
+
+/**
+ * Locking a travel agency out, and letting them back in.
+ *
+ * The name has to be typed. Not because typing proves authority — the server
+ * already knows who is asking — but because it proves the admin is looking at
+ * the row they think they are. Suspending the wrong tenant is a phone call
+ * from a customer whose staff cannot log in.
+ */
+function SuspensionControl({ operatorId, operatorName, suspended }: { operatorId: string; operatorName: string; suspended: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState("");
+
+  const submit = useCallback(async () => {
+    setBusy(true);
+    setFailure("");
+    const payload = {
+      operatorId, reason: reason.trim(), confirmation: typed.trim(),
+      idempotencyKey: `${suspended ? "rein" : "susp"}-${operatorId}-${crypto.randomUUID()}`,
+    };
+    try {
+      if (suspended) await platformClient.reinstateTenant(payload);
+      else await platformClient.suspendTenant(payload);
+      // Reloaded rather than patched into state: this changes the tenant's
+      // access, and half the page would still be describing the old answer.
+      window.location.reload();
+    } catch (error: unknown) {
+      setFailure(error instanceof Error ? error.message : String(error));
+      setBusy(false);
+    }
+  }, [operatorId, reason, typed, suspended]);
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} style={suspended ? reinstateButton : suspendButton}>
+        {suspended ? <IconLockOpen size={16} /> : <IconLock size={16} />}
+        {suspended ? "Buka kembali travel ini" : "Tangguhkan travel ini"}
+      </button>
+    );
+  }
+
+  return (
+    <div style={suspended ? reinstateForm : suspendForm}>
+      <p style={{ margin: "0 0 10px", fontSize: 13, lineHeight: 1.6, color: "var(--color-warm-700)" }}>
+        {suspended
+          ? "Travel ini bisa masuk lagi seketika. Sisa waktu yang sudah mereka bayar tidak pernah dikurangi selama ditangguhkan, jadi mereka mendapatkannya kembali utuh."
+          : "Seluruh staf travel ini langsung tidak bisa masuk. Storefront dan portal jamaah tidak terpengaruh, dan sisa waktu yang sudah dibayar tetap berjalan — membuka kembali mengembalikannya utuh."}
+      </p>
+      <label style={fieldLabel} htmlFor="suspension-reason">Alasan (minimal 10 huruf)</label>
+      <textarea
+        id="suspension-reason"
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        rows={2}
+        placeholder={suspended ? "mis. kesalahpahaman selesai, dibuka kembali atas permintaan pemilik" : "mis. permintaan resmi pemilik travel lewat surat tertanggal 3 September"}
+        style={textarea}
+      />
+      <label style={fieldLabel} htmlFor="suspension-confirm">
+        Ketik nama travel persis: <strong>{operatorName}</strong>
+      </label>
+      <input
+        id="suspension-confirm"
+        value={typed}
+        onChange={(event) => setTyped(event.target.value)}
+        placeholder={operatorName}
+        style={confirmInput}
+        autoComplete="off"
+      />
+      {failure && <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--color-danger-600)" }}>{failure}</p>}
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={busy || reason.trim().length < 10 || typed.trim().toLowerCase() !== operatorName.trim().toLowerCase()}
+          style={suspended ? confirmReinstate : confirmSuspend}
+        >
+          {busy ? "Menyimpan…" : suspended ? "Buka kembali" : "Tangguhkan"}
+        </button>
+        <button type="button" onClick={() => { setOpen(false); setFailure(""); }} style={cancelButton}>Batal</button>
+      </div>
+    </div>
+  );
+}
+
 const page: React.CSSProperties = { maxWidth: 1100, margin: "0 auto", padding: "32px 24px" };
 const back: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-warm-500)", fontSize: 13, fontWeight: 600, textDecoration: "none", marginBottom: 16 };
 const header: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 20, flexWrap: "wrap", alignItems: "flex-start" };
@@ -484,4 +623,11 @@ const fieldLabel: React.CSSProperties = { display: "block", margin: "0 0 4px", f
 const textarea: React.CSSProperties = { width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--color-cream-400)", background: "#fff", font: "inherit", fontSize: 13, resize: "vertical", marginBottom: 10 };
 const select: React.CSSProperties = { minHeight: 40, padding: "0 10px", borderRadius: 8, border: "1px solid var(--color-cream-400)", background: "#fff", font: "inherit", fontSize: 13 };
 const confirmButton: React.CSSProperties = { minHeight: 42, padding: "0 18px", borderRadius: 8, border: 0, background: "var(--color-warning-700)", color: "#fff", font: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer" };
+const suspendButton: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44, padding: "0 18px", borderRadius: 8, border: "1px solid var(--color-danger-100)", background: "var(--color-danger-100)", color: "var(--color-danger-600)", fontWeight: 700, fontSize: 13, cursor: "pointer" };
+const reinstateButton: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44, padding: "0 18px", borderRadius: 8, border: "1px solid var(--color-emerald-200)", background: "var(--color-emerald-50)", color: "var(--color-emerald-800)", fontWeight: 700, fontSize: 13, cursor: "pointer" };
+const suspendForm: React.CSSProperties = { width: "min(460px, 100%)", padding: 16, borderRadius: 10, border: "1px solid var(--color-danger-100)", background: "var(--color-danger-100)" };
+const reinstateForm: React.CSSProperties = { width: "min(460px, 100%)", padding: 16, borderRadius: 10, border: "1px solid var(--color-emerald-200)", background: "var(--color-emerald-50)" };
+const confirmInput: React.CSSProperties = { width: "100%", minHeight: 40, padding: "0 10px", borderRadius: 8, border: "1px solid var(--color-cream-400)", background: "#fff", font: "inherit", fontSize: 13 };
+const confirmSuspend: React.CSSProperties = { minHeight: 42, padding: "0 18px", borderRadius: 8, border: 0, background: "var(--color-danger-600)", color: "#fff", font: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer" };
+const confirmReinstate: React.CSSProperties = { minHeight: 42, padding: "0 18px", borderRadius: 8, border: 0, background: "var(--color-emerald-800)", color: "#fff", font: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer" };
 const cancelButton: React.CSSProperties = { minHeight: 42, padding: "0 16px", borderRadius: 8, border: "1px solid var(--color-cream-400)", background: "#fff", font: "inherit", fontWeight: 700, fontSize: 13, color: "var(--color-warm-700)", cursor: "pointer" };
