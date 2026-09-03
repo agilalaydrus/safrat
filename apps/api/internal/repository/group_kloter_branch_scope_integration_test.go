@@ -44,7 +44,7 @@ func TestGroupAndKloterRepositoriesEnforceBranchScopeIntegration(t *testing.T) {
 	exec(`INSERT INTO pilgrims (id,season_id,operator_id,branch_id,group_id,kloter_id,full_name,passport_number,nationality,date_of_birth,gender) VALUES ($1,$3,$4,$5,$7,$9,'Jamaah Bandung','GROUP-BDG','ID','1990-01-01','MALE'),($2,$3,$4,$6,$8,$10,'Jamaah Medan','GROUP-MDN','ID','1991-01-01','FEMALE')`, uuid.NewString(), uuid.NewString(), season, op, bandung, medan, bdgGroup, mdnGroup, bdgKloter, mdnKloter)
 	branchCtx := ContextWithStaffActor(ctx, head)
 	groups := NewGroupRepository(db.New(pool))
-	kloters := NewKloterRepository(db.New(pool))
+	kloters := NewKloterRepository(db.New(pool), pool)
 	gotGroups, err := groups.ListForOperator(branchCtx, op, season)
 	if err != nil || len(gotGroups) != 1 || gotGroups[0].ID != bdgGroup {
 		t.Fatalf("grup Bandung bocor: %#v %v", gotGroups, err)

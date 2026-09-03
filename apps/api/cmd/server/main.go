@@ -98,7 +98,7 @@ func main() {
 		groupLeaderRepository := repository.NewGroupLeaderRepository(queries)
 		notificationRepository := repository.NewNotificationRepository(queries)
 		auditRepository := repository.NewAuditRepository(queries)
-		kloterRepository := repository.NewKloterRepository(queries)
+		kloterRepository := repository.NewKloterRepository(queries, pool)
 		identityRepository := repository.NewIdentityRepository(queries, agentRepository)
 		orderRepository := repository.NewOrderRepository(queries, pool)
 		broadcastRepository := repository.NewBroadcastRepository(queries)

@@ -9,12 +9,20 @@ import (
 	db "github.com/hajj-saas/api/internal/gen/db"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type KloterRepository struct{ queries *db.Queries }
+// The pool sits alongside the generated queries for the manifest, which joins
+// five tables and reads eight document flags — the same arrangement
+// ProductRepository and TransportRepository already use where one query is
+// clearer written out than generated.
+type KloterRepository struct {
+	queries *db.Queries
+	pool    *pgxpool.Pool
+}
 
-func NewKloterRepository(queries *db.Queries) *KloterRepository {
-	return &KloterRepository{queries: queries}
+func NewKloterRepository(queries *db.Queries, pool *pgxpool.Pool) *KloterRepository {
+	return &KloterRepository{queries: queries, pool: pool}
 }
 
 func (r *KloterRepository) ListForOperator(ctx context.Context, operatorID, seasonID string) ([]*domain.Kloter, error) {

@@ -10,6 +10,7 @@ import { Movement } from "@hajj-saas/proto-gen/hajj/v1/transport_pb";
 import { Group } from "@hajj-saas/proto-gen/hajj/v1/group_pb";
 import { Product } from "@hajj-saas/proto-gen/hajj/v1/product_pb";
 import { kloterClient, pilgrimClient, transportClient, accommodationClient, groupClient, productClient } from "@/lib/rpc";
+import KloterManifest from "./KloterManifest";
 
 const TRIP_LEG_LABEL: Record<string, string> = { DEPARTURE: "Keberangkatan", RETURN: "Kepulangan" };
 const MODE_ICON: Record<string, React.ComponentType<{ size?: number }>> = { FLIGHT: IconPlane, BUS: IconBus, TRAIN: IconBus };
@@ -166,6 +167,8 @@ export default function KloterDetail({ id }: { id: string }) {
           })}
         </div> : <p style={{ color: "var(--color-warm-400)", fontSize: 13 }}>Belum ada jadwal pergerakan untuk kloter ini — tambahkan di menu Transportasi.</p>}
       </section>
+
+      <KloterManifest kloterId={id} />
 
       <section style={{ ...card, marginTop: 16 }}>
         <h2 style={sectionTitle}><IconUsersGroup size={18} color="var(--color-emerald-800)" />Grup ({groups.length})</h2>

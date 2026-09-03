@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 
+	"buf.build/go/protovalidate"
 	"connectrpc.com/connect"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/middleware"
@@ -45,6 +46,17 @@ func (h *KloterHandler) UpdateKloterStatus(ctx context.Context, req *connect.Req
 }
 func (h *KloterHandler) DeleteKloter(ctx context.Context, req *connect.Request[hajjv1.DeleteKloterRequest]) (*connect.Response[emptypb.Empty], error) {
 	result, err := h.kloterService.DeleteKloter(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *KloterHandler) GetKloterManifest(ctx context.Context, req *connect.Request[hajjv1.GetKloterManifestRequest]) (*connect.Response[hajjv1.GetKloterManifestResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.kloterService.GetManifest(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
 	if err != nil {
 		return nil, connectError(err)
 	}

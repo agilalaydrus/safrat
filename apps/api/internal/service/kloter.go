@@ -196,3 +196,54 @@ func kloterMessage(k *domain.Kloter) *hajjv1.Kloter {
 	}
 	return msg
 }
+
+// GetManifest builds the list that leaves the office.
+//
+// The readiness figures are computed here rather than in SQL so that "what is
+// missing" and "how many are ready" come from one definition of required — the
+// same one the row itself reports.
+func (s *KloterService) GetManifest(ctx context.Context, orgID string, req *hajjv1.GetKloterManifestRequest) (*hajjv1.GetKloterManifestResponse, error) {
+	if req == nil || strings.TrimSpace(req.KloterId) == "" {
+		return nil, serviceError("KloterService.GetManifest", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("KloterService.GetManifest", err)
+	}
+	manifest, err := s.kloterRepository.Manifest(ctx, op.ID, req.KloterId)
+	if err != nil {
+		return nil, serviceError("KloterService.GetManifest", err)
+	}
+
+	response := &hajjv1.GetKloterManifestResponse{
+		KloterId: manifest.KloterID, KloterCode: manifest.Code,
+		FlightNumber: manifest.FlightNumber, Embarkation: manifest.Embarkation,
+		Capacity: manifest.Capacity, MissingByDocument: map[string]int32{},
+	}
+	if manifest.DepartureDate != nil {
+		response.DepartureDate = timestamppb.New(*manifest.DepartureDate)
+	}
+	for _, row := range manifest.Rows {
+		missing := row.MissingDocuments()
+		message := &hajjv1.ManifestRow{
+			PilgrimId: row.PilgrimID, FullName: row.FullName, PassportNumber: row.PassportNumber,
+			Gender: row.Gender, GroupName: row.GroupName, RoomLabel: row.RoomLabel, Phone: row.Phone,
+			HasPassport: row.HasPassport, HasVaccine: row.HasVaccine, HasPhoto: row.HasPhoto,
+			HasKtp: row.HasKTP, HasKk: row.HasKK, HasMahramProof: row.HasMahramProof,
+			MahramProofRequired: row.MahramProofRequired,
+			DocumentsComplete:   len(missing) == 0,
+			MissingDocuments:    missing,
+		}
+		if row.DateOfBirth != nil {
+			message.DateOfBirth = timestamppb.New(*row.DateOfBirth)
+		}
+		if len(missing) == 0 {
+			response.ReadyCount++
+		}
+		for _, document := range missing {
+			response.MissingByDocument[document]++
+		}
+		response.Rows = append(response.Rows, message)
+	}
+	return response, nil
+}

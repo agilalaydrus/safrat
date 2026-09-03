@@ -367,8 +367,35 @@ Worker memakai SMTP TLS dengan lease, retry, stable Message-ID, dan dead-letter.
 - [ ] **T3.2** Gateway WhatsApp — wizard 4 langkah + Skor Kesiapan + Jam Tenang, §4.7.
       Tiru juga ide mereka yang lebih dalam: **WhatsApp sebagai antarmuka
       cadangan** untuk jamaah lansia, bukan sekadar kanal notifikasi.
-- [ ] **T3.3** Perjalanan & rundown — Rangkaian, Rundown, Manifes, Armada Bus,
-      Roomlist, §4.5
+- [~] **T3.3** Perjalanan & rundown — **Manifes selesai**, sisanya belum.
+      - [x] **Manifes** di `/dashboard/kloter/[id]`: seluruh jamaah satu
+            penerbangan dengan dokumen yang masih kurang, disebut namanya dan
+            berurutan, plus rekap "yang paling menahan keberangkatan" dan unduh
+            CSV.
+      - [ ] Rangkaian (segmen transportasi & hotel bergantian)
+      - [ ] Rundown per hari
+      - [ ] Armada Bus (assign jamaah ke bus, tervalidasi terhadap segmen Bus)
+      - [ ] Roomlist dikelompokkan per kota/hotel
+
+      **Dua penilaian yang membuat manifes ini terpakai, bukan sekadar benar:**
+
+      1. **Jamaah yang sudah digantikan tidak ada di manifes.** Mereka tidak
+         berangkat; menghitungnya membuat penerbangan penuh terlihat kurang dan
+         manifes siap terlihat belum.
+      2. **Buku nikah hanya diminta dari yang berangkat dengan mahram.**
+         Menuntutnya dari semua orang menandai sebagian besar manifes "kurang"
+         untuk dokumen yang memang tidak diminta dari mereka — dan angka
+         kesiapan yang salah untuk separuh daftar adalah angka yang tidak
+         dipercaya siapa pun.
+
+      Keduanya diverifikasi dengan merusak: buku nikah dijadikan wajib untuk
+      semua → gagal `jamaah lengkap dianggap kurang: [BUKU_NIKAH]`; filter
+      `is_substituted` dibuang → gagal `5 baris, mau 4`.
+
+      CSV dibuat di peramban dari baris yang sama dengan yang ditampilkan, jadi
+      berkas dan layar tidak bisa berbeda. Diawali BOM, karena tanpa itu Excel
+      di Windows membaca berkasnya sebagai Latin-1 dan setiap nama dengan
+      diakritik sampai dalam keadaan rusak.
 - [x] **T3.4** Tier kamar (Quad/Triple/Double) + kuota kursi — migrasi 152,
       `product_room_tiers`, editor di `/dashboard/products/harga`.
 

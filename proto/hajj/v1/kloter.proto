@@ -23,6 +23,58 @@ service KloterService {
   // rollback. Triggers a bulk pilgrim_journey_status cascade for every
   // pilgrim in the kloter (best-effort, never rolls back this call).
   rpc UpdateKloterStatus(UpdateKloterStatusRequest) returns (Kloter);
+
+  // GetKloterManifest is the list that leaves the office: every pilgrim on the
+  // flight, with the documents each one is still missing. It exists because
+  // "who is not ready" is asked constantly and answering it by opening two
+  // hundred pilgrim records is how departures slip.
+  rpc GetKloterManifest(GetKloterManifestRequest) returns (GetKloterManifestResponse);
+}
+
+message GetKloterManifestRequest {
+  string kloter_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+// One line of the manifest.
+message ManifestRow {
+  string pilgrim_id = 1;
+  string full_name = 2;
+  string passport_number = 3;
+  string gender = 4;
+  google.protobuf.Timestamp date_of_birth = 5;
+  string group_name = 6;
+  string room_label = 7;
+  string phone = 8;
+  // The six documents an Indonesian umrah departure needs. Booleans rather
+  // than a count, because "which one is missing" is the actionable half.
+  bool has_passport = 9;
+  bool has_vaccine = 10;
+  bool has_photo = 11;
+  bool has_ktp = 12;
+  bool has_kk = 13;
+  bool has_mahram_proof = 14;
+  // Proof of marriage or kinship is only required of somebody travelling under
+  // a mahram. Demanding it of every pilgrim would mark most of a manifest
+  // incomplete for a document they are not asked for.
+  bool mahram_proof_required = 15;
+  bool documents_complete = 16;
+  // Named, in order, so a screen can say what to chase rather than only that
+  // something is missing.
+  repeated string missing_documents = 17;
+}
+
+message GetKloterManifestResponse {
+  string kloter_id = 1;
+  string kloter_code = 2;
+  string flight_number = 3;
+  string embarkation = 4;
+  google.protobuf.Timestamp departure_date = 5;
+  int32 capacity = 6;
+  repeated ManifestRow rows = 7;
+  int32 ready_count = 8;
+  // Counted per document, so the screen can show what is blocking the most
+  // people rather than a single unhelpful total.
+  map<string, int32> missing_by_document = 9;
 }
 
 message Kloter {
