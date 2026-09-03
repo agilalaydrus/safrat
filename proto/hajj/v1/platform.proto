@@ -207,6 +207,51 @@ service PlatformService {
   // Changes were always recorded; reads were not, and a support session can
   // page through every jamaah without changing a thing.
   rpc ListPersonalDataReads(ListPersonalDataReadsRequest) returns (ListPersonalDataReadsResponse);
+
+  // GetPlatformAnalytics is whether the business is growing. Every figure here
+  // is derived from live rows, and every limit of that is stated on the screen
+  // rather than left for somebody to discover from a decision that went wrong.
+  rpc GetPlatformAnalytics(GetPlatformAnalyticsRequest) returns (GetPlatformAnalyticsResponse);
+}
+
+message GetPlatformAnalyticsRequest {
+  int32 days = 1;
+}
+
+message PlanRevenueRow {
+  string plan = 1;
+  int64 monthly_idr = 2;
+  int32 paying_tenants = 3;
+  int64 mrr_idr = 4;
+  int32 trial_tenants = 5;
+  int32 lapsed_tenants = 6;
+}
+
+message GetPlatformAnalyticsResponse {
+  // Recurring subscription revenue only. Marketplace commission is other
+  // income and is deliberately absent: mixing the two makes growth look faster
+  // than it is.
+  int64 mrr_idr = 1;
+  int32 paying_tenants = 2;
+  int32 trialing_tenants = 3;
+  int32 suspended_tenants = 4;
+  // Not cancelled, not suspended, but past the end of what they paid for.
+  int32 lapsed_tenants = 5;
+
+  int64 new_mrr_idr = 6;
+  int64 expansion_mrr_idr = 7;
+  int64 contraction_mrr_idr = 8;
+  int64 churned_mrr_idr = 9;
+  int32 churned_tenants = 10;
+  // Reconstructed from the movements rather than remembered, because no
+  // monthly snapshot is kept.
+  int64 mrr_at_window_start = 11;
+
+  int32 trials_started = 12;
+  int32 trials_converted = 13;
+
+  repeated PlanRevenueRow by_plan = 14;
+  int32 days = 15;
 }
 
 message ListPersonalDataReadsRequest {

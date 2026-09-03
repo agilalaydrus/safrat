@@ -332,9 +332,31 @@ Lihat §7 DESAIN. Bagian ini sebelumnya tidak dirancang di mana pun.
 
 # TAHAP E — Pertumbuhan & komunikasi
 
-- [C] **E1** Analitik: MRR & pergerakannya, tenant aktif, konversi trial, churn,
-      NRR — dengan **Catatan Metodologi**. Komisi market **bukan** MRR; tulis
-      itu di layar. Skor churn ditandai sebagai heuristik, bukan vonis.
+- [x] **E1** Tab **Analitik** di `/admin`: MRR dan pergerakannya (baru, naik
+      paket, turun paket, berhenti), tenant per keadaan, konversi trial, NRR,
+      dan rincian per paket — dengan **Catatan Metodologi** yang menyebut lima
+      batasannya.
+
+      **Definisi "membayar" dipakai persis sama dengan pemeriksaan akses.**
+      Bukan trial, tidak dibatalkan, tidak ditangguhkan, dan masa bayarnya
+      belum habis. MRR yang menghitung travel yang tidak bisa masuk adalah
+      angka yang menyanjung kita tepat ketika seharusnya tidak.
+
+      Diverifikasi dengan merusak: definisi dilonggarkan jadi "ACTIVE atau
+      TRIALING dan tidak dibatalkan" → MRR fixture melonjak dari **Rp789.000
+      menjadi Rp8.256.000** dari baris yang sama persis. Sepuluh kali lipat,
+      tanpa satu pelanggan baru pun.
+
+      Ekspansi dan kontraksi dibaca dari `subscription_adjustments`, bukan dari
+      membandingkan paket hari ini dengan yang diingat — hanya ledger itu yang
+      tahu satu tenant pindah paket dua kali.
+
+      **Yang disebut jujur di layar:** komisi marketplace bukan MRR; MRR awal
+      periode direkonstruksi dari pergerakan karena potret bulanan belum
+      disimpan, sehingga travel yang naik paket lalu berhenti di periode yang
+      sama muncul di churn bukan di ekspansi; konversi trial diukur pada
+      rombongan yang mulai di periode itu sehingga angkanya baru mengendap
+      belakangan.
 - [C] **E2** Pengumuman ke tenant (§10.1 DESAIN): wizard 4 langkah, penerima
       **dihitung dari data**, Skor Kesiapan termasuk pemeriksaan "sudah ada
       pengumuman lain ke penerima sama dalam 24 jam", riwayat baca.

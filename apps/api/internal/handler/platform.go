@@ -575,3 +575,11 @@ func (h *PlatformHandler) ListPersonalDataReads(ctx context.Context, req *connec
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) GetPlatformAnalytics(ctx context.Context, req *connect.Request[hajjv1.GetPlatformAnalyticsRequest]) (*connect.Response[hajjv1.GetPlatformAnalyticsResponse], error) {
+	result, err := h.platformService.GetPlatformAnalytics(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

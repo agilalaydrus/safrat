@@ -542,3 +542,34 @@ func (s *PlatformService) GetPlatformFunnel(ctx context.Context, req *hajjv1.Get
 	response.SilentStorefronts = convert(funnel.Silent)
 	return response, nil
 }
+
+// GetPlatformAnalytics answers whether the business is growing.
+func (s *PlatformService) GetPlatformAnalytics(ctx context.Context, req *hajjv1.GetPlatformAnalyticsRequest) (*hajjv1.GetPlatformAnalyticsResponse, error) {
+	if _, err := s.requirePlatformAdmin(ctx); err != nil {
+		return nil, err
+	}
+	days := int32(30)
+	if req != nil && req.Days > 0 {
+		days = req.Days
+	}
+	analytics, err := s.platformRepository.Analytics(ctx, days)
+	if err != nil {
+		return nil, serviceError("PlatformService.GetPlatformAnalytics", err)
+	}
+	response := &hajjv1.GetPlatformAnalyticsResponse{
+		MrrIdr: analytics.MRRIDR, PayingTenants: analytics.PayingTenants,
+		TrialingTenants: analytics.TrialingTenants, SuspendedTenants: analytics.SuspendedTenants,
+		LapsedTenants: analytics.LapsedTenants, NewMrrIdr: analytics.NewMRRIDR,
+		ExpansionMrrIdr: analytics.ExpansionMRRIDR, ContractionMrrIdr: analytics.ContractionMRRIDR,
+		ChurnedMrrIdr: analytics.ChurnedMRRIDR, ChurnedTenants: analytics.ChurnedTenants,
+		MrrAtWindowStart: analytics.MRRAtWindowStart, TrialsStarted: analytics.TrialsStarted,
+		TrialsConverted: analytics.TrialsConverted, Days: analytics.Days,
+	}
+	for _, plan := range analytics.ByPlan {
+		response.ByPlan = append(response.ByPlan, &hajjv1.PlanRevenueRow{
+			Plan: plan.Plan, MonthlyIdr: plan.MonthlyIDR, PayingTenants: plan.Tenants,
+			MrrIdr: plan.MRRIDR, TrialTenants: plan.TrialTenants, LapsedTenants: plan.LapsedTenants,
+		})
+	}
+	return response, nil
+}
