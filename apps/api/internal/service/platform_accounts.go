@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/getsentry/sentry-go"
@@ -241,6 +242,52 @@ func (s *PlatformService) ListPersonalDataReads(ctx context.Context, req *hajjv1
 		response.Reads = append(response.Reads, &hajjv1.PersonalDataReadRow{
 			Actor: row.Actor, Procedure: row.Procedure, Day: row.Day,
 			ReadCount: row.ReadCount, LastAt: row.LastAt, InsideTenantView: row.InsideView,
+		})
+	}
+	return response, nil
+}
+
+// ListAuditTrail is the global trail. Reading it is itself a platform-admin
+// action, but deliberately not recorded here: an audit screen that writes an
+// audit entry every time somebody opens it fills the trail with the act of
+// reading it and buries what actually happened.
+func (s *PlatformService) ListAuditTrail(ctx context.Context, req *hajjv1.ListAuditTrailRequest) (*hajjv1.ListAuditTrailResponse, error) {
+	if _, err := s.requirePlatformAdmin(ctx); err != nil {
+		return nil, err
+	}
+	filter := repository.AuditFilter{Category: repository.AuditCategoryAll, Limit: 100}
+	if req != nil {
+		filter.OperatorID = strings.TrimSpace(req.OperatorId)
+		filter.Actor = strings.TrimSpace(req.Actor)
+		if req.Category != "" {
+			filter.Category = req.Category
+		}
+		if req.Limit > 0 {
+			filter.Limit = req.Limit
+		}
+		if req.Days > 0 {
+			since := time.Now().AddDate(0, 0, -int(req.Days))
+			filter.Since = &since
+		}
+	}
+	if filter.OperatorID != "" && !isUUID(filter.OperatorID) {
+		return nil, serviceError("PlatformService.ListAuditTrail", apperror.ErrValidation)
+	}
+	entries, err := s.platformRepository.AuditTrail(ctx, filter)
+	if err != nil {
+		return nil, serviceError("PlatformService.ListAuditTrail", err)
+	}
+	response := &hajjv1.ListAuditTrailResponse{
+		Entries: make([]*hajjv1.AuditTrailEntry, 0, len(entries)),
+		// The caller has to know the list is cut off, or an empty tail reads as
+		// "nothing else happened".
+		Truncated: int32(len(entries)) >= filter.Limit,
+	}
+	for _, entry := range entries {
+		response.Entries = append(response.Entries, &hajjv1.AuditTrailEntry{
+			Id: entry.ID, At: timestamppb.New(entry.At), Actor: entry.Actor, ActorId: entry.ActorID,
+			Action: entry.Action, EntityType: entry.EntityType, EntityId: entry.EntityID,
+			OperatorId: entry.OperatorID, OperatorName: entry.Operator, Message: entry.Message,
 		})
 	}
 	return response, nil

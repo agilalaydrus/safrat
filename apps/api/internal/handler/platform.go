@@ -591,3 +591,11 @@ func (h *PlatformHandler) GetPlatformHealth(ctx context.Context, _ *connect.Requ
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) ListAuditTrail(ctx context.Context, req *connect.Request[hajjv1.ListAuditTrailRequest]) (*connect.Response[hajjv1.ListAuditTrailResponse], error) {
+	result, err := h.platformService.ListAuditTrail(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

@@ -217,6 +217,45 @@ service PlatformService {
   // infrastructure console: mixing CPU graphs in makes the list too long to
   // read at the moment something is actually wrong.
   rpc GetPlatformHealth(GetPlatformHealthRequest) returns (GetPlatformHealthResponse);
+
+  // ListAuditTrail is the global trail, filtered the way an incident is
+  // actually investigated. Read-only without exception: migration 125 removed
+  // UPDATE and DELETE from the application role, so there is nothing to offer
+  // here but reading.
+  rpc ListAuditTrail(ListAuditTrailRequest) returns (ListAuditTrailResponse);
+}
+
+message ListAuditTrailRequest {
+  string operator_id = 1;
+  // Matched against the account's email as well as its id: an incident starts
+  // from a person, and nobody remembers a Better Auth user id.
+  string actor = 2;
+  // ALL | PRIVILEGED | IMPERSONATION | PERSONAL_DATA. Named sets rather than
+  // free text, because these are the questions asked under pressure and a
+  // search box makes somebody recall the exact spelling of an action.
+  string category = 3;
+  int32 days = 4;
+  int32 limit = 5;
+}
+
+message AuditTrailEntry {
+  string id = 1;
+  google.protobuf.Timestamp at = 2;
+  string actor = 3;
+  string actor_id = 4;
+  string action = 5;
+  string entity_type = 6;
+  string entity_id = 7;
+  string operator_id = 8;
+  string operator_name = 9;
+  string message = 10;
+}
+
+message ListAuditTrailResponse {
+  repeated AuditTrailEntry entries = 1;
+  // True when the result was cut off by the limit, so the screen can say the
+  // list is incomplete rather than implying nothing else happened.
+  bool truncated = 2;
 }
 
 message GetPlatformHealthRequest {}

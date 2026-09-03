@@ -386,9 +386,33 @@ Lihat §7 DESAIN. Bagian ini sebelumnya tidak dirancang di mana pun.
       Dead-letter outbox akhirnya terlihat. Komentar di `worker/outbox.go`
       menulis event yang menyerah "tinggal untuk diperiksa ops" — selama tidak
       ada layar yang menampilkannya, itu berarti tidak akan diperiksa.
-- [C] **E4** Audit global (§10.3 DESAIN): saringan per tenant / aktor / tindakan
-      istimewa / impersonasi / pembacaan data pribadi. **Read-only tanpa
-      pengecualian** — jangan tawarkan tombol yang pasti gagal
+- [x] **E4** Tab **Audit** di `/admin`: jejak lintas seluruh travel dengan
+      saringan per **tenant**, per **aktor** (dicari lewat email, bukan hanya id
+      Better Auth — insiden bermula dari orang, dan tidak ada yang hafal id),
+      dan per kategori bernama: **tindakan istimewa · sesi lihat-saja ·
+      pembacaan data pribadi**.
+
+      Kategori bernama, bukan kotak pencarian. Saat insiden tidak ada yang
+      menggulir, dan tidak ada yang ingat ejaan persis sebuah tindakan di bawah
+      tekanan.
+
+      **Read-only tanpa pengecualian**, dan alasannya ditulis di layar: migrasi
+      125 sudah mencabut UPDATE dan DELETE dari peran aplikasi, jadi tombol
+      hapus di sini akan menjadi tombol yang pasti gagal.
+
+      Daftar yang terpotong **mengatakan dirinya terpotong** — ekor yang kosong
+      tidak boleh terbaca sebagai "tidak ada kejadian lain".
+
+      Diverifikasi dengan merusak dua saringan: kategori diabaikan → gagal
+      `saringan tindakan istimewa meloloskan "crm_lead_created"`; saringan
+      tenant diabaikan → gagal `saringan tenant meloloskan travel lain`.
+      Keduanya adalah bentuk kegagalan yang paling berbahaya untuk layar
+      seperti ini: hasilnya terlihat masuk akal dan menjawab pertanyaan yang
+      berbeda dari yang ditanyakan.
+
+      **Membuka layar ini tidak dicatat**, dengan sengaja: layar audit yang
+      menulis entri audit setiap kali dibuka akan memenuhi jejaknya dengan
+      tindakan membacanya sendiri dan mengubur apa yang benar-benar terjadi.
 - [C] **E5** Ekspor auditor: CSV + hash manifes, ditandatangani kunci platform,
       streaming sejak awal
 
