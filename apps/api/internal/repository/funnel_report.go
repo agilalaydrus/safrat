@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"sort"
 	"time"
 )
 
@@ -266,4 +267,137 @@ func (r *FunnelRepository) Report(ctx context.Context, operatorID string, days i
 		report.ChannelAges = append(report.ChannelAges, row)
 	}
 	return report, ages.Err()
+}
+
+// PlatformFunnel is both funnels read side by side: TawafiqHub's own, and every
+// storefront added together.
+type PlatformFunnel struct {
+	PlatformSteps     []FunnelStepCount
+	NewTenants        int32
+	TotalVisitors     int32
+	TotalRegistration int32
+	Storefronts       []StorefrontFunnelRow
+	TooFewVisitors    []StorefrontFunnelRow
+	Silent            []StorefrontFunnelRow
+}
+
+type StorefrontFunnelRow struct {
+	OperatorID    string
+	OperatorName  string
+	Slug          string
+	Visitors      int32
+	Registrations int32
+	Conversion    float64
+}
+
+// RankingFloor is the least traffic a storefront needs before its conversion
+// rate is worth ranking. Three visitors and one registrant is 33%, which would
+// top the board and mean nothing; the floor keeps the leaderboard about
+// storefronts that can actually be compared.
+const RankingFloor = 30
+
+// PlatformFunnel reads across every tenant, so it takes no operator and must
+// only ever be reachable behind requirePlatformAdmin.
+func (r *FunnelRepository) PlatformFunnel(ctx context.Context, days int32) (PlatformFunnel, error) {
+	result := PlatformFunnel{}
+	if days <= 0 || days > 365 {
+		days = 30
+	}
+	since := time.Now().AddDate(0, 0, -int(days))
+
+	// operator_id IS NULL is TawafiqHub's own site. Without the filter this
+	// would add every client's visitors to our own sales funnel.
+	steps, err := r.pool.Query(ctx, `
+		SELECT step, SUM(visitors)::int, SUM(events)::int
+		FROM funnel_daily
+		WHERE operator_id IS NULL AND day >= $1::date
+		GROUP BY step`, since)
+	if err != nil {
+		return result, err
+	}
+	defer steps.Close()
+	for steps.Next() {
+		var row FunnelStepCount
+		if err := steps.Scan(&row.Step, &row.Visitors, &row.Events); err != nil {
+			return result, err
+		}
+		result.PlatformSteps = append(result.PlatformSteps, row)
+	}
+	if err := steps.Err(); err != nil {
+		return result, err
+	}
+
+	// The last step of our own funnel is counted from operators, not from
+	// funnel events: a sign-up that never became a tenant is not a conversion,
+	// and the event only says somebody opened a page.
+	if err := r.pool.QueryRow(ctx,
+		`SELECT COUNT(*)::int FROM operators WHERE created_at >= $1`, since).Scan(&result.NewTenants); err != nil {
+		return result, err
+	}
+
+	// Every storefront, including the ones with nothing at all: a LEFT JOIN
+	// from operators rather than a GROUP BY over the funnel, because the
+	// agencies with no visitors are the ones worth finding and a join driven by
+	// the events table cannot produce a row for them.
+	rows, err := r.pool.Query(ctx, `
+		SELECT o.id, o.name, o.slug,
+		       COALESCE(v.visitors, 0)::int,
+		       COALESCE(s.registrations, 0)::int
+		FROM operators o
+		LEFT JOIN (
+		  SELECT operator_id, SUM(visitors)::int AS visitors
+		  FROM funnel_daily
+		  WHERE operator_id IS NOT NULL AND day >= $1::date AND step = 'LANDING'
+		  GROUP BY 1
+		) v ON v.operator_id = o.id
+		LEFT JOIN (
+		  SELECT operator_id, COUNT(*)::int AS registrations
+		  FROM pilgrim_registrations
+		  WHERE created_at >= $1
+		  GROUP BY 1
+		) s ON s.operator_id = o.id
+		`, since)
+	if err != nil {
+		return result, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var row StorefrontFunnelRow
+		if err := rows.Scan(&row.OperatorID, &row.OperatorName, &row.Slug, &row.Visitors, &row.Registrations); err != nil {
+			return result, err
+		}
+		if row.Visitors > 0 {
+			row.Conversion = float64(row.Registrations) / float64(row.Visitors)
+		}
+		result.TotalVisitors += row.Visitors
+		result.TotalRegistration += row.Registrations
+		switch {
+		case row.Visitors == 0:
+			result.Silent = append(result.Silent, row)
+		case row.Visitors < RankingFloor:
+			result.TooFewVisitors = append(result.TooFewVisitors, row)
+		default:
+			result.Storefronts = append(result.Storefronts, row)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return result, err
+	}
+
+	// Best first. The bottom of this same list is the work list — a storefront
+	// with traffic and no registrations usually has a broken form or a price
+	// nobody will pay, and both can be helped.
+	sort.SliceStable(result.Storefronts, func(a, b int) bool {
+		if result.Storefronts[a].Conversion != result.Storefronts[b].Conversion {
+			return result.Storefronts[a].Conversion > result.Storefronts[b].Conversion
+		}
+		return result.Storefronts[a].Visitors > result.Storefronts[b].Visitors
+	})
+	sort.SliceStable(result.TooFewVisitors, func(a, b int) bool {
+		return result.TooFewVisitors[a].Visitors > result.TooFewVisitors[b].Visitors
+	})
+	sort.SliceStable(result.Silent, func(a, b int) bool {
+		return result.Silent[a].OperatorName < result.Silent[b].OperatorName
+	})
+	return result, nil
 }

@@ -28,13 +28,12 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
 3. **Tahap 3 Dashboard Travel** — CRM Leads, WhatsApp, rundown, tier kamar.
 4. **SEO & Konten** — `sitemap.xml` dan `robots.txt` sudah ada dan sadar-host.
    Sisanya S3: Search Console, menunggu proyek Google Cloud milik pemilik.
-5. **Corong pengunjung** — K1–K4 selesai. Layar travel sudah bisa dibaca di
-   `/dashboard/reports` → tab **Corong Pengunjung**. Sisanya:
-   **K5** tab corong di `/admin` (corong platform sendiri, agregat lintas
-   travel, papan peringkat storefront, storefront tanpa pengunjung masuk ke
-   Pusat Tindakan), **K6** dokumen insiden data pribadi + ukur biaya rollup, dan
-   **K2.8** geolokasi (GeoLite2) — sampai itu dipasang, bagian "Asal Daerah"
-   kosong dan layarnya mengatakan begitu.
+5. **Corong pengunjung** — K1–K5 selesai. Layar travel di `/dashboard/reports`
+   → tab **Corong Pengunjung**; layar platform di `/admin` → tab **Corong**.
+   Sisanya: **K6** dokumen insiden data pribadi + ukur biaya rollup, **K2.8**
+   geolokasi (GeoLite2) — sampai itu dipasang bagian "Asal Daerah" kosong dan
+   layarnya mengatakan begitu — dan **K5.6** yang menunggu B3 (halaman
+   `/admin/tenant/[id]` belum ada).
 
 **Dunning masih mode kering.** Ia berjalan tiap 24 jam, mengisi `dunning_log`,
 dan **tidak mengirim apa pun** sampai `DUNNING_LIVE=true` diset. Bandingkan satu
@@ -53,9 +52,9 @@ go build · go vet            bersih
 suite Go                     16 paket lulus, 0 gagal, tiga jalan berturut-turut
 tsc --noEmit · next lint     bersih
 next build                   sukses
-migrasi                      147, terpasang di DB dev dan DB uji
+migrasi                      148, terpasang di DB dev dan DB uji
 working tree                 bersih
-belum di-push                16 commit
+belum di-push                18 commit
 ```
 
 `main` = deploy. **Jangan push tanpa perintah pemilik.**

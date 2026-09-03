@@ -169,11 +169,16 @@ async function resolveSeason(operatorId: string, seasonSlug: string): Promise<st
  * That is the real signal it was meant to capture: somebody moved from looking
  * at an agency to looking at one journey.
  */
-function funnelStepFor(pathname: string): { step: string; articleSlug?: string } | null {
+function funnelStepFor(pathname: string, operatorSlug: string): { step: string; articleSlug?: string } | null {
   if (pathname === "/") return { step: "LANDING" };
   const article = pathname.match(/^\/(?:blog|berita)\/([^/]+)\/?$/);
   if (article) return { step: "ARTIKEL", articleSlug: article[1] };
   if (/^\/(register|waitlist|apply)\//.test(pathname)) return { step: "KATALOG" };
+  // TawafiqHub's own middle step, and only its own: /sign-up on a storefront
+  // hostname is the application's sign-up, not a travel agency's visitor
+  // deciding anything. Recording it there would put platform traffic inside a
+  // client's funnel.
+  if (!operatorSlug && /^\/sign-up\/?$/.test(pathname)) return { step: "DAFTAR" };
   return null;
 }
 
@@ -200,7 +205,7 @@ async function funnelSignature(secret: string, timestamp: string, clientIP: stri
 }
 
 async function sendFunnelStep(request: NextRequest, operatorSlug: string): Promise<void> {
-  const step = funnelStepFor(request.nextUrl.pathname);
+  const step = funnelStepFor(request.nextUrl.pathname, operatorSlug);
   if (!step) return;
 
   const secret = process.env.FUNNEL_INGEST_SECRET?.trim() ?? "";

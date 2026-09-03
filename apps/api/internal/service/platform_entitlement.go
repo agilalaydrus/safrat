@@ -498,3 +498,47 @@ func (s *PlatformService) ListUsage(ctx context.Context) (*hajjv1.ListUsageRespo
 	}
 	return response, nil
 }
+
+// GetPlatformFunnel reads both funnels at once: ours and every client's added
+// together. It is the only place the two can be seen side by side, which is
+// what makes it a platform screen rather than another analytics tab.
+func (s *PlatformService) GetPlatformFunnel(ctx context.Context, req *hajjv1.GetPlatformFunnelRequest) (*hajjv1.GetPlatformFunnelResponse, error) {
+	if _, err := s.requirePlatformAdmin(ctx); err != nil {
+		return nil, err
+	}
+	days := int32(30)
+	if req != nil && req.Days > 0 {
+		days = req.Days
+	}
+	funnel, err := s.funnelRepository.PlatformFunnel(ctx, days)
+	if err != nil {
+		return nil, serviceError("PlatformService.GetPlatformFunnel", err)
+	}
+
+	response := &hajjv1.GetPlatformFunnelResponse{
+		NewTenants:         funnel.NewTenants,
+		TotalVisitors:      funnel.TotalVisitors,
+		TotalRegistrations: funnel.TotalRegistration,
+		RankingFloor:       repository.RankingFloor,
+		Days:               days,
+	}
+	for _, step := range funnel.PlatformSteps {
+		response.PlatformSteps = append(response.PlatformSteps, &hajjv1.FunnelStepCount{
+			Step: step.Step, Visitors: step.Visitors, Events: step.Events,
+		})
+	}
+	convert := func(rows []repository.StorefrontFunnelRow) []*hajjv1.StorefrontFunnelRow {
+		out := make([]*hajjv1.StorefrontFunnelRow, 0, len(rows))
+		for _, row := range rows {
+			out = append(out, &hajjv1.StorefrontFunnelRow{
+				OperatorId: row.OperatorID, OperatorName: row.OperatorName, Slug: row.Slug,
+				Visitors: row.Visitors, Registrations: row.Registrations, Conversion: row.Conversion,
+			})
+		}
+		return out
+	}
+	response.Storefronts = convert(funnel.Storefronts)
+	response.TooFewVisitors = convert(funnel.TooFewVisitors)
+	response.SilentStorefronts = convert(funnel.Silent)
+	return response, nil
+}

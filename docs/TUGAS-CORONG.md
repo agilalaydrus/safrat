@@ -122,17 +122,38 @@ Menyentuh dua permukaan: `/dashboard` (travel melihat corongnya sendiri) dan
 
 # TAHAP K5 — Layar panel SaaS
 
-- [ ] **K5.1** Tab **Corong** di `/admin` (§8.2), berlabel "Lintas seluruh travel"
-- [ ] **K5.2** Corong platform sendiri: `/` → `/sign-up` → tenant aktif. Hari ini
-      sama sekali tidak terlihat.
-- [ ] **K5.3** Corong agregat seluruh travel — angka yang bisa dikutip saat menjual
-- [ ] **K5.4** Papan peringkat storefront: konversi tertinggi dan terendah.
-      **Yang terendah adalah daftar kerja**, bukan papan malu.
-- [ ] **K5.5** Storefront **tanpa pengunjung sama sekali** masuk Pusat Tindakan.
-      Travel yang membayar untuk sesuatu yang tidak dipakai akan berhenti
-      berlangganan.
-- [ ] **K5.6** Tautan ke `/admin/tenant/[id]` (B3) supaya corong satu tenant
-      terbaca bersama langganan dan pemakaiannya.
+- [x] **K5.1** Tab **Corong** di `/admin`, `FunnelTab.tsx`
+- [x] **K5.2** Corong platform sendiri: `/` → `/sign-up` → tenant aktif.
+      Langkah tengahnya butuh nilai baru **DAFTAR** (migrasi 148): memakai ulang
+      KATALOG berarti satu kolom punya dua arti tergantung `operator_id` NULL
+      atau tidak, dan itu jebakan untuk query berikutnya. Langkah terakhir
+      dihitung dari tabel `operators`, bukan dari kunjungan halaman — pendaftaran
+      yang tidak pernah jadi tenant bukan konversi.
+- [x] **K5.3** Corong agregat seluruh travel: total pengunjung dan pendaftar
+      lintas storefront, plus konversinya.
+- [x] **K5.4** Papan peringkat storefront, urut konversi. Ada **lantai lalu
+      lintas 30 pengunjung**: tiga pengunjung dengan satu pendaftar adalah 33%
+      dan akan memuncaki papan tanpa arti apa-apa. Yang di bawah lantai
+      ditampilkan terpisah — tidak diperingkat, tidak disembunyikan.
+- [x] **K5.5** Storefront tanpa pengunjung sama sekali masuk **Pusat Tindakan**
+      (komponen `ActionCenter` yang sama dengan dashboard travel), dibatasi 8
+      baris: daftar 40 tindakan sama saja dengan tidak ada daftar.
+- [ ] **K5.6** Tautan ke `/admin/tenant/[id]` — **menunggu B3**, halamannya belum
+      ada. Sementara ini tiap baris menautkan ke storefront-nya yang sungguhan
+      (`buildTenantLink`), bukan ke halaman yang akan 404.
+
+**Diuji:**
+
+- `funnel_platform_integration_test.go` — lalu lintas platform tidak tercampur
+  ke storefront, storefront sepi tetap muncul, storefront di bawah lantai tidak
+  ikut diperingkat, urutan menurun. Diverifikasi dengan merusak dua hal:
+  membuang `operator_id IS NULL` (gagal: `LANDING platform = 8890`) dan
+  mengubah `LEFT JOIN` jadi `JOIN` (gagal: `storefront tanpa pengunjung tidak
+  muncul`).
+- `GetPlatformFunnel` masuk tabel panggilan yang harus ditolak di
+  `platform_http_test.go`: tanpa sesi → unauthenticated, sebagai owner operator
+  → permission_denied. Kalau ia pernah menjawab sesi operator, satu travel akan
+  memegang angka pengunjung dan pendaftar seluruh pesaingnya.
 
 # TAHAP K6 — Penutup
 

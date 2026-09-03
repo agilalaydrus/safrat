@@ -45,7 +45,7 @@ func TestPlatformPanelIsClosedToOperatorStaffIntegration(t *testing.T) {
 	queries := db.New(pool)
 	platform := service.NewPlatformService(
 		repository.NewPlatformRepository(pool), repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool), repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool), repository.NewKYCRepository(pool),
-		repository.NewAuditRepository(queries))
+		repository.NewAuditRepository(queries), repository.NewFunnelRepository(pool))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
@@ -145,7 +145,7 @@ func TestPlatformPlanControlRPCAccessRevocationAndMutationIntegration(t *testing
 	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
 		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool),
 		repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool),
-		repository.NewKYCRepository(pool), repository.NewAuditRepository(queries))
+		repository.NewKYCRepository(pool), repository.NewAuditRepository(queries), repository.NewFunnelRepository(pool))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
@@ -313,6 +313,15 @@ func TestPlatformPlanControlRPCAccessRevocationAndMutationIntegration(t *testing
 			_, err := client.PreviewSubscriptionPlanChange(ctx, req)
 			return err
 		}},
+		// The funnel reads across every tenant at once. If it ever answered an
+		// operator's own session it would hand one travel agency the visitor and
+		// registration numbers of all its competitors.
+		{"GetPlatformFunnel", func(token string) error {
+			req := connect.NewRequest(&hajjv1.GetPlatformFunnelRequest{Days: 30})
+			auth(req, token)
+			_, err := client.GetPlatformFunnel(ctx, req)
+			return err
+		}},
 		{"ApplySubscriptionPlanChange", func(token string) error {
 			req := connect.NewRequest(&hajjv1.ApplySubscriptionPlanChangeRequest{
 				OperatorId: prorationOperatorID, NewPlan: "GROWTH", ExpectedAdjustmentIdr: prorationPreview.AdjustmentIDR,
@@ -398,7 +407,7 @@ func TestPlatformCostSettingRespectsObservedCostsIntegration(t *testing.T) {
 
 	queries := db.New(pool)
 	costs := repository.NewSupplierCostRepository(pool)
-	platform := service.NewPlatformService(repository.NewPlatformRepository(pool), costs, repository.NewSupplierRepository(pool), repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool), repository.NewKYCRepository(pool), repository.NewAuditRepository(queries))
+	platform := service.NewPlatformService(repository.NewPlatformRepository(pool), costs, repository.NewSupplierRepository(pool), repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool), repository.NewKYCRepository(pool), repository.NewAuditRepository(queries), repository.NewFunnelRepository(pool))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
@@ -466,7 +475,7 @@ func TestPlatformAccessRequiresTwoFactorIntegration(t *testing.T) {
 
 	queries := db.New(pool)
 	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
-		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool), repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool), repository.NewKYCRepository(pool), repository.NewAuditRepository(queries))
+		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool), repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool), repository.NewKYCRepository(pool), repository.NewAuditRepository(queries), repository.NewFunnelRepository(pool))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
@@ -563,7 +572,7 @@ func TestSupplierCatalogueOverHTTPIntegration(t *testing.T) {
 	queries := db.New(pool)
 	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
 		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool), repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool), repository.NewKYCRepository(pool),
-		repository.NewAuditRepository(queries))
+		repository.NewAuditRepository(queries), repository.NewFunnelRepository(pool))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
@@ -745,7 +754,7 @@ func TestPlatformAccountManagementIntegration(t *testing.T) {
 	queries := db.New(pool)
 	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
 		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool),
-		repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool), repository.NewKYCRepository(pool), repository.NewAuditRepository(queries))
+		repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool), repository.NewKYCRepository(pool), repository.NewAuditRepository(queries), repository.NewFunnelRepository(pool))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
@@ -888,7 +897,7 @@ func TestReadingAnIdentityIsAuditedIntegration(t *testing.T) {
 
 	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
 		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool),
-		repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool), kyc, repository.NewAuditRepository(queries))
+		repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool), kyc, repository.NewAuditRepository(queries), repository.NewFunnelRepository(pool))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,

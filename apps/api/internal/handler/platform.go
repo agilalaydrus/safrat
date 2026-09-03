@@ -475,3 +475,11 @@ func (h *PlatformHandler) ListUsage(ctx context.Context, _ *connect.Request[hajj
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) GetPlatformFunnel(ctx context.Context, req *connect.Request[hajjv1.GetPlatformFunnelRequest]) (*connect.Response[hajjv1.GetPlatformFunnelResponse], error) {
+	result, err := h.platformService.GetPlatformFunnel(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

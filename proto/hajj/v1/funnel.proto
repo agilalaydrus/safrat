@@ -24,8 +24,13 @@ message RecordEventRequest {
   // Verified against the operators table like the slug is, so an invented id
   // is dropped rather than counted against nobody.
   string operator_id = 8 [(buf.validate.field).string.max_len = 40];
+  // DAFTAR is the platform's own middle step — somebody opened /sign-up on
+  // TawafiqHub itself. It is deliberately not KATALOG: that means "opened one
+  // journey's registration page" on a storefront, and one column meaning two
+  // different things depending on whether operator_id is NULL would mislead
+  // every later query. Kept in step with the CHECK in migration 148.
   string step = 2 [(buf.validate.field).string = {
-    in: ["LANDING", "KATALOG", "ARTIKEL", "MULAI_ISI", "KIRIM", "SELESAI"]
+    in: ["LANDING", "KATALOG", "ARTIKEL", "MULAI_ISI", "KIRIM", "SELESAI", "DAFTAR"]
   }];
   string path = 3 [(buf.validate.field).string.max_len = 300];
   string article_slug = 4 [(buf.validate.field).string.max_len = 180];

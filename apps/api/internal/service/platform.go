@@ -28,6 +28,7 @@ type PlatformService struct {
 	supplierRepository     *repository.SupplierRepository
 	productRepository      *repository.ProductRepository
 	subscriptionRepository *repository.SubscriptionRepository
+	funnelRepository       *repository.FunnelRepository
 	kycRepository          *repository.KYCRepository
 	auditRepository        *repository.AuditRepository
 
@@ -119,8 +120,8 @@ func (s *PlatformService) IgnoreBankMutation(ctx context.Context, req *hajjv1.Ig
 	return &hajjv1.IgnoreBankMutationResponse{}, nil
 }
 
-func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, products *repository.ProductRepository, subscriptions *repository.SubscriptionRepository, kyc *repository.KYCRepository, audit *repository.AuditRepository) *PlatformService {
-	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, supplierRepository: suppliers, productRepository: products, subscriptionRepository: subscriptions, kycRepository: kyc, auditRepository: audit}
+func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, products *repository.ProductRepository, subscriptions *repository.SubscriptionRepository, kyc *repository.KYCRepository, audit *repository.AuditRepository, funnel *repository.FunnelRepository) *PlatformService {
+	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, supplierRepository: suppliers, productRepository: products, subscriptionRepository: subscriptions, kycRepository: kyc, auditRepository: audit, funnelRepository: funnel}
 }
 
 // requirePlatformAdmin is the only thing standing between a signed-in operator

@@ -4,6 +4,10 @@ package hajj.v1;
 
 import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
+// FunnelStepCount is shared with the per-agency screen deliberately: the two
+// funnels are the same shape, and a second copy of the message would let them
+// drift apart step by step.
+import "hajj/v1/funnel_report.proto";
 
 option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 
@@ -168,6 +172,57 @@ service PlatformService {
   // every time — reading somebody's NIK should leave a trace.
   rpc GetKycRecord(GetKycRecordRequest) returns (GetKycRecordResponse);
   rpc SetKycStatus(SetKycStatusRequest) returns (SetKycStatusResponse);
+
+  // GetPlatformFunnel reads both funnels side by side: TawafiqHub's own sales
+  // funnel, and what every travel agency's storefront produced. Only here can
+  // the two be compared, which is what separates this from the per-agency
+  // screen.
+  rpc GetPlatformFunnel(GetPlatformFunnelRequest) returns (GetPlatformFunnelResponse);
+}
+
+message GetPlatformFunnelRequest {
+  int32 days = 1;
+}
+
+// One storefront's standing. Conversion is the number that matters and the
+// number that misleads: a storefront with three visitors and one registrant
+// converts at 33%, which says nothing. visitors is carried alongside so the
+// screen can refuse to rank the ones with too little traffic to judge.
+message StorefrontFunnelRow {
+  string operator_id = 1;
+  string operator_name = 2;
+  string slug = 3;
+  int32 visitors = 4;
+  int32 registrations = 5;
+  double conversion = 6;
+}
+
+message GetPlatformFunnelResponse {
+  // TawafiqHub's own funnel: the landing page, the sign-up page, and the
+  // tenants that actually became active in the period. The last step is
+  // counted from operators rather than from funnel events — a sign-up that
+  // never became a paying tenant is not a conversion.
+  repeated FunnelStepCount platform_steps = 1;
+  int32 new_tenants = 2;
+
+  // Every storefront added together. The number to quote when selling.
+  int32 total_visitors = 3;
+  int32 total_registrations = 4;
+
+  // Ranked by conversion, best first, and only storefronts with enough traffic
+  // to be worth ranking.
+  repeated StorefrontFunnelRow storefronts = 5;
+  // Below the traffic floor: ranking them would be noise, hiding them would
+  // lose them. The floor itself is sent so the screen can say what it is.
+  repeated StorefrontFunnelRow too_few_visitors = 6;
+  int32 ranking_floor = 7;
+
+  // Paying for a storefront nobody opened. This is a work list, not a shaming
+  // board: an agency that pays for something unused is an agency about to
+  // cancel.
+  repeated StorefrontFunnelRow silent_storefronts = 8;
+
+  int32 days = 9;
 }
 
 message AmIPlatformAdminRequest {}
