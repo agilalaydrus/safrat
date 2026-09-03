@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
-	"github.com/hajj-saas/api/internal/repository"
 )
 
 // ImpersonationHeader carries the token issued by StartImpersonation. It is
@@ -118,6 +117,19 @@ func (a *authInterceptor) impersonate(ctx context.Context, procedure string, hea
 			errors.New("sesi impersonasi hanya boleh membaca; lakukan perubahan lewat panel platform"))
 	}
 
+	// Recorded before the handler runs, so a read that is served is a read that
+	// is written down. Doing it afterwards would mean a crash mid-response
+	// leaves the data seen and the record missing.
+	//
+	// The consequence, stated rather than hidden: a request that the handler
+	// then rejects still counts. The ledger therefore counts attempts, not
+	// rows returned — which is the more useful of the two for a privacy review,
+	// and the screen says so.
+	//
+	// Only impersonated reads are recorded here. A travel agency reading its own
+	// jamaah is not a privacy event and would bury the ones that are.
+	a.recordPersonalDataRead(ctx, procedure, adminUserID, session.ID, session.OperatorID)
+
 	ctx = context.WithValue(ctx, ctxKeyOperatorID, session.BetterAuthOrgID)
 	ctx = context.WithValue(ctx, ctxKeyImpersonating, true)
 	ctx = context.WithValue(ctx, ctxKeyImpersonatedBy, adminUserID)
@@ -144,5 +156,3 @@ func ImpersonationIDFromCtx(ctx context.Context) string {
 	value, _ := ctx.Value(ctxKeyImpersonationID).(string)
 	return value
 }
-
-var _ = repository.MaxImpersonationMinutes

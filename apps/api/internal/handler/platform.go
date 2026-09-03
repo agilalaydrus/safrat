@@ -567,3 +567,11 @@ func (h *PlatformHandler) ListPrivilegedActions(ctx context.Context, req *connec
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) ListPersonalDataReads(ctx context.Context, req *connect.Request[hajjv1.ListPersonalDataReadsRequest]) (*connect.Response[hajjv1.ListPersonalDataReadsResponse], error) {
+	result, err := h.platformService.ListPersonalDataReads(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

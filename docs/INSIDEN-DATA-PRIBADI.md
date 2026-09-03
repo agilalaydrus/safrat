@@ -61,6 +61,8 @@ jamaah menganggap dirinya terdampak.
 | `pilgrim_refund_payout_requests` | tujuan rekening/e-wallet | **ya**, kunci sama dengan KYC |
 | `"user"` (Better Auth) | nama, email | tidak. Kata sandi di-hash scrypt |
 | `agents` | nama, telepon | tidak |
+| `impersonation_sessions` | siapa membuka akun travel mana, alasan, IP | tidak — tidak memuat data jamaah, tapi memuat identitas staf kita sendiri |
+| `personal_data_reads` | siapa membaca layar apa, berapa kali | tidak — hitungan, bukan isi |
 
 **Konsekuensi yang harus dipahami sebelum insiden:** kalau yang bocor adalah
 dump database, nomor identitas KYC, tujuan pencairan, dan **nomor paspor
@@ -75,6 +77,34 @@ dipakai orang lain.
 **Yang belum tersegel dan harus disebut jujur:** `pilgrim_registrations` —
 pendaftaran yang belum disetujui — menyimpan paspor dalam teks polos. Tabel itu
 punya jalur tulis terpisah dan belum ikut dipindahkan.
+
+### Siapa yang membaca, bukan hanya siapa yang mengubah
+
+Perubahan pada data jamaah selalu tercatat di `audit_logs`. **Pembacaan dulu
+tidak** — kecuali membuka nomor identitas KYC. Celah itu melebar begitu staf
+platform bisa melihat dashboard travel sebagaimana pemiliknya melihatnya: satu
+sesi dukungan bisa membuka seluruh daftar jamaah, nomor paspor, dan nomor
+telepon tanpa meninggalkan satu baris pun.
+
+`personal_data_reads` menutupnya. Satu baris per orang, per layar, per travel,
+per hari, dengan penghitung — bukan satu baris per permintaan, yang akan jadi
+puluhan ribu baris yang tidak pernah dibaca siapa pun. Pertanyaan yang benar-
+benar ditanyakan ("siapa yang membaca data jamaah travel ini, dan seberapa
+banyak") dijawab oleh hitungannya.
+
+Dua hal yang harus disebut jujur:
+
+1. **Angkanya menghitung percobaan**, bukan baris yang dikembalikan. Dicatat
+   sebelum permintaannya dilayani, supaya proses yang gagal di tengah tidak
+   meninggalkan data terbaca tanpa catatannya. Konsekuensinya, permintaan yang
+   kemudian ditolak tetap terhitung.
+2. **Pembacaan oleh staf travel atas datanya sendiri tidak dicatat.** Travel
+   membaca jamaahnya sendiri bukan peristiwa privasi, dan mencatatnya akan
+   mengubur yang memang penting. Yang dicatat hanya pembacaan dari sisi
+   TawafiqHub: panel platform dan sesi lihat-saja.
+
+Bisa dibaca di halaman detail tenant, bagian **Pembacaan data pribadi oleh
+TawafiqHub**.
 
 ### `funnel_events` dan `funnel_daily`: kenapa keduanya bukan data pribadi
 

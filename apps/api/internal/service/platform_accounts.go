@@ -7,8 +7,10 @@ import (
 	"strings"
 
 	"connectrpc.com/connect"
+	"github.com/getsentry/sentry-go"
 	"github.com/hajj-saas/api/internal/apperror"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
+	"github.com/hajj-saas/api/internal/middleware"
 	"github.com/hajj-saas/api/internal/repository"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -127,6 +129,13 @@ func (s *PlatformService) ListKycRecords(ctx context.Context, req *hajjv1.ListKy
 	if err != nil {
 		return nil, serviceError("PlatformService.ListKycRecords", err)
 	}
+	// The list carries no identity numbers, but it is still a list of real
+	// people by name and status, read from the platform panel. Recorded once
+	// per admin per day rather than once per request: this screen is opened
+	// repeatedly while working through a queue, and a row per open would bury
+	// the reads that matter.
+	s.recordPersonalDataRead(ctx, "/hajj.v1.PlatformService/ListKycRecords")
+
 	result := &hajjv1.ListKycRecordsResponse{Records: make([]*hajjv1.KycRecordSummary, 0, len(records))}
 	for _, record := range records {
 		// Summaries carry no identity numbers, deliberately: a list that does
@@ -155,6 +164,10 @@ func (s *PlatformService) GetKycRecord(ctx context.Context, req *hajjv1.GetKycRe
 	}
 	s.auditPlatform(ctx, userID, "kyc_record_read", record.ID,
 		"Data identitas "+record.FullName+" dibuka")
+	// Both, and deliberately. The audit entry names the person whose identity
+	// was opened, which is what an incident review needs; the read ledger keeps
+	// the running count per day, which is what shows a pattern.
+	s.recordPersonalDataRead(ctx, "/hajj.v1.PlatformService/GetKycRecord")
 	return &hajjv1.GetKycRecordResponse{
 		Summary: kycSummary(record), Nik: record.NIK, Npwp: record.NPWP,
 		Address: record.Address, PlaceOfBirth: record.PlaceOfBirth,
@@ -194,4 +207,41 @@ func kycSummary(record *repository.KYCRecord) *hajjv1.KycRecordSummary {
 		summary.VerifiedAt = timestamppb.New(*record.VerifiedAt)
 	}
 	return summary
+}
+
+// recordPersonalDataRead notes a platform-side read of personal data.
+//
+// Best effort: a support person must not be shown an error because the
+// bookkeeping failed, and a jamaah's record must not become unreadable because
+// a log table is full. Failures are reported rather than swallowed.
+func (s *PlatformService) recordPersonalDataRead(ctx context.Context, procedure string) {
+	if s.personalDataReads == nil {
+		return
+	}
+	if err := s.personalDataReads.Record(ctx, repository.PersonalDataRead{
+		ActorUserID: middleware.UserIDFromCtx(ctx), Procedure: procedure,
+	}); err != nil {
+		sentry.CaptureException(fmt.Errorf("PlatformService.recordPersonalDataRead: %s: %w", procedure, err))
+	}
+}
+
+func (s *PlatformService) ListPersonalDataReads(ctx context.Context, req *hajjv1.ListPersonalDataReadsRequest) (*hajjv1.ListPersonalDataReadsResponse, error) {
+	if _, err := s.requirePlatformAdmin(ctx); err != nil {
+		return nil, err
+	}
+	if req == nil || !isUUID(req.OperatorId) || s.personalDataReads == nil {
+		return nil, serviceError("PlatformService.ListPersonalDataReads", apperror.ErrValidation)
+	}
+	rows, err := s.personalDataReads.ListForOperator(ctx, req.OperatorId, req.Limit)
+	if err != nil {
+		return nil, serviceError("PlatformService.ListPersonalDataReads", err)
+	}
+	response := &hajjv1.ListPersonalDataReadsResponse{Reads: make([]*hajjv1.PersonalDataReadRow, 0, len(rows))}
+	for _, row := range rows {
+		response.Reads = append(response.Reads, &hajjv1.PersonalDataReadRow{
+			Actor: row.Actor, Procedure: row.Procedure, Day: row.Day,
+			ReadCount: row.ReadCount, LastAt: row.LastAt, InsideTenantView: row.InsideView,
+		})
+	}
+	return response, nil
 }

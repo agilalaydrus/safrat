@@ -6,7 +6,7 @@ import {
   IconAlertTriangle, IconArrowLeft, IconBuildingStore, IconExternalLink,
   IconEyeglass, IconLock, IconLockOpen, IconShieldCheck, IconShieldOff, IconWorld,
 } from "@tabler/icons-react";
-import type { GetTenantDetailResponse, ImpersonationRow, PrivilegedActionRow } from "@hajj-saas/proto-gen/hajj/v1/platform_pb";
+import type { GetTenantDetailResponse, ImpersonationRow, PersonalDataReadRow, PrivilegedActionRow } from "@hajj-saas/proto-gen/hajj/v1/platform_pb";
 import { startImpersonationLocally } from "@/lib/impersonation";
 import { buildTenantLink } from "@/lib/tenant-link";
 import { platformClient } from "@/lib/rpc";
@@ -29,6 +29,7 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
   const [detail, setDetail] = useState<GetTenantDetailResponse>();
   const [impersonations, setImpersonations] = useState<ImpersonationRow[]>([]);
   const [privileged, setPrivileged] = useState<PrivilegedActionRow[]>([]);
+  const [reads, setReads] = useState<PersonalDataReadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState("");
 
@@ -50,6 +51,10 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
       .listPrivilegedActions({ operatorId, limit: 20 })
       .then((response) => setPrivileged(response.actions))
       .catch(() => setPrivileged([]));
+    platformClient
+      .listPersonalDataReads({ operatorId, limit: 50 })
+      .then((response) => setReads(response.reads))
+      .catch(() => setReads([]));
   }, [operatorId]);
 
   if (loading) return <main style={page}><p style={muted}>Memuat data travel…</p></main>;
@@ -399,6 +404,40 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
         )}
       </section>
 
+      <section style={{ ...card, marginTop: 16 }}>
+        <h2 style={cardTitle}><IconShieldCheck size={16} style={{ verticalAlign: "-3px", marginRight: 6 }} />Pembacaan data pribadi oleh TawafiqHub</h2>
+        <p style={{ ...muted, fontSize: 12, marginBottom: 12 }}>
+          Perubahan data selalu tercatat; pembacaan dulu tidak. Satu baris per orang, per layar, per hari — bukan per
+          permintaan. Angkanya menghitung <strong>percobaan</strong> membaca, termasuk yang lalu ditolak, karena
+          dicatat sebelum permintaannya dilayani.
+        </p>
+        {reads.length === 0 ? (
+          <p style={muted}>Belum ada data pribadi travel ini yang dibaca dari sisi TawafiqHub.</p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={table}>
+              <thead><tr>{["Tanggal", "Siapa", "Layar", "Berapa kali", "Terakhir", "Dari"].map((head) => <th key={head} style={th}>{head}</th>)}</tr></thead>
+              <tbody>
+                {reads.map((row) => (
+                  <tr key={`${row.day}-${row.actor}-${row.procedure}`} style={tr}>
+                    <td style={td}>{row.day}</td>
+                    <td style={td}>{row.actor}</td>
+                    <td style={{ ...td, color: "var(--color-warm-400)" }}>{screenName(row.procedure)}</td>
+                    <td style={{ ...td, fontWeight: 700 }}>{count(row.readCount)}</td>
+                    <td style={td}>{row.lastAt} WIB</td>
+                    <td style={td}>
+                      {row.insideTenantView
+                        ? <span style={{ ...tag, background: "var(--color-warning-50)", color: "var(--color-warning-700)" }}>sesi lihat-saja</span>
+                        : <span style={{ ...tag, background: "var(--color-cream-200)", color: "var(--color-warm-700)" }}>panel platform</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
       <p style={{ ...muted, fontSize: 12, marginTop: 16 }}>
         Selain menangguhkan dan membuka kembali, halaman ini hanya membaca. Mengubah paket, kuota, dan masa tenggang
         dilakukan di tab yang punya konfirmasi dan jejaknya sendiri —{" "}
@@ -488,6 +527,24 @@ function StartImpersonation({ operatorId, operatorName }: { operatorId: string; 
       </div>
     </div>
   );
+}
+
+// The procedure name is precise and unreadable. This turns it into the screen
+// a person would recognise, and falls back to the raw name rather than hiding
+// a surface nobody has labelled yet.
+function screenName(procedure: string): string {
+  const known: Record<string, string> = {
+    "/hajj.v1.PilgrimService/ListPilgrims": "Daftar jamaah",
+    "/hajj.v1.PilgrimService/GetPilgrim": "Detail jamaah",
+    "/hajj.v1.RegistrationService/ListRegistrations": "Pendaftaran masuk",
+    "/hajj.v1.HealthReportService/ListHealthReports": "Laporan kesehatan",
+    "/hajj.v1.DocumentService/ListDocuments": "Dokumen jamaah",
+    "/hajj.v1.ChatService/ListMessages": "Percakapan",
+    "/hajj.v1.MonitoringService/ListPilgrimLocations": "Lokasi jamaah",
+    "/hajj.v1.PlatformService/ListKycRecords": "Daftar identitas (panel)",
+    "/hajj.v1.PlatformService/GetKycRecord": "Nomor identitas dibuka (panel)",
+  };
+  return known[procedure] ?? procedure.split("/").pop() ?? procedure;
 }
 
 const PRIVILEGED_LABEL: Record<string, string> = {

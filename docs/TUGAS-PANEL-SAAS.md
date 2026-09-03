@@ -266,12 +266,38 @@ mengembalikan waktu yang sama persis. Dengan pemeriksaan nama dilumpuhkan,
 ujinya gagal: `nama salah = unknown` — artinya nama yang salah benar-benar
 menangguhkan travelnya.
 
-## C3 — Audit pembacaan data pribadi 🟠
+## C3 — Audit pembacaan data pribadi ✅
 
-- [C] Membaca KYC / paspor / data jamaah dari panel platform tercatat, bukan
-      hanya perubahannya
-- [C] Perbarui tabel inventaris data di
-      [INSIDEN-DATA-PRIBADI.md](INSIDEN-DATA-PRIBADI.md)
+- [x] `personal_data_reads` (migrasi 151): satu baris per orang, per layar, per
+      travel, per hari, dengan penghitung. Bukan satu baris per permintaan —
+      itu akan jadi puluhan ribu baris yang tidak pernah dibaca, dan pertanyaan
+      yang benar-benar ditanyakan dijawab oleh hitungannya.
+- [x] Dicatat di interceptor untuk **setiap** pembacaan lewat sesi lihat-saja,
+      diklasifikasikan per **service** (bukan per prosedur) supaya RPC baru pada
+      layar yang sama ikut tercakup hari ia ditambahkan, bukan hari seseorang
+      ingat mendaftarkannya.
+- [x] `GetKycRecord` tetap menulis entri audit **dan** baris pembacaan: entri
+      audit menyebut siapa orangnya (yang dibutuhkan saat menyelidiki insiden),
+      baris pembacaan menyimpan hitungan hariannya (yang memperlihatkan pola).
+      `ListKycRecords` yang sebelumnya sama sekali tidak tercatat, sekarang
+      tercatat.
+- [x] Bisa dibaca di halaman detail tenant — **Pembacaan data pribadi oleh
+      TawafiqHub**, dengan penanda apakah dari panel atau dari sesi lihat-saja.
+- [x] Inventaris di [INSIDEN-DATA-PRIBADI.md](INSIDEN-DATA-PRIBADI.md)
+      diperbarui, termasuk dua batasan yang disebut jujur.
+
+**Dua batasan yang disebut, bukan disembunyikan:**
+
+- Angkanya menghitung **percobaan**, bukan baris yang dikembalikan. Dicatat
+  sebelum permintaannya dilayani, supaya proses yang gagal di tengah tidak
+  meninggalkan data terbaca tanpa catatannya.
+- Pembacaan oleh staf travel atas datanya sendiri **tidak** dicatat. Itu bukan
+  peristiwa privasi, dan mencatatnya akan mengubur yang memang penting.
+
+**Diverifikasi dengan merusak:** `PilgrimService` dihapus dari daftar layar data
+pribadi → uji gagal dengan `pembacaan data pribadi tidak tercatat: no rows in
+result set`. Uji juga memastikan `ListSeasons` **tidak** tercatat: musim bukan
+orang, dan mencatat semuanya sama saja dengan tidak mencatat apa pun.
 
 ## C4 — Rotasi kunci & ekspor auditor 🟡
 

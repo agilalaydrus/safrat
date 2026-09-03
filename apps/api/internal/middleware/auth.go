@@ -301,15 +301,17 @@ func NewAuthInterceptor(pool *pgxpool.Pool, identityRepository *repository.Ident
 // impersonation enabled. Kept as a separate constructor so that a server built
 // without it cannot accept an impersonation header at all — the feature is off
 // unless somebody wired it on purpose.
-func NewAuthInterceptorWithImpersonation(pool *pgxpool.Pool, identityRepository *repository.IdentityRepository, subscriptions *repository.SubscriptionRepository, impersonation *repository.ImpersonationRepository) connect.Interceptor {
-	return &authInterceptor{pool: pool, identity: identityRepository, subscriptions: subscriptions, impersonation: impersonation}
+func NewAuthInterceptorWithImpersonation(pool *pgxpool.Pool, identityRepository *repository.IdentityRepository, subscriptions *repository.SubscriptionRepository, impersonation *repository.ImpersonationRepository, personalDataReads *repository.PersonalDataReadRepository) connect.Interceptor {
+	return &authInterceptor{pool: pool, identity: identityRepository, subscriptions: subscriptions,
+		impersonation: impersonation, personalDataReads: personalDataReads}
 }
 
 type authInterceptor struct {
-	pool          *pgxpool.Pool
-	identity      *repository.IdentityRepository
-	subscriptions *repository.SubscriptionRepository
-	impersonation *repository.ImpersonationRepository
+	pool              *pgxpool.Pool
+	identity          *repository.IdentityRepository
+	subscriptions     *repository.SubscriptionRepository
+	impersonation     *repository.ImpersonationRepository
+	personalDataReads *repository.PersonalDataReadRepository
 }
 
 func (a *authInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {

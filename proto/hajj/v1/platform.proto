@@ -202,7 +202,32 @@ service PlatformService {
   rpc SuspendTenant(SuspendTenantRequest) returns (SuspendTenantResponse);
   rpc ReinstateTenant(ReinstateTenantRequest) returns (ReinstateTenantResponse);
   rpc ListPrivilegedActions(ListPrivilegedActionsRequest) returns (ListPrivilegedActionsResponse);
+
+  // Who from TawafiqHub has read this tenant's people's data, and how much.
+  // Changes were always recorded; reads were not, and a support session can
+  // page through every jamaah without changing a thing.
+  rpc ListPersonalDataReads(ListPersonalDataReadsRequest) returns (ListPersonalDataReadsResponse);
 }
+
+message ListPersonalDataReadsRequest {
+  string operator_id = 1 [(buf.validate.field).string.min_len = 1];
+  int32 limit = 2;
+}
+
+message PersonalDataReadRow {
+  string actor = 1;
+  string procedure = 2;
+  // Asia/Jakarta calendar day, as text for the same reason the funnel sends
+  // one: a timestamp invites the browser to re-derive the day in its own zone.
+  string day = 3;
+  int32 read_count = 4;
+  string last_at = 5;
+  // Whether the read happened inside an impersonation session rather than from
+  // the platform panel.
+  bool inside_tenant_view = 6;
+}
+
+message ListPersonalDataReadsResponse { repeated PersonalDataReadRow reads = 1; }
 
 message SuspendTenantRequest {
   string operator_id = 1 [(buf.validate.field).string.min_len = 1];

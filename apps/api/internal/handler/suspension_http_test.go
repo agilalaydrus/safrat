@@ -82,7 +82,7 @@ func TestSuspendTenantRequiresTheNameAndLeavesEvidenceIntegration(t *testing.T) 
 		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool),
 		repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool),
 		repository.NewKYCRepository(pool), repository.NewAuditRepository(queries),
-		repository.NewFunnelRepository(pool), repository.NewImpersonationRepository(pool))
+		repository.NewFunnelRepository(pool), repository.NewImpersonationRepository(pool), repository.NewPersonalDataReadRepository(pool))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
 			repository.NewIdentityRepository(queries, repository.NewAgentRepository(queries)),

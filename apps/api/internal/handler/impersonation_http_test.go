@@ -81,12 +81,13 @@ func TestImpersonationReadsTenantDataAndCannotWriteIntegration(t *testing.T) {
 		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool),
 		repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool),
 		repository.NewKYCRepository(pool), repository.NewAuditRepository(queries),
-		repository.NewFunnelRepository(pool), repository.NewImpersonationRepository(pool))
+		repository.NewFunnelRepository(pool), repository.NewImpersonationRepository(pool), repository.NewPersonalDataReadRepository(pool))
 
 	interceptors := connect.WithInterceptors(middleware.NewAuthInterceptorWithImpersonation(pool,
 		repository.NewIdentityRepository(queries, repository.NewAgentRepository(queries)),
 		repository.NewSubscriptionRepository(pool),
-		repository.NewImpersonationRepository(pool)))
+		repository.NewImpersonationRepository(pool),
+		repository.NewPersonalDataReadRepository(pool)))
 
 	mux := http.NewServeMux()
 	platformPath, platformHandler := hajjv1connect.NewPlatformServiceHandler(handler.NewPlatformHandler(platform), interceptors)
@@ -233,6 +234,66 @@ func TestImpersonationReadsTenantDataAndCannotWriteIntegration(t *testing.T) {
 	authorise(endedReq, second.Msg.GetToken())
 	if _, err := seasonClient.ListSeasons(ctx, endedReq); connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("sesi yang ditutup masih bisa dipakai: %v", connect.CodeOf(err))
+	}
+
+	// Reading a tenant's jamaah while impersonating leaves a record. Changes
+	// were always audited; reads were not, and this is the surface that made
+	// unrecorded reads possible at scale.
+	var readCount int32
+	var insideView bool
+	if err := pool.QueryRow(ctx, `SELECT read_count, impersonation_id IS NOT NULL
+		FROM personal_data_reads
+		WHERE operator_id = $1 AND procedure = '/hajj.v1.SeasonService/ListSeasons'`, customer).
+		Scan(&readCount, &insideView); err == nil {
+		t.Fatal("ListSeasons tercatat sebagai pembacaan data pribadi — musim bukan orang, dan mencatat semuanya mengubur yang penting")
+	}
+
+	pilgrimService := service.NewPilgrimService(repository.NewOperatorRepository(queries),
+		repository.NewPilgrimRepository(queries), repository.NewAccommodationRepository(queries),
+		repository.NewTransportRepository(queries, pool), repository.NewAuditRepository(queries), pool)
+	pilgrimPath, pilgrimHandler := hajjv1connect.NewPilgrimServiceHandler(handler.NewPilgrimHandler(pilgrimService), interceptors)
+	mux.Handle(pilgrimPath, pilgrimHandler)
+	pilgrimClient := hajjv1connect.NewPilgrimServiceClient(server.Client(), server.URL)
+
+	third := connect.NewRequest(&hajjv1.StartImpersonationRequest{
+		OperatorId: customer, Reason: "memeriksa pencatatan pembacaan data pribadi",
+		Minutes: 15, IdempotencyKey: "imp-" + uuid.NewString(),
+	})
+	authorise(third, "")
+	live, err := platformClient.StartImpersonation(ctx, third)
+	if err != nil {
+		t.Fatalf("start ketiga: %v", err)
+	}
+	for range 3 {
+		pilgrimReq := connect.NewRequest(&hajjv1.ListPilgrimsRequest{SeasonId: customerSeason})
+		authorise(pilgrimReq, live.Msg.GetToken())
+		if _, err := pilgrimClient.ListPilgrims(ctx, pilgrimReq); err != nil {
+			t.Fatalf("list pilgrims while impersonating: %v", err)
+		}
+	}
+	if err := pool.QueryRow(ctx, `SELECT read_count, impersonation_id IS NOT NULL
+		FROM personal_data_reads
+		WHERE operator_id = $1 AND procedure = '/hajj.v1.PilgrimService/ListPilgrims'`, customer).
+		Scan(&readCount, &insideView); err != nil {
+		t.Fatalf("pembacaan data pribadi tidak tercatat: %v", err)
+	}
+	// One row with a count, not three rows: a row per request would be tens of
+	// thousands nobody reads.
+	if readCount != 3 {
+		t.Fatalf("read_count = %d, mau 3", readCount)
+	}
+	if !insideView {
+		t.Fatal("pembacaan tidak dikaitkan dengan sesi impersonasinya")
+	}
+
+	readsReq := connect.NewRequest(&hajjv1.ListPersonalDataReadsRequest{OperatorId: customer})
+	authorise(readsReq, "")
+	reads, err := platformClient.ListPersonalDataReads(ctx, readsReq)
+	if err != nil {
+		t.Fatalf("list personal data reads: %v", err)
+	}
+	if len(reads.Msg.GetReads()) == 0 {
+		t.Fatal("catatan pembacaan tidak terbaca kembali")
 	}
 
 	// Every session is on the customer's own record, closed or not.

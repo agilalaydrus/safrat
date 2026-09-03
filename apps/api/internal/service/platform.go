@@ -30,6 +30,7 @@ type PlatformService struct {
 	subscriptionRepository  *repository.SubscriptionRepository
 	funnelRepository        *repository.FunnelRepository
 	impersonationRepository *repository.ImpersonationRepository
+	personalDataReads       *repository.PersonalDataReadRepository
 	kycRepository           *repository.KYCRepository
 	auditRepository         *repository.AuditRepository
 
@@ -121,8 +122,8 @@ func (s *PlatformService) IgnoreBankMutation(ctx context.Context, req *hajjv1.Ig
 	return &hajjv1.IgnoreBankMutationResponse{}, nil
 }
 
-func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, products *repository.ProductRepository, subscriptions *repository.SubscriptionRepository, kyc *repository.KYCRepository, audit *repository.AuditRepository, funnel *repository.FunnelRepository, impersonation *repository.ImpersonationRepository) *PlatformService {
-	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, supplierRepository: suppliers, productRepository: products, subscriptionRepository: subscriptions, kycRepository: kyc, auditRepository: audit, funnelRepository: funnel, impersonationRepository: impersonation}
+func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, products *repository.ProductRepository, subscriptions *repository.SubscriptionRepository, kyc *repository.KYCRepository, audit *repository.AuditRepository, funnel *repository.FunnelRepository, impersonation *repository.ImpersonationRepository, personalDataReads *repository.PersonalDataReadRepository) *PlatformService {
+	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, supplierRepository: suppliers, productRepository: products, subscriptionRepository: subscriptions, kycRepository: kyc, auditRepository: audit, funnelRepository: funnel, impersonationRepository: impersonation, personalDataReads: personalDataReads}
 }
 
 // requirePlatformAdmin is the only thing standing between a signed-in operator

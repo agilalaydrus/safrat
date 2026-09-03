@@ -24,8 +24,8 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
 
 1. **B2** Meter pemakaian — batas ditegakkan tapi tidak ada yang tahu siapa
    mendekatinya.
-2. **C3 Audit pembacaan data pribadi** — membaca KYC/paspor dari panel platform
-   harus tercatat, bukan hanya perubahannya.
+2. **C4 Rotasi kunci & ekspor auditor** — rotasi kunci API dengan tumpang tindih
+   24 jam, dan ekspor auditor (CSV + manifes hash).
 3. **Tahap 3 Dashboard Travel** — CRM Leads, WhatsApp, rundown, tier kamar.
 4. **SEO & Konten** — `sitemap.xml` dan `robots.txt` sudah ada dan sadar-host.
    Sisanya S3: Search Console, menunggu proyek Google Cloud milik pemilik.
@@ -53,9 +53,9 @@ go build · go vet            bersih
 suite Go                     16 paket lulus, 0 gagal, tiga jalan berturut-turut
 tsc --noEmit · next lint     bersih
 next build                   sukses
-migrasi                      150, terpasang di DB dev dan DB uji
+migrasi                      151, terpasang di DB dev dan DB uji
 working tree                 bersih
-belum di-push                1 commit
+belum di-push                2 commit
 ```
 
 `main` = deploy. **Jangan push tanpa perintah pemilik.**
@@ -90,6 +90,37 @@ belum di-push                1 commit
   perlu banner persetujuan. Konsekuensinya atribusi lintas hari tidak akurat,
   dan itu harus tertulis di layar.
 - Marketplace B2B, aplikasi terpisah, AI berfatwa: **ditunda/ditolak**.
+
+## Deploy terakhir GAGAL — dan alasannya benar
+
+Commit `a6bf2ad` sudah di-push, **CI lulus, Deploy gagal**. Produksi masih
+menjalankan versi sebelumnya (`d836b97`) dan sehat — deploy berhenti di
+`docker compose config`, sebelum menyentuh container yang berjalan.
+
+```
+error: required variable FUNNEL_SALT is missing a value
+error: required variable FUNNEL_INGEST_SECRET is missing a value
+```
+
+`docker-compose.prod.yml` menandai keduanya `:?` (wajib). Itu **disengaja**:
+tanpa garam, corong pengunjung diam-diam tidak merekam apa pun, dan kegagalan
+diam adalah yang paling mahal di proyek ini. Gerbangnya bekerja persis seperti
+maksudnya.
+
+Yang harus dilakukan pemilik — di VPS, **bukan di sesi agen** (kunci produksi
+tidak pernah dibuat di sini):
+
+```
+ssh <vps>
+cd /opt/safrat   # atau di mana .env.prod berada
+printf 'FUNNEL_SALT=%s\n' "$(openssl rand -hex 32)" >> .env.prod
+printf 'FUNNEL_INGEST_SECRET=%s\n' "$(openssl rand -hex 32)" >> .env.prod
+grep -c FUNNEL .env.prod   # harus 2
+```
+
+Lalu jalankan ulang workflow **Deploy to VPS** dari GitHub Actions. `BANK_FEED_SECRET`
+hanya memberi peringatan (default kosong), jadi ia tidak memblokir deploy —
+tapi selama kosong, pencocokan mutasi bank tidak berjalan.
 
 ## Pekerjaan pemilik yang belum beres
 
