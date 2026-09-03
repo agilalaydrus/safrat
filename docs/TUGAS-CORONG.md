@@ -157,13 +157,29 @@ Menyentuh dua permukaan: `/dashboard` (travel melihat corongnya sendiri) dan
 
 # TAHAP K6 — Penutup
 
-- [ ] **K6.1** Perbarui [INSIDEN-DATA-PRIBADI.md](INSIDEN-DATA-PRIBADI.md):
-      catat `funnel_events` **dan alasan ia bukan data pribadi** — tanpa IP,
-      tanpa cookie, hash bergaram yang berganti harian. Kalau salah satu syarat
-      itu berubah, statusnya ikut berubah.
-- [ ] **K6.2** Verifikasi tidak ada kolom mana pun yang memuat IP, dengan uji.
-- [ ] **K6.3** Ukur beban: rollup pada 30 hari data harus selesai dalam hitungan
-      detik, bukan menit.
+- [x] **K6.1** [INSIDEN-DATA-PRIBADI.md](INSIDEN-DATA-PRIBADI.md) memuat
+      `funnel_events` dan `funnel_daily` beserta lima syarat yang membuatnya
+      bukan data pribadi, **dan daftar perubahan yang akan membatalkannya**.
+- [x] **K6.2** `funnel_no_ip_integration_test.go`: menolak kolom bertipe
+      `inet`/`cidr` dan kolom yang namanya menyiratkan alamat, di kedua tabel,
+      plus memastikan batasan panjang hash 64 karakter masih ada. Diverifikasi
+      dengan menambahkan kolom `client_ip inet` sungguhan — uji gagal dengan
+      pesan yang benar, lalu lulus lagi setelah kolomnya dibuang.
+- [x] **K6.3** Beban diukur pada **180.000 baris mentah** (30 hari × 2.000
+      pengunjung × 3 kejadian — lebih ramai daripada storefront klien mana pun
+      hari ini):
+
+      | Yang diukur | Waktu |
+      |---|---|
+      | Rollup satu hari | 68 ms rata-rata |
+      | Rollup 30 hari berturut-turut | 2,0 detik |
+      | Layar corong travel (30 hari) | 177 ms |
+      | Layar corong platform (30 hari) | 1 ms |
+
+      Layar platform hampir gratis karena hanya membaca ringkasan harian. Layar
+      travel lebih mahal karena jam aktif, asal daerah, dan kinerja artikel
+      memang harus membaca baris mentah — dan itulah alasan retensinya 90 hari,
+      bukan selamanya.
 
 ---
 

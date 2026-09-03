@@ -28,11 +28,12 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
 3. **Tahap 3 Dashboard Travel** — CRM Leads, WhatsApp, rundown, tier kamar.
 4. **SEO & Konten** — `sitemap.xml` dan `robots.txt` sudah ada dan sadar-host.
    Sisanya S3: Search Console, menunggu proyek Google Cloud milik pemilik.
-5. **Corong pengunjung** — K1–K5 selesai. Layar travel di `/dashboard/reports`
+5. **Corong pengunjung** — K1–K6 selesai. Layar travel di `/dashboard/reports`
    → tab **Corong Pengunjung**; layar platform di `/admin` → tab **Corong**.
-   Sisanya: **K6** dokumen insiden data pribadi + ukur biaya rollup, **K2.8**
-   geolokasi (GeoLite2) — sampai itu dipasang bagian "Asal Daerah" kosong dan
-   layarnya mengatakan begitu — dan **K5.6** yang menunggu B3 (halaman
+   Beban terukur pada 180.000 baris: rollup 68 ms/hari, layar travel 177 ms,
+   layar platform 1 ms. Yang tersisa bergantung pada hal lain: **K2.8**
+   geolokasi (GeoLite2 belum dipasang di server, jadi "Asal Daerah" kosong dan
+   layarnya mengatakan begitu) dan **K5.6** yang menunggu B3 (halaman
    `/admin/tenant/[id]` belum ada).
 
 **Dunning masih mode kering.** Ia berjalan tiap 24 jam, mengisi `dunning_log`,
@@ -54,7 +55,7 @@ tsc --noEmit · next lint     bersih
 next build                   sukses
 migrasi                      148, terpasang di DB dev dan DB uji
 working tree                 bersih
-belum di-push                18 commit
+belum di-push                19 commit
 ```
 
 `main` = deploy. **Jangan push tanpa perintah pemilik.**

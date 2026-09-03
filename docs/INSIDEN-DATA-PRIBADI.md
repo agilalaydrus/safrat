@@ -76,6 +76,41 @@ dipakai orang lain.
 pendaftaran yang belum disetujui — menyimpan paspor dalam teks polos. Tabel itu
 punya jalur tulis terpisah dan belum ikut dipindahkan.
 
+### `funnel_events` dan `funnel_daily`: kenapa keduanya bukan data pribadi
+
+Sengaja tidak masuk tabel di atas, dan alasannya harus bertahan diperiksa —
+kalau salah satu syarat di bawah berubah, statusnya ikut berubah dan tabel ini
+naik ke daftar itu.
+
+1. **Tidak ada alamat IP di kolom mana pun.** IP dipakai sekali di memori untuk
+   menghitung penanda, lalu dibuang. Ini dijaga oleh uji, bukan oleh ingatan:
+   `funnel_no_ip_integration_test.go` menolak kolom bertipe `inet`/`cidr` dan
+   kolom yang namanya menyiratkan alamat, di kedua tabel.
+2. **Tidak ada cookie dan tidak ada penyimpanan di peramban.** Tidak ada yang
+   ditanam di perangkat pengunjung, jadi tidak ada persetujuan yang perlu
+   diminta dan tidak ada pengenal yang bisa dibaca kembali.
+3. **Penanda pengunjung adalah hash bergaram yang berganti tiap hari.**
+   `SHA256(garam ‖ tanggal ‖ IP ‖ user agent)`. Tanpa garamnya, hash tidak bisa
+   dikembalikan; dan karena tanggalnya ikut masuk, penanda orang yang sama
+   berbeda esok hari — tidak ada seorang pun yang bisa diikuti lintas hari,
+   termasuk oleh kami.
+4. **Baris mentah dihapus setelah 90 hari** (`repository.FunnelRetentionDays`).
+   Yang disimpan selamanya hanya ringkasan harian, yang berisi angka.
+5. **Lokasi hanya sampai tingkat kota**, disimpan sebagai nama daerah, bukan
+   koordinat dan bukan IP asalnya.
+
+**Kalau garamnya bocor**, hash tetap tidak berisi apa pun yang menunjuk orang:
+untuk mengembalikannya seseorang harus sudah memegang daftar IP yang dicurigai
+**dan** user agent-nya **dan** tanggalnya, lalu mencocokkan satu per satu. Itu
+mengonfirmasi tebakan yang sudah dia punya; ia tidak mengungkap identitas baru.
+Walau begitu, `FUNNEL_SALT` tetap diperlakukan sebagai rahasia produksi seperti
+kunci lain.
+
+**Yang akan mengubah status ini:** menambah kolom IP (walau disamarkan),
+memakai cookie atau `localStorage` untuk mengenali pengunjung, menyimpan
+penanda yang tidak berganti harian, atau menautkan penanda ke akun. Salah satu
+saja, dan tabel ini menjadi data pribadi dengan segala kewajibannya.
+
 ### Kueri yang sudah disiapkan
 
 Ditulis sekarang, bukan saat panik. Menyusun kueri sambil menghitung mundur
