@@ -375,7 +375,24 @@ Worker memakai SMTP TLS dengan lease, retry, stable Message-ID, dan dead-letter.
       - [ ] Rangkaian (segmen transportasi & hotel bergantian)
       - [ ] Rundown per hari
       - [ ] Armada Bus (assign jamaah ke bus, tervalidasi terhadap segmen Bus)
-      - [ ] Roomlist dikelompokkan per kota/hotel
+      - [x] **Roomlist** dikelompokkan per kota → hotel → kamar, dengan unduh
+            CSV. Menampilkan yang **belum dapat kamar sama sekali** (baris
+            paling mendesak, dan tidak mungkin muncul dari join yang berangkat
+            dari tabel alokasi), tempat tidur kosong, dan menandai **kamar
+            keluarga berisi laki-laki dan perempuan yang mahramnya tidak ada di
+            kamar itu**.
+
+            Penandaan itu satu-satunya hal yang tidak bisa ditangkap aturan
+            alokasi: alokasi sudah menolak laki-laki masuk kamar berperuntukan
+            perempuan, tapi kamar `family` memang menerima siapa saja. Jadi ini
+            disurfacekan, bukan diblokir — pasangan suami istri sekamar itu
+            biasa, dua orang asing beda jenis kelamin sekamar tidak.
+
+            Tautan mahram hanya tercatat di satu sisi, jadi pemeriksaannya
+            melihat dua arah. Diverifikasi dengan merusak: hanya melihat satu
+            arah → gagal `pasangan suami istri di kamar keluarga ikut
+            ditandai`; saringan "belum punya alokasi" dibuang → gagal `jamaah
+            tanpa kamar tidak muncul` dengan seluruh roster ikut terbawa.
 
       **Dua penilaian yang membuat manifes ini terpakai, bukan sekadar benar:**
 

@@ -247,3 +247,73 @@ func (s *KloterService) GetManifest(ctx context.Context, orgID string, req *hajj
 	}
 	return response, nil
 }
+
+// GetRoomlist is the sheet the hotel receives.
+func (s *KloterService) GetRoomlist(ctx context.Context, orgID string, req *hajjv1.GetKloterRoomlistRequest) (*hajjv1.GetKloterRoomlistResponse, error) {
+	if req == nil || strings.TrimSpace(req.KloterId) == "" {
+		return nil, serviceError("KloterService.GetRoomlist", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("KloterService.GetRoomlist", err)
+	}
+	list, err := s.kloterRepository.Roomlist(ctx, op.ID, req.KloterId)
+	if err != nil {
+		return nil, serviceError("KloterService.GetRoomlist", err)
+	}
+
+	response := &hajjv1.GetKloterRoomlistResponse{
+		KloterCode: list.KloterCode, TotalPilgrims: list.Total,
+	}
+	for _, hotel := range list.Hotels {
+		message := &hajjv1.RoomlistHotel{
+			HotelId: hotel.HotelID, Name: hotel.Name, City: hotel.City,
+		}
+		if hotel.CheckInDate != nil {
+			message.CheckInDate = timestamppb.New(*hotel.CheckInDate)
+		}
+		if hotel.CheckOutDate != nil {
+			message.CheckOutDate = timestamppb.New(*hotel.CheckOutDate)
+		}
+		for _, room := range hotel.Rooms {
+			// Free beds can go negative only if something wrote past capacity
+			// behind the allocation rules; clamping it would hide exactly that.
+			free := room.Capacity - int32(len(room.Occupants))
+			roomMessage := &hajjv1.RoomlistRoom{
+				RoomId: room.RoomID, RoomNumber: room.RoomNumber, RoomType: room.RoomType,
+				DesignatedGender: room.DesignatedGender, Capacity: room.Capacity,
+				BedsFree: free, MixedWithoutMahram: room.MixedWithoutMahram(),
+			}
+			response.BedsFree += free
+			present := map[string]bool{}
+			for _, occupant := range room.Occupants {
+				present[occupant.PilgrimID] = true
+			}
+			for _, occupant := range room.Occupants {
+				mahramHere := occupant.MahramID != "" && present[occupant.MahramID]
+				if !mahramHere {
+					for _, other := range room.Occupants {
+						if other.MahramID == occupant.PilgrimID {
+							mahramHere = true
+							break
+						}
+					}
+				}
+				roomMessage.Occupants = append(roomMessage.Occupants, &hajjv1.RoomlistOccupant{
+					PilgrimId: occupant.PilgrimID, FullName: occupant.FullName,
+					Gender: occupant.Gender, HasMahram: occupant.MahramID != "",
+					MahramInRoom: mahramHere,
+				})
+			}
+			message.Rooms = append(message.Rooms, roomMessage)
+		}
+		response.Hotels = append(response.Hotels, message)
+	}
+	for _, occupant := range list.Unassigned {
+		response.Unassigned = append(response.Unassigned, &hajjv1.RoomlistOccupant{
+			PilgrimId: occupant.PilgrimID, FullName: occupant.FullName,
+			Gender: occupant.Gender, HasMahram: occupant.MahramID != "",
+		})
+	}
+	return response, nil
+}

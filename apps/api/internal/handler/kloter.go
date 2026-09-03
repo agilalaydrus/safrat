@@ -62,3 +62,14 @@ func (h *KloterHandler) GetKloterManifest(ctx context.Context, req *connect.Requ
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *KloterHandler) GetKloterRoomlist(ctx context.Context, req *connect.Request[hajjv1.GetKloterRoomlistRequest]) (*connect.Response[hajjv1.GetKloterRoomlistResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.kloterService.GetRoomlist(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

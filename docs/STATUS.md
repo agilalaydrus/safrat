@@ -27,8 +27,8 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
 2. **C4 Rotasi kunci & ekspor auditor** — rotasi kunci API dengan tumpang tindih
    24 jam, dan ekspor auditor (CSV + manifes hash).
 3. **Tahap 3 Dashboard Travel** — sisa **T3.2** gateway WhatsApp (butuh
-   kredensial penyedia dari pemilik) dan sisa **T3.3**: Rangkaian, Rundown,
-   Armada Bus, Roomlist. CRM Leads, tier kamar, dan Manifes sudah selesai.
+   kredensial penyedia dari pemilik) dan sisa **T3.3**: Rangkaian, Rundown, dan
+   Armada Bus. CRM Leads, tier kamar, Manifes, dan Roomlist sudah selesai.
 4. **SEO & Konten** — `sitemap.xml` dan `robots.txt` sudah ada dan sadar-host.
    Sisanya S3: Search Console, menunggu proyek Google Cloud milik pemilik.
 5. **Corong pengunjung** — K1–K6 selesai. Layar travel di `/dashboard/reports`
@@ -57,7 +57,7 @@ tsc --noEmit · next lint     bersih
 next build                   sukses
 migrasi                      152, terpasang di DB dev dan DB uji
 working tree                 bersih
-belum di-push                2 commit
+belum di-push                3 commit
 ```
 
 `main` = deploy. **Jangan push tanpa perintah pemilik.**

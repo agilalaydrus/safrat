@@ -29,6 +29,62 @@ service KloterService {
   // "who is not ready" is asked constantly and answering it by opening two
   // hundred pilgrim records is how departures slip.
   rpc GetKloterManifest(GetKloterManifestRequest) returns (GetKloterManifestResponse);
+
+  // GetKloterRoomlist is the sheet the hotel receives: who sleeps where,
+  // grouped the way a hotel reads it — by city, then property, then room.
+  // The per-pilgrim view already existed and answers a different question;
+  // nobody sends a hotel a list sorted by pilgrim.
+  rpc GetKloterRoomlist(GetKloterRoomlistRequest) returns (GetKloterRoomlistResponse);
+}
+
+message GetKloterRoomlistRequest {
+  string kloter_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message RoomlistOccupant {
+  string pilgrim_id = 1;
+  string full_name = 2;
+  string gender = 3;
+  // Whether this person's mahram is in the same room. The allocation rules
+  // already keep men out of women's rooms; a room marked "family" accepts
+  // anyone, which is the case that still needs looking at.
+  bool mahram_in_room = 4;
+  bool has_mahram = 5;
+}
+
+message RoomlistRoom {
+  string room_id = 1;
+  string room_number = 2;
+  string room_type = 3;
+  // male | female | family
+  string designated_gender = 4;
+  int32 capacity = 5;
+  repeated RoomlistOccupant occupants = 6;
+  int32 beds_free = 7;
+  // A family room holding both men and women where at least one of them has no
+  // mahram present. Not an error the allocation could have caught — a family
+  // room accepts anyone by design — and not always wrong, but always worth a
+  // second look before the list is sent.
+  bool mixed_without_mahram = 8;
+}
+
+message RoomlistHotel {
+  string hotel_id = 1;
+  string name = 2;
+  string city = 3;
+  google.protobuf.Timestamp check_in_date = 4;
+  google.protobuf.Timestamp check_out_date = 5;
+  repeated RoomlistRoom rooms = 6;
+}
+
+message GetKloterRoomlistResponse {
+  string kloter_code = 1;
+  repeated RoomlistHotel hotels = 2;
+  // Pilgrims on this flight with no bed anywhere. The most urgent line on the
+  // screen, and the reason this is not simply a list of rooms.
+  repeated RoomlistOccupant unassigned = 3;
+  int32 total_pilgrims = 4;
+  int32 beds_free = 5;
 }
 
 message GetKloterManifestRequest {
