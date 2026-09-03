@@ -34,10 +34,16 @@
      --color-warm-* is the Slate text scale. --color-emerald-* stays a
      separate, slightly darker green reserved for dark brand surfaces
      (sidebar, gradients) so it can differ from the Emerald-600 primary. */
-  --color-emerald-950: #022c22; --color-emerald-900: #064e3b; --color-emerald-800: #065f46; --color-emerald-700: #047857; --color-emerald-200: #a7f3d0; --color-emerald-100: #d1fae5; --color-emerald-50: #ecfdf5;
+  --color-emerald-950: #022c22; --color-emerald-900: #064e3b; --color-emerald-800: #065f46; --color-emerald-700: #047857; --color-emerald-600: #059669; --color-emerald-200: #a7f3d0; --color-emerald-100: #d1fae5; --color-emerald-50: #ecfdf5;
   --color-gold-900: #064e3b; --color-gold-800: #065f46; --color-gold-600: #047857; --color-gold-500: #059669; --color-gold-400: #10b981; --color-gold-100: #d1fae5; --color-gold-50: #ecfdf5;
   --color-cream-100: #f8fafc; --color-cream-200: #f1f5f9; --color-cream-300: #e2e8f0; --color-cream-400: #cbd5e1; --color-cream-500: #94a3b8;
-  --color-warm-900: #0f172a; --color-warm-700: #334155; --color-warm-500: #475569; --color-warm-400: #64748b; --color-warm-200: #cbd5e1; --color-warm-100: #f1f5f9;
+  /* --color-warm-800/-600 and --color-emerald-600 were referenced by 23 files
+     before they existed. An undefined custom property with no fallback makes
+     the whole declaration invalid, so every one of those elements silently
+     inherited its parent's colour instead — invisible to the build, to
+     typecheck and to lint. Defining them is the fix; the alternative is
+     rewriting every call site to a token that happens to be declared. */
+  --color-warm-900: #0f172a; --color-warm-700: #334155; --color-warm-500: #475569; --color-warm-400: #64748b; --color-warm-200: #cbd5e1; --color-warm-100: #f1f5f9; --color-warm-800: #1e293b; --color-warm-600: #3f4c5e;
   --color-danger-600: #e11d48; --color-danger-100: #ffe4e6; --color-success-600: #059669; --color-success-50: #ecfdf5;
   --color-warning-700: #b45309; --color-warning-600: #d97706; --color-warning-200: #fde68a; --color-warning-50: #fffbeb;
   --color-teal-600: #0d9488; --color-cyan-600: #0891b2;
@@ -863,7 +869,7 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-seri
 .branch-ranking li { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; border-bottom: 1px solid var(--color-cream-200); padding: 11px 20px; }
 .branch-ranking li:last-child { border-bottom: 0; }
 .branch-ranking li > div { display: grid; min-width: 0; gap: 7px; }
-.branch-ranking li strong { overflow: hidden; color: var(--color-warm-800); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.branch-ranking li strong { overflow: hidden; color: var(--color-warm-700); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .branch-ranking li b { color: var(--color-gold-600); font-size: 12px; font-variant-numeric: tabular-nums; }
 .branch-rank-number { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 9999px; background: var(--color-cream-200); color: var(--color-warm-500); font-size: 10px; font-weight: 800; }
 .branch-ranking-track { display: block; height: 7px; overflow: hidden; border-radius: 9999px; background: var(--color-cream-200); }

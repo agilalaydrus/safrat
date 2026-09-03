@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// FunnelReportService reads what the funnel measured.
+//
+// Separate from FunnelService, which writes and is public. This one is
+// authenticated and scoped to the caller's own operator — a travel agency
+// seeing another's funnel would be a data breach, not a display bug, so the
+// scoping is enforced in the repository rather than by passing an id.
+service FunnelReportService {
+  rpc GetFunnelReport(GetFunnelReportRequest) returns (FunnelReport);
+}
+
+message GetFunnelReportRequest {
+  // How far back to read. Summaries only, so this is cheap at any size.
+  int32 days = 1 [(buf.validate.field).int32 = {gte: 1, lte: 365}];
+}
+
+message FunnelStepCount {
+  string step = 1;
+  int32 visitors = 2;
+  int32 events = 3;
+}
+
+message FunnelSourceCount {
+  string source = 1;
+  int32 visitors = 2;
+  // People who finished, which is what makes a channel good or bad. A channel
+  // with a thousand visitors and no registrations is not a good channel.
+  int32 registrations = 3;
+}
+
+message FunnelHourCount {
+  int32 hour = 1; // 0..23, Asia/Jakarta
+  int32 visitors = 2;
+}
+
+message FunnelPlaceCount {
+  string province = 1;
+  string city = 2;
+  int32 visitors = 3;
+}
+
+message FunnelArticleCount {
+  string slug = 1;
+  int32 readers = 2;
+  // Readers of this article who went on to register, at any later point.
+  int32 registrations = 3;
+}
+
+message FunnelChannelAge {
+  string source = 1;
+  double average_age = 2;
+  int32 sample = 3;
+}
+
+// One day of the period. Sent as a text date in Asia/Jakarta rather than a
+// timestamp: this is a calendar day as an Indonesian reader means it, and a
+// timestamp would invite the screen to re-derive the day in the browser's own
+// zone and shift every bar by seven hours.
+message FunnelDayCount {
+  string day = 1;
+  int32 visitors = 2;
+  int32 registrations = 3;
+}
+
+message FunnelReport {
+  repeated FunnelStepCount steps = 1;
+  repeated FunnelSourceCount sources = 2;
+  repeated FunnelHourCount hours = 3;
+  repeated FunnelPlaceCount places = 4;
+  repeated FunnelArticleCount articles = 5;
+  // Average age of people who actually registered, per channel. Visitors have
+  // no age — nothing knows it, and inferring one would be a guess presented as
+  // a measurement.
+  repeated FunnelChannelAge channel_ages = 6;
+  repeated FunnelDayCount daily = 9;
+  int32 days = 7;
+  int32 raw_retention_days = 8;
+}

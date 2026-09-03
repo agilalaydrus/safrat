@@ -104,6 +104,12 @@ func (r *FunnelRepository) OperatorExists(ctx context.Context, operatorID string
 // misses without discarding anybody real. Set high on purpose — over-filtering
 // is the worse mistake here, because it silently removes conversions that did
 // happen.
+// FunnelRetentionDays is how long raw visitor events are kept. The daily
+// summaries are permanent; the raw rows behind the hourly, regional and
+// article figures are not, so the screen reads this same constant rather than
+// naming a window of its own that could drift away from what is deleted.
+const FunnelRetentionDays = 90
+
 const dailyBotEventCap = 60
 
 // RollUpDay recomputes one day's summary from the raw events.

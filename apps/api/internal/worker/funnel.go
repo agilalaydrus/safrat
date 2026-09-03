@@ -11,11 +11,6 @@ import (
 
 const TaskFunnelRollUp = "funnel:rollup"
 
-// funnelRetentionDays is how long raw visitor events are kept. The daily
-// summaries outlive them; these are what the summaries are computed from, and
-// keeping them longer buys nothing while carrying both storage and liability.
-const funnelRetentionDays = 90
-
 func NewFunnelRollUpTask() *asynq.Task {
 	return asynq.NewTask(TaskFunnelRollUp, nil)
 }
@@ -59,13 +54,13 @@ func (h *FunnelHandler) HandleRollUp(ctx context.Context, _ *asynq.Task) error {
 			h.logger.Info("funnel day rolled up", "day", day.Format("2006-01-02"), "rows", rows)
 		}
 	}
-	purged, purgeErr := h.funnel.PurgeRawEvents(ctx, funnelRetentionDays)
+	purged, purgeErr := h.funnel.PurgeRawEvents(ctx, repository.FunnelRetentionDays)
 	if purgeErr != nil {
 		h.logger.Error("purge funnel events", "error", purgeErr)
 		return purgeErr
 	}
 	if purged > 0 {
-		h.logger.Info("funnel raw events purged", "rows", purged, "keep_days", funnelRetentionDays)
+		h.logger.Info("funnel raw events purged", "rows", purged, "keep_days", repository.FunnelRetentionDays)
 	}
 	return nil
 }

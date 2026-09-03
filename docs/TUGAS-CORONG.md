@@ -81,26 +81,44 @@ Menyentuh dua permukaan: `/dashboard` (travel melihat corongnya sendiri) dan
 - [x] **K3.2** Idempoten, diuji dengan menjalankan dua kali (`dfe9fec`)
 - [x] **K3.3** Purge baris mentah > 90 hari dengan lantai 30 hari, ringkasan
       disimpan selamanya (`dfe9fec`)
-- [ ] **K3.4** Retensi ditulis di layar, bukan hanya di dokumen.
+- [x] **K3.4** Retensi ditulis di layar, bukan hanya di dokumen (lihat K4).
 
 # TAHAP K4 — Layar travel
 
-- [ ] **K4.1** Bagian corong di `/dashboard/analytics` (§8.1)
-- [ ] **K4.2** Sumber diurutkan menurut **pendaftar**, bukan pengunjung. Kanal
+- [x] **K4.1** Tab **Corong Pengunjung** di `/dashboard/reports` (layar
+      `/dashboard/analytics` hanya redirect ke sana), `FunnelDashboard.tsx`
+- [x] **K4.2** Sumber diurutkan menurut **pendaftar**, bukan pengunjung. Kanal
       dengan 1.000 penonton dan nol pendaftar bukan kanal yang bagus.
-- [ ] **K4.5** Jam aktif: sebaran pengunjung per jam dan per hari, agregat dari
-      `occurred_at`. Dipakai untuk jam publikasi artikel dan jam kirim broadcast.
-- [ ] **K4.6** Asal daerah: pengunjung dan pendaftar per provinsi/kota
-- [ ] **K4.7** Usia pendaftar per kanal, dari `pilgrim_registrations.date_of_birth`
-      yang sudah ada. **Usia pengunjung tidak ada dan tidak boleh ditebak.**
-- [ ] **K4.8** Kinerja artikel: dibaca berapa kali, berapa pembacanya lanjut
-      mendaftar. Ini yang membuat strategi konten terukur.
-- [ ] **K4.3** Catatan Metodologi: apa yang dihitung, apa yang dibuang sebagai
-      bot, bahwa pengunjung dihitung **per hari** — orang yang sama di dua hari
-      terhitung dua kali — dan bahwa **atribusi lintas hari tidak akurat** karena
-      tidak memakai cookie, sehingga angka kanal bias ke yang mengonversi cepat.
-- [ ] **K4.4** Uji dua arah: travel melihat corongnya sendiri, **dan tidak bisa**
-      melihat milik travel lain.
+      Angka pendaftar diambil dari `pilgrim_registrations.utm_source`, bukan
+      dari kejadian SELESAI: atribusi di baris pendaftaran selamat dari penanda
+      pengunjung yang diganti tiap tengah malam.
+- [x] **K4.5** Jam aktif (0–23 WIB) **dan** tren harian. Keduanya dari
+      `occurred_at`, dikelompokkan menurut Asia/Jakarta, bukan UTC.
+- [x] **K4.6** Asal daerah per provinsi/kota. **Hanya pengunjung** — pendaftaran
+      tidak menyimpan lokasi, jadi kolom pendaftar per daerah tidak dibuat
+      daripada menampilkan kolom yang selalu nol. Bagian ini tetap kosong sampai
+      K2.8 (GeoLite2) dipasang, dan layarnya mengatakan itu.
+- [x] **K4.7** Usia pendaftar per kanal dari `date_of_birth`. Usia pengunjung
+      tidak ditebak.
+- [x] **K4.8** Kinerja artikel: pembaca (orang, bukan buka halaman) dan berapa
+      yang menyelesaikan pendaftaran **di hari yang sama**.
+- [x] **K4.3** Catatan Metodologi di kaki layar: hitungan per hari, tanpa cookie,
+      atribusi lintas hari tidak akurat, ambang perayap 60 kejadian/hari dibuang
+      seluruhnya, zona WIB, usia hanya dari pendaftar, dan retensi baris mentah.
+- [x] **K4.4** Uji dua arah di `funnel_report_isolation_integration_test.go`:
+      travel melihat corongnya sendiri **dan tidak bisa** melihat milik travel
+      lain. Diverifikasi dengan merusak filter operator — uji gagal dengan pesan
+      yang benar (`kanal "instagram" punya 7900 penonton`), lalu lulus lagi
+      setelah dikembalikan.
+
+**Catatan desain yang diputuskan saat mengerjakan:**
+
+- Bilah corong diukur terhadap pembuka halaman depan, dan ARTIKEL boleh melebihi
+  100%: artikel adalah pintu masuk tersendiri — orang dari mesin pencari masuk
+  langsung ke artikel tanpa pernah membuka `/`. Bilahnya dipotong di 100% dan
+  alasannya ditulis, bukan diskalakan ulang supaya kelihatan rapi.
+- Label langkah menyebut yang benar-benar dicatat. Tidak ada halaman katalog
+  terpisah, jadi KATALOG diberi label "Membuka halaman pendaftaran".
 
 # TAHAP K5 — Layar panel SaaS
 

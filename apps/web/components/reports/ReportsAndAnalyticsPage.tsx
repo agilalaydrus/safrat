@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { IconChartBar, IconFileAnalytics } from "@tabler/icons-react";
+import { IconChartBar, IconFileAnalytics, IconFilter } from "@tabler/icons-react";
 import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
+import FunnelDashboard from "@/components/funnel/FunnelDashboard";
 import ReportsDashboard from "./ReportsDashboard";
 
 const TABS = [
   ["analytics", "Analitik", IconChartBar],
+  ["funnel", "Corong Pengunjung", IconFilter],
   ["export", "Ekspor Laporan", IconFileAnalytics],
 ] as const;
 
@@ -22,7 +24,9 @@ export default function ReportsAndAnalyticsPage() {
           </button>
         ))}
       </div>
-      {tab === "analytics" ? <AnalyticsDashboard /> : <ReportsDashboard />}
+      {tab === "analytics" && <AnalyticsDashboard />}
+      {tab === "funnel" && <FunnelDashboard />}
+      {tab === "export" && <ReportsDashboard />}
     </div>
   );
 }

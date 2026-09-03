@@ -409,6 +409,9 @@ func main() {
 		}
 		funnelHandler := handler.NewFunnelHandler(funnelService, os.Getenv("FUNNEL_INGEST_SECRET"))
 		funnelPath, funnelServiceHandler := hajjv1connect.NewFunnelServiceHandler(funnelHandler, handlerOptions...)
+		funnelReportHandler := handler.NewFunnelReportHandler(service.NewFunnelReportService(
+			operatorRepository, repository.NewFunnelRepository(pool), repository.FunnelRetentionDays))
+		funnelReportPath, funnelReportServiceHandler := hajjv1connect.NewFunnelReportServiceHandler(funnelReportHandler, handlerOptions...)
 		mux.Handle(operatorPath, operatorServiceHandler)
 		mux.Handle(subscriptionPath, subscriptionServiceHandler)
 		mux.Handle(branchPath, branchServiceHandler)
@@ -448,6 +451,7 @@ func main() {
 		mux.Handle(healthReportPath, healthReportServiceHandler)
 		mux.Handle(monitoringPath, monitoringServiceHandler)
 		mux.Handle(funnelPath, funnelServiceHandler)
+		mux.Handle(funnelReportPath, funnelReportServiceHandler)
 		mux.HandleFunc("POST /webhooks/supplier/{token}", handler.NewSupplierCallbackHandler(logger, fulfilmentService))
 		// Bank credits from a poller or scraper. Signed over the body, and
 		// refused outright when the secret is unset — an endpoint that grants
