@@ -285,7 +285,16 @@ func main() {
 			AccountHolder: strings.TrimSpace(os.Getenv("SUBSCRIPTION_BANK_HOLDER")),
 		}, config.AllowedOrigin)
 		branchService := service.NewBranchService(operatorRepository, branchRepository, service.NewEntitlementChecker(entitlementRepository))
-		operatorHandler := handler.NewOperatorHandler(operatorService)
+		// One funnel service, shared by every handler that records a step:
+		// the operator signup that ends the platform's own funnel, and the
+		// registration and waitlist forms that end a travel agency's. All of
+		// them need the same hasher, so it is built before any of them.
+		funnelHasher := funnel.NewHasher(strings.TrimSpace(os.Getenv("FUNNEL_SALT")))
+		if !funnelHasher.Configured() {
+			logger.Warn("FUNNEL_SALT is not set or too short; visitor funnel recording is disabled")
+		}
+		funnelService := service.NewFunnelService(repository.NewFunnelRepository(pool), funnelHasher)
+		operatorHandler := handler.NewOperatorHandler(operatorService, funnelService)
 		subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService)
 		branchHandler := handler.NewBranchHandler(branchService)
 		pilgrimHandler := handler.NewPilgrimHandler(pilgrimService)
@@ -328,16 +337,8 @@ func main() {
 		refundPayoutHandler := handler.NewRefundPayoutHandler(refundPayoutService)
 		platformHandler := handler.NewPlatformHandler(platformService)
 		broadcastHandler := handler.NewBroadcastHandler(broadcastService)
-		// Built here rather than beside the funnel handler because the
-		// registration handler records KIRIM and SELESAI through the same
-		// service, and both need the one hasher.
-		funnelHasher := funnel.NewHasher(strings.TrimSpace(os.Getenv("FUNNEL_SALT")))
-		if !funnelHasher.Configured() {
-			logger.Warn("FUNNEL_SALT is not set or too short; visitor funnel recording is disabled")
-		}
-		funnelService := service.NewFunnelService(repository.NewFunnelRepository(pool), funnelHasher)
 		registrationHandler := handler.NewRegistrationHandler(registrationService, funnelService)
-		waitlistHandler := handler.NewWaitlistHandler(waitlistService)
+		waitlistHandler := handler.NewWaitlistHandler(waitlistService, funnelService)
 		cancellationHandler := handler.NewCancellationHandler(cancellationService)
 		familyTrackerHandler := handler.NewFamilyTrackerHandler(familyTrackerService)
 		cashFlowHandler := handler.NewCashFlowHandler(cashFlowService)

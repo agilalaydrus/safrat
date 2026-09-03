@@ -57,8 +57,9 @@ Menyentuh dua permukaan: `/dashboard` (travel melihat corongnya sendiri) dan
       `SELESAI` membawa id pendaftarannya sehingga corong bisa di-join ke apa
       yang dihasilkannya. Diuji dengan percobaan yang **ditolak**, bukan hanya
       yang berhasil (`bd09302`). Waitlist menyusul.
-- [ ] **K2.4** Corong platform: `LANDING` di `/`, `MULAI_ISI` di `/sign-up`,
-      `SELESAI` saat operator tercipta. `operator_id` NULL.
+- [x] **K2.4** Corong platform: `LANDING` dari middleware, `KIRIM`/`SELESAI`
+      saat operator dibuat, `operator_id` sengaja NULL — barisnya lalu lintas
+      TawafiqHub, bukan milik tenant barunya (`8f83596`)
 - [ ] **K2.5** Isi `crm_leads.source` dan `campaign` dari `utm_source` bila ada.
       Hari ini kolom itu diketik manual oleh staf travel.
 - [x] **K2.6** `utm_source`/`utm_campaign` di `pilgrim_registrations`

@@ -1,10 +1,29 @@
 "use client";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState, useCallback } from "react";
 import { IconCheck } from "@tabler/icons-react";
-import { agentClient } from "@/lib/rpc";
+import { agentClient, funnelClient } from "@/lib/rpc";
 
 export default function ApplyAsAgentForm({ operatorId, referredByCode }: { operatorId: string; referredByCode: string }) {
   const [form, setForm] = useState({ name: "", phone: "", email: "" });
+
+  // MULAI_ISI once, on the first field a person actually touches. Opening the
+  // page is already counted; this step is about intent. Failures are ignored —
+  // a form must never depend on analytics.
+  const funnelStarted = useRef(false);
+  const markStarted = useCallback(() => {
+    if (funnelStarted.current) return;
+    funnelStarted.current = true;
+    const params = new URLSearchParams(window.location.search);
+    void funnelClient
+      .recordEvent({
+        operatorId,
+        step: "MULAI_ISI",
+        path: "/apply",
+        utmSource: params.get("utm_source") ?? "",
+        utmCampaign: params.get("utm_campaign") ?? "",
+      })
+      .catch(() => undefined);
+  }, [operatorId]);
   const [error, setError] = useState("");
   const errorRef = useRef<HTMLParagraphElement>(null);
 
@@ -39,7 +58,7 @@ export default function ApplyAsAgentForm({ operatorId, referredByCode }: { opera
         <p style={eyebrow}>DAFTAR SEBAGAI AGEN RUJUKAN</p>
         <h1 style={title}>Daftar sebagai Tour Leader</h1>
         {referredByCode && <p style={{ color: "var(--color-warm-500)" }}>Dirujuk dengan kode <b>{referredByCode}</b></p>}
-        <form onSubmit={submit} style={{ display: "grid", gap: 16, marginTop: 16 }}>
+        <form onFocusCapture={markStarted} onSubmit={submit} style={{ display: "grid", gap: 16, marginTop: 16 }}>
           <label style={{ display: "grid", gap: 6 }}><span style={label}>Nama lengkap</span><input required autoComplete="name" autoCapitalize="words" className="safrat-input" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} style={input} /></label>
           <label style={{ display: "grid", gap: 6 }}><span style={label}>Telepon</span><input type="tel" inputMode="tel" required autoComplete="tel" placeholder="08xxxxxxxxxx" className="safrat-input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={input} /></label>
           <label style={{ display: "grid", gap: 6 }}><span style={label}>Email</span><input type="email" inputMode="email" required autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} className="safrat-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} style={input} /></label>

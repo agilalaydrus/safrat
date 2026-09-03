@@ -1,7 +1,10 @@
 package handler
 
 import (
+	"net/http"
+
 	"context"
+	"github.com/hajj-saas/api/internal/funnel"
 
 	"buf.build/go/protovalidate"
 	"connectrpc.com/connect"
@@ -12,10 +15,13 @@ import (
 
 type OperatorHandler struct {
 	operatorService *service.OperatorService
+	// Optional, as everywhere. Records the end of TawafiqHub's own funnel: a
+	// visitor became a tenant.
+	funnelRecorder funnel.Recorder
 }
 
-func NewOperatorHandler(operatorService *service.OperatorService) *OperatorHandler {
-	return &OperatorHandler{operatorService: operatorService}
+func NewOperatorHandler(operatorService *service.OperatorService, funnelRecorder funnel.Recorder) *OperatorHandler {
+	return &OperatorHandler{operatorService: operatorService, funnelRecorder: funnelRecorder}
 }
 
 func (h *OperatorHandler) CreateOperator(ctx context.Context, req *connect.Request[hajjv1.CreateOperatorRequest]) (*connect.Response[hajjv1.Operator], error) {
@@ -23,11 +29,28 @@ func (h *OperatorHandler) CreateOperator(ctx context.Context, req *connect.Reque
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)
 	}
 	operatorID := middleware.OperatorIDFromCtx(ctx)
+	// The platform's own funnel ends here. Deliberately recorded with no
+	// operator id: these rows are TawafiqHub's traffic, not the new tenant's,
+	// and mixing the two would make a travel agency's first day look like it
+	// had a visitor it never had.
+	h.recordPlatformFunnel(ctx, req.Header(), req.Peer().Addr, "KIRIM", "")
 	result, err := h.operatorService.Create(ctx, operatorID, req.Msg)
 	if err != nil {
 		return nil, connectError(err)
 	}
+	h.recordPlatformFunnel(ctx, req.Header(), req.Peer().Addr, "SELESAI", result.GetId())
 	return connect.NewResponse(result), nil
+}
+
+// recordPlatformFunnel never fails the signup it is measuring.
+func (h *OperatorHandler) recordPlatformFunnel(ctx context.Context, header http.Header, peerAddr, step, entityID string) {
+	if h.funnelRecorder == nil {
+		return
+	}
+	h.funnelRecorder.Record(ctx, funnel.Step{
+		Step: step, Path: "/onboarding", EntityID: entityID,
+		ClientIP: funnelClientIP(header, peerAddr), UserAgent: header.Get("User-Agent"),
+	})
 }
 
 func (h *OperatorHandler) CheckOperatorSlug(ctx context.Context, req *connect.Request[hajjv1.CheckOperatorSlugRequest]) (*connect.Response[hajjv1.CheckOperatorSlugResponse], error) {

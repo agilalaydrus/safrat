@@ -1,13 +1,32 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { IconCheck, IconClock } from "@tabler/icons-react";
-import { waitlistClient } from "@/lib/rpc";
+import { waitlistClient, funnelClient } from "@/lib/rpc";
 
 export default function PublicWaitlistForm({ operatorId, seasonId }: { operatorId: string; seasonId: string }) {
   const router = useRouter();
   const [form, setForm] = useState({ fullName: "", email: "", phone: "" });
+
+  // MULAI_ISI once, on the first field a person actually touches. Opening the
+  // page is already counted; this step is about intent. Failures are ignored —
+  // a form must never depend on analytics.
+  const funnelStarted = useRef(false);
+  const markStarted = useCallback(() => {
+    if (funnelStarted.current) return;
+    funnelStarted.current = true;
+    const params = new URLSearchParams(window.location.search);
+    void funnelClient
+      .recordEvent({
+        operatorId,
+        step: "MULAI_ISI",
+        path: "/waitlist",
+        utmSource: params.get("utm_source") ?? "",
+        utmCampaign: params.get("utm_campaign") ?? "",
+      })
+      .catch(() => undefined);
+  }, [operatorId]);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ position: number; email: string }>();
@@ -45,7 +64,7 @@ export default function PublicWaitlistForm({ operatorId, seasonId }: { operatorI
       <p style={eyebrow}>PENDAFTARAN JAMAAH</p>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}><IconClock size={22} color="var(--color-gold-800)" /><h1 style={{ ...title, margin: 0 }}>Daftar Tunggu</h1></div>
       <p style={{ color: "var(--color-warm-400)", fontSize: 13, margin: "8px 0 24px" }}>Musim ini sudah penuh. Daftarkan diri Anda dan kami akan memberitahu saat ada slot tersedia.</p>
-      <form onSubmit={submit} style={{ display: "grid", gap: 16 }}>
+      <form onFocusCapture={markStarted} onSubmit={submit} style={{ display: "grid", gap: 16 }}>
         <label style={label}>Nama Lengkap<input value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} required style={input} placeholder="Nama sesuai paspor" /></label>
         <label style={label}>Email<input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required style={input} placeholder="email@anda.com" /></label>
         <label style={label}>Nomor WhatsApp<input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} style={input} placeholder="+62 8xx xxxx xxxx" /></label>
