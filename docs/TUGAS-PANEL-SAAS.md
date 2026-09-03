@@ -168,6 +168,38 @@ Menutup mesin tanpa pemicu. RPC-nya sudah ada, teruji, tidak dipanggil siapa pun
 
 ---
 
+## Pass visual panel platform ✅
+
+Empat tab yang saya bangun (Corong, Analitik, Kesehatan, Audit) awalnya memakai
+**inline style** — persis penyebab "kaku" yang didiagnosis
+[DESAIN-DASHBOARD-TRAVEL.md](DESAIN-DASHBOARD-TRAVEL.md) §2b: sembilan dari
+sepuluh aturan visualnya (cincin fokus, bayangan bernama, transisi bertingkat,
+hover naik satu langkah) **tidak bisa ditulis sama sekali** dari objek style
+JavaScript.
+
+Sekarang memakai komponen bersama yang sudah ada — `PageHeader`, `StatCard`,
+`Badge`, `EmptyState`, `MethodologyNote`, `Button` — plus satu blok kelas
+`.admin-*` di `globals.css` untuk tata letaknya.
+
+**Diperiksa di peramban sungguhan, bukan dikira-kira.** Halaman contoh berisi
+markup tiap kelas dirender dengan Playwright, nilai gaya terhitungnya dibaca
+kembali, dan tangkapan layarnya dilihat. Tiga cacat yang hanya kelihatan dari
+gambarnya:
+
+1. `.tw-card` **tidak punya padding** — setiap pemakainya menyediakan sendiri,
+   dan versi pertama layar Analitik tidak. Isinya menempel ke tepi kartu.
+   Diperbaiki dengan `.admin-panel`.
+2. Kelompok tombol periode **terentang penuh** selebar kolom grid, sehingga
+   terlihat seperti bilah navigasi alih-alih pilihan kecil. `justify-self: start`.
+3. Baris pergerakan MRR terlalu rapat sampai label dan bilah menyatu jadi satu
+   blok padat. Jarak dinaikkan dari 12px ke 18px.
+
+Nilai terhitung yang diverifikasi: bilah bergerak **700 ms** (aturan 4), ujung
+membulat 999px bukan siku, kartu sinyal 16px, cincin fokus 4px merek-muda,
+`shadow-soft` pada kartu, dan `prefers-reduced-motion` mematikan transisinya.
+
+---
+
 # TAHAP C — Keamanan sebelum tim bertambah
 
 ## C1 — Impersonate dengan jejak penuh ✅
