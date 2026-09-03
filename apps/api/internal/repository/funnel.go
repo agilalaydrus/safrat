@@ -82,3 +82,14 @@ func trim(value string, max int) string {
 	}
 	return value
 }
+
+// OperatorExists confirms an id belongs to a real operator, so a caller holding
+// an id gets the same treatment as one holding a slug: an invented value is
+// dropped rather than counted as the platform's own traffic.
+func (r *FunnelRepository) OperatorExists(ctx context.Context, operatorID string) bool {
+	var exists bool
+	if err := r.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM operators WHERE id = $1::uuid)`, operatorID).Scan(&exists); err != nil {
+		return false
+	}
+	return exists
+}

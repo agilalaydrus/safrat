@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { funnelClient } from "@/lib/rpc";
 import { useSearchParams } from "next/navigation";
 import { Timestamp } from "@bufbuild/protobuf";
 import { IconCheck } from "@tabler/icons-react";
@@ -21,6 +22,35 @@ export default function PublicRegistrationForm({ operatorId, seasonId }: { opera
   const errorRef = useRef<HTMLParagraphElement>(null);
   const successRef = useRef<HTMLHeadingElement>(null);
   const [message, setMessage] = useState("");
+  // Read once on mount. The parameters live on the page the visitor arrived at,
+  // and they have to survive to the submit — the funnel's own visitor token
+  // resets at midnight, so a channel that starts a weeks-long decision would
+  // otherwise never be credited with finishing it.
+  const [attribution, setAttribution] = useState({ utmSource: "", utmCampaign: "" });
+  const startedRef = useRef(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setAttribution({ utmSource: params.get("utm_source") ?? "", utmCampaign: params.get("utm_campaign") ?? "" });
+  }, []);
+
+  // MULAI_ISI fires once, on the first field a person actually touches —
+  // opening the page is already counted as KATALOG, and intent is what this
+  // step is for. Failures are ignored: a form must never depend on analytics.
+  const markStarted = useCallback(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    const params = new URLSearchParams(window.location.search);
+    void funnelClient
+      .recordEvent({
+        operatorId,
+        step: "MULAI_ISI",
+        path: "/register",
+        utmSource: params.get("utm_source") ?? "",
+        utmCampaign: params.get("utm_campaign") ?? "",
+      })
+      .catch(() => undefined);
+  }, [operatorId]);
 
   useEffect(() => {
     registrationClient.getRegistrationForm({ operatorId, seasonId }).then(setFormInfo).catch(() => setLoadError("Tautan pendaftaran ini tidak valid atau sudah tidak aktif."));
@@ -53,6 +83,8 @@ export default function PublicRegistrationForm({ operatorId, seasonId }: { opera
         address: form.address.trim(),
         dateOfBirth: form.dateOfBirth ? Timestamp.fromDate(new Date(`${form.dateOfBirth}T00:00:00Z`)) : undefined,
         referralCode,
+        utmSource: attribution.utmSource,
+        utmCampaign: attribution.utmCampaign,
       });
       setMessage(response.message);
     } catch (caught) {
@@ -88,7 +120,7 @@ export default function PublicRegistrationForm({ operatorId, seasonId }: { opera
         <p style={eyebrow}>PENDAFTARAN JAMAAH</p>
         <h1 style={title}>{formInfo ? `Daftar ${formInfo.seasonName} bersama ${formInfo.operatorName}` : "Formulir Pendaftaran"}</h1>
         {!!formInfo?.availableProducts.length && <p style={{ color: "var(--color-warm-500)", fontSize: 13 }}>Paket tersedia: {formInfo.availableProducts.join(", ")}</p>}
-        <form onSubmit={submit} style={{ display: "grid", gap: 16, marginTop: 16 }}>
+        <form onFocusCapture={markStarted} onSubmit={submit} style={{ display: "grid", gap: 16, marginTop: 16 }}>
           <label style={{ display: "grid", gap: 6 }}><span style={label}>Nama lengkap (sesuai paspor)</span><input required autoComplete="name" autoCapitalize="words" className="safrat-input" value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} style={input} /></label>
           <label style={{ display: "grid", gap: 6 }}><span style={label}>Nomor paspor</span><input required autoCapitalize="characters" autoCorrect="off" spellCheck={false} className="safrat-input" value={form.passportNumber} onChange={(e) => setForm((f) => ({ ...f, passportNumber: e.target.value.toUpperCase() }))} style={input} /></label>
           <label style={{ display: "grid", gap: 6 }}><span style={label}>Jenis kelamin</span><select className="safrat-input" value={form.gender} onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))} style={input}><option value="MALE">Pria</option><option value="FEMALE">Wanita</option></select></label>

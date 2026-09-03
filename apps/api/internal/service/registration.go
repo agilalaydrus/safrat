@@ -49,7 +49,8 @@ func (s *RegistrationService) Submit(ctx context.Context, req *hajjv1.SubmitRegi
 			agentID = agent.ID
 		}
 	}
-	registration, err := s.registrationRepository.Create(ctx, req.OperatorId, req.SeasonId, req.ProductId, req.FullName, req.PassportNumber, dob, req.Gender, req.Phone, req.Email, req.Nationality, req.Address, agentID)
+	registration, err := s.registrationRepository.Create(ctx, req.OperatorId, req.SeasonId, req.ProductId, req.FullName, req.PassportNumber, dob, req.Gender, req.Phone, req.Email, req.Nationality, req.Address, agentID,
+		strings.TrimSpace(req.UtmSource), strings.TrimSpace(req.UtmCampaign))
 	if err != nil {
 		return nil, serviceError("RegistrationService.Submit", err)
 	}

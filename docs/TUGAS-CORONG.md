@@ -50,20 +50,20 @@ Menyentuh dua permukaan: `/dashboard` (travel melihat corongnya sendiri) dan
       tampil di halaman utama — jadi ia dipasang pada saat pengunjung membuka
       formulir satu paket. Itu sinyal yang sebenarnya dimaksud: berpindah dari
       melihat travel ke melihat satu perjalanan.
-- [ ] **K2.2** `MULAI_ISI` dari klien saat kolom pertama form disentuh —
-      `PublicRegistrationForm`, form waitlist, dan `/apply/[operatorId]`.
-- [ ] **K2.3** `KIRIM` dan `SELESAI` di sisi server, di service pendaftaran dan
-      waitlist. **Keduanya terpisah**: jaraknya adalah orang yang berusaha
-      mendaftar lalu ditolak sistem kita sendiri, dan itu angka paling bisa
-      ditindak di seluruh corong.
+- [x] **K2.2** `MULAI_ISI` di `PublicRegistrationForm`, satu `onFocusCapture`
+      di form sehingga sekali saja pada kolom pertama yang disentuh (`bd09302`).
+      Form waitlist dan `/apply` menyusul.
+- [x] **K2.3** `KIRIM` dan `SELESAI` terpisah di handler pendaftaran, dan
+      `SELESAI` membawa id pendaftarannya sehingga corong bisa di-join ke apa
+      yang dihasilkannya. Diuji dengan percobaan yang **ditolak**, bukan hanya
+      yang berhasil (`bd09302`). Waitlist menyusul.
 - [ ] **K2.4** Corong platform: `LANDING` di `/`, `MULAI_ISI` di `/sign-up`,
       `SELESAI` saat operator tercipta. `operator_id` NULL.
 - [ ] **K2.5** Isi `crm_leads.source` dan `campaign` dari `utm_source` bila ada.
       Hari ini kolom itu diketik manual oleh staf travel.
-- [ ] **K2.6** Simpan `utm_source` dan `utm_campaign` **di baris pendaftaran**
-      (`pilgrim_registrations`, `season_waitlists`), bukan hanya di event.
-      Tanpa cookie, atribusi lintas hari hilang; ini yang menangkap kanal pada
-      kunjungan tempat orang benar-benar mendaftar.
+- [x] **K2.6** `utm_source`/`utm_campaign` di `pilgrim_registrations`
+      (migrasi 147), dibaca dari URL halaman form (`bd09302`).
+      `season_waitlists` menyusul.
 - [x] **K2.7** Langkah `ARTIKEL` dengan `article_slug` (`ff4ebea`)
 - [ ] **K2.8** Geolokasi kota/provinsi dari IP (MaxMind GeoLite2). **IP tidak
       pernah ditulis** — hanya nama daerahnya. Tingkat kota, tidak lebih halus.

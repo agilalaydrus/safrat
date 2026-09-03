@@ -19,6 +19,11 @@ message RecordEventRequest {
   // Empty for TawafiqHub's own site. An unknown slug is dropped rather than
   // stored loose, so a caller cannot invent tenants.
   string operator_slug = 1 [(buf.validate.field).string.max_len = 180];
+  // Alternative to the slug, for callers that already hold the id — a public
+  // registration form knows the operator it belongs to but not its hostname.
+  // Verified against the operators table like the slug is, so an invented id
+  // is dropped rather than counted against nobody.
+  string operator_id = 8 [(buf.validate.field).string.max_len = 40];
   string step = 2 [(buf.validate.field).string = {
     in: ["LANDING", "KATALOG", "ARTIKEL", "MULAI_ISI", "KIRIM", "SELESAI"]
   }];

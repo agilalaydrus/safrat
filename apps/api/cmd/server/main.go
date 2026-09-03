@@ -328,7 +328,15 @@ func main() {
 		refundPayoutHandler := handler.NewRefundPayoutHandler(refundPayoutService)
 		platformHandler := handler.NewPlatformHandler(platformService)
 		broadcastHandler := handler.NewBroadcastHandler(broadcastService)
-		registrationHandler := handler.NewRegistrationHandler(registrationService)
+		// Built here rather than beside the funnel handler because the
+		// registration handler records KIRIM and SELESAI through the same
+		// service, and both need the one hasher.
+		funnelHasher := funnel.NewHasher(strings.TrimSpace(os.Getenv("FUNNEL_SALT")))
+		if !funnelHasher.Configured() {
+			logger.Warn("FUNNEL_SALT is not set or too short; visitor funnel recording is disabled")
+		}
+		funnelService := service.NewFunnelService(repository.NewFunnelRepository(pool), funnelHasher)
+		registrationHandler := handler.NewRegistrationHandler(registrationService, funnelService)
 		waitlistHandler := handler.NewWaitlistHandler(waitlistService)
 		cancellationHandler := handler.NewCancellationHandler(cancellationService)
 		familyTrackerHandler := handler.NewFamilyTrackerHandler(familyTrackerService)
@@ -395,17 +403,10 @@ func main() {
 		// table that only looks anonymous is worse than an empty one. The
 		// service logs nothing and fails silently, so a missing salt degrades
 		// to "no measurements" rather than to errors on every page.
-		funnelHasher := funnel.NewHasher(strings.TrimSpace(os.Getenv("FUNNEL_SALT")))
-		if !funnelHasher.Configured() {
-			logger.Warn("FUNNEL_SALT is not set or too short; visitor funnel recording is disabled")
-		}
 		if len(strings.TrimSpace(os.Getenv("FUNNEL_INGEST_SECRET"))) < 32 {
 			logger.Warn("FUNNEL_INGEST_SECRET is not set or too short; trusted visitor forwarding is disabled")
 		}
-		funnelHandler := handler.NewFunnelHandler(
-			service.NewFunnelService(repository.NewFunnelRepository(pool), funnelHasher),
-			os.Getenv("FUNNEL_INGEST_SECRET"),
-		)
+		funnelHandler := handler.NewFunnelHandler(funnelService, os.Getenv("FUNNEL_INGEST_SECRET"))
 		funnelPath, funnelServiceHandler := hajjv1connect.NewFunnelServiceHandler(funnelHandler, handlerOptions...)
 		mux.Handle(operatorPath, operatorServiceHandler)
 		mux.Handle(subscriptionPath, subscriptionServiceHandler)

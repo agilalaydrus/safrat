@@ -46,15 +46,15 @@ func TestRegistrationRepositoryEnforcesBranchScopeIntegration(t *testing.T) {
 	exec(`INSERT INTO agents (id, operator_id, branch_id, name) VALUES ($1,$3,$4,'Agen Bandung'),($2,$3,$5,'Agen Medan')`, bandungAgentID, medanAgentID, operatorID, bandungID, medanID)
 
 	repo := NewRegistrationRepository(db.New(pool))
-	bandungRegistration, err := repo.Create(ctx, operatorID, seasonID, "", "Pendaftar Bandung", "REG-BDG", nil, "MALE", "", "", "ID", "", bandungAgentID)
+	bandungRegistration, err := repo.Create(ctx, operatorID, seasonID, "", "Pendaftar Bandung", "REG-BDG", nil, "MALE", "", "", "ID", "", bandungAgentID, "", "")
 	if err != nil {
 		t.Fatalf("create Bandung: %v", err)
 	}
-	medanRegistration, err := repo.Create(ctx, operatorID, seasonID, "", "Pendaftar Medan", "REG-MDN", nil, "FEMALE", "", "", "ID", "", medanAgentID)
+	medanRegistration, err := repo.Create(ctx, operatorID, seasonID, "", "Pendaftar Medan", "REG-MDN", nil, "FEMALE", "", "", "ID", "", medanAgentID, "", "")
 	if err != nil {
 		t.Fatalf("create Medan: %v", err)
 	}
-	headOfficeRegistration, err := repo.Create(ctx, operatorID, seasonID, "", "Pendaftar Pusat", "REG-HQ", nil, "MALE", "", "", "ID", "", "")
+	headOfficeRegistration, err := repo.Create(ctx, operatorID, seasonID, "", "Pendaftar Pusat", "REG-HQ", nil, "MALE", "", "", "ID", "", "", "", "")
 	if err != nil {
 		t.Fatalf("create head office: %v", err)
 	}

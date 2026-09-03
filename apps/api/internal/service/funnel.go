@@ -44,7 +44,15 @@ func (s *FunnelService) RecordEvent(ctx context.Context, req *hajjv1.RecordEvent
 	}
 
 	operatorID := ""
-	if slug := strings.TrimSpace(req.OperatorSlug); slug != "" {
+	if id := strings.TrimSpace(req.OperatorId); id != "" {
+		// Checked, not trusted. An id nobody owns would otherwise land as the
+		// platform's own visit and inflate the one funnel with no cross-check.
+		if !s.repository.OperatorExists(ctx, id) {
+			return empty, nil
+		}
+		operatorID = id
+	}
+	if slug := strings.TrimSpace(req.OperatorSlug); operatorID == "" && slug != "" {
 		resolved, err := s.repository.OperatorIDBySlug(ctx, slug)
 		if err != nil {
 			return empty, nil
@@ -73,4 +81,28 @@ func (s *FunnelService) RecordEvent(ctx context.Context, req *hajjv1.RecordEvent
 		UTMCampaign:  req.UtmCampaign,
 	})
 	return empty, nil
+}
+
+// Record implements funnel.Recorder for callers that are doing something else
+// and want the step counted alongside it.
+//
+// Every failure is dropped on purpose: the caller is completing a registration
+// or a signup, and neither may be jeopardised by a row in a report.
+func (s *FunnelService) Record(ctx context.Context, step funnel.Step) {
+	if !s.hasher.Configured() || funnel.IsBot(step.UserAgent) {
+		return
+	}
+	visitor := s.hasher.Visitor(step.ClientIP, step.UserAgent)
+	if visitor == "" {
+		return
+	}
+	_ = s.repository.Record(ctx, repository.FunnelEvent{
+		OperatorID:  step.OperatorID,
+		VisitorHash: visitor,
+		Step:        step.Step,
+		Path:        step.Path,
+		UTMSource:   step.UTMSource,
+		UTMCampaign: step.UTMCampaign,
+		EntityID:    step.EntityID,
+	})
 }

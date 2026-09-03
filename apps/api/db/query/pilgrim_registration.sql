@@ -1,8 +1,10 @@
 -- name: CreatePilgrimRegistration :one
 INSERT INTO pilgrim_registrations
   (operator_id, season_id, product_id, full_name, passport_number,
-   date_of_birth, gender, phone, email, nationality, address, agent_id, branch_id)
+   date_of_birth, gender, phone, email, nationality, address,
+   utm_source, utm_campaign, agent_id, branch_id)
 SELECT $1, $2, NULLIF($3::text, '')::uuid, $4, $5, $6, $7, $8, $9, $10, $11,
+       sqlc.arg(utm_source), sqlc.arg(utm_campaign),
        (
          SELECT a.id FROM agents a
          WHERE a.id = sqlc.narg(agent_id)::uuid

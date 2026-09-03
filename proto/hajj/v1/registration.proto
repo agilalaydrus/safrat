@@ -67,6 +67,12 @@ message SubmitRegistrationRequest {
   // Optional Tour Leader referral code (agents.referral_code). An invalid
   // or inactive code is silently ignored — never blocks registration.
   string referral_code = 12;
+  // Where this registration came from, taken from the page the form was
+  // submitted on. Kept on the row because the funnel's visitor token resets
+  // every midnight, so a channel that starts a weeks-long decision would
+  // otherwise never get credit for finishing it.
+  string utm_source = 13 [(buf.validate.field).string.max_len = 80];
+  string utm_campaign = 14 [(buf.validate.field).string.max_len = 120];
 }
 
 message SubmitRegistrationResponse {

@@ -15,7 +15,7 @@ func NewRegistrationRepository(queries *db.Queries) *RegistrationRepository {
 	return &RegistrationRepository{queries: queries}
 }
 
-func (r *RegistrationRepository) Create(ctx context.Context, operatorID, seasonID, productID, fullName, passportNumber string, dateOfBirth *time.Time, gender, phone, email, nationality, address, agentID string) (*domain.PilgrimRegistration, error) {
+func (r *RegistrationRepository) Create(ctx context.Context, operatorID, seasonID, productID, fullName, passportNumber string, dateOfBirth *time.Time, gender, phone, email, nationality, address, agentID, utmSource, utmCampaign string) (*domain.PilgrimRegistration, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {
 		return nil, err
@@ -27,7 +27,8 @@ func (r *RegistrationRepository) Create(ctx context.Context, operatorID, seasonI
 	row, err := r.queries.CreatePilgrimRegistration(ctx, db.CreatePilgrimRegistrationParams{
 		OperatorID: opUUID, SeasonID: seasonUUID, Column3: productID, FullName: fullName, PassportNumber: passportNumber,
 		DateOfBirth: pgDate(dateOfBirth), Gender: gender, Phone: phone, Email: email, Nationality: nationality, Address: address,
-		AgentID: pgUUIDOrNull(agentID),
+		AgentID:   pgUUIDOrNull(agentID),
+		UtmSource: utmSource, UtmCampaign: utmCampaign,
 	})
 	if err != nil {
 		return nil, databaseError(err)
