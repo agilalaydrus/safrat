@@ -8,6 +8,10 @@ import {
 } from "@tabler/icons-react";
 import type { GetTenantDetailResponse, ImpersonationRow, PersonalDataReadRow, PrivilegedActionRow } from "@hajj-saas/proto-gen/hajj/v1/platform_pb";
 import { startImpersonationLocally } from "@/lib/impersonation";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatCard } from "@/components/ui/StatCard";
 import { buildTenantLink } from "@/lib/tenant-link";
 import { platformClient } from "@/lib/rpc";
 
@@ -57,20 +61,20 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
       .catch(() => setReads([]));
   }, [operatorId]);
 
-  if (loading) return <main style={page}><p style={muted}>Memuat data travel…</p></main>;
+  if (loading) return <main style={page}><p className="tw-note">Memuat data travel…</p></main>;
 
   if (failure || !detail?.operator) {
     return (
       <main style={page}>
         <Link href="/admin" style={back}><IconArrowLeft size={15} />Kembali ke panel</Link>
-        <section style={emptyState}>
-          <IconAlertTriangle size={40} color="var(--color-danger-600)" />
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 500 }}>Travel tidak dapat dibuka</h1>
-          <p style={{ ...muted, maxWidth: 520 }}>
-            Tautannya mungkin salah, atau travel ini sudah dihapus. Alamat halaman memakai id travel, bukan namanya.
-          </p>
-          {failure && <code style={failureBox}>{failure}</code>}
-        </section>
+        <EmptyState
+          icon={<IconAlertTriangle size={26} />}
+          title="Travel tidak dapat dibuka"
+          cause="Alamat halaman ini memakai id travel, bukan namanya — tautannya mungkin salah, atau travelnya sudah dihapus."
+          nextStep={failure || "Kembali ke daftar Travel dan buka lewat namanya."}
+          actionHref="/admin"
+          actionLabel="Kembali ke panel"
+        />
       </main>
     );
   }
@@ -89,66 +93,54 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
     <main style={page}>
       <Link href="/admin" style={back}><IconArrowLeft size={15} />Kembali ke panel</Link>
 
-      <header style={header}>
-        <div>
-          <p style={eyebrow}>TAWAFIQHUB / TRAVEL</p>
-          <h1 style={title}>{operator.name}</h1>
-          <p style={muted}>
-            {operator.slug || "tanpa slug"} · bergabung {date(operator.createdAt)} · {operator.plan || "tanpa paket"}
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <StartImpersonation operatorId={operator.id} operatorName={operator.name} />
-          <SuspensionControl operatorId={operator.id} operatorName={operator.name} suspended={suspended} />
-          {storefront && (
-            <a href={storefront} target="_blank" rel="noreferrer" style={storefrontButton}>
-              <IconBuildingStore size={16} />Buka storefront<IconExternalLink size={13} />
-            </a>
-          )}
-        </div>
-      </header>
-      <div className="gold-divider" />
+      <PageHeader
+        eyebrow="TAWAFIQHUB / TRAVEL"
+        title={operator.name}
+        subtitle={`${operator.slug || "tanpa slug"} · bergabung ${date(operator.createdAt)} · ${operator.plan || "tanpa paket"}`}
+        primaryAction={
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <StartImpersonation operatorId={operator.id} operatorName={operator.name} />
+            <SuspensionControl operatorId={operator.id} operatorName={operator.name} suspended={suspended} />
+            {storefront && (
+              <a href={storefront} target="_blank" rel="noreferrer" className="tw-btn tw-btn--ghost tw-btn--md">
+                <IconBuildingStore size={16} />Buka storefront<IconExternalLink size={13} />
+              </a>
+            )}
+          </div>
+        }
+      />
 
       {(suspended || lapsed || operator.dunningStage) && (
         <div style={alertRow}>
           {suspended && (
-            <span style={{ ...pill, background: "var(--color-danger-100)", color: "var(--color-danger-600)" }}>
+            <Badge tone="danger" dot>
               Ditangguhkan {date(operator.suspendedAt)} — dihentikan dengan sengaja, bukan karena tagihan
-            </span>
+            </Badge>
           )}
           {lapsed && !suspended && (
-            <span style={{ ...pill, background: "var(--color-warning-50)", color: "var(--color-warning-700)" }}>
+            <Badge tone="warning" dot>
               Akses habis {date(operator.effectiveAccessUntil)} — termasuk masa tenggang
-            </span>
+            </Badge>
           )}
-          {operator.dunningStage && (
-            <span style={{ ...pill, background: "var(--color-cream-200)", color: "var(--color-warm-700)" }}>
-              Tagihan tahap {operator.dunningStage}
-            </span>
-          )}
+          {operator.dunningStage && <Badge tone="neutral">Tagihan tahap {operator.dunningStage}</Badge>}
         </div>
       )}
 
-      <div style={statGrid}>
-        {[
-          { label: "Status langganan", value: operator.subscriptionStatus || "—", hint: `akses sampai ${date(operator.accessUntil)}` },
-          { label: "Tagihan berjalan", value: rupiah(operator.outstandingIdr), hint: operator.outstandingIdr > 0n ? "belum dibayar" : "tidak ada tagihan terbuka" },
-          { label: "Saldo kredit", value: rupiah(operator.creditBalanceIdr), hint: "dipakai otomatis pada tagihan berikutnya" },
-          { label: "Transaksi tertahan", value: count(operator.heldOrderCount), hint: "uang masuk yang menunggu keputusan" },
-        ].map((card) => (
-          <div key={card.label} style={statCard}>
-            <p style={statLabel}>{card.label}</p>
-            <p style={statValue}>{card.value}</p>
-            <p style={statHint}>{card.hint}</p>
-          </div>
-        ))}
+      <div className="tw-stat-grid tw-stagger">
+        <StatCard label="Status langganan" value={operator.subscriptionStatus || "—"} unit={`akses sampai ${date(operator.accessUntil)}`}
+          tone={suspended ? "danger" : lapsed ? "warning" : "success"} />
+        <StatCard label="Tagihan berjalan" value={rupiah(operator.outstandingIdr)} unit={operator.outstandingIdr > 0n ? "belum dibayar" : "tidak ada tagihan terbuka"}
+          tone={operator.outstandingIdr > 0n ? "warning" : "neutral"} />
+        <StatCard label="Saldo kredit" value={rupiah(operator.creditBalanceIdr)} unit="dipakai otomatis pada tagihan berikutnya" tone="info" />
+        <StatCard label="Transaksi tertahan" value={count(operator.heldOrderCount)} unit="uang masuk menunggu keputusan"
+          tone={operator.heldOrderCount > 0 ? "danger" : "neutral"} />
       </div>
 
-      <div style={twoCol}>
-        <section style={card}>
-          <h2 style={cardTitle}>Pemakaian terhadap kuota</h2>
+      <div className="tw-grid-2">
+        <section className="tw-card tw-panel tw-enter">
+          <h2 className="tw-panel__title">Pemakaian terhadap kuota</h2>
           {detail.usage.length === 0 ? (
-            <p style={muted}>
+            <p className="tw-panel__lede" style={{ marginBottom: 0 }}>
               Belum ada snapshot pemakaian. Diambil worker harian, jadi travel yang baru bergabung belum punya baris.
             </p>
           ) : (
@@ -191,8 +183,8 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
           )}
         </section>
 
-        <section style={card}>
-          <h2 style={cardTitle}>Isi akun</h2>
+        <section className="tw-card tw-panel tw-enter">
+          <h2 className="tw-panel__title">Isi akun</h2>
           <dl style={countGrid}>
             {[
               ["Jamaah", detail.counts?.pilgrims ?? 0],
@@ -205,7 +197,7 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
               ["KYC terverifikasi", detail.counts?.kycVerified ?? 0],
             ].map(([label, value]) => (
               <div key={String(label)} style={countItem}>
-                <dt style={statLabel}>{label}</dt>
+                <dt style={{ margin: "0 0 6px", fontSize: 12, color: "var(--color-warm-500)", fontWeight: 600 }}>{label}</dt>
                 <dd style={countValue}>{count(Number(value))}</dd>
               </div>
             ))}
@@ -221,8 +213,8 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
         </section>
       </div>
 
-      <section style={{ ...card, marginTop: 16 }}>
-        <h2 style={cardTitle}>Tim</h2>
+      <section className="tw-card tw-panel tw-enter">
+        <h2 className="tw-panel__title">Tim</h2>
         {twoFactorMissing.length > 0 && (
           <p style={warnLine}>
             <IconShieldOff size={15} />
@@ -230,23 +222,23 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
           </p>
         )}
         {detail.team.length === 0 ? (
-          <p style={muted}>Tidak ada anggota tim. Travel tanpa akun tidak bisa masuk sama sekali.</p>
+          <p className="tw-panel__lede" style={{ marginBottom: 0 }}>Tidak ada anggota tim. Travel tanpa akun tidak bisa masuk sama sekali.</p>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={table}>
-              <thead><tr>{["Nama", "Email", "Peran", "2FA", "Bergabung"].map((head) => <th key={head} style={th}>{head}</th>)}</tr></thead>
+          <div className="tw-table-wrap">
+            <table className="tw-table">
+              <thead><tr>{["Nama", "Email", "Peran", "2FA", "Bergabung"].map((head) => <th key={head}>{head}</th>)}</tr></thead>
               <tbody>
                 {detail.team.map((member) => (
-                  <tr key={member.userId} style={tr}>
-                    <td style={{ ...td, fontWeight: 600 }}>{member.name || "—"}</td>
-                    <td style={td}>{member.email}</td>
-                    <td style={td}>{member.role}</td>
-                    <td style={td}>
+                  <tr key={member.userId}>
+                    <td style={{ fontWeight: 600 }}>{member.name || "—"}</td>
+                    <td>{member.email}</td>
+                    <td>{member.role}</td>
+                    <td>
                       {member.twoFactorEnabled
                         ? <span style={{ ...tag, background: "var(--color-emerald-50)", color: "var(--color-emerald-800)" }}><IconShieldCheck size={12} />aktif</span>
                         : <span style={{ ...tag, background: "var(--color-warning-50)", color: "var(--color-warning-700)" }}><IconShieldOff size={12} />belum</span>}
                     </td>
-                    <td style={td}>{date(member.joinedAt)}</td>
+                    <td>{date(member.joinedAt)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -255,28 +247,28 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
         )}
       </section>
 
-      <div style={twoCol}>
-        <section style={card}>
-          <h2 style={cardTitle}>Tagihan langganan</h2>
+      <div className="tw-grid-2">
+        <section className="tw-card tw-panel tw-enter">
+          <h2 className="tw-panel__title">Tagihan langganan</h2>
           {detail.invoices.length === 0 ? (
-            <p style={muted}>Belum pernah ditagih.</p>
+            <p className="tw-panel__lede" style={{ marginBottom: 0 }}>Belum pernah ditagih.</p>
           ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table style={table}>
-                <thead><tr>{["Dibuat", "Jumlah", "Status", "Jatuh tempo"].map((head) => <th key={head} style={th}>{head}</th>)}</tr></thead>
+            <div className="tw-table-wrap">
+              <table className="tw-table">
+                <thead><tr>{["Dibuat", "Jumlah", "Status", "Jatuh tempo"].map((head) => <th key={head}>{head}</th>)}</tr></thead>
                 <tbody>
                   {detail.invoices.map((invoice) => (
-                    <tr key={invoice.id} style={tr}>
-                      <td style={td}>{date(invoice.createdAt)}</td>
-                      <td style={{ ...td, fontWeight: 600 }}>{rupiah(invoice.amountIdr)}</td>
-                      <td style={td}>
+                    <tr key={invoice.id}>
+                      <td>{date(invoice.createdAt)}</td>
+                      <td style={{ fontWeight: 600 }}>{rupiah(invoice.amountIdr)}</td>
+                      <td>
                         {invoice.voidedAt
                           ? <span title={invoice.voidedReason} style={{ color: "var(--color-warm-400)" }}>dibatalkan</span>
                           : invoice.paidAt
                             ? <span style={{ color: "var(--color-emerald-800)", fontWeight: 600 }}>lunas {date(invoice.paidAt)}</span>
                             : <span style={{ color: "var(--color-warning-700)", fontWeight: 600 }}>{invoice.status.toLowerCase()}</span>}
                       </td>
-                      <td style={td}>{date(invoice.dueAt)}</td>
+                      <td>{date(invoice.dueAt)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -285,10 +277,10 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
           )}
         </section>
 
-        <section style={card}>
-          <h2 style={cardTitle}><IconWorld size={16} style={{ verticalAlign: "-3px", marginRight: 6 }} />Domain</h2>
+        <section className="tw-card tw-panel tw-enter">
+          <h2 className="tw-panel__title"><IconWorld size={16} style={{ verticalAlign: "-3px", marginRight: 6 }} />Domain</h2>
           {detail.domains.length === 0 ? (
-            <p style={muted}>
+            <p className="tw-panel__lede" style={{ marginBottom: 0 }}>
               Belum ada domain sendiri. Storefront-nya memakai subdomain {operator.slug || "—"} di alamat platform.
             </p>
           ) : (
@@ -307,24 +299,24 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
         </section>
       </div>
 
-      <section style={{ ...card, marginTop: 16 }}>
-        <h2 style={cardTitle}>Jejak audit</h2>
-        <p style={{ ...muted, fontSize: 12, marginBottom: 12 }}>
+      <section className="tw-card tw-panel tw-enter">
+        <h2 className="tw-panel__title">Jejak audit</h2>
+        <p className="tw-panel__lede">
           Empat puluh baris terakhir milik travel ini saja.
         </p>
         {detail.audit.length === 0 ? (
-          <p style={muted}>Belum ada jejak.</p>
+          <p className="tw-panel__lede" style={{ marginBottom: 0 }}>Belum ada jejak.</p>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={table}>
-              <thead><tr>{["Waktu", "Pelaku", "Tindakan", "Objek"].map((head) => <th key={head} style={th}>{head}</th>)}</tr></thead>
+          <div className="tw-table-wrap">
+            <table className="tw-table">
+              <thead><tr>{["Waktu", "Pelaku", "Tindakan", "Objek"].map((head) => <th key={head}>{head}</th>)}</tr></thead>
               <tbody>
                 {detail.audit.map((entry, index) => (
                   <tr key={`${entry.at?.seconds ?? index}-${index}`} style={tr}>
-                    <td style={td}>{dateTime(entry.at)}</td>
-                    <td style={td}>{entry.actor}</td>
-                    <td style={{ ...td, fontWeight: 600 }}>{entry.action}</td>
-                    <td style={{ ...td, color: "var(--color-warm-400)" }}>{entry.entityType}</td>
+                    <td>{dateTime(entry.at)}</td>
+                    <td>{entry.actor}</td>
+                    <td style={{ fontWeight: 600 }}>{entry.action}</td>
+                    <td style={{ color: "var(--color-warm-400)" }}>{entry.entityType}</td>
                   </tr>
                 ))}
               </tbody>
@@ -333,27 +325,27 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
         )}
       </section>
 
-      <section style={{ ...card, marginTop: 16 }}>
-        <h2 style={cardTitle}><IconLock size={16} style={{ verticalAlign: "-3px", marginRight: 6 }} />Tindakan yang tidak bisa ditarik</h2>
-        <p style={{ ...muted, fontSize: 12, marginBottom: 12 }}>
+      <section className="tw-card tw-panel tw-enter">
+        <h2 className="tw-panel__title"><IconLock size={16} style={{ verticalAlign: "-3px", marginRight: 6 }} />Tindakan yang tidak bisa ditarik</h2>
+        <p className="tw-panel__lede">
           Penangguhan, pembukaan kembali, dan perubahan batas paket. Kolom terakhir menyebut berapa admin platform
           yang ada saat itu — satu berarti persetujuan orang kedua memang belum mungkin, bukan bahwa aturannya
           dilewati.
         </p>
         {privileged.length === 0 ? (
-          <p style={muted}>Belum ada tindakan istimewa pada travel ini.</p>
+          <p className="tw-panel__lede" style={{ marginBottom: 0 }}>Belum ada tindakan istimewa pada travel ini.</p>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={table}>
-              <thead><tr>{["Waktu", "Tindakan", "Alasan", "Diminta oleh", "Disetujui oleh", "Admin saat itu"].map((head) => <th key={head} style={th}>{head}</th>)}</tr></thead>
+          <div className="tw-table-wrap">
+            <table className="tw-table">
+              <thead><tr>{["Waktu", "Tindakan", "Alasan", "Diminta oleh", "Disetujui oleh", "Admin saat itu"].map((head) => <th key={head}>{head}</th>)}</tr></thead>
               <tbody>
                 {privileged.map((action) => (
-                  <tr key={action.id} style={tr}>
-                    <td style={td}>{dateTime(action.requestedAt)}</td>
-                    <td style={{ ...td, fontWeight: 700 }}>{PRIVILEGED_LABEL[action.kind] ?? action.kind}</td>
-                    <td style={{ ...td, maxWidth: 280 }}>{action.reason}</td>
-                    <td style={td}>{action.requestedBy}</td>
-                    <td style={td}>
+                  <tr key={action.id}>
+                    <td>{dateTime(action.requestedAt)}</td>
+                    <td style={{ fontWeight: 700 }}>{PRIVILEGED_LABEL[action.kind] ?? action.kind}</td>
+                    <td style={{ maxWidth: 280 }}>{action.reason}</td>
+                    <td>{action.requestedBy}</td>
+                    <td>
                       {action.approvedBy}
                       {action.approvedBy === action.requestedBy && action.adminCountAtRequest <= 1 && (
                         <span style={{ ...tag, background: "var(--color-cream-200)", color: "var(--color-warm-700)", marginLeft: 6 }}>
@@ -361,7 +353,7 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
                         </span>
                       )}
                     </td>
-                    <td style={td}>{action.adminCountAtRequest}</td>
+                    <td>{action.adminCountAtRequest}</td>
                   </tr>
                 ))}
               </tbody>
@@ -370,26 +362,26 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
         )}
       </section>
 
-      <section style={{ ...card, marginTop: 16 }}>
-        <h2 style={cardTitle}><IconEyeglass size={16} style={{ verticalAlign: "-3px", marginRight: 6 }} />Riwayat sesi lihat-saja</h2>
-        <p style={{ ...muted, fontSize: 12, marginBottom: 12 }}>
+      <section className="tw-card tw-panel tw-enter">
+        <h2 className="tw-panel__title"><IconEyeglass size={16} style={{ verticalAlign: "-3px", marginRight: 6 }} />Riwayat sesi lihat-saja</h2>
+        <p className="tw-panel__lede">
           Setiap kali seseorang dari TawafiqHub membuka akun ini sebagai pemiliknya. Barisnya tetap ada setelah
           sesinya berakhir — itulah gunanya.
         </p>
         {impersonations.length === 0 ? (
-          <p style={muted}>Belum pernah ada yang membuka akun ini sebagai pemiliknya.</p>
+          <p className="tw-panel__lede" style={{ marginBottom: 0 }}>Belum pernah ada yang membuka akun ini sebagai pemiliknya.</p>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={table}>
-              <thead><tr>{["Mulai", "Oleh", "Alasan", "Alamat", "Selesai"].map((head) => <th key={head} style={th}>{head}</th>)}</tr></thead>
+          <div className="tw-table-wrap">
+            <table className="tw-table">
+              <thead><tr>{["Mulai", "Oleh", "Alasan", "Alamat", "Selesai"].map((head) => <th key={head}>{head}</th>)}</tr></thead>
               <tbody>
                 {impersonations.map((session) => (
-                  <tr key={session.id} style={tr}>
-                    <td style={td}>{dateTime(session.startedAt)}</td>
-                    <td style={td}>{session.admin}</td>
-                    <td style={{ ...td, maxWidth: 320 }}>{session.reason}</td>
-                    <td style={{ ...td, color: "var(--color-warm-400)" }}>{session.ip || "—"}</td>
-                    <td style={td}>
+                  <tr key={session.id}>
+                    <td>{dateTime(session.startedAt)}</td>
+                    <td>{session.admin}</td>
+                    <td style={{ maxWidth: 320 }}>{session.reason}</td>
+                    <td style={{ color: "var(--color-warm-400)" }}>{session.ip || "—"}</td>
+                    <td>
                       {session.endedAt
                         ? dateTime(session.endedAt)
                         : session.expiresAt && session.expiresAt.toDate().getTime() < Date.now()
@@ -404,28 +396,28 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
         )}
       </section>
 
-      <section style={{ ...card, marginTop: 16 }}>
-        <h2 style={cardTitle}><IconShieldCheck size={16} style={{ verticalAlign: "-3px", marginRight: 6 }} />Pembacaan data pribadi oleh TawafiqHub</h2>
-        <p style={{ ...muted, fontSize: 12, marginBottom: 12 }}>
+      <section className="tw-card tw-panel tw-enter">
+        <h2 className="tw-panel__title"><IconShieldCheck size={16} style={{ verticalAlign: "-3px", marginRight: 6 }} />Pembacaan data pribadi oleh TawafiqHub</h2>
+        <p className="tw-panel__lede">
           Perubahan data selalu tercatat; pembacaan dulu tidak. Satu baris per orang, per layar, per hari — bukan per
           permintaan. Angkanya menghitung <strong>percobaan</strong> membaca, termasuk yang lalu ditolak, karena
           dicatat sebelum permintaannya dilayani.
         </p>
         {reads.length === 0 ? (
-          <p style={muted}>Belum ada data pribadi travel ini yang dibaca dari sisi TawafiqHub.</p>
+          <p className="tw-panel__lede" style={{ marginBottom: 0 }}>Belum ada data pribadi travel ini yang dibaca dari sisi TawafiqHub.</p>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={table}>
-              <thead><tr>{["Tanggal", "Siapa", "Layar", "Berapa kali", "Terakhir", "Dari"].map((head) => <th key={head} style={th}>{head}</th>)}</tr></thead>
+          <div className="tw-table-wrap">
+            <table className="tw-table">
+              <thead><tr>{["Tanggal", "Siapa", "Layar", "Berapa kali", "Terakhir", "Dari"].map((head) => <th key={head}>{head}</th>)}</tr></thead>
               <tbody>
                 {reads.map((row) => (
                   <tr key={`${row.day}-${row.actor}-${row.procedure}`} style={tr}>
-                    <td style={td}>{row.day}</td>
-                    <td style={td}>{row.actor}</td>
-                    <td style={{ ...td, color: "var(--color-warm-400)" }}>{screenName(row.procedure)}</td>
-                    <td style={{ ...td, fontWeight: 700 }}>{count(row.readCount)}</td>
-                    <td style={td}>{row.lastAt} WIB</td>
-                    <td style={td}>
+                    <td>{row.day}</td>
+                    <td>{row.actor}</td>
+                    <td style={{ color: "var(--color-warm-400)" }}>{screenName(row.procedure)}</td>
+                    <td style={{ fontWeight: 700 }}>{count(row.readCount)}</td>
+                    <td>{row.lastAt} WIB</td>
+                    <td>
                       {row.insideTenantView
                         ? <span style={{ ...tag, background: "var(--color-warning-50)", color: "var(--color-warning-700)" }}>sesi lihat-saja</span>
                         : <span style={{ ...tag, background: "var(--color-cream-200)", color: "var(--color-warm-700)" }}>panel platform</span>}
@@ -643,36 +635,18 @@ function SuspensionControl({ operatorId, operatorName, suspended }: { operatorId
 
 const page: React.CSSProperties = { maxWidth: 1100, margin: "0 auto", padding: "32px 24px" };
 const back: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-warm-500)", fontSize: 13, fontWeight: 600, textDecoration: "none", marginBottom: 16 };
-const header: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 20, flexWrap: "wrap", alignItems: "flex-start" };
-const eyebrow: React.CSSProperties = { color: "var(--color-gold-800)", fontSize: 11, fontWeight: 700, letterSpacing: ".08em", margin: "0 0 8px" };
-const title: React.CSSProperties = { fontSize: "clamp(26px,4vw,38px)", fontWeight: 500, margin: "0 0 6px" };
 const muted: React.CSSProperties = { color: "var(--color-warm-500)", fontSize: 14, margin: 0 };
-const storefrontButton: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44, padding: "0 18px", borderRadius: 8, border: "1px solid var(--color-cream-400)", background: "#fff", color: "var(--color-emerald-900)", fontWeight: 700, fontSize: 13, textDecoration: "none" };
 const alertRow: React.CSSProperties = { display: "flex", gap: 10, flexWrap: "wrap", margin: "18px 0 0" };
-const pill: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 99, fontSize: 12, fontWeight: 700 };
-const statGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12, margin: "20px 0 16px" };
-const statCard: React.CSSProperties = { background: "#fff", border: "1px solid var(--color-cream-300)", borderRadius: 10, padding: "16px 18px" };
-const statLabel: React.CSSProperties = { margin: "0 0 6px", fontSize: 12, color: "var(--color-warm-500)", fontWeight: 600 };
-const statValue: React.CSSProperties = { margin: 0, fontSize: 22, fontWeight: 700, color: "var(--color-emerald-900)" };
-const statHint: React.CSSProperties = { margin: "4px 0 0", fontSize: 11, color: "var(--color-warm-400)" };
-const twoCol: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(340px,1fr))", gap: 16, marginTop: 16 };
-const card: React.CSSProperties = { background: "#fff", border: "1px solid var(--color-cream-300)", borderRadius: 12, padding: 22 };
-const cardTitle: React.CSSProperties = { margin: "0 0 14px", fontSize: 16, fontWeight: 700 };
 const rowHead: React.CSSProperties = { display: "flex", justifyContent: "space-between", gap: 12, fontSize: 13, marginBottom: 5 };
 const track: React.CSSProperties = { height: 10, background: "var(--color-cream-300)", borderRadius: 5, overflow: "hidden" };
 const overrideBox: React.CSSProperties = { marginTop: 16, padding: "12px 14px", borderRadius: 8, background: "var(--color-cream-100)", border: "1px solid var(--color-cream-300)", fontSize: 13 };
 const countGrid: React.CSSProperties = { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))", gap: 12, margin: 0 };
 const countItem: React.CSSProperties = { padding: "10px 12px", borderRadius: 8, background: "var(--color-cream-100)" };
 const countValue: React.CSSProperties = { margin: 0, fontSize: 18, fontWeight: 700, color: "var(--color-warm-900)" };
-const table: React.CSSProperties = { width: "100%", borderCollapse: "collapse", fontSize: 13 };
-const th: React.CSSProperties = { textAlign: "left", padding: "10px 12px", fontSize: 11, color: "var(--color-warm-400)", borderBottom: "1px solid var(--color-cream-300)", whiteSpace: "nowrap" };
 const tr: React.CSSProperties = { borderBottom: "1px solid var(--color-cream-300)" };
-const td: React.CSSProperties = { padding: "10px 12px", color: "var(--color-warm-700)" };
 const tag: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 99, fontSize: 11, fontWeight: 700 };
 const warnLine: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, margin: "0 0 12px", padding: "10px 14px", borderRadius: 8, background: "var(--color-warning-50)", color: "var(--color-warning-700)", fontSize: 13, fontWeight: 600 };
 const domainRow: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "10px 12px", borderRadius: 8, background: "var(--color-cream-100)", fontSize: 13 };
-const emptyState: React.CSSProperties = { minHeight: 280, display: "grid", placeItems: "center", alignContent: "center", gap: 12, textAlign: "center", border: "1px dashed var(--color-cream-400)", borderRadius: 12, padding: 32 };
-const failureBox: React.CSSProperties = { display: "block", maxWidth: 520, padding: 12, background: "var(--color-cream-100)", borderRadius: 8, fontSize: 13, color: "var(--color-danger-600)", overflowWrap: "anywhere" };
 const inlineLink: React.CSSProperties = { color: "var(--color-emerald-800)", fontWeight: 700 };
 const impersonateButton: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44, padding: "0 18px", borderRadius: 8, border: "1px solid var(--color-warning-200)", background: "var(--color-warning-50)", color: "var(--color-warning-700)", fontWeight: 700, fontSize: 13, cursor: "pointer" };
 const impersonateForm: React.CSSProperties = { width: "min(420px, 100%)", padding: 16, borderRadius: 10, border: "1px solid var(--color-warning-200)", background: "var(--color-warning-50)" };

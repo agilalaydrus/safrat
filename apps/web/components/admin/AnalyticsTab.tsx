@@ -35,8 +35,8 @@ export default function AnalyticsTab() {
     return (retained / start) * 100;
   }, [data]);
 
-  if (loading) return <p className="admin-note">Memuat analitik…</p>;
-  if (failure) return <p className="admin-inline-alert" data-tone="danger"><IconAlertTriangle size={16} />{failure}</p>;
+  if (loading) return <p className="tw-note">Memuat analitik…</p>;
+  if (failure) return <p className="tw-inline-alert" data-tone="danger"><IconAlertTriangle size={16} />{failure}</p>;
   if (!data) return null;
 
   const trialRate = data.trialsStarted > 0 ? (data.trialsConverted / data.trialsStarted) * 100 : undefined;
@@ -56,16 +56,16 @@ export default function AnalyticsTab() {
   ];
 
   return (
-    <section className="admin-tab">
+    <section className="tw-screen">
       <PageHeader
         eyebrow="TAWAFIQHUB / ANALITIK"
         title="Analitik"
         subtitle={`${count(data.payingTenants)} travel membayar · ${count(data.trialingTenants)} sedang trial · ${count(data.churnedTenants)} berhenti dalam ${data.days} hari`}
         controls={
-          <div className="admin-segmented" role="group" aria-label="Rentang waktu">
+          <div className="tw-segmented" role="group" aria-label="Rentang waktu">
             {PERIODS.map(([value, label]) => (
               <button key={value} type="button" onClick={() => setDays(value)} aria-pressed={days === value}
-                className={days === value ? "admin-segmented__item is-active" : "admin-segmented__item"}>
+                className={days === value ? "tw-segmented__item is-active" : "tw-segmented__item"}>
                 {label}
               </button>
             ))}
@@ -73,7 +73,7 @@ export default function AnalyticsTab() {
         }
       />
 
-      <div className="admin-stat-grid tw-stagger">
+      <div className="tw-stat-grid tw-stagger">
         <StatCard
           label="MRR" value={rupiah(data.mrrIdr)} unit="per bulan" tone="brand"
           delta={{
@@ -96,34 +96,34 @@ export default function AnalyticsTab() {
         />
       </div>
 
-      <section className="tw-card admin-panel tw-enter" aria-labelledby="analytics-flow-title">
-        <h2 id="analytics-flow-title" className="admin-panel__title">Pergerakan MRR</h2>
-        <p className="admin-panel__lede">
+      <section className="tw-card tw-panel tw-enter" aria-labelledby="analytics-flow-title">
+        <h2 id="analytics-flow-title" className="tw-panel__title">Pergerakan MRR</h2>
+        <p className="tw-panel__lede">
           Sumbu horizontal adalah rupiah per bulan, diskalakan terhadap MRR terbesar antara awal dan akhir periode.
           Panjang bilah bisa dibandingkan antarbaris.
         </p>
-        <div className="admin-flow">
+        <div className="tw-flow">
           {flow.map(([label, amount, tone]) => (
-            <div key={label} className="admin-flow__row">
-              <div className="admin-flow__head">
+            <div key={label} className="tw-flow__row">
+              <div className="tw-flow__head">
                 <span>{label}</span>
-                <span className="admin-flow__value">{rupiah(amount)}</span>
+                <span className="tw-flow__value">{rupiah(amount)}</span>
               </div>
-              <div className="admin-flow__track">
-                <div className="admin-flow__fill" data-tone={tone} style={{ width: `${Math.min((amount / scale) * 100, 100)}%` }} />
+              <div className="tw-flow__track">
+                <div className="tw-flow__fill" data-tone={tone} style={{ width: `${Math.min((amount / scale) * 100, 100)}%` }} />
               </div>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="tw-card admin-panel tw-enter" aria-labelledby="analytics-plan-title">
-        <h2 id="analytics-plan-title" className="admin-panel__title">Per paket</h2>
-        <p className="admin-panel__lede">
+      <section className="tw-card tw-panel tw-enter" aria-labelledby="analytics-plan-title">
+        <h2 id="analytics-plan-title" className="tw-panel__title">Per paket</h2>
+        <p className="tw-panel__lede">
           Trial dan yang masa aktifnya habis dipisahkan, karena keduanya belum membayar.
         </p>
-        <div className="admin-table-wrap">
-          <table className="admin-table">
+        <div className="tw-table-wrap">
+          <table className="tw-table">
             <thead>
               <tr>
                 <th>Paket</th>
@@ -154,7 +154,7 @@ export default function AnalyticsTab() {
         </div>
       </section>
 
-      <div className="admin-grid-3 tw-stagger">
+      <div className="tw-grid-3 tw-stagger">
         <StatCard label="Sedang trial" value={count(data.trialingTenants)} unit="belum menyumbang MRR" tone="info" />
         <StatCard label="Ditangguhkan" value={count(data.suspendedTenants)} unit="dihentikan sengaja"
           tone={data.suspendedTenants > 0 ? "warning" : "neutral"} />

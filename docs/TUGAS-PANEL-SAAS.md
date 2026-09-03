@@ -168,7 +168,7 @@ Menutup mesin tanpa pemicu. RPC-nya sudah ada, teruji, tidak dipanggil siapa pun
 
 ---
 
-## Pass visual panel platform ✅
+## Pass visual panel platform — babak dua ✅
 
 Empat tab yang saya bangun (Corong, Analitik, Kesehatan, Audit) awalnya memakai
 **inline style** — persis penyebab "kaku" yang didiagnosis
@@ -197,6 +197,27 @@ gambarnya:
 Nilai terhitung yang diverifikasi: bilah bergerak **700 ms** (aturan 4), ujung
 membulat 999px bukan siku, kartu sinyal 16px, cincin fokus 4px merek-muda,
 `shadow-soft` pada kartu, dan `prefers-reduced-motion` mematikan transisinya.
+
+**Babak dua**, setelah pemilik meminta perapian menyeluruh: kelas tata letak
+yang tadinya bernama `.admin-*` dipindah ke ruang nama `.tw-*` di
+`globals.css` (`tw-panel`, `tw-signal`, `tw-flow`, `tw-table`, `tw-segmented`,
+`tw-stat-grid`, dst) — kelasnya milik sistem desain, bukan milik satu modul,
+jadi layar lain (dashboard travel, kloter) bisa memakainya tanpa menulis
+ulang. `TenantDetail.tsx` (halaman terbesar dan terakhir yang masih inline)
+dipindah ke `PageHeader`, `StatCard`, `Badge`, `EmptyState`.
+
+Diperiksa lagi dengan Playwright, bukan diasumsikan selesai karena typecheck
+lulus. Halaman tenant sungguhan dirender dan dilihat.
+
+**Yang sengaja *tidak* disentuh:** `KloterManifest`, `KloterRoomlist`,
+`RoomTierEditor`. Ketiganya sudah rapi — token warna, radius, dan jarak
+konsisten — hanya mengikuti konvensi inline `KloterDetail`/`PricingDashboard`
+yang menaunginya, bukan `tw-*`. Memigrasikan hanya potongan kecil di dalam
+halaman yang seluruhnya masih inline akan membuat satu halaman punya dua
+bahasa visual sekaligus — lebih buruk daripada konsisten inline. Migrasi
+penuhnya adalah **T0.5** ("sapu 27 layar") di
+[TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md), tugas tersendiri yang
+lebih besar dari perapian ini.
 
 ---
 

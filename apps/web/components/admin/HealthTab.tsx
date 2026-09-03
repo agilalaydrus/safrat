@@ -43,15 +43,15 @@ export default function HealthTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  if (loading) return <p className="admin-note">Memeriksa…</p>;
-  if (failure) return <p className="admin-inline-alert" data-tone="danger"><IconAlertTriangle size={16} />{failure}</p>;
+  if (loading) return <p className="tw-note">Memeriksa…</p>;
+  if (failure) return <p className="tw-inline-alert" data-tone="danger"><IconAlertTriangle size={16} />{failure}</p>;
   if (!health) return null;
 
   const attention = health.signals.filter((signal) => signal.status === "WARN" || signal.status === "ALERT");
   const unmonitored = health.signals.filter((signal) => signal.status === "UNMONITORED");
 
   return (
-    <section className="admin-tab">
+    <section className="tw-screen">
       <PageHeader
         eyebrow="TAWAFIQHUB / KESEHATAN"
         title="Kesehatan Platform"
@@ -71,11 +71,11 @@ export default function HealthTab() {
         }
       />
 
-      <div className="admin-grid-3 tw-stagger">
+      <div className="tw-grid-3 tw-stagger">
         {health.signals.map((signal) => <SignalCard key={signal.key} signal={signal} />)}
       </div>
 
-      <div className="admin-note">
+      <div className="tw-note">
         <p>
           <strong>Yang sehat ikut ditampilkan, dengan sengaja.</strong> Layar yang hanya menampilkan masalah tidak bisa
           dibedakan dari layar yang berhenti bekerja — &ldquo;tidak ada peringatan&rdquo; harus berarti &ldquo;sudah
@@ -93,16 +93,16 @@ export default function HealthTab() {
 function SignalCard({ signal }: { signal: HealthSignal }) {
   const status = STATUS[signal.status] ?? STATUS.UNMONITORED!;
   return (
-    <article className="admin-signal tw-enter" data-tone={status.card}>
-      <div className="admin-signal__head">
+    <article className="tw-signal tw-enter" data-tone={status.card}>
+      <div className="tw-signal__head">
         <Badge tone={status.tone} dot={signal.status !== "UNMONITORED"}>
           <StatusIcon status={signal.status} />
           {status.label}
         </Badge>
       </div>
-      <h3 className="admin-signal__title">{signal.title}</h3>
-      <p className="admin-signal__detail">{signal.detail}</p>
-      <dl className="admin-signal__meta">
+      <h3 className="tw-signal__title">{signal.title}</h3>
+      <p className="tw-signal__detail">{signal.detail}</p>
+      <dl className="tw-signal__meta">
         {signal.affectedTenants > 0 && (
           <div>
             <dt>Travel terdampak</dt>

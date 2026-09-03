@@ -67,37 +67,37 @@ export default function FunnelTab() {
   const newTenants = report?.newTenants ?? 0;
   const aggregateRate = report && report.totalVisitors > 0 ? report.totalRegistrations / report.totalVisitors : 0;
 
-  if (loading) return <p className="admin-note">Memuat corong…</p>;
+  if (loading) return <p className="tw-note">Memuat corong…</p>;
 
   return (
-    <section className="admin-tab">
+    <section className="tw-screen">
       <PageHeader
         eyebrow="TAWAFIQHUB / CORONG"
         title="Corong"
         subtitle="Lintas seluruh travel, dan corong TawafiqHub sendiri di sebelahnya."
         controls={
-          <div className="admin-segmented" role="group" aria-label="Rentang waktu">
+          <div className="tw-segmented" role="group" aria-label="Rentang waktu">
             {PERIODS.map(([value, label]) => (
               <button key={value} type="button" onClick={() => setDays(value)} aria-pressed={days === value}
-                className={days === value ? "admin-segmented__item is-active" : "admin-segmented__item"}>{label}</button>
+                className={days === value ? "tw-segmented__item is-active" : "tw-segmented__item"}>{label}</button>
             ))}
           </div>
         }
       />
 
-      {notice && <p role="status" className="admin-inline-alert" data-tone="warning"><IconAlertTriangle size={16} />{notice}</p>}
+      {notice && <p role="status" className="tw-inline-alert" data-tone="warning"><IconAlertTriangle size={16} />{notice}</p>}
 
       {report && (
         <>
-          <div className="admin-stat-grid tw-stagger">
+          <div className="tw-stat-grid tw-stagger">
             <StatCard label="Pengunjung tawafiqhub.id" value={number(entry)} unit="situs kita sendiri" tone="brand" />
             <StatCard label="Tenant baru" value={number(newTenants)} unit={`dalam ${days} hari`} tone="success" />
             <StatCard label="Pengunjung seluruh storefront" value={number(report.totalVisitors)} unit="angka untuk dikutip saat menjual" tone="info" />
             <StatCard label="Pendaftar seluruh storefront" value={number(report.totalRegistrations)} unit={`konversi ${percent(aggregateRate)}`} tone="warning" />
           </div>
 
-          <section className="tw-card admin-panel tw-enter">
-            <h3 className="admin-panel__title">Corong penjualan TawafiqHub</h3>
+          <section className="tw-card tw-panel tw-enter">
+            <h3 className="tw-panel__title">Corong penjualan TawafiqHub</h3>
             <div style={{ display: "grid", gap: 10 }}>
               {platformSteps.map((step, index) => {
                 const share = entry > 0 ? (step.visitors / entry) * 100 : 0;
@@ -124,7 +124,7 @@ export default function FunnelTab() {
                 <div style={track}><div style={{ width: `${entry > 0 ? Math.min((newTenants / entry) * 100, 100) : 0}%`, height: "100%", background: "var(--color-emerald-950)", borderRadius: 5 }} /></div>
               </div>
             </div>
-            <p className="admin-panel__lede" style={{ margin: "14px 0 0" }}>
+            <p className="tw-panel__lede" style={{ margin: "14px 0 0" }}>
               Langkah terakhir dihitung dari tabel travel, bukan dari kunjungan halaman: pendaftaran yang tidak pernah
               jadi tenant bukan konversi.
             </p>
@@ -138,9 +138,9 @@ export default function FunnelTab() {
             cleanDescription="Tidak ada travel yang membayar untuk halaman yang tidak pernah dibuka."
           />
 
-          <section className="tw-card admin-panel tw-enter">
-            <h3 className="admin-panel__title">Papan Peringkat Storefront</h3>
-            <p className="admin-panel__lede">
+          <section className="tw-card tw-panel tw-enter">
+            <h3 className="tw-panel__title">Papan Peringkat Storefront</h3>
+            <p className="tw-panel__lede">
               Urut konversi, terbaik di atas. <strong>Yang di bawah adalah daftar kerja, bukan papan malu</strong> —
               storefront ramai tanpa pendaftar biasanya salah pasang harga atau formulirnya rusak, dan itu bisa dibantu.
             </p>
@@ -151,8 +151,8 @@ export default function FunnelTab() {
                 nextStep="Perlebar rentang waktunya, atau tunggu sampai storefront mengumpulkan cukup kunjungan."
               />
             ) : (
-              <div className="admin-table-wrap">
-                <table className="admin-table">
+              <div className="tw-table-wrap">
+                <table className="tw-table">
                   <thead>
                     <tr>{["Travel", "Pengunjung", "Pendaftar", "Konversi", ""].map((head) => <th key={head}>{head}</th>)}</tr>
                   </thead>
@@ -167,15 +167,15 @@ export default function FunnelTab() {
           </section>
 
           {report.tooFewVisitors.length > 0 && (
-            <section className="tw-card admin-panel tw-enter">
-              <h3 className="admin-panel__title">Belum cukup ramai untuk diperingkat</h3>
-              <p className="admin-panel__lede">
+            <section className="tw-card tw-panel tw-enter">
+              <h3 className="tw-panel__title">Belum cukup ramai untuk diperingkat</h3>
+              <p className="tw-panel__lede">
                 Di bawah {report.rankingFloor} pengunjung. Tiga pengunjung dengan satu pendaftar berarti konversi 33% dan
                 tidak berarti apa-apa — ditampilkan terpisah supaya tidak ikut menaiki papan peringkat, dan tidak
                 disembunyikan supaya tidak hilang.
               </p>
-              <div className="admin-table-wrap">
-                <table className="admin-table">
+              <div className="tw-table-wrap">
+                <table className="tw-table">
                 <thead>
                   <tr>{["Travel", "Pengunjung", "Pendaftar", "", ""].map((head, index) => <th key={index}>{head}</th>)}</tr>
                 </thead>

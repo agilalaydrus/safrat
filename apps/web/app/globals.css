@@ -2658,109 +2658,111 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-seri
   .crm-page *, .crm-page *::before, .crm-page *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
 
-/* ── Panel platform: tata letak bersama untuk tab Analitik, Kesehatan, Audit,
-   Corong, dan halaman detail tenant.
+/* ── Primitif tata letak bersama: panel, tabel, kartu sinyal, kelompok tombol
+   periode, dan bilah pergerakan. Dipakai panel platform maupun dashboard
+   travel — namanya `tw-` karena ini milik sistem desain, bukan milik satu
+   modul.
    
    Kelasnya hidup di sini, bukan sebagai inline style, karena sembilan dari
    sepuluh aturan visual di DESAIN-DASHBOARD-TRAVEL.md §2b — cincin fokus,
    bayangan bernama, transisi bertingkat, hover yang menaikkan satu langkah —
    tidak bisa ditulis sama sekali dari objek style JavaScript. Itu persis
    sebabnya layar-layar ini terasa kaku sebelumnya. */
-.admin-tab { display: grid; gap: 20px; }
+.tw-screen { display: grid; gap: 20px; }
 /* .tw-card sengaja tidak punya padding — setiap pemakainya menentukan sendiri.
    Ini pasangannya untuk panel di dalam panel platform, supaya isinya tidak
    menempel ke tepi kartu (yang terjadi pada versi pertama layar Analitik). */
-.admin-panel { padding: 20px 22px; }
-.admin-panel__title { margin: 0 0 4px; font-size: 16px; }
-.admin-panel__lede { margin: 0 0 18px; color: var(--color-warm-500); font-size: 13px; line-height: 1.6; }
-/* Di dalam .admin-tab yang berupa grid, inline-flex tetap melar selebar kolom.
+.tw-panel { padding: 20px 22px; }
+.tw-panel__title { margin: 0 0 4px; font-size: 16px; }
+.tw-panel__lede { margin: 0 0 18px; color: var(--color-warm-500); font-size: 13px; line-height: 1.6; }
+/* Di dalam .tw-screen yang berupa grid, inline-flex tetap melar selebar kolom.
    Tanpa ini kelompok tombol periode terentang penuh dan terlihat seperti bilah
    navigasi, bukan pilihan kecil. */
-.admin-segmented { justify-self: start; }
-.admin-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
-.admin-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
-.admin-grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.tw-segmented { justify-self: start; }
+.tw-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.tw-grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+.tw-grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
 
 /* Kelompok tombol pilihan periode. Cincin 4px merek-muda menggantikan garis
    keras, termasuk untuk fokus — aturan 3. */
-.admin-segmented { display: inline-flex; gap: 4px; border: 1px solid var(--color-cream-400); border-radius: 12px; background: var(--color-cream-200); padding: 4px; }
-.admin-segmented__item {
+.tw-segmented { display: inline-flex; gap: 4px; border: 1px solid var(--color-cream-400); border-radius: 12px; background: var(--color-cream-200); padding: 4px; }
+.tw-segmented__item {
   min-height: 36px; border: 0; border-radius: 8px; background: transparent;
   padding: 0 14px; color: var(--color-warm-500); font: inherit; font-size: 12px; font-weight: 700;
   cursor: pointer; transition: background 150ms ease-out, color 150ms ease-out, transform 300ms ease-out;
 }
-.admin-segmented__item:hover:not(.is-active) { color: var(--color-warm-700); transform: translateY(-1px); }
-.admin-segmented__item:focus-visible { outline: 0; box-shadow: 0 0 0 4px var(--color-emerald-100); }
-.admin-segmented__item.is-active { background: #fff; box-shadow: var(--shadow-soft); color: var(--color-emerald-900); }
+.tw-segmented__item:hover:not(.is-active) { color: var(--color-warm-700); transform: translateY(-1px); }
+.tw-segmented__item:focus-visible { outline: 0; box-shadow: 0 0 0 4px var(--color-emerald-100); }
+.tw-segmented__item.is-active { background: #fff; box-shadow: var(--shadow-soft); color: var(--color-emerald-900); }
 
 /* Kartu sinyal kesehatan. Nada warnanya dari data-tone, jadi satu kelas
    melayani empat keadaan tanpa empat salinan gaya. */
-.admin-signal { display: grid; gap: 10px; border: 1px solid var(--color-cream-300); border-radius: 16px; padding: 18px; background: #fff; transition: transform 300ms ease-out, box-shadow 300ms ease-out; }
-.admin-signal:hover { transform: translateY(-2px); box-shadow: var(--shadow-soft); }
-.admin-signal[data-tone="ok"] { border-color: var(--color-emerald-200); background: var(--color-emerald-50); }
-.admin-signal[data-tone="warning"] { border-color: var(--color-warning-200); background: var(--color-warning-50); }
-.admin-signal[data-tone="danger"] { border-color: #fecdd3; background: var(--color-danger-100); }
-.admin-signal[data-tone="neutral"] { border-color: var(--color-cream-400); background: var(--color-cream-200); }
-.admin-signal__head { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; letter-spacing: .02em; }
-.admin-signal__title { margin: 0; font-size: 15px; font-weight: 700; }
-.admin-signal__detail { margin: 0; color: var(--color-warm-700); font-size: 13px; line-height: 1.6; }
-.admin-signal__meta { display: grid; gap: 4px; margin: 4px 0 0; }
-.admin-signal__meta > div { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; }
-.admin-signal__meta dt { margin: 0; color: var(--color-warm-400); }
-.admin-signal__meta dd { margin: 0; color: var(--color-warm-700); font-weight: 700; text-align: right; }
-.admin-signal__meta dd.is-quiet { color: var(--color-warm-400); font-weight: 500; }
+.tw-signal { display: grid; gap: 10px; border: 1px solid var(--color-cream-300); border-radius: 16px; padding: 18px; background: #fff; transition: transform 300ms ease-out, box-shadow 300ms ease-out; }
+.tw-signal:hover { transform: translateY(-2px); box-shadow: var(--shadow-soft); }
+.tw-signal[data-tone="ok"] { border-color: var(--color-emerald-200); background: var(--color-emerald-50); }
+.tw-signal[data-tone="warning"] { border-color: var(--color-warning-200); background: var(--color-warning-50); }
+.tw-signal[data-tone="danger"] { border-color: #fecdd3; background: var(--color-danger-100); }
+.tw-signal[data-tone="neutral"] { border-color: var(--color-cream-400); background: var(--color-cream-200); }
+.tw-signal__head { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; letter-spacing: .02em; }
+.tw-signal__title { margin: 0; font-size: 15px; font-weight: 700; }
+.tw-signal__detail { margin: 0; color: var(--color-warm-700); font-size: 13px; line-height: 1.6; }
+.tw-signal__meta { display: grid; gap: 4px; margin: 4px 0 0; }
+.tw-signal__meta > div { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; }
+.tw-signal__meta dt { margin: 0; color: var(--color-warm-400); }
+.tw-signal__meta dd { margin: 0; color: var(--color-warm-700); font-weight: 700; text-align: right; }
+.tw-signal__meta dd.is-quiet { color: var(--color-warm-400); font-weight: 500; }
 
 /* Baris pergerakan MRR. Bilah bergerak 700 ms — aturan 4 — dan ujung atasnya
    membulat, bukan siku. */
-.admin-flow { display: grid; gap: 18px; }
-.admin-flow__row { display: grid; gap: 7px; }
-.admin-flow__head { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; line-height: 1.4; }
-.admin-flow__value { font-weight: 700; font-variant-numeric: tabular-nums; }
-.admin-flow__track { height: 10px; border-radius: 999px; background: var(--color-cream-300); overflow: hidden; }
-.admin-flow__fill { height: 100%; border-radius: 999px; transition: width 700ms ease-out; }
-.admin-flow__fill[data-tone="brand"] { background: var(--color-emerald-900); }
-.admin-flow__fill[data-tone="success"] { background: var(--color-emerald-700); }
-.admin-flow__fill[data-tone="info"] { background: var(--color-emerald-600); }
-.admin-flow__fill[data-tone="warning"] { background: var(--color-warning-600); }
-.admin-flow__fill[data-tone="danger"] { background: var(--color-danger-600); }
-.admin-flow__fill[data-tone="neutral"] { background: var(--color-warm-200); }
+.tw-flow { display: grid; gap: 18px; }
+.tw-flow__row { display: grid; gap: 7px; }
+.tw-flow__head { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; line-height: 1.4; }
+.tw-flow__value { font-weight: 700; font-variant-numeric: tabular-nums; }
+.tw-flow__track { height: 10px; border-radius: 999px; background: var(--color-cream-300); overflow: hidden; }
+.tw-flow__fill { height: 100%; border-radius: 999px; transition: width 700ms ease-out; }
+.tw-flow__fill[data-tone="brand"] { background: var(--color-emerald-900); }
+.tw-flow__fill[data-tone="success"] { background: var(--color-emerald-700); }
+.tw-flow__fill[data-tone="info"] { background: var(--color-emerald-600); }
+.tw-flow__fill[data-tone="warning"] { background: var(--color-warning-600); }
+.tw-flow__fill[data-tone="danger"] { background: var(--color-danger-600); }
+.tw-flow__fill[data-tone="neutral"] { background: var(--color-warm-200); }
 
 /* Tabel dalam panel. Sengaja ringan: garis tipis, kepala tenang, dan baris
    yang menyala saat disorot alih-alih berganti warna. */
-.admin-table-wrap { overflow-x: auto; box-shadow: var(--shadow-soft); border: 1px solid var(--color-cream-300); border-radius: 14px; background: #fff; }
-.admin-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.admin-table th { padding: 12px; border-bottom: 1px solid var(--color-cream-300); color: var(--color-warm-400); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-align: left; text-transform: uppercase; white-space: nowrap; }
-.admin-table td { padding: 12px; border-bottom: 1px solid var(--color-cream-200); color: var(--color-warm-700); vertical-align: top; }
-.admin-table tbody tr:last-child td { border-bottom: 0; }
-.admin-table tbody tr { transition: background 150ms ease-out; }
-.admin-table tbody tr:hover { background: var(--color-cream-100); }
-.admin-table td.is-numeric, .admin-table th.is-numeric { font-variant-numeric: tabular-nums; text-align: right; }
-.admin-table tr[data-state="attention"] { background: var(--color-warning-50); }
-.admin-table tr[data-state="attention"]:hover { background: #fdf1d8; }
+.tw-table-wrap { overflow-x: auto; box-shadow: var(--shadow-soft); border: 1px solid var(--color-cream-300); border-radius: 14px; background: #fff; }
+.tw-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tw-table th { padding: 12px; border-bottom: 1px solid var(--color-cream-300); color: var(--color-warm-400); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-align: left; text-transform: uppercase; white-space: nowrap; }
+.tw-table td { padding: 12px; border-bottom: 1px solid var(--color-cream-200); color: var(--color-warm-700); vertical-align: top; }
+.tw-table tbody tr:last-child td { border-bottom: 0; }
+.tw-table tbody tr { transition: background 150ms ease-out; }
+.tw-table tbody tr:hover { background: var(--color-cream-100); }
+.tw-table td.is-numeric, .tw-table th.is-numeric { font-variant-numeric: tabular-nums; text-align: right; }
+.tw-table tr[data-state="attention"] { background: var(--color-warning-50); }
+.tw-table tr[data-state="attention"]:hover { background: #fdf1d8; }
 
-.admin-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.admin-search {
+.tw-filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.tw-search {
   min-height: 40px; min-width: 240px; border: 1px solid var(--color-cream-400); border-radius: 10px;
   background: #fff; padding: 0 12px; color: var(--color-warm-900); font: inherit; font-size: 13px;
   transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
 }
-.admin-search:focus-visible { outline: 0; border-color: var(--color-emerald-700); box-shadow: 0 0 0 4px var(--color-emerald-100); }
+.tw-search:focus-visible { outline: 0; border-color: var(--color-emerald-700); box-shadow: 0 0 0 4px var(--color-emerald-100); }
 
-.admin-note { border: 1px solid var(--color-cream-300); border-radius: 14px; background: var(--color-cream-100); padding: 16px 18px; color: var(--color-warm-700); font-size: 12px; line-height: 1.7; }
-.admin-note strong { color: var(--color-warm-900); }
-.admin-note p { margin: 0; }
-.admin-note p + p { margin-top: 10px; }
+.tw-note { border: 1px solid var(--color-cream-300); border-radius: 14px; background: var(--color-cream-100); padding: 16px 18px; color: var(--color-warm-700); font-size: 12px; line-height: 1.7; }
+.tw-note strong { color: var(--color-warm-900); }
+.tw-note p { margin: 0; }
+.tw-note p + p { margin-top: 10px; }
 
-.admin-inline-alert { display: flex; align-items: center; gap: 8px; border-radius: 10px; padding: 12px 16px; font-size: 13px; font-weight: 600; }
-.admin-inline-alert[data-tone="danger"] { background: var(--color-danger-100); color: var(--color-danger-600); }
-.admin-inline-alert[data-tone="warning"] { background: var(--color-warning-50); border: 1px solid var(--color-warning-200); color: var(--color-warning-700); }
-.admin-inline-alert[data-tone="success"] { background: var(--color-emerald-50); color: var(--color-emerald-800); }
+.tw-inline-alert { display: flex; align-items: center; gap: 8px; border-radius: 10px; padding: 12px 16px; font-size: 13px; font-weight: 600; }
+.tw-inline-alert[data-tone="danger"] { background: var(--color-danger-100); color: var(--color-danger-600); }
+.tw-inline-alert[data-tone="warning"] { background: var(--color-warning-50); border: 1px solid var(--color-warning-200); color: var(--color-warning-700); }
+.tw-inline-alert[data-tone="success"] { background: var(--color-emerald-50); color: var(--color-emerald-800); }
 
 @media (max-width: 720px) {
-  .admin-stat-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
-  .admin-segmented { width: 100%; justify-content: space-between; }
+  .tw-stat-grid { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  .tw-segmented { width: 100%; justify-content: space-between; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .admin-signal, .admin-flow__fill, .admin-segmented__item, .admin-table tbody tr { transition-duration: .01ms !important; }
+  .tw-signal, .tw-flow__fill, .tw-segmented__item, .tw-table tbody tr { transition-duration: .01ms !important; }
 }

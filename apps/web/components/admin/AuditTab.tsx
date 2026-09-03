@@ -59,7 +59,7 @@ export default function AuditTab() {
   }, [load, actor]);
 
   return (
-    <section className="admin-tab">
+    <section className="tw-screen">
       <PageHeader
         eyebrow="TAWAFIQHUB / AUDIT"
         title="Audit"
@@ -71,17 +71,17 @@ export default function AuditTab() {
         }
       />
 
-      <div className="admin-filter-bar">
-        <div className="admin-segmented" role="group" aria-label="Kategori">
+      <div className="tw-filter-bar">
+        <div className="tw-segmented" role="group" aria-label="Kategori">
           {CATEGORIES.map(([value, label]) => (
             <button key={value} type="button" onClick={() => setCategory(value)} aria-pressed={category === value}
-              className={category === value ? "admin-segmented__item is-active" : "admin-segmented__item"}>{label}</button>
+              className={category === value ? "tw-segmented__item is-active" : "tw-segmented__item"}>{label}</button>
           ))}
         </div>
-        <div className="admin-segmented" role="group" aria-label="Rentang waktu">
+        <div className="tw-segmented" role="group" aria-label="Rentang waktu">
           {PERIODS.map(([value, label]) => (
             <button key={value} type="button" onClick={() => setDays(value)} aria-pressed={days === value}
-              className={days === value ? "admin-segmented__item is-active" : "admin-segmented__item"}>{label}</button>
+              className={days === value ? "tw-segmented__item is-active" : "tw-segmented__item"}>{label}</button>
           ))}
         </div>
         <input
@@ -89,12 +89,12 @@ export default function AuditTab() {
           onChange={(event) => setActor(event.target.value)}
           placeholder="Cari pelaku (email atau id)"
           aria-label="Cari pelaku"
-          className="admin-search"
+          className="tw-search"
         />
       </div>
 
-      {failure && <p className="admin-inline-alert" data-tone="danger"><IconAlertTriangle size={16} />{failure}</p>}
-      {loading && <p className="admin-note">Memuat…</p>}
+      {failure && <p className="tw-inline-alert" data-tone="danger"><IconAlertTriangle size={16} />{failure}</p>}
+      {loading && <p className="tw-note">Memuat…</p>}
 
       {!loading && entries.length === 0 && (
         <EmptyState
@@ -107,14 +107,14 @@ export default function AuditTab() {
       {entries.length > 0 && (
         <>
           {truncated && (
-            <p className="admin-inline-alert" data-tone="warning">
+            <p className="tw-inline-alert" data-tone="warning">
               <IconAlertTriangle size={15} />
               Daftar terpotong di 200 baris. Persempit rentang waktu atau saringannya — ekor yang kosong bukan berarti
               tidak ada kejadian lain.
             </p>
           )}
-          <div className="admin-table-wrap">
-            <table className="admin-table">
+          <div className="tw-table-wrap">
+            <table className="tw-table">
               <thead>
                 <tr>{["Waktu", "Pelaku", "Tindakan", "Travel", "Objek", "Alasan"].map((head) => (
                   <th key={head}>{head}</th>
@@ -141,7 +141,7 @@ export default function AuditTab() {
         </>
       )}
 
-      <div className="admin-note">
+      <div className="tw-note">
         <p>
           <IconLock size={13} style={{ verticalAlign: "-2px", marginRight: 6 }} />
           <strong>Pembacaan data pribadi lewat sesi lihat-saja tidak ada di tabel ini.</strong> Ia dicatat terpisah
