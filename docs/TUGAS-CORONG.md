@@ -138,9 +138,11 @@ Menyentuh dua permukaan: `/dashboard` (travel melihat corongnya sendiri) dan
 - [x] **K5.5** Storefront tanpa pengunjung sama sekali masuk **Pusat Tindakan**
       (komponen `ActionCenter` yang sama dengan dashboard travel), dibatasi 8
       baris: daftar 40 tindakan sama saja dengan tidak ada daftar.
-- [ ] **K5.6** Tautan ke `/admin/tenant/[id]` — **menunggu B3**, halamannya belum
-      ada. Sementara ini tiap baris menautkan ke storefront-nya yang sungguhan
-      (`buildTenantLink`), bukan ke halaman yang akan 404.
+- [x] **K5.6** `/admin/tenant/[id]` sudah ada (B3) dan memuat corong storefront
+      30 hari tenant itu, sehingga langganan, pemakaian, dan permintaan terbaca
+      dalam satu layar. Nama travel di daftar Travel menautkan ke sana; baris
+      papan peringkat corong tetap menautkan ke storefront sungguhan, karena di
+      sana yang ingin dilihat adalah halamannya, bukan tagihannya.
 
 **Diuji:**
 

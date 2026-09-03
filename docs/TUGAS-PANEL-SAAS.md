@@ -132,12 +132,37 @@ Menutup mesin tanpa pemicu. RPC-nya sudah ada, teruji, tidak dipanggil siapa pun
 - [x] Subjudul menyebut kapan dihitung, dan mengaku angkanya bisa tertinggal
       beberapa jam (`0c32e52`)
 
-## B3 — Detail tenant `/admin/tenant/[id]` 🟠
+## B3 — Detail tenant `/admin/tenant/[id]` ✅
 
-- [C] Langganan & riwayat tagihan · pemakaian vs kuota · override berlaku
-- [C] Jamaah & cabang · transaksi & transfer · KYC
-- [C] Tim & status 2FA · domain · jejak audit tenant itu
-- [C] Tombol tindakan: ubah override, tangguhkan, impersonate (lihat C1)
+- [x] Langganan & riwayat tagihan · pemakaian vs kuota · override berlaku
+- [x] Jamaah, cabang, musim, produk, pendaftaran, transaksi tertahan, KYC
+- [x] Tim & status 2FA · domain · jejak audit tenant itu
+- [x] Corong storefront 30 hari, sehingga langganan, pemakaian, dan permintaan
+      terbaca bersama (menutup **K5.6**)
+- [ ] Tombol tindakan: ubah override, tangguhkan, impersonate — **belum**, dan
+      sengaja. Impersonate adalah C1 dan punya syaratnya sendiri; mengubah paket
+      dan menangguhkan sudah punya konfirmasi dan jejak di tabnya masing-masing.
+      Halaman ini hanya membaca, dan mengatakannya di kaki halaman.
+
+**Catatan teknis:**
+
+- Satu RPC `GetTenantDetail`, bukan halaman yang memanggil delapan RPC daftar
+  lalu menyaring di peramban. Cara kedua menarik langganan, pemakaian, dan
+  tagihan **seluruh tenant** ke layar tentang satu tenant, dan lebih lambat.
+- Batas pemakaian dibaca dengan bentuk kueri yang sama persis dengan
+  `ListUsage` (paket dari `operators`, batas dari `plan_limits` ditimpa
+  override yang masih berlaku). Dua definisi berbeda antara daftar dan detail
+  berarti dukungan menyebut satu angka sementara penegakan memakai angka lain.
+- `DISTINCT ON` pada `usage_counters`: tanpa itu setiap periode lama ikut
+  tampil sebagai baris pemakaian hari ini.
+- Gerbang akses platform dipindah ke `PlatformGate` supaya halaman baru tidak
+  menyalin ulang logika empat keadaannya.
+- Diuji: `platform_tenant_http_test.go` memastikan halaman ini hanya berisi
+  travel yang diminta — jejak audit travel lain tidak terbaca, dan travel
+  pertama tidak bocor ke halaman travel kedua. Diverifikasi dengan membuang
+  `WHERE a.operator_id = $1`: uji gagal dengan `jejak audit travel lain
+  terbaca di halaman ini`. Id yang tidak dikenal dan id ngawur sama-sama
+  `not_found`, bukan galat internal.
 
 ---
 

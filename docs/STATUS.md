@@ -24,7 +24,8 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
 
 1. **B2** Meter pemakaian — batas ditegakkan tapi tidak ada yang tahu siapa
    mendekatinya.
-2. **B3** Halaman detail tenant.
+2. **C1 Impersonate** dengan jejak penuh, read-only, berbatas waktu. Ini satu-
+   satunya tombol tindakan yang belum ada di halaman detail tenant.
 3. **Tahap 3 Dashboard Travel** — CRM Leads, WhatsApp, rundown, tier kamar.
 4. **SEO & Konten** — `sitemap.xml` dan `robots.txt` sudah ada dan sadar-host.
    Sisanya S3: Search Console, menunggu proyek Google Cloud milik pemilik.
@@ -33,8 +34,7 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
    Beban terukur pada 180.000 baris: rollup 68 ms/hari, layar travel 177 ms,
    layar platform 1 ms. Yang tersisa bergantung pada hal lain: **K2.8**
    geolokasi (GeoLite2 belum dipasang di server, jadi "Asal Daerah" kosong dan
-   layarnya mengatakan begitu) dan **K5.6** yang menunggu B3 (halaman
-   `/admin/tenant/[id]` belum ada).
+   layarnya mengatakan begitu). **K5.6 sudah tertutup** oleh B3.
 
 **Dunning masih mode kering.** Ia berjalan tiap 24 jam, mengisi `dunning_log`,
 dan **tidak mengirim apa pun** sampai `DUNNING_LIVE=true` diset. Bandingkan satu
@@ -55,7 +55,7 @@ tsc --noEmit · next lint     bersih
 next build                   sukses
 migrasi                      148, terpasang di DB dev dan DB uji
 working tree                 bersih
-belum di-push                19 commit
+belum di-push                20 commit
 ```
 
 `main` = deploy. **Jangan push tanpa perintah pemilik.**
@@ -112,6 +112,17 @@ Ini sudah terjadi. Yang menyelamatkannya:
 ## Jebakan yang sudah menipu kami
 
 Tulis di sini setiap kali ketemu lagi.
+
+- **Uji yang bergantung pada setelan global bisa gagal karena paket lain.**
+  3 September 2026: `TestDunningSequence...` gagal dua kali dari sepuluh
+  jalan, lalu tidak bisa diulang. Sebabnya fixture-nya membiarkan
+  `grace_period_days` NULL — yang artinya "ikut setelan platform" — sementara
+  paket uji lain bisa mengubah setelan itu. Grace ditambahkan ke `access_until`,
+  jadi grace 2 hari memindahkan langganannya ke tahap yang salah. Dibuktikan
+  dengan menyetel `grace_period_days='2'` lalu menjalankan fixture lama: gagal
+  dengan `tahap = "H7", mau H14 (telat 12 hari)`. Fixture sekarang mengunci
+  nilainya sendiri. **Setiap fixture yang membiarkan kolom NULL karena "nanti
+  ada defaultnya" mewarisi keadaan global yang bisa berubah di bawahnya.**
 
 - **Volume Docker lokal bisa hilang saat daemon mati.** 3 September 2026:
   Docker Desktop berhenti di tengah suite, dan saat dihidupkan lagi kedua

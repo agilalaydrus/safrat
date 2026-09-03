@@ -57,9 +57,26 @@ func TestDunningSequenceIsIdempotentAndPaymentLiftsSuspensionIntegration(t *test
 		t.Fatalf("jadwal dunning tidak masuk akal: %#v", settings)
 	}
 
-	lapsedAt := time.Now().Add(-time.Duration(settings.ReminderDays[len(settings.ReminderDays)-1]) * 24 * time.Hour)
-	exec(`INSERT INTO subscriptions (operator_id,plan,status,access_until)
-	      VALUES ($1,'GROWTH','ACTIVE',$2)`, operatorID, lapsedAt)
+	// Two things this fixture must not depend on, both of which made this test
+	// fail intermittently when the suite ran packages in parallel.
+	//
+	// The grace period is pinned to zero on this row rather than left NULL.
+	// NULL falls back to the platform-wide setting, which another test may
+	// change while this one runs — and grace is added to access_until, so a
+	// global change of two days moves this subscription out of the dunning
+	// queue entirely and the failure reads "langganan yang sudah lewat tidak
+	// masuk antrean", which points nowhere near the cause.
+	//
+	// The timestamp is built in Postgres and placed six hours past the
+	// boundary, not exactly on it. days_overdue is a FLOOR over the difference
+	// against Postgres NOW(); a value computed from Go's clock and landing
+	// exactly on the boundary falls to the previous stage whenever the two
+	// clocks disagree by a millisecond. The same trap already produced a flaky
+	// proration test once.
+	lastReminder := settings.ReminderDays[len(settings.ReminderDays)-1]
+	exec(`INSERT INTO subscriptions (operator_id,plan,status,access_until,grace_period_days)
+	      VALUES ($1,'GROWTH','ACTIVE', NOW() - make_interval(days => $2::int) - INTERVAL '6 hours', 0)`,
+		operatorID, lastReminder)
 
 	mine := func(steps []DunningStep) *DunningStep {
 		for i := range steps {

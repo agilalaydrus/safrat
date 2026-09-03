@@ -483,3 +483,11 @@ func (h *PlatformHandler) GetPlatformFunnel(ctx context.Context, req *connect.Re
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) GetTenantDetail(ctx context.Context, req *connect.Request[hajjv1.GetTenantDetailRequest]) (*connect.Response[hajjv1.GetTenantDetailResponse], error) {
+	result, err := h.platformService.GetTenantDetail(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

@@ -178,6 +178,77 @@ service PlatformService {
   // the two be compared, which is what separates this from the per-agency
   // screen.
   rpc GetPlatformFunnel(GetPlatformFunnelRequest) returns (GetPlatformFunnelResponse);
+
+  // GetTenantDetail assembles one travel agency's whole picture in a single
+  // call. The alternative — the page firing eight list RPCs and filtering in
+  // the browser — would pull every other tenant's subscriptions, usage and
+  // invoices down to a screen about one of them, and be slower for the
+  // trouble.
+  rpc GetTenantDetail(GetTenantDetailRequest) returns (GetTenantDetailResponse);
+}
+
+message GetTenantDetailRequest {
+  string operator_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+// Counts a support conversation actually starts from: is this tenant using the
+// product, and how much is inside it.
+message TenantCounts {
+  int32 pilgrims = 1;
+  int32 branches = 2;
+  int32 seasons = 3;
+  int32 products = 4;
+  int32 registrations = 5;
+  int32 held_orders = 6;
+  int32 kyc_pending = 7;
+  int32 kyc_verified = 8;
+  int32 staff = 9;
+}
+
+// One member of the agency's team. two_factor_enabled is here because an
+// account with platform-adjacent reach and no second factor is a finding, not
+// a detail.
+message TenantTeamMember {
+  string user_id = 1;
+  string name = 2;
+  string email = 3;
+  string role = 4;
+  bool two_factor_enabled = 5;
+  google.protobuf.Timestamp joined_at = 6;
+}
+
+message TenantDomain {
+  string hostname = 1;
+  bool is_primary = 2;
+  google.protobuf.Timestamp verified_at = 3;
+}
+
+message TenantAuditEntry {
+  google.protobuf.Timestamp at = 1;
+  // Email where the account still exists, the raw id otherwise: an audit line
+  // whose actor has been deleted still has to name somebody.
+  string actor = 2;
+  string action = 3;
+  string entity_type = 4;
+  string entity_id = 5;
+}
+
+message GetTenantDetailResponse {
+  PlatformOperator operator = 1;
+  // Limits actually in force, and the override that changed them if there is
+  // one. Absent override means the plan's own limits apply.
+  repeated UsageRow usage = 2;
+  PlatformPlanOverride override = 3;
+  bool has_override = 4;
+
+  repeated SubscriptionInvoiceRow invoices = 5;
+  TenantCounts counts = 6;
+  repeated TenantTeamMember team = 7;
+  repeated TenantDomain domains = 8;
+  repeated TenantAuditEntry audit = 9;
+  // This tenant's own storefront funnel over the last 30 days, so the screen
+  // reads subscription, usage and demand together.
+  StorefrontFunnelRow funnel = 10;
 }
 
 message GetPlatformFunnelRequest {
