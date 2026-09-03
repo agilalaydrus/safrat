@@ -361,12 +361,31 @@ Lihat §7 DESAIN. Bagian ini sebelumnya tidak dirancang di mana pun.
       **dihitung dari data**, Skor Kesiapan termasuk pemeriksaan "sudah ada
       pengumuman lain ke penerima sama dalam 24 jam", riwayat baca.
       **Tidak bisa diedit setelah terkirim** — kalau salah, kirim ralat
-- [C] **E3** Kesehatan platform (§10.2 DESAIN): antrean tertinggal,
-      **event outbox dead-letter**, webhook gagal, poller bank berhenti,
-      supplier gagal beruntun, backup terakhir, invoice macet. Setiap butir
-      menyebut **berapa tenant terdampak**, dan yang sehat tetap ditampilkan
-      hijau — layar yang hanya menunjukkan masalah tak bisa dibedakan dari layar
-      yang rusak
+- [x] **E3** Tab **Kesehatan** di `/admin`. Tujuh sinyal: event outbox yang
+      sudah menyerah, antrean event tertinggal, poller mutasi bank, kegagalan
+      supplier 24 jam, tagihan langganan macet, transaksi tertahan, dan backup.
+      Setiap butir menyebut **berapa travel terdampak**, sejak kapan, dan
+      **dari tabel mana angkanya** — supaya yang membacanya jam 2 pagi tidak
+      perlu menebak.
+
+      **Statusnya empat, bukan dua.** `OK` · `WARN` · `ALERT` ·
+      **`UNMONITORED`**. Layar dengan dua nilai terpaksa menyebut sesuatu
+      "aman" padahal tidak ada yang memeriksanya. Backup persis begitu: tidak
+      ada apa pun di database ini yang tahu cron R2 sudah jalan atau belum,
+      jadi ia ditandai *tidak dipantau*, bukan hijau. **Lampu hijau yang tidak
+      memeriksa apa pun lebih buruk daripada tidak ada lampu sama sekali.**
+
+      Poller bank membedakan "berhenti" dari "belum pernah dinyalakan" —
+      memberi tahu orang bahwa sesuatu berhenti padahal mereka belum pernah
+      menyalakannya mengirim mereka mencari kerusakan yang tidak ada.
+
+      Diverifikasi dengan merusak: backup dijadikan hijau → gagal `backup
+      dilaporkan "OK" padahal tidak ada yang memeriksanya`; hitungan tenant
+      terdampak dinolkan → gagal `tidak menyebut berapa tenant terdampak`.
+
+      Dead-letter outbox akhirnya terlihat. Komentar di `worker/outbox.go`
+      menulis event yang menyerah "tinggal untuk diperiksa ops" — selama tidak
+      ada layar yang menampilkannya, itu berarti tidak akan diperiksa.
 - [C] **E4** Audit global (§10.3 DESAIN): saringan per tenant / aktor / tindakan
       istimewa / impersonasi / pembacaan data pribadi. **Read-only tanpa
       pengecualian** — jangan tawarkan tombol yang pasti gagal

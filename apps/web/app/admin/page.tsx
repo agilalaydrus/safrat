@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { IconBuildingStore, IconCurrencyDollar, IconAlertTriangle, IconTruckDelivery, IconPackage, IconBuildingBank, IconReceipt2, IconUsers, IconId, IconAdjustments, IconPlugConnected, IconCalendarDollar, IconGauge, IconFilter, IconChartBar } from "@tabler/icons-react";
+import { IconBuildingStore, IconCurrencyDollar, IconAlertTriangle, IconTruckDelivery, IconPackage, IconBuildingBank, IconReceipt2, IconUsers, IconId, IconAdjustments, IconPlugConnected, IconCalendarDollar, IconGauge, IconFilter, IconChartBar, IconHeartbeat } from "@tabler/icons-react";
 import { PlatformOperator, PlatformProduct } from "@hajj-saas/proto-gen/hajj/v1/platform_pb";
 import { platformClient } from "@/lib/rpc";
 import CatalogueTab from "@/components/admin/CatalogueTab";
@@ -17,12 +17,13 @@ import SubscriptionsTab from "@/components/admin/SubscriptionsTab";
 import UsageTab from "@/components/admin/UsageTab";
 import FunnelTab from "@/components/admin/FunnelTab";
 import AnalyticsTab from "@/components/admin/AnalyticsTab";
+import HealthTab from "@/components/admin/HealthTab";
 import PlatformGate from "@/components/admin/PlatformGate";
 
 const rupiah = (n: bigint) => `Rp${Number(n).toLocaleString("id-ID")}`;
 
 export default function PlatformAdminPage() {
-  const [tab, setTab] = useState<"transactions" | "operators" | "catalogue" | "transfers" | "costs" | "suppliers" | "accounts" | "identity" | "quotas" | "routing" | "subscriptions" | "usage" | "funnel" | "analytics">("transactions");
+  const [tab, setTab] = useState<"transactions" | "operators" | "catalogue" | "transfers" | "costs" | "suppliers" | "accounts" | "identity" | "quotas" | "routing" | "subscriptions" | "usage" | "funnel" | "analytics" | "health">("transactions");
   const [supplierLogOrderId, setSupplierLogOrderId] = useState("");
 
   return (
@@ -36,7 +37,7 @@ export default function PlatformAdminPage() {
       <div className="gold-divider" />
 
       <div style={tabBar}>
-        {([["transactions", "Transaksi", IconReceipt2], ["operators", "Travel", IconBuildingStore], ["catalogue", "Katalog", IconPackage], ["transfers", "Transfer", IconBuildingBank], ["costs", "Harga Modal", IconCurrencyDollar], ["suppliers", "Supplier", IconTruckDelivery], ["accounts", "Akun", IconUsers], ["identity", "Identitas", IconId], ["quotas", "Paket & Kuota", IconAdjustments], ["routing", "Routing & Log", IconPlugConnected], ["subscriptions", "Langganan", IconCalendarDollar], ["usage", "Pemakaian", IconGauge], ["funnel", "Corong", IconFilter], ["analytics", "Analitik", IconChartBar]] as const).map(([id, label, Icon]) => (
+        {([["transactions", "Transaksi", IconReceipt2], ["operators", "Travel", IconBuildingStore], ["catalogue", "Katalog", IconPackage], ["transfers", "Transfer", IconBuildingBank], ["costs", "Harga Modal", IconCurrencyDollar], ["suppliers", "Supplier", IconTruckDelivery], ["accounts", "Akun", IconUsers], ["identity", "Identitas", IconId], ["quotas", "Paket & Kuota", IconAdjustments], ["routing", "Routing & Log", IconPlugConnected], ["subscriptions", "Langganan", IconCalendarDollar], ["usage", "Pemakaian", IconGauge], ["funnel", "Corong", IconFilter], ["analytics", "Analitik", IconChartBar], ["health", "Kesehatan", IconHeartbeat]] as const).map(([id, label, Icon]) => (
           <button key={id} onClick={() => setTab(id)} style={tab === id ? tabActive : tabInactive}>
             <Icon size={17} />{label}
           </button>
@@ -49,6 +50,7 @@ export default function PlatformAdminPage() {
       {tab === "usage" && <UsageTab />}
       {tab === "funnel" && <FunnelTab />}
       {tab === "analytics" && <AnalyticsTab />}
+      {tab === "health" && <HealthTab />}
       {tab === "transactions" && <TransactionsTab onOpenSupplierLog={(orderId) => {
         setSupplierLogOrderId(orderId);
         setTab("routing");

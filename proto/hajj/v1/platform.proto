@@ -212,6 +212,36 @@ service PlatformService {
   // is derived from live rows, and every limit of that is stated on the screen
   // rather than left for somebody to discover from a decision that went wrong.
   rpc GetPlatformAnalytics(GetPlatformAnalyticsRequest) returns (GetPlatformAnalyticsResponse);
+
+  // GetPlatformHealth reads only what a customer would feel. Not an
+  // infrastructure console: mixing CPU graphs in makes the list too long to
+  // read at the moment something is actually wrong.
+  rpc GetPlatformHealth(GetPlatformHealthRequest) returns (GetPlatformHealthResponse);
+}
+
+message GetPlatformHealthRequest {}
+
+message HealthSignal {
+  string key = 1;
+  string title = 2;
+  // OK | WARN | ALERT | UNMONITORED
+  //
+  // Four values, not two. A screen with only "fine" and "broken" has to call
+  // something fine when nobody is checking it, and a green light that watches
+  // nothing is worse than no light at all.
+  string status = 3;
+  string detail = 4;
+  int32 affected_tenants = 5;
+  int64 count = 6;
+  // Which table the number came from, so somebody reading this at 2am does not
+  // have to guess.
+  string source = 7;
+  google.protobuf.Timestamp oldest_seen = 8;
+}
+
+message GetPlatformHealthResponse {
+  repeated HealthSignal signals = 1;
+  google.protobuf.Timestamp checked_at = 2;
 }
 
 message GetPlatformAnalyticsRequest {

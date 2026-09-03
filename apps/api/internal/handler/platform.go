@@ -583,3 +583,11 @@ func (h *PlatformHandler) GetPlatformAnalytics(ctx context.Context, req *connect
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) GetPlatformHealth(ctx context.Context, _ *connect.Request[hajjv1.GetPlatformHealthRequest]) (*connect.Response[hajjv1.GetPlatformHealthResponse], error) {
+	result, err := h.platformService.GetPlatformHealth(ctx)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

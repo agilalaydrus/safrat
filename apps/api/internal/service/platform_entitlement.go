@@ -573,3 +573,25 @@ func (s *PlatformService) GetPlatformAnalytics(ctx context.Context, req *hajjv1.
 	}
 	return response, nil
 }
+
+func (s *PlatformService) GetPlatformHealth(ctx context.Context) (*hajjv1.GetPlatformHealthResponse, error) {
+	if _, err := s.requirePlatformAdmin(ctx); err != nil {
+		return nil, err
+	}
+	signals, err := s.platformRepository.PlatformHealth(ctx)
+	if err != nil {
+		return nil, serviceError("PlatformService.GetPlatformHealth", err)
+	}
+	response := &hajjv1.GetPlatformHealthResponse{CheckedAt: timestamppb.Now()}
+	for _, signal := range signals {
+		message := &hajjv1.HealthSignal{
+			Key: signal.Key, Title: signal.Title, Status: signal.Status, Detail: signal.Detail,
+			AffectedTenants: signal.AffectedTenants, Count: signal.Count, Source: signal.Source,
+		}
+		if signal.OldestSeen != nil {
+			message.OldestSeen = timestamppb.New(*signal.OldestSeen)
+		}
+		response.Signals = append(response.Signals, message)
+	}
+	return response, nil
+}
