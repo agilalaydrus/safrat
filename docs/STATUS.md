@@ -93,6 +93,39 @@ belum di-push                10 commit
   dan itu harus tertulis di layar.
 - Marketplace B2B, aplikasi terpisah, AI berfatwa: **ditunda/ditolak**.
 
+## FUNNEL_SALT/FUNNEL_INGEST_SECRET sudah diisi (4 September 2026)
+
+Pemilik mengisi keduanya langsung di VPS lewat SSH. Saat menerapkannya secara
+manual, ditemukan masalah kedua yang jauh lebih serius — lihat di bawah.
+
+## Jebakan yang sudah menipu kami
+
+- **`docker compose up -d` yang dijalankan tangan, tanpa `IMAGE_TAG`, memuat
+  gambar `latest` yang basi (dibangun 21 Agustus) — bukan commit yang
+  sebenarnya berjalan.** `docker-compose.prod.yml` memakai
+  `${IMAGE_TAG:-latest}`; hanya workflow **Deploy to VPS** yang menyetel
+  `IMAGE_TAG=<git sha>` dengan benar sebelum memanggil compose. Saat mengisi
+  FUNNEL_SALT secara manual dan menjalankan `docker compose up -d` begitu saja
+  untuk menerapkannya, kontainer `api` dan `worker` dibuat ulang memakai
+  gambar `latest` yang basi — dan gambar basi itu masih memerlukan
+  `DATABASE_URL` (kode lama, sebelum commit 21 Agustus 19:16 yang
+  menghapusnya), sementara `docker-compose.prod.yml` yang sekarang sengaja
+  tidak menyetelnya lagi. Hasilnya: `api` dan `worker` crash-loop dengan
+  `"DATABASE_URL is required"` — **production benar-benar turun** selama
+  proses ini, bukan cuma corong yang diam.
+
+  **Perbaikan:** `export IMAGE_TAG=<sha commit yang sedang di-checkout>`
+  sebelum `docker compose ... pull` dan `... up -d`. Setelah itu ketiga
+  kontainer (`api`, `web`, `worker`) terkonfirmasi memakai
+  `ghcr.io/.../safrat-api:<sha>` yang benar, sehat, tanpa galat.
+
+  **Aturan ke depan: jangan pernah menjalankan `docker compose up -d` di VPS
+  dengan tangan tanpa menyetel `IMAGE_TAG` lebih dulu.** Kalau hanya perlu
+  menerapkan `.env.prod` yang berubah tanpa kode baru, tetap sertakan
+  `IMAGE_TAG=<sha commit yang sudah berjalan sekarang>` supaya compose tidak
+  diam-diam jatuh ke `latest`. Lebih aman lagi: picu ulang workflow **Deploy
+  to VPS** dari GitHub Actions, karena itu selalu menyetel tag dengan benar.
+
 ## Deploy terakhir GAGAL — dan alasannya benar
 
 Commit `a6bf2ad` sudah di-push, **CI lulus, Deploy gagal**. Produksi masih
