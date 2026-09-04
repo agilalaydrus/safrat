@@ -662,7 +662,46 @@ repository, service, handler, dan UI telah terhubung utuh.
       `RequestChecksumCalculation`/`ResponseChecksumValidation` diset ke
       `WhenRequired` pada level klien S3 — sehingga memperbaiki **semua**
       fitur presigned-view sekaligus, bukan hanya Momen.
-- [ ] **T4.8** Wizard pendaftaran 4 langkah (§4.10 DESAIN)
+- [x] **T4.8** Wizard pendaftaran 4 langkah (§4.10 DESAIN) — selesai (5
+      September 2026). `/dashboard/pilgrims/baru`, tautan "Pendaftaran
+      Terpandu" di halaman Jamaah.
+
+      **Murni frontend — tidak ada RPC baru.** Empat langkah memanggil RPC
+      yang sudah ada: `CreatePilgrim`/`UpdatePilgrim` (Data Diri),
+      `ListProducts`/`ListProductRoomTiers` (Paket & Kamar, harga dihitung di
+      klien dari `price_idr` + `price_delta_idr`), `CreateManualOrder`
+      (Pembayaran), dan `PilgrimDocumentChecklist` yang sudah ada dipakai
+      ulang di Konfirmasi. Setiap langkah menulis lewat RPC-nya sendiri saat
+      "Lanjut" ditekan — bukan formulir raksasa yang dikirim sekali di akhir
+      — supaya jamaah dan pesanan sudah tercatat walau wizard ditinggal
+      sebelum langkah terakhir.
+
+      **Validasi silang nyata, bukan contoh kosong:** kalau nomor WhatsApp
+      belum diisi di Data Diri, langkah Pembayaran menolak lanjut dan
+      mengarahkan kembali — nomor itu dipakai kirim tautan Xendit dan
+      pengingat pembayaran, dan tidak ada tempat lain untuk mengisinya.
+
+      **Sengaja dipotong dari cakupan, dicatat di sini:** langkah Pembayaran
+      hanya menangani metode `CreateManualOrder` (tunai/transfer/tautan
+      Xendit — pesanan langsung lunas atau menunggu webhook). "Simulasi
+      cicilan" di rancangan **tidak** dibangun di sini — skema `Bayar
+      Penuh/DP 50/6x/12x/Bonus Tunai` (`installment_plans`) tidak berelasi
+      dengan tabel `orders` di skema database sama sekali (dibuktikan dengan
+      membaca migrasi 135 langsung); menciptakan hubungan pesanan↔cicilan
+      yang tidak ada di skema berisiko salah pada logika keuangan yang
+      justru paling mahal untuk disalahkan. Operator yang perlu cicilan
+      membuat rencana pembayaran di halaman Arus Kas setelah pesanan ini
+      dibuat — layar itu sendiri sudah utuh sejak T2.3.
+
+      Diperiksa di peramban sungguhan lewat akun fixture, seluruh empat
+      langkah dari nol: pilgrim dibuat, paket+kamar dipilih dengan pratinjau
+      harga, pesanan tercatat lunas, dan checklist dokumen tampil — tanpa
+      galat konsol. Menyingkap dua prasyarat data yang belum jelas
+      terdokumentasi: `KYC_ENCRYPTION_KEY` wajib ada bahkan untuk
+      `CreatePilgrim` biasa (bukan hanya alur KYC), dan sebuah produk baru
+      butuh baris `product_markups` (migrasi 111) sebelum bisa dijual —
+      tanpanya `CreateManualOrder` menolak dengan "markup produk belum
+      diatur", bukan galat yang jelas menyebut penyebabnya.
 - [ ] **T4.9** Laporan laba rugi + Catatan Metodologi, ekspor **streaming**
 - [ ] **T4.10** Pengaturan yang lebih dalam (§4.9 DESAIN) — 2FA wajib,
       pembatasan IP, satu perangkat per akun, matriks hak akses, matriks

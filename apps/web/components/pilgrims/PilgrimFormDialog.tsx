@@ -37,7 +37,7 @@ type Props = {
 };
 
 // The API stores ISO 3166-1 alpha-2 country codes; labels remain readable for coordinators.
-const NATIONALITIES = [
+export const NATIONALITIES = [
   ["AF", "Afghanistan"], ["DZ", "Algeria"], ["AZ", "Azerbaijan"], ["BH", "Bahrain"], ["BD", "Bangladesh"],
   ["BA", "Bosnia and Herzegovina"], ["BN", "Brunei"], ["TD", "Chad"], ["KM", "Comoros"], ["DJ", "Djibouti"],
   ["EG", "Egypt"], ["ER", "Eritrea"], ["ET", "Ethiopia"], ["GM", "Gambia"], ["GN", "Guinea"], ["ID", "Indonesia"],

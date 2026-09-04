@@ -12,7 +12,7 @@ Diperbarui: **5 September 2026** (T4.4 Layanan Tambahan)
 
 | Jalur | Rute | Berkas tugas | Posisi |
 |---|---|---|---|
-| **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **T4.7 selesai**, sisa T3.2 & Tahap 4 |
+| **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **T4.8 selesai**, sisa T3.2 & Tahap 4 |
 | **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1, B2 selesai** (B2 sudah selesai sejak `0c32e52`, 2 Sep — baris ini sempat tidak diperbarui) · berikutnya **C4**, jatah Codex |
 | **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | dirancang, **antre** · 0/33 butir |
 | **SEO & Konten** | storefront | [TUGAS-SEO-KONTEN.md](TUGAS-SEO-KONTEN.md) | dirancang, **antre** · 0/17 butir |
@@ -31,16 +31,26 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
    2026)**: Rangkaian, Rundown, dan Armada Bus melengkapi Manifes & Roomlist
    yang sudah ada duluan. CRM Leads dan tier kamar juga sudah selesai.
    **Tahap 4: T4.1 Inventaris & PO, T4.2 Manasik (4 September 2026), T4.3
-   Agenda, T4.4 Layanan tambahan, dan T4.7 Momen (5 September 2026) sudah
-   selesai** di `/dashboard/inventaris`, `/dashboard/manasik`,
-   `/dashboard/agenda`, `/dashboard/layanan-tambahan`, dan
-   `/dashboard/momen` (+ `/track/[code]` untuk keluarga) — cakupan lengkap
-   ada di TUGAS-DASHBOARD-TRAVEL.md. Dipotong dan dicatat di sana: dua
-   grafik Inventaris (Radar Kesiapan Keberangkatan, Performa Vendor),
-   pembayaran Layanan Tambahan yang masih penanda lunas/belum bukan lewat
-   mesin order/komisi, dan Momen yang foto saja (video belum). Sisa Tahap 4:
-   T4.8 Wizard pendaftaran, T4.9 Laporan laba rugi, T4.10 Pengaturan lebih
-   dalam, T4.11 Support.
+   Agenda, T4.4 Layanan tambahan, T4.7 Momen, dan T4.8 Wizard pendaftaran (5
+   September 2026) sudah selesai** di `/dashboard/inventaris`,
+   `/dashboard/manasik`, `/dashboard/agenda`, `/dashboard/layanan-tambahan`,
+   `/dashboard/momen` (+ `/track/[code]` untuk keluarga), dan
+   `/dashboard/pilgrims/baru` — cakupan lengkap ada di
+   TUGAS-DASHBOARD-TRAVEL.md. Dipotong dan dicatat di sana: dua grafik
+   Inventaris (Radar Kesiapan Keberangkatan, Performa Vendor), pembayaran
+   Layanan Tambahan yang masih penanda lunas/belum bukan lewat mesin
+   order/komisi, Momen yang foto saja (video belum), dan wizard yang tidak
+   membangun "simulasi cicilan" karena `installment_plans` tidak berelasi
+   dengan `orders` di skema sama sekali. Sisa Tahap 4: T4.9 Laporan laba
+   rugi, T4.10 Pengaturan lebih dalam, T4.11 Support.
+
+   **Prasyarat data lokal yang belum jelas sebelumnya, ditemukan saat
+   menguji wizard di peramban (5 September 2026):** `KYC_ENCRYPTION_KEY`
+   ternyata wajib bahkan untuk `CreatePilgrim` biasa, bukan hanya alur KYC —
+   kini diisi di `.env` lokal. Produk baru juga butuh baris
+   `product_markups` (migrasi 111) sebelum bisa dijual lewat
+   `CreateManualOrder`, kalau tidak akan gagal dengan pesan "markup produk
+   belum diatur" yang tidak menyebut migrasinya.
 
    **Bug lama ditemukan dan diperbaiki saat mengerjakan Momen (5 September
    2026):** setiap tautan lihat-foto yang di-presign (termasuk bukti serah
