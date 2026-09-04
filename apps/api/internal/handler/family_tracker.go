@@ -27,3 +27,14 @@ func (h *FamilyTrackerHandler) GetFamilyStatus(ctx context.Context, req *connect
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *FamilyTrackerHandler) ListFamilyMoments(ctx context.Context, req *connect.Request[hajjv1.ListFamilyMomentsRequest]) (*connect.Response[hajjv1.ListFamilyMomentsResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.familyTrackerService.ListFamilyMoments(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// MomentService is the staff-facing side of Momen (§2.14 RENCANA): a photo
+// and a short note sent to a pilgrim's family. Cheap to create, high
+// emotional return. The family-facing read side lives in
+// FamilyTrackerService.ListFamilyMoments — same rows, reached without a
+// session, authenticated by app_access_code only.
+//
+// Photos only, for now — video is out of scope (see the task file for why).
+service MomentService {
+  // CreateMomentUpload hands back a one-shot PUT link for the photo.
+  rpc CreateMomentUpload(CreateMomentUploadRequest) returns (CreateMomentUploadResponse);
+  // CreateMoment verifies the uploaded object exists before writing the row —
+  // a key recorded for nothing would read as a moment that never happened.
+  rpc CreateMoment(CreateMomentRequest) returns (Moment);
+  rpc DeleteMoment(DeleteMomentRequest) returns (google.protobuf.Empty);
+  // ListMoments is every moment in a season, for the dashboard review list.
+  // photo_view_url is resolved per row via a short-lived signed link, never
+  // stored or cached.
+  rpc ListMoments(ListMomentsRequest) returns (ListMomentsResponse);
+}
+
+message CreateMomentUploadRequest { int64 size_bytes = 1 [(buf.validate.field).int64.gt = 0]; }
+message CreateMomentUploadResponse {
+  string upload_url = 1;
+  string object_key = 2;
+  string content_type = 3;
+}
+
+message CreateMomentRequest {
+  string season_id = 1 [(buf.validate.field).string.min_len = 1];
+  // Exactly one of these two — the audience for this moment.
+  string pilgrim_id = 2;
+  string group_id = 3;
+  string object_key = 4 [(buf.validate.field).string.min_len = 1];
+  string caption = 5;
+}
+
+message DeleteMomentRequest { string moment_id = 1 [(buf.validate.field).string.min_len = 1]; }
+
+message Moment {
+  string id = 1;
+  string season_id = 2;
+  string pilgrim_id = 3;
+  string pilgrim_name = 4;
+  string group_id = 5;
+  string group_name = 6;
+  string photo_view_url = 7;
+  string caption = 8;
+  string created_by = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message ListMomentsRequest { string season_id = 1 [(buf.validate.field).string.min_len = 1]; }
+message ListMomentsResponse { repeated Moment moments = 1; }

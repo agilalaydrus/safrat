@@ -8,6 +8,7 @@ import (
 	"github.com/hajj-saas/api/internal/domain"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/repository"
+	"github.com/hajj-saas/api/internal/storage"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -15,10 +16,12 @@ type FamilyTrackerService struct {
 	repository        *repository.FamilyTrackerRepository
 	journeyRepository *repository.JourneyRepository
 	ritualRepository  *repository.RitualRepository
+	momentRepository  *repository.MomentRepository
+	objectStorage     *storage.Store
 }
 
-func NewFamilyTrackerService(repository *repository.FamilyTrackerRepository, journeys *repository.JourneyRepository, rituals *repository.RitualRepository) *FamilyTrackerService {
-	return &FamilyTrackerService{repository: repository, journeyRepository: journeys, ritualRepository: rituals}
+func NewFamilyTrackerService(repository *repository.FamilyTrackerRepository, journeys *repository.JourneyRepository, rituals *repository.RitualRepository, moments *repository.MomentRepository, objectStorage *storage.Store) *FamilyTrackerService {
+	return &FamilyTrackerService{repository: repository, journeyRepository: journeys, ritualRepository: rituals, momentRepository: moments, objectStorage: objectStorage}
 }
 
 // journeyStatusFamilyLabel is deliberately coarser than the raw enum — a
@@ -59,6 +62,35 @@ func (s *FamilyTrackerService) GetFamilyStatus(ctx context.Context, req *hajjv1.
 		}
 	}
 	return msg, nil
+}
+
+// ListFamilyMoments is public, same authentication as GetFamilyStatus:
+// app_access_code only. photo_view_url is resolved fresh per request rather
+// than stored — a link that outlived this response would be a private
+// photo reachable by anyone who kept it.
+func (s *FamilyTrackerService) ListFamilyMoments(ctx context.Context, req *hajjv1.ListFamilyMomentsRequest) (*hajjv1.ListFamilyMomentsResponse, error) {
+	if req == nil || strings.TrimSpace(req.AppAccessCode) == "" || len(req.AppAccessCode) > 64 {
+		return nil, serviceError("FamilyTrackerService.ListFamilyMoments", apperror.ErrValidation)
+	}
+	_, pilgrimID, operatorID, err := s.repository.Get(ctx, req.AppAccessCode)
+	if err != nil {
+		return nil, serviceError("FamilyTrackerService.ListFamilyMoments", apperror.ErrNotFound)
+	}
+	moments, err := s.momentRepository.ListForFamily(ctx, pilgrimID)
+	if err != nil {
+		return nil, serviceError("FamilyTrackerService.ListFamilyMoments", err)
+	}
+	response := &hajjv1.ListFamilyMomentsResponse{}
+	for _, m := range moments {
+		item := &hajjv1.FamilyMoment{Caption: m.Caption, CreatedAt: timestamppb.New(m.CreatedAt)}
+		if s.objectStorage != nil {
+			if url, err := s.objectStorage.PresignMomentView(ctx, operatorID, m.PhotoKey); err == nil {
+				item.PhotoViewUrl = url
+			}
+		}
+		response.Moments = append(response.Moments, item)
+	}
+	return response, nil
 }
 
 func familyStatusMessage(value *domain.FamilyStatus) *hajjv1.FamilyStatus {

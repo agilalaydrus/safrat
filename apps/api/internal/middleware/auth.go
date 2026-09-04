@@ -64,7 +64,8 @@ var publicProcedures = map[string]bool{
 	// FamilyTrackerService — authenticated by app_access_code only, no
 	// session of any kind. See family_tracker.proto for the exposed-field
 	// allowlist that keeps this from leaking PII.
-	"/hajj.v1.FamilyTrackerService/GetFamilyStatus": true,
+	"/hajj.v1.FamilyTrackerService/GetFamilyStatus":   true,
+	"/hajj.v1.FamilyTrackerService/ListFamilyMoments": true,
 	// ChecklistService pilgrim-app RPCs — app_access_code authenticated,
 	// same pattern as the rest of PilgrimAppService.
 	"/hajj.v1.ChecklistService/GetMyChecklist":          true,

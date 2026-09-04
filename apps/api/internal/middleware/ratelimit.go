@@ -59,6 +59,7 @@ var rateLimitedProcedures = map[string]rate.Limit{
 	// itself (app_access_code) is guessable-by-brute-force in principle;
 	// a legitimate family member checks at most a few times per hour.
 	"/hajj.v1.FamilyTrackerService/GetFamilyStatus":     rate.Every(time.Minute),
+	"/hajj.v1.FamilyTrackerService/ListFamilyMoments":   rate.Every(time.Minute),
 	"/hajj.v1.ChecklistService/GetMyChecklist":          rate.Every(time.Minute / 4),
 	"/hajj.v1.ChecklistService/CompleteMyChecklistItem": rate.Every(time.Minute / 4),
 	// Once lost, a pilgrim doesn't spam this — but allow a few retries if

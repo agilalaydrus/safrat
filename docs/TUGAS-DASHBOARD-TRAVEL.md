@@ -621,9 +621,47 @@ repository, service, handler, dan UI telah terhubung utuh.
       tier ditambahkan di `CreateOrderDialog.tsx` (dashboard) dan
       `SellPackageDialog.tsx` (agen) — muncul otomatis kalau produk punya
       tier aktif.
-- [ ] **T4.7** Momen — **foto & kabar boleh, GPS mentah tidak.**
-      `FamilyStatus` kita sengaja menolak GPS, nomor kamar, dan paspor.
-      Pertahankan; jadikan bahan jualan.
+- [x] **T4.7** Momen — selesai (5 September 2026). `/dashboard/momen` (staf),
+      digabung ke `/track/[code]` (keluarga, publik). Migrasi 160
+      (`pilgrim_moments`).
+
+      **Foto & kabar boleh, GPS mentah tidak** — dipertahankan sebagaimana
+      mestinya. Tabel `pilgrim_moments` tidak punya kolom lokasi sama sekali,
+      jadi tidak ada yang bisa bocor lewat sini walau ada bug di tempat lain.
+
+      **Menyasar satu jamaah ATAU satu grup, tidak pernah dua-duanya** —
+      `CHECK ((pilgrim_id IS NOT NULL) <> (group_id IS NOT NULL))` di database,
+      supaya petugas lapangan yang memotret satu bus tidak perlu mengunggah
+      empat puluh kali. Sisi baca keluarga (`ListFamilyMoments`, publik,
+      autentikasi `app_access_code` saja seperti `GetFamilyStatus`) mencocokkan
+      `pilgrim_id` **atau** `group_id` milik jamaah itu. Diuji dan dibuktikan
+      dengan merusak: kueri dilonggarkan menjadi "tampilkan semua momen
+      bergrup" tanpa mencocokkan grup jamaah yang sebenarnya — uji gagal
+      persis di titik itu (jamaah luar grup ikut melihat momen grup orang
+      lain).
+
+      Foto diunggah langsung ke S3 lewat presigned URL (pola yang sama dengan
+      bukti serah terima pengiriman) — tidak pernah lewat server ini, dan
+      kunci objek dipastikan benar-benar ada (`HEAD`) sebelum baris database
+      ditulis. **Video sengaja dipotong dari cakupan** — foto saja untuk saat
+      ini; video butuh validasi format/ukuran dan kendali pemutaran yang
+      belum dibangun.
+
+      **Ditemukan saat verifikasi peramban sungguhan, bukan dikira beres
+      karena `go build` lulus:** tautan lihat foto yang di-presign gagal
+      dengan `AccessDenied: headers present in the request which were not
+      signed` di MinIO — aws-sdk-go-v2 sejak ~v1.30 menyalakan validasi
+      checksum secara default dan menambahkan header `x-amz-checksum-mode`
+      ke setiap presigned GET, sementara klien biasa (tag `<img>`, `fetch`
+      polos) tidak pernah mengirim header itu kembali. Ini **bug lama yang
+      sudah ada**, bukan sesuatu yang baru diperkenalkan momen ini — bukti
+      serah terima pengiriman (`PresignHandoverView`, dipakai sejak
+      Kelebihan Bayar/Pindah Paket) memakai pola presign yang persis sama dan
+      pasti kena bug yang sama, hanya belum pernah diuji lewat peramban
+      sungguhan sampai sekarang. Diperbaiki sekali di `storage.New` —
+      `RequestChecksumCalculation`/`ResponseChecksumValidation` diset ke
+      `WhenRequired` pada level klien S3 — sehingga memperbaiki **semua**
+      fitur presigned-view sekaligus, bukan hanya Momen.
 - [ ] **T4.8** Wizard pendaftaran 4 langkah (§4.10 DESAIN)
 - [ ] **T4.9** Laporan laba rugi + Catatan Metodologi, ekspor **streaming**
 - [ ] **T4.10** Pengaturan yang lebih dalam (§4.9 DESAIN) — 2FA wajib,

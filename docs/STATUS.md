@@ -12,7 +12,7 @@ Diperbarui: **5 September 2026** (T4.4 Layanan Tambahan)
 
 | Jalur | Rute | Berkas tugas | Posisi |
 |---|---|---|---|
-| **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **T4.4 selesai**, sisa T3.2 & Tahap 4 |
+| **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **T4.7 selesai**, sisa T3.2 & Tahap 4 |
 | **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1, B2 selesai** (B2 sudah selesai sejak `0c32e52`, 2 Sep — baris ini sempat tidak diperbarui) · berikutnya **C4**, jatah Codex |
 | **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | dirancang, **antre** · 0/33 butir |
 | **SEO & Konten** | storefront | [TUGAS-SEO-KONTEN.md](TUGAS-SEO-KONTEN.md) | dirancang, **antre** · 0/17 butir |
@@ -31,14 +31,28 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
    2026)**: Rangkaian, Rundown, dan Armada Bus melengkapi Manifes & Roomlist
    yang sudah ada duluan. CRM Leads dan tier kamar juga sudah selesai.
    **Tahap 4: T4.1 Inventaris & PO, T4.2 Manasik (4 September 2026), T4.3
-   Agenda, dan T4.4 Layanan tambahan (5 September 2026) sudah selesai** di
-   `/dashboard/inventaris`, `/dashboard/manasik`, `/dashboard/agenda`, dan
-   `/dashboard/layanan-tambahan` — cakupan lengkap ada di
-   TUGAS-DASHBOARD-TRAVEL.md. Dipotong dan dicatat di sana: dua grafik
-   Inventaris (Radar Kesiapan Keberangkatan, Performa Vendor), dan
-   pembayaran Layanan Tambahan yang masih penanda lunas/belum, bukan lewat
-   mesin order/komisi. Sisa Tahap 4: T4.7 Momen, T4.8 Wizard pendaftaran,
-   T4.9 Laporan laba rugi, T4.10 Pengaturan lebih dalam, T4.11 Support.
+   Agenda, T4.4 Layanan tambahan, dan T4.7 Momen (5 September 2026) sudah
+   selesai** di `/dashboard/inventaris`, `/dashboard/manasik`,
+   `/dashboard/agenda`, `/dashboard/layanan-tambahan`, dan
+   `/dashboard/momen` (+ `/track/[code]` untuk keluarga) — cakupan lengkap
+   ada di TUGAS-DASHBOARD-TRAVEL.md. Dipotong dan dicatat di sana: dua
+   grafik Inventaris (Radar Kesiapan Keberangkatan, Performa Vendor),
+   pembayaran Layanan Tambahan yang masih penanda lunas/belum bukan lewat
+   mesin order/komisi, dan Momen yang foto saja (video belum). Sisa Tahap 4:
+   T4.8 Wizard pendaftaran, T4.9 Laporan laba rugi, T4.10 Pengaturan lebih
+   dalam, T4.11 Support.
+
+   **Bug lama ditemukan dan diperbaiki saat mengerjakan Momen (5 September
+   2026):** setiap tautan lihat-foto yang di-presign (termasuk bukti serah
+   terima pengiriman yang sudah lama ada) gagal dimuat di peramban sungguhan
+   melawan MinIO — `AccessDenied: headers present in the request which were
+   not signed`. aws-sdk-go-v2 menyalakan validasi checksum secara default
+   sejak ~v1.30, menambahkan header yang tidak pernah dikirim balik oleh tag
+   `<img>` atau `fetch` biasa. Diperbaiki di `storage.New`
+   (`RequestChecksumCalculation`/`ResponseChecksumValidation` → `WhenRequired`),
+   memperbaiki semua fitur presigned-view sekaligus. Baru ketahuan sekarang
+   karena belum ada yang menguji jalur ini lewat peramban sungguhan
+   melawan MinIO sampai Momen memaksanya.
 3. **SEO & Konten** — `sitemap.xml` dan `robots.txt` sudah ada dan sadar-host.
    Sisanya S3: Search Console, menunggu proyek Google Cloud milik pemilik.
 4. **Corong pengunjung** — K1–K6 selesai. Layar travel di `/dashboard/reports`

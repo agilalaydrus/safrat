@@ -12,7 +12,25 @@ service FamilyTrackerService {
   // and no pilgrim session. Rate-limited tightly (see ratelimit.go) to
   // resist code enumeration.
   rpc GetFamilyStatus(GetFamilyStatusRequest) returns (FamilyStatus);
+
+  // ListFamilyMoments is the read side of MomentService — same rows
+  // (pilgrim_moments), reached without a session. Momen and kabar are fine
+  // to share with family; this never carries GPS, a room number or a
+  // passport number, same as GetFamilyStatus.
+  rpc ListFamilyMoments(ListFamilyMomentsRequest) returns (ListFamilyMomentsResponse);
 }
+
+message ListFamilyMomentsRequest {
+  string app_access_code = 1 [(buf.validate.field).string = {min_len: 1, max_len: 64}];
+}
+
+message FamilyMoment {
+  string photo_view_url = 1;
+  string caption = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+message ListFamilyMomentsResponse { repeated FamilyMoment moments = 1; }
 
 message GetFamilyStatusRequest {
   string app_access_code = 1 [(buf.validate.field).string = {min_len: 1, max_len: 64}];

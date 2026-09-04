@@ -102,6 +102,16 @@ func New(ctx context.Context, config Config) (*Store, error) {
 	client := s3.NewFromConfig(sdkConfig, func(options *s3.Options) {
 		options.BaseEndpoint = aws.String(strings.TrimRight(config.Endpoint, "/"))
 		options.UsePathStyle = config.ForcePathStyle
+		// aws-sdk-go-v2 defaults to computing/validating checksums on every
+		// request since ~v1.30, adding an x-amz-checksum-mode header to
+		// presigned GETs. A plain client (a browser <img> tag, a bare fetch)
+		// never sends that header back, so MinIO — and any non-AWS
+		// S3-compatible store that enforces SignedHeaders strictly — rejects
+		// the request with "headers present in the request which were not
+		// signed" even though the signature itself is fine. WhenRequired
+		// restores the pre-v1.30 behaviour: only checksum when a caller asks.
+		options.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
+		options.ResponseChecksumValidation = aws.ResponseChecksumValidationWhenRequired
 	})
 	return &Store{
 		client:        client,
@@ -377,6 +387,121 @@ func ValidHandoverKey(operatorID, orderID, objectKey string) error {
 	prefix := path.Join("handover", operatorID, orderID) + "/"
 	if !strings.HasPrefix(objectKey, prefix) || path.Clean(objectKey) != objectKey {
 		return fmt.Errorf("handover key is outside this order")
+	}
+	return nil
+}
+
+// A moment photo is stored privately, same reasoning as a handover proof: it
+// is shown only to the pilgrim's own family (via a presigned link resolved
+// per request, see PresignMomentView), never given a public URL. Video is
+// deliberately out of scope here — photos only, for now; see the task file
+// for why.
+const (
+	MomentContentType   = "image/jpeg"
+	MaxMomentPhotoBytes = 8 << 20
+	// Longer than a handover proof's five minutes: a family member opens this
+	// from a chat link or a saved bookmark, not the instant it's generated.
+	momentViewLifetime = 15 * time.Minute
+)
+
+// PresignMomentUpload returns a one-shot PUT for a moment photo. The key is
+// derived from the operator rather than supplied, so a caller cannot write
+// into another tenant's prefix.
+func (s *Store) PresignMomentUpload(ctx context.Context, operatorID string, sizeBytes int64) (PresignedUpload, error) {
+	if s == nil {
+		return PresignedUpload{}, ErrNotConfigured
+	}
+	if sizeBytes <= 0 || sizeBytes > MaxMomentPhotoBytes {
+		return PresignedUpload{}, fmt.Errorf("invalid object size")
+	}
+	if _, err := uuid.Parse(operatorID); err != nil {
+		return PresignedUpload{}, fmt.Errorf("invalid operator ID")
+	}
+	key := path.Join("moments", operatorID, uuid.NewString()+".jpg")
+	request, err := s.presigner.PresignPutObject(ctx, &s3.PutObjectInput{
+		Bucket:        aws.String(s.bucket),
+		Key:           aws.String(key),
+		ContentType:   aws.String(MomentContentType),
+		ContentLength: aws.Int64(sizeBytes),
+	}, func(options *s3.PresignOptions) {
+		options.Expires = presignLifetime
+	})
+	if err != nil {
+		return PresignedUpload{}, fmt.Errorf("presign moment upload: %w", err)
+	}
+	return PresignedUpload{
+		UploadURL: request.URL, ObjectKey: key,
+		ContentType: MomentContentType, ExpiresAt: time.Now().Add(presignLifetime),
+	}, nil
+}
+
+// ConfirmMomentUpload checks that something real landed before the key is
+// recorded — a stored key for an object that does not exist would read as a
+// moment that was never actually captured.
+func (s *Store) ConfirmMomentUpload(ctx context.Context, operatorID, objectKey string) error {
+	if s == nil {
+		return ErrNotConfigured
+	}
+	if err := ValidMomentKey(operatorID, objectKey); err != nil {
+		return err
+	}
+	head, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(s.bucket), Key: aws.String(objectKey),
+	})
+	if err != nil {
+		return fmt.Errorf("moment object not found")
+	}
+	if head.ContentLength == nil || *head.ContentLength <= 0 || *head.ContentLength > MaxMomentPhotoBytes {
+		s.deleteInvalid(ctx, objectKey)
+		return fmt.Errorf("moment object has an unusable size")
+	}
+	return nil
+}
+
+// PresignMomentView returns a short-lived read link for a stored moment photo.
+func (s *Store) PresignMomentView(ctx context.Context, operatorID, objectKey string) (string, error) {
+	if s == nil {
+		return "", ErrNotConfigured
+	}
+	if err := ValidMomentKey(operatorID, objectKey); err != nil {
+		return "", err
+	}
+	request, err := s.presigner.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.bucket), Key: aws.String(objectKey),
+	}, func(options *s3.PresignOptions) {
+		options.Expires = momentViewLifetime
+	})
+	if err != nil {
+		return "", fmt.Errorf("presign moment view: %w", err)
+	}
+	return request.URL, nil
+}
+
+// ValidMomentKey is the tenant boundary for these objects, expressed once —
+// a key must sit under this operator's own prefix.
+func ValidMomentKey(operatorID, objectKey string) error {
+	if _, err := uuid.Parse(operatorID); err != nil {
+		return fmt.Errorf("invalid operator ID")
+	}
+	prefix := path.Join("moments", operatorID) + "/"
+	if !strings.HasPrefix(objectKey, prefix) || path.Clean(objectKey) != objectKey {
+		return fmt.Errorf("moment key is outside this operator")
+	}
+	return nil
+}
+
+// DeleteMomentObject removes a moment photo — called when the database row
+// is deleted, so a removed moment does not leave a still-reachable private
+// photo sitting in the bucket forever.
+func (s *Store) DeleteMomentObject(ctx context.Context, operatorID, objectKey string) error {
+	if s == nil {
+		return ErrNotConfigured
+	}
+	if err := ValidMomentKey(operatorID, objectKey); err != nil {
+		return err
+	}
+	if _, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: aws.String(s.bucket), Key: aws.String(objectKey)}); err != nil {
+		return fmt.Errorf("delete moment object: %w", err)
 	}
 	return nil
 }

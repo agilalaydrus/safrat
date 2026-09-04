@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { IconAlertTriangle } from "@tabler/icons-react";
-import { FamilyStatus } from "@hajj-saas/proto-gen/hajj/v1/family_tracker_pb";
+import { FamilyMoment, FamilyStatus } from "@hajj-saas/proto-gen/hajj/v1/family_tracker_pb";
 import { familyTrackerClient } from "@/lib/rpc";
 
 const PAY_LABEL: Record<string, string> = { PAID: "Lunas", DP: "DP", UNPAID: "Belum Bayar" };
@@ -10,11 +10,13 @@ const PAY_COLOR: Record<string, string> = { PAID: "var(--color-emerald-800)", DP
 
 export default function FamilyTrackerPage({ code }: { code: string }) {
   const [status, setStatus] = useState<FamilyStatus>();
+  const [moments, setMoments] = useState<FamilyMoment[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     familyTrackerClient.getFamilyStatus({ appAccessCode: code }).then(setStatus).catch(() => setNotFound(true)).finally(() => setLoading(false));
+    familyTrackerClient.listFamilyMoments({ appAccessCode: code }).then((r) => setMoments(r.moments)).catch(() => {});
   }, [code]);
 
   if (loading) return <Centered><p style={{ color: "var(--color-warm-400)" }}>Memuat status...</p></Centered>;
@@ -64,6 +66,25 @@ export default function FamilyTrackerPage({ code }: { code: string }) {
           <p style={{ fontSize: 11, color: "var(--color-warm-400)", margin: 0 }}>Halaman ini hanya menampilkan informasi ringkas untuk ketenangan keluarga.</p>
         </div>
       </div>
+
+      {moments.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: "var(--color-warm-700)", margin: "0 0 10px" }}>Momen Terbaru</p>
+          <div style={{ display: "grid", gap: 14 }}>
+            {moments.map((m, i) => (
+              <div key={i} style={momentCard}>
+                {m.photoViewUrl && <img src={m.photoViewUrl} alt={m.caption || "Momen"} style={momentImg} />}
+                {(m.caption || m.createdAt) && (
+                  <div style={{ padding: "10px 14px" }}>
+                    {m.caption && <p style={{ margin: 0, fontSize: 13, color: "var(--color-warm-800)" }}>{m.caption}</p>}
+                    {m.createdAt && <p style={{ margin: "4px 0 0", fontSize: 11, color: "var(--color-warm-400)" }}>{m.createdAt.toDate().toLocaleString("id-ID")}</p>}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   </main>;
 }
@@ -81,3 +102,5 @@ const payBadge: React.CSSProperties = { color: "white", fontWeight: 700, fontSiz
 const cardBody: React.CSSProperties = { padding: "20px 24px", display: "grid", gap: 16 };
 const dataRow: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--color-cream-300)", paddingBottom: 12 };
 const cardFoot: React.CSSProperties = { padding: "12px 24px", background: "var(--color-cream-100)", borderTop: "1px solid var(--color-cream-300)" };
+const momentCard: React.CSSProperties = { background: "#fff", border: "1px solid var(--color-cream-400)", borderRadius: 14, overflow: "hidden" };
+const momentImg: React.CSSProperties = { display: "block", width: "100%", maxHeight: 420, objectFit: "cover" };
