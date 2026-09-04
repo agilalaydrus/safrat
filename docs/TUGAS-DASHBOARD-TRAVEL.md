@@ -516,7 +516,29 @@ repository, service, handler, dan UI telah terhubung utuh.
       Berbeda sengaja dari `product_itinerary_days` (materi jualan sebelum
       pembelian) dan Rundown kloter (jadwal operasional kloter yang sudah
       berangkat) — Manasik adalah pelatihan sebelum keberangkatan.
-- [ ] **T4.3** Agenda (kalender kegiatan gabungan)
+- [x] **T4.3** Agenda (kalender kegiatan gabungan) — selesai (5 September
+      2026). `/dashboard/agenda`, migrasi 158 (`agenda_events`, hanya untuk
+      acara internal).
+
+      Manasik dan keberangkatan/kepulangan kloter **tidak disalin** ke
+      tabel baru — `ListAgenda` membacanya langsung dari `manasik_sessions`
+      dan `kloter_itinerary_segments` (posisi pertama/terakhir yang
+      `TRANSPORT` pada spine T3.3), supaya kedua tampilan tidak bisa
+      terpisah. Kloter dengan hanya satu segmen TRANSPORT (rangkaian belum
+      lengkap) sengaja dilewati lewat `HAVING MIN(position) <> MAX(position)`
+      — dibuktikan dengan menghapus klausanya: satu-satunya segmen
+      terhitung dua kali sebagai keberangkatan sekaligus kepulangan.
+
+      **Pusat vs cabang** hanya berlaku untuk acara internal — manasik dan
+      kloter bukan milik cabang manapun (satu operator, satu kloter),
+      jadi saringan cabang tidak pernah menyembunyikannya. Diuji dan
+      dibuktikan dengan merusak: melonggarkan saringan cabang di query
+      (`OR e.branch_id IS NULL`) membuat acara pusat bocor ke tampilan
+      cabang — uji gagal persis di titik itu.
+
+      Diperiksa di peramban sungguhan lewat akun fixture: linimasa
+      tergabung dan terurut lintas tiga sumber, buat/ubah/hapus acara
+      internal lewat drawer, tanpa galat konsol.
 - [ ] **T4.4** Layanan tambahan per jamaah
 - [x] **T4.5** Kelebihan bayar — panel **Kelebihan Bayar** di Profil Jamaah,
       dibangun bersama T4.6 (satu tabel `pilgrim_credits`, karena kelebihan

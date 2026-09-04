@@ -120,7 +120,7 @@ Menutup mesin tanpa pemicu. RPC-nya sudah ada, teruji, tidak dipanggil siapa pun
       pembayaran melewatinya (`db9fa97`)
 - [x] Tab **Langganan** di `/admin` (`4a8f514`)
 
-## B2 — Meter pemakaian 🔴
+## B2 — Meter pemakaian ✅
 
 - [x] Tabel `usage_counters` (`0c32e52`)
 - [x] Worker harian, satu transaksi ber-`FOR SHARE` atas daftar operator supaya

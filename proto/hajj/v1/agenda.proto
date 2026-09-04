@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// AgendaService is the combined activity calendar (§2.10 RENCANA): manasik,
+// kloter departures/returns, and internal events read together on one
+// timeline. Distinct from StaffScheduleService's `/schedule` (staff task
+// assignments) and `/my-schedule` — this is jamaah-facing operational
+// activity, not who is rostered to work.
+//
+// Only internal events are owned by this service. Manasik sessions and
+// kloter movements are read live from ManasikService's and KloterService's
+// own tables, never copied, so the two views cannot drift apart.
+service AgendaService {
+  rpc CreateAgendaEvent(CreateAgendaEventRequest) returns (AgendaEvent);
+  rpc UpdateAgendaEvent(UpdateAgendaEventRequest) returns (AgendaEvent);
+  rpc DeleteAgendaEvent(DeleteAgendaEventRequest) returns (google.protobuf.Empty);
+
+  // ListAgenda merges internal events with manasik sessions and kloter
+  // departures/returns for one season. branch_id narrows internal events
+  // only — manasik and kloter activity is never branch-owned, so it always
+  // shows regardless of the branch filter.
+  rpc ListAgenda(ListAgendaRequest) returns (ListAgendaResponse);
+}
+
+message AgendaEvent {
+  string id = 1;
+  string branch_id = 2;
+  string branch_name = 3;
+  string season_id = 4;
+  string title = 5;
+  string location = 6;
+  google.protobuf.Timestamp starts_at = 7;
+  google.protobuf.Timestamp ends_at = 8;
+  string notes = 9;
+}
+
+message CreateAgendaEventRequest {
+  string branch_id = 1;
+  string season_id = 2;
+  string title = 3 [(buf.validate.field).string.min_len = 1];
+  string location = 4;
+  google.protobuf.Timestamp starts_at = 5 [(buf.validate.field).required = true];
+  google.protobuf.Timestamp ends_at = 6;
+  string notes = 7;
+}
+
+message UpdateAgendaEventRequest {
+  string event_id = 1 [(buf.validate.field).string.min_len = 1];
+  string branch_id = 2;
+  string season_id = 3;
+  string title = 4 [(buf.validate.field).string.min_len = 1];
+  string location = 5;
+  google.protobuf.Timestamp starts_at = 6 [(buf.validate.field).required = true];
+  google.protobuf.Timestamp ends_at = 7;
+  string notes = 8;
+}
+
+message DeleteAgendaEventRequest { string event_id = 1 [(buf.validate.field).string.min_len = 1]; }
+
+message ListAgendaRequest {
+  string season_id = 1 [(buf.validate.field).string.min_len = 1];
+  string branch_id = 2;
+}
+
+message AgendaItem {
+  string id = 1;
+  // INTERNAL | MANASIK | DEPARTURE | RETURN
+  string kind = 2;
+  string title = 3;
+  string location = 4;
+  google.protobuf.Timestamp starts_at = 5;
+  google.protobuf.Timestamp ends_at = 6;
+  string kloter_id = 7;
+  string kloter_code = 8;
+  string branch_id = 9;
+  string branch_name = 10;
+  string notes = 11;
+}
+
+message ListAgendaResponse { repeated AgendaItem items = 1; }

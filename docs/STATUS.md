@@ -4,7 +4,7 @@ Satu halaman, selalu diperbarui. **Titik masuk pertama untuk agen mana pun** —
 Claude, Codex, atau siapa pun berikutnya. Kalau hanya sempat membaca satu
 berkas, baca ini.
 
-Diperbarui: **4 September 2026**
+Diperbarui: **5 September 2026**
 
 ---
 
@@ -12,8 +12,8 @@ Diperbarui: **4 September 2026**
 
 | Jalur | Rute | Berkas tugas | Posisi |
 |---|---|---|---|
-| **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **T3.3 selesai**, sisa T3.2 & Tahap 4 |
-| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1 selesai** · 21/68 butir · berikutnya B2 |
+| **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **T4.3 selesai**, sisa T3.2 & Tahap 4 |
+| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1, B2 selesai** (B2 sudah selesai sejak `0c32e52`, 2 Sep — baris ini sempat tidak diperbarui) · berikutnya **C4**, jatah Codex |
 | **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | dirancang, **antre** · 0/33 butir |
 | **SEO & Konten** | storefront | [TUGAS-SEO-KONTEN.md](TUGAS-SEO-KONTEN.md) | dirancang, **antre** · 0/17 butir |
 
@@ -22,24 +22,24 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
 
 ## Yang sedang menunggu, berurutan
 
-1. **B2** Meter pemakaian — batas ditegakkan tapi tidak ada yang tahu siapa
-   mendekatinya.
-2. **C4 Rotasi kunci & ekspor auditor** — rotasi kunci API dengan tumpang tindih
-   24 jam, dan ekspor auditor (CSV + manifes hash).
-3. **Tahap 3 Dashboard Travel** — sisa **T3.2** gateway WhatsApp (butuh
+1. **C4 Rotasi kunci & ekspor auditor** — jatah Codex (implementasi Panel
+   SaaS dikerjakan Codex; Claude hanya menulis spesifikasi dan verifikasi).
+   Rotasi kunci API dengan tumpang tindih 24 jam, dan ekspor auditor (CSV +
+   manifes hash).
+2. **Tahap 3 Dashboard Travel** — sisa **T3.2** gateway WhatsApp (butuh
    kredensial penyedia dari pemilik). **T3.3 sudah selesai (4 September
    2026)**: Rangkaian, Rundown, dan Armada Bus melengkapi Manifes & Roomlist
    yang sudah ada duluan. CRM Leads dan tier kamar juga sudah selesai.
-   **Tahap 4 dimulai: T4.1 Inventaris & PO dan T4.2 Manasik sudah selesai
-   (4 September 2026)** di `/dashboard/inventaris` dan `/dashboard/manasik`
-   — cakupan lengkap ada di TUGAS-DASHBOARD-TRAVEL.md, dua grafik Inventaris
-   (Radar Kesiapan Keberangkatan, Performa Vendor) sengaja dipotong dan
-   dicatat di sana. Sisa Tahap 4: T4.3 Agenda, T4.4 Layanan tambahan, T4.7
-   Momen, T4.8 Wizard pendaftaran, T4.9 Laporan laba rugi, T4.10 Pengaturan
-   lebih dalam, T4.11 Support.
-4. **SEO & Konten** — `sitemap.xml` dan `robots.txt` sudah ada dan sadar-host.
+   **Tahap 4: T4.1 Inventaris & PO, T4.2 Manasik (4 September 2026), dan
+   T4.3 Agenda (5 September 2026) sudah selesai** di `/dashboard/inventaris`,
+   `/dashboard/manasik`, dan `/dashboard/agenda` — cakupan lengkap ada di
+   TUGAS-DASHBOARD-TRAVEL.md, dua grafik Inventaris (Radar Kesiapan
+   Keberangkatan, Performa Vendor) sengaja dipotong dan dicatat di sana.
+   Sisa Tahap 4: T4.4 Layanan tambahan, T4.7 Momen, T4.8 Wizard pendaftaran,
+   T4.9 Laporan laba rugi, T4.10 Pengaturan lebih dalam, T4.11 Support.
+3. **SEO & Konten** — `sitemap.xml` dan `robots.txt` sudah ada dan sadar-host.
    Sisanya S3: Search Console, menunggu proyek Google Cloud milik pemilik.
-5. **Corong pengunjung** — K1–K6 selesai. Layar travel di `/dashboard/reports`
+4. **Corong pengunjung** — K1–K6 selesai. Layar travel di `/dashboard/reports`
    → tab **Corong Pengunjung**; layar platform di `/admin` → tab **Corong**.
    Beban terukur pada 180.000 baris: rollup 68 ms/hari, layar travel 177 ms,
    layar platform 1 ms. Yang tersisa bergantung pada hal lain: **K2.8**
