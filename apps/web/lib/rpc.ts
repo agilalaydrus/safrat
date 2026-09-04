@@ -39,6 +39,7 @@ import { SubscriptionService } from "@hajj-saas/proto-gen/hajj/v1/subscription_c
 import { TransportService } from "@hajj-saas/proto-gen/hajj/v1/transport_connect";
 import { TripService } from "@hajj-saas/proto-gen/hajj/v1/trip_connect";
 import { VendorService } from "@hajj-saas/proto-gen/hajj/v1/vendor_connect";
+import { InventoryService } from "@hajj-saas/proto-gen/hajj/v1/inventory_connect";
 import { WaitlistService } from "@hajj-saas/proto-gen/hajj/v1/waitlist_connect";
 import { transport } from "./transport";
 
@@ -76,6 +77,7 @@ export const familyTrackerClient = createClient(FamilyTrackerService, transport)
 export const cashFlowClient = createClient(CashFlowService, transport);
 export const crmClient = createClient(CRMService, transport);
 export const vendorClient = createClient(VendorService, transport);
+export const inventoryClient = createClient(InventoryService, transport);
 export const staffScheduleClient = createClient(StaffScheduleService, transport);
 export const insuranceClient = createClient(InsuranceService, transport);
 export const checklistClient = createClient(ChecklistService, transport);

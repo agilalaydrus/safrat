@@ -474,7 +474,28 @@ repository, service, handler, dan UI telah terhubung utuh.
 
 # TAHAP 4 — Kelengkapan
 
-- [ ] **T4.1** Inventaris & Purchase Order (§4.6 DESAIN)
+- [x] **T4.1** Inventaris & Purchase Order (§4.6 DESAIN) — selesai
+      (4 September 2026). `/dashboard/inventaris`, migrasi 156
+      (`inventory_items`, `inventory_stock_movements`, `purchase_orders`,
+      `purchase_order_items`).
+
+      Item gudang, kartu stok (`inventory_stock_movements`) sebagai satu-satunya
+      sumber kebenaran, dan PO yang penerimaannya menulis stok + statusnya
+      (`PARTIAL`/`RECEIVED`) dalam **satu transaksi** — sebuah baris PO tidak
+      pernah bisa terbaca "diterima" sementara rak sendiri belum mencerminkan
+      itu. Dibuktikan dengan merusak: rollup status PARTIAL/RECEIVED dibuang →
+      test gagal persis pada transisi ke RECEIVED yang tidak pernah terjadi.
+
+      **Dipotong dari cakupan, disebut jujur:** dari lima grafik di desain,
+      hanya **Nilai Persediaan**, **Item di Bawah Minimum**, **PO Berjalan**,
+      dan **Perputaran Stok** (rasio disederhanakan: kuantitas keluar 90 hari
+      ÷ stok saat ini — perkiraan, bukan angka akuntansi COGS/rata-rata
+      persediaan yang sebenarnya) yang dibangun sebagai KPI. **Radar Kesiapan
+      Keberangkatan** (kebutuhan per kloter vs stok) dan **Performa Vendor**
+      (ketepatan kirim 12 bulan) belum dibangun — keduanya butuh menghubungkan
+      `per_pilgrim_qty` item ke roster kloter sungguhan, bukan hanya field di
+      tabel. Pusat Tindakan Gudang juga baru mencakup "di bawah minimum"; "PO
+      lewat ETA", "selisih opname", dan "melebihi kapasitas rak" belum ada.
 - [ ] **T4.2** Manasik: kurikulum + sesi + absensi
 - [ ] **T4.3** Agenda (kalender kegiatan gabungan)
 - [ ] **T4.4** Layanan tambahan per jamaah

@@ -1,0 +1,175 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// InventoryService manages the physical warehouse — koper, ihram, seragam,
+// and other rombongan attributes — and the purchase orders that restock it.
+// Operator-scoped, not season-scoped: the same stock gets reused and
+// restocked across seasons.
+service InventoryService {
+  rpc CreateInventoryItem(CreateInventoryItemRequest) returns (InventoryItem);
+  rpc UpdateInventoryItem(UpdateInventoryItemRequest) returns (InventoryItem);
+  rpc DeleteInventoryItem(DeleteInventoryItemRequest) returns (google.protobuf.Empty);
+  rpc ListInventoryItems(ListInventoryItemsRequest) returns (ListInventoryItemsResponse);
+
+  // AdjustStock records a manual stock change (opname/adjustment) or a
+  // straightforward issue/receipt not tied to a purchase order.
+  rpc AdjustStock(AdjustStockRequest) returns (InventoryItem);
+  rpc ListStockMovements(ListStockMovementsRequest) returns (ListStockMovementsResponse);
+
+  rpc CreatePurchaseOrder(CreatePurchaseOrderRequest) returns (PurchaseOrder);
+  rpc UpdatePurchaseOrderStatus(UpdatePurchaseOrderStatusRequest) returns (PurchaseOrder);
+  rpc ListPurchaseOrders(ListPurchaseOrdersRequest) returns (ListPurchaseOrdersResponse);
+  rpc AddPurchaseOrderItem(AddPurchaseOrderItemRequest) returns (google.protobuf.Empty);
+  rpc ListPurchaseOrderItems(ListPurchaseOrderItemsRequest) returns (ListPurchaseOrderItemsResponse);
+  // ReceivePurchaseOrderItem records a delivery: bumps the line's received
+  // quantity, adds the same amount to warehouse stock, and rolls the PO's
+  // status to PARTIAL or RECEIVED depending on what is still outstanding.
+  rpc ReceivePurchaseOrderItem(ReceivePurchaseOrderItemRequest) returns (PurchaseOrderItem);
+
+  rpc GetInventorySummary(GetInventorySummaryRequest) returns (GetInventorySummaryResponse);
+}
+
+message InventoryItem {
+  string id = 1;
+  string sku = 2;
+  string name = 3;
+  string unit = 4;
+  int32 stock = 5;
+  int32 min_stock = 6;
+  int32 max_stock = 7;
+  int64 unit_cost_idr = 8;
+  // 0 with per_pilgrim_tracked=false means not issued per pilgrim; the two
+  // are separate fields because proto3 does not distinguish "unset" from
+  // zero on a scalar.
+  bool per_pilgrim_tracked = 9;
+  int32 per_pilgrim_qty = 10;
+  string per_pilgrim_notes = 11;
+  int32 moq = 12;
+  int32 lead_time_days = 13;
+  string vendor_name = 14;
+  string rak = 15;
+  google.protobuf.Timestamp last_restock_at = 16;
+  google.protobuf.Timestamp created_at = 17;
+}
+
+message CreateInventoryItemRequest {
+  string sku = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  string unit = 3;
+  int32 min_stock = 4;
+  int32 max_stock = 5;
+  int64 unit_cost_idr = 6;
+  bool per_pilgrim_tracked = 7;
+  int32 per_pilgrim_qty = 8;
+  string per_pilgrim_notes = 9;
+  int32 moq = 10;
+  int32 lead_time_days = 11;
+  string vendor_name = 12;
+  string rak = 13;
+}
+
+message UpdateInventoryItemRequest {
+  string item_id = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  string unit = 3;
+  int32 min_stock = 4;
+  int32 max_stock = 5;
+  int64 unit_cost_idr = 6;
+  bool per_pilgrim_tracked = 7;
+  int32 per_pilgrim_qty = 8;
+  string per_pilgrim_notes = 9;
+  int32 moq = 10;
+  int32 lead_time_days = 11;
+  string vendor_name = 12;
+  string rak = 13;
+}
+
+message DeleteInventoryItemRequest { string item_id = 1 [(buf.validate.field).string.min_len = 1]; }
+message ListInventoryItemsRequest {}
+message ListInventoryItemsResponse { repeated InventoryItem items = 1; }
+
+message AdjustStockRequest {
+  string item_id = 1 [(buf.validate.field).string.min_len = 1];
+  string movement_type = 2 [(buf.validate.field).string.min_len = 1]; // IN | OUT | ADJUSTMENT
+  int32 quantity = 3 [(buf.validate.field).int32.gt = 0];
+  string reason = 4;
+  string reference = 5;
+}
+
+message StockMovement {
+  string id = 1;
+  string item_id = 2;
+  string movement_type = 3;
+  int32 quantity = 4;
+  string reason = 5;
+  string reference = 6;
+  string created_by = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+message ListStockMovementsRequest {
+  string item_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+message ListStockMovementsResponse { repeated StockMovement movements = 1; }
+
+message PurchaseOrder {
+  string id = 1;
+  string po_number = 2;
+  string vendor_name = 3;
+  string status = 4; // DRAFT | ORDERED | PARTIAL | RECEIVED | CANCELLED
+  google.protobuf.Timestamp eta_date = 5;
+  string notes = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+message CreatePurchaseOrderRequest {
+  string po_number = 1 [(buf.validate.field).string.min_len = 1];
+  string vendor_name = 2;
+  google.protobuf.Timestamp eta_date = 3;
+  string notes = 4;
+}
+message UpdatePurchaseOrderStatusRequest {
+  string po_id = 1 [(buf.validate.field).string.min_len = 1];
+  string status = 2 [(buf.validate.field).string.min_len = 1];
+}
+message ListPurchaseOrdersRequest {}
+message ListPurchaseOrdersResponse { repeated PurchaseOrder orders = 1; }
+
+message PurchaseOrderItem {
+  string id = 1;
+  string po_id = 2;
+  string item_id = 3;
+  string item_sku = 4;
+  string item_name = 5;
+  string unit = 6;
+  int32 quantity_ordered = 7;
+  int32 quantity_received = 8;
+  int64 unit_cost_idr = 9;
+}
+message AddPurchaseOrderItemRequest {
+  string po_id = 1 [(buf.validate.field).string.min_len = 1];
+  string item_id = 2 [(buf.validate.field).string.min_len = 1];
+  int32 quantity_ordered = 3 [(buf.validate.field).int32.gt = 0];
+  int64 unit_cost_idr = 4;
+}
+message ListPurchaseOrderItemsRequest {
+  string po_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+message ListPurchaseOrderItemsResponse { repeated PurchaseOrderItem items = 1; }
+message ReceivePurchaseOrderItemRequest {
+  string po_item_id = 1 [(buf.validate.field).string.min_len = 1];
+  int32 quantity = 2 [(buf.validate.field).int32.gt = 0];
+}
+
+message GetInventorySummaryRequest {}
+message GetInventorySummaryResponse {
+  int64 valuation_idr = 1;
+  int32 below_minimum_count = 2;
+  int32 open_purchase_orders = 3;
+  double stock_turnover_ratio = 4;
+}
