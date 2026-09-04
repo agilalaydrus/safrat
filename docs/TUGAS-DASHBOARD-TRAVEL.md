@@ -513,8 +513,38 @@ repository, service, handler, dan UI telah terhubung utuh.
       pembatasan IP, satu perangkat per akun, matriks hak akses, matriks
       notifikasi, jam tenang, aturan eskalasi
 - [ ] **T4.11** Support (tiket ke platform)
-- [ ] **T4.12** Ekspor data mandiri oleh operator — **kewajiban portabilitas
-      UU PDP**, bukan sekadar fitur jualan
+- [x] **T4.12** Ekspor data mandiri oleh operator — **kewajiban portabilitas
+      UU PDP**. Migrasi 154 (`operator_data_exports`), tab **Ekspor Data Saya**
+      di Pengaturan.
+
+      **Disusun dari repository yang sama dengan yang dipakai setiap layar,
+      tidak pernah dari SQL mentah terhadap tabelnya.** Nomor paspor dan
+      identitas tersegel (AES-256-GCM) di database — kueri mentah akan
+      mengembalikan cipherteks ke operator sendiri. Repository sudah
+      mendekripsinya; itu sebabnya ekspor memanggil `PilgrimRepository.List`,
+      bukan `SELECT * FROM pilgrims`.
+
+      **Diproses di latar belakang, bukan menahan permintaan HTTP.** Tabel
+      antrean sama dengan pola outbox yang sudah ada di proyek ini: baris
+      ditulis PENDING, worker mengklaim dengan `FOR UPDATE SKIP LOCKED`
+      (`@every 1m`), menyusun berkas ZIP (CSV per tabel + `BACA-DULU.txt`),
+      mengunggahnya, menandai READY. Tautan unduhan **dibuat baru setiap
+      diminta** (berlaku 15 menit) — tidak pernah disimpan sebagai URL tetap,
+      dan berkasnya sendiri kedaluwarsa 7 hari lewat sapuan terpisah
+      (`@every 6h`) yang benar-benar menghapus objeknya, bukan hanya
+      mengubah status di database.
+
+      **Diverifikasi dengan merusak dua kali:** batasan operator pada
+      `Get` dibuang → gagal `travel lain bisa membaca ekspor travel ini`;
+      uji tingkat worker membuktikan kegagalan penyusunan berkas tercatat
+      dengan alasannya (bukan diam-diam ditelan) dan sapuan kedaluwarsa
+      benar-benar menghapus objek dari penyimpanan, bukan cuma mengubah
+      baris.
+
+      **Dipotong dari cakupan, disebut jujur:** hanya musim, paket, jamaah,
+      dan transaksi yang diekspor — agen, grup, dan kloter adalah struktur
+      organisasi, bukan data pribadi jamaah, dan `BACA-DULU.txt` di dalam
+      berkas mengatakan itu kepada operator secara langsung.
 
 ---
 

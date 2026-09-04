@@ -20,6 +20,7 @@ import { KloterService } from "@hajj-saas/proto-gen/hajj/v1/kloter_connect";
 import { LostReportService } from "@hajj-saas/proto-gen/hajj/v1/lost_report_connect";
 import { NotificationService } from "@hajj-saas/proto-gen/hajj/v1/notification_connect";
 import { OperatorService } from "@hajj-saas/proto-gen/hajj/v1/operator_connect";
+import { DataExportService } from "@hajj-saas/proto-gen/hajj/v1/order_connect";
 import { OrderService } from "@hajj-saas/proto-gen/hajj/v1/order_connect";
 import { PlatformService } from "@hajj-saas/proto-gen/hajj/v1/platform_connect";
 import { PilgrimAppService } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_app_connect";
@@ -61,6 +62,7 @@ export const kloterClient = createClient(KloterService, transport);
 export const journeyClient = createClient(JourneyService, transport);
 export const identityClient = createClient(IdentityService, transport);
 export const orderClient = createClient(OrderService, transport);
+export const dataExportClient = createClient(DataExportService, transport);
 export const refundPayoutClient = createClient(RefundPayoutService, transport);
 // TawafiqHub's own admin surface, above every operator — see /admin.
 export const platformClient = createClient(PlatformService, transport);

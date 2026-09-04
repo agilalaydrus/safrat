@@ -156,6 +156,12 @@ func main() {
 		logger.Warn("storefront asset cleanup disabled", "reason", "object storage is not configured")
 	}
 
+	// A nil *storage.Store still satisfies dataExportStorage — every method on
+	// it checks for a nil receiver itself, the same pattern every other
+	// storage-backed handler in this file already follows. Left unconfigured
+	// in development, requests simply stay PENDING rather than failing.
+	dataExportHandler := worker.NewDataExportHandler(logger, repository.NewDataExportRepository(pool), orderService, objectStorage)
+
 	redisOpt, err := asynq.ParseRedisURI(redisURL)
 	if err != nil {
 		logger.Error("parse REDIS_URL", "error", err)
@@ -240,6 +246,14 @@ func main() {
 		logger.Error("register fulfilment dispatch schedule", "error", err)
 		os.Exit(1)
 	}
+	if _, err := scheduler.Register("@every 1m", worker.NewDataExportProcessTask()); err != nil {
+		logger.Error("register data export processing schedule", "error", err)
+		os.Exit(1)
+	}
+	if _, err := scheduler.Register("@every 6h", worker.NewDataExportExpireTask()); err != nil {
+		logger.Error("register data export expiry schedule", "error", err)
+		os.Exit(1)
+	}
 	// Hourly, and normally finds nothing: identity numbers are written
 	// encrypted from the start, so this only ever picks up rows that predate
 	// that. Scheduled rather than run once because "run it after deploying" is
@@ -291,6 +305,8 @@ func main() {
 	mux.HandleFunc(worker.TaskRefundPayoutDispatch, refundPayoutHandler.HandleDispatch)
 	mux.HandleFunc(worker.TaskFulfilmentSweep, fulfilmentHandler.HandleSweep)
 	mux.HandleFunc(worker.TaskFulfilmentDispatch, fulfilmentHandler.HandleDispatch)
+	mux.HandleFunc(worker.TaskDataExportProcess, dataExportHandler.HandleProcess)
+	mux.HandleFunc(worker.TaskDataExportExpire, dataExportHandler.HandleExpire)
 	mux.HandleFunc(queue.TaskDispatchOne, fulfilmentHandler.HandleDispatchOne)
 	mux.HandleFunc(worker.TaskKYCMigrate, kycHandler.HandleMigrate)
 	mux.HandleFunc(worker.TaskDailySpendPurge, dailySpendHandler.HandlePurge)

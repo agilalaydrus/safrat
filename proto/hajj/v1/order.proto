@@ -161,6 +161,46 @@ message ResolvePilgrimCreditRequest {
 
 message ResolvePilgrimCreditResponse {}
 
+// Data portability — UU PDP, not a sales feature. An operator gets everything
+// TawafiqHub holds about their own business as one file they can keep,
+// without waiting on a support ticket.
+service DataExportService {
+  rpc RequestDataExport(RequestDataExportRequest) returns (DataExportRow);
+  rpc ListDataExports(ListDataExportsRequest) returns (ListDataExportsResponse);
+  // GetDataExportDownloadUrl mints a time-limited link, generated on request
+  // rather than stored — a link that works forever is a link that outlives
+  // the reason it was issued.
+  rpc GetDataExportDownloadUrl(GetDataExportDownloadUrlRequest) returns (GetDataExportDownloadUrlResponse);
+}
+
+message RequestDataExportRequest {
+  string idempotency_key = 1 [(buf.validate.field).string = {min_len: 8, max_len: 128}];
+}
+
+message DataExportRow {
+  string id = 1;
+  // PENDING | PROCESSING | READY | FAILED
+  string status = 2;
+  int64 size_bytes = 3;
+  string error = 4;
+  google.protobuf.Timestamp requested_at = 5;
+  google.protobuf.Timestamp completed_at = 6;
+  google.protobuf.Timestamp expires_at = 7;
+}
+
+message ListDataExportsRequest {
+  int32 limit = 1;
+}
+message ListDataExportsResponse { repeated DataExportRow exports = 1; }
+
+message GetDataExportDownloadUrlRequest {
+  string export_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+message GetDataExportDownloadUrlResponse {
+  string url = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
 message Order {
   string id = 1;
   string operator_id = 2;

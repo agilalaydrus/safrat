@@ -380,3 +380,74 @@ func ValidHandoverKey(operatorID, orderID, objectKey string) error {
 	}
 	return nil
 }
+
+// exportViewLifetime is longer than a handover proof's five minutes: an export
+// is something a person downloads once, deliberately, often onto a slow
+// connection, not a link opened the instant it is generated.
+const exportViewLifetime = 15 * time.Minute
+
+// PutDataExport writes a finished export directly, since the worker that
+// builds it — not a browser — is the one producing the bytes. Every other
+// write in this file is a presigned upload a client performs on its own; this
+// is the one place the server itself is the uploader.
+func (s *Store) PutDataExport(ctx context.Context, operatorID, exportID string, data []byte) (string, error) {
+	if s == nil {
+		return "", ErrNotConfigured
+	}
+	if _, err := uuid.Parse(operatorID); err != nil {
+		return "", fmt.Errorf("invalid operator ID")
+	}
+	if _, err := uuid.Parse(exportID); err != nil {
+		return "", fmt.Errorf("invalid export ID")
+	}
+	key := path.Join("exports", operatorID, exportID+".zip")
+	if _, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(s.bucket), Key: aws.String(key),
+		Body: bytes.NewReader(data), ContentType: aws.String("application/zip"),
+	}); err != nil {
+		return "", fmt.Errorf("put data export: %w", err)
+	}
+	return key, nil
+}
+
+// PresignDataExportView is a time-limited link to a finished export, checked
+// against the same tenant boundary as every other object key here — a key
+// that does not sit under this operator's own export prefix is refused before
+// it reaches S3.
+func (s *Store) PresignDataExportView(ctx context.Context, operatorID, objectKey string) (string, error) {
+	if s == nil {
+		return "", ErrNotConfigured
+	}
+	if _, err := uuid.Parse(operatorID); err != nil {
+		return "", fmt.Errorf("invalid operator ID")
+	}
+	prefix := path.Join("exports", operatorID) + "/"
+	if !strings.HasPrefix(objectKey, prefix) || path.Clean(objectKey) != objectKey {
+		return "", fmt.Errorf("export key is outside this operator")
+	}
+	request, err := s.presigner.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(s.bucket), Key: aws.String(objectKey),
+	}, func(options *s3.PresignOptions) {
+		options.Expires = exportViewLifetime
+	})
+	if err != nil {
+		return "", fmt.Errorf("presign data export view: %w", err)
+	}
+	return request.URL, nil
+}
+
+// DeleteDataExport removes a finished export's file once its download link
+// has expired. Deleting an object that is already gone is not an error — the
+// sweep that calls this may run twice on the same row before the database
+// catches up, and the outcome either way is "the file does not exist".
+func (s *Store) DeleteDataExport(ctx context.Context, objectKey string) error {
+	if s == nil {
+		return ErrNotConfigured
+	}
+	if _, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(s.bucket), Key: aws.String(objectKey),
+	}); err != nil {
+		return fmt.Errorf("delete data export: %w", err)
+	}
+	return nil
+}

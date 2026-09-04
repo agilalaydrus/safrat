@@ -382,6 +382,9 @@ func main() {
 		kloterPath, kloterServiceHandler := hajjv1connect.NewKloterServiceHandler(kloterHandler, handlerOptions...)
 		identityPath, identityServiceHandler := hajjv1connect.NewIdentityServiceHandler(identityHandler, handlerOptions...)
 		orderPath, orderServiceHandler := hajjv1connect.NewOrderServiceHandler(orderHandler, handlerOptions...)
+		dataExportHandler := handler.NewDataExportHandler(
+			service.NewDataExportService(operatorRepository, repository.NewDataExportRepository(pool), objectStorage))
+		dataExportPath, dataExportServiceHandler := hajjv1connect.NewDataExportServiceHandler(dataExportHandler, handlerOptions...)
 		refundPayoutPath, refundPayoutServiceHandler := hajjv1connect.NewRefundPayoutServiceHandler(refundPayoutHandler, handlerOptions...)
 		platformPath, platformServiceHandler := hajjv1connect.NewPlatformServiceHandler(platformHandler, handlerOptions...)
 		broadcastPath, broadcastServiceHandler := hajjv1connect.NewBroadcastServiceHandler(broadcastHandler, handlerOptions...)
@@ -433,6 +436,7 @@ func main() {
 		mux.Handle(kloterPath, kloterServiceHandler)
 		mux.Handle(identityPath, identityServiceHandler)
 		mux.Handle(orderPath, orderServiceHandler)
+		mux.Handle(dataExportPath, dataExportServiceHandler)
 		mux.Handle(refundPayoutPath, refundPayoutServiceHandler)
 		mux.Handle(platformPath, platformServiceHandler)
 		mux.Handle(broadcastPath, broadcastServiceHandler)
