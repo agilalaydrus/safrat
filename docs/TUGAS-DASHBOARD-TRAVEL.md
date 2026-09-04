@@ -702,7 +702,47 @@ repository, service, handler, dan UI telah terhubung utuh.
       butuh baris `product_markups` (migrasi 111) sebelum bisa dijual —
       tanpanya `CreateManualOrder` menolak dengan "markup produk belum
       diatur", bukan galat yang jelas menyebut penyebabnya.
-- [ ] **T4.9** Laporan laba rugi + Catatan Metodologi, ekspor **streaming**
+- [x] **T4.9** Laporan laba rugi + Catatan Metodologi, ekspor **streaming** —
+      selesai (5 September 2026). Tab **Laba Rugi** baru di
+      `/dashboard/reports`, tanpa migrasi — seluruhnya dihitung on-read dari
+      `orders`/`products`/`branches`/`agents` yang sudah ada.
+
+      **Lintas waktu, bukan per musim.** Laba rugi adalah laporan keuangan
+      operator, bukan laporan satu musim — 5 bulan terakhir dihitung lintas
+      musim, sama seperti Analitik (E1) di panel platform.
+
+      **Definisi laba bersih ditulis dan diuji eksplisit, bukan diasumsikan
+      benar:** `laba bersih = pendapatan − fee platform − komisi agen − biaya
+      pokok yang diketahui` — bukan `pendapatan − biaya` saja, yang akan
+      menghitung bagian platform dan agen seolah milik operator. Dibuktikan
+      dengan merusak: definisi disederhanakan jadi `pendapatan − biaya` →
+      uji gagal dengan selisih persis sebesar total fee platform + komisi
+      agen yang seharusnya dikurangi.
+
+      **Biaya pokok yang tidak diketahui tidak pernah dianggap nol.**
+      `products.supplier_cost_idr` nullable (banyak paket travel tidak
+      mengisinya) — pesanan dengan biaya tidak diketahui dikeluarkan dari
+      `cost_idr`, dan `orders_missing_cost`/`revenue_missing_cost_idr`
+      membawa berapa banyak yang tidak tercakup, ditulis eksplisit di
+      Catatan Metodologi setiap kali ada. Pesanan `REFUNDED` tidak pernah
+      dihitung sebagai pendapatan.
+
+      **Ekspor sungguhan streaming, dibuktikan sampai lapisan SQL.**
+      `StreamProfitLossExport` (server-streaming Connect RPC, pola yang sama
+      dengan `MonitoringService.StreamEvents`) sengaja **tidak** memakai
+      query `:many` sqlc yang membuffer seluruh baris ke memori Go sebelum
+      mengirim satupun — repository membaca `pgxpool.Pool` langsung dan
+      memanggil `rows.Next()` satu-satu, mengirim tiap baris lewat
+      `stream.Send` saat itu juga. Inilah yang gagal di kompetitor pada
+      1.240 jamaah menurut changelog mereka sendiri (dicatat di RENCANA);
+      menukar ke `:many` akan lulus semua test unit tapi mengembalikan
+      persis kegagalan yang sama pada skala besar.
+
+      Diperiksa di peramban sungguhan: laporan dengan tiga pesanan lunas
+      lintas cabang dan satu agen menghasilkan setiap angka yang cocok
+      dengan perhitungan tangan (laba bersih, capaian target cabang,
+      kontribusi), dan ekspor CSV yang diklik sungguhan mengunduh berkas
+      dengan baris yang cocok — pesanan `REFUNDED` tidak ikut terekspor.
 - [ ] **T4.10** Pengaturan yang lebih dalam (§4.9 DESAIN) — 2FA wajib,
       pembatasan IP, satu perangkat per akun, matriks hak akses, matriks
       notifikasi, jam tenang, aturan eskalasi

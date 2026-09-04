@@ -12,7 +12,7 @@ Diperbarui: **5 September 2026** (T4.4 Layanan Tambahan)
 
 | Jalur | Rute | Berkas tugas | Posisi |
 |---|---|---|---|
-| **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **T4.8 selesai**, sisa T3.2 & Tahap 4 |
+| **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **T4.9 selesai**, sisa T3.2 & Tahap 4 |
 | **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1, B2 selesai** (B2 sudah selesai sejak `0c32e52`, 2 Sep — baris ini sempat tidak diperbarui) · berikutnya **C4**, jatah Codex |
 | **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | dirancang, **antre** · 0/33 butir |
 | **SEO & Konten** | storefront | [TUGAS-SEO-KONTEN.md](TUGAS-SEO-KONTEN.md) | dirancang, **antre** · 0/17 butir |
@@ -30,19 +30,17 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
    kredensial penyedia dari pemilik). **T3.3 sudah selesai (4 September
    2026)**: Rangkaian, Rundown, dan Armada Bus melengkapi Manifes & Roomlist
    yang sudah ada duluan. CRM Leads dan tier kamar juga sudah selesai.
-   **Tahap 4: T4.1 Inventaris & PO, T4.2 Manasik (4 September 2026), T4.3
-   Agenda, T4.4 Layanan tambahan, T4.7 Momen, dan T4.8 Wizard pendaftaran (5
-   September 2026) sudah selesai** di `/dashboard/inventaris`,
-   `/dashboard/manasik`, `/dashboard/agenda`, `/dashboard/layanan-tambahan`,
-   `/dashboard/momen` (+ `/track/[code]` untuk keluarga), dan
-   `/dashboard/pilgrims/baru` — cakupan lengkap ada di
+   **Tahap 4: T4.1–T4.4, T4.7, T4.8, dan T4.9 Laporan laba rugi (5 September
+   2026) sudah selesai** di `/dashboard/inventaris`, `/dashboard/manasik`,
+   `/dashboard/agenda`, `/dashboard/layanan-tambahan`, `/dashboard/momen`
+   (+ `/track/[code]` untuk keluarga), `/dashboard/pilgrims/baru`, dan tab
+   **Laba Rugi** baru di `/dashboard/reports` — cakupan lengkap ada di
    TUGAS-DASHBOARD-TRAVEL.md. Dipotong dan dicatat di sana: dua grafik
-   Inventaris (Radar Kesiapan Keberangkatan, Performa Vendor), pembayaran
-   Layanan Tambahan yang masih penanda lunas/belum bukan lewat mesin
-   order/komisi, Momen yang foto saja (video belum), dan wizard yang tidak
-   membangun "simulasi cicilan" karena `installment_plans` tidak berelasi
-   dengan `orders` di skema sama sekali. Sisa Tahap 4: T4.9 Laporan laba
-   rugi, T4.10 Pengaturan lebih dalam, T4.11 Support.
+   Inventaris, pembayaran Layanan Tambahan yang masih penanda lunas/belum,
+   Momen yang foto saja (video belum), wizard tanpa "simulasi cicilan", dan
+   laba rugi yang mengecualikan (bukan menolkan) biaya pokok produk yang
+   belum tercatat harganya. Sisa Tahap 4: T4.10 Pengaturan lebih dalam,
+   T4.11 Support.
 
    **Prasyarat data lokal yang belum jelas sebelumnya, ditemukan saat
    menguji wizard di peramban (5 September 2026):** `KYC_ENCRYPTION_KEY`
