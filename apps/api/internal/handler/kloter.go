@@ -73,3 +73,47 @@ func (h *KloterHandler) GetKloterRoomlist(ctx context.Context, req *connect.Requ
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *KloterHandler) ListKloterItinerary(ctx context.Context, req *connect.Request[hajjv1.ListKloterItineraryRequest]) (*connect.Response[hajjv1.ListKloterItineraryResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.kloterService.ListItinerary(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *KloterHandler) SetKloterItinerary(ctx context.Context, req *connect.Request[hajjv1.SetKloterItineraryRequest]) (*connect.Response[hajjv1.SetKloterItineraryResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.kloterService.SetItinerary(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *KloterHandler) ListKloterRundown(ctx context.Context, req *connect.Request[hajjv1.ListKloterRundownRequest]) (*connect.Response[hajjv1.ListKloterRundownResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.kloterService.ListRundown(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *KloterHandler) SetKloterRundown(ctx context.Context, req *connect.Request[hajjv1.SetKloterRundownRequest]) (*connect.Response[hajjv1.SetKloterRundownResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.kloterService.SetRundown(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

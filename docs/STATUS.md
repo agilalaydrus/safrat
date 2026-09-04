@@ -4,7 +4,7 @@ Satu halaman, selalu diperbarui. **Titik masuk pertama untuk agen mana pun** —
 Claude, Codex, atau siapa pun berikutnya. Kalau hanya sempat membaca satu
 berkas, baca ini.
 
-Diperbarui: **2 September 2026**
+Diperbarui: **4 September 2026**
 
 ---
 
@@ -12,7 +12,7 @@ Diperbarui: **2 September 2026**
 
 | Jalur | Rute | Berkas tugas | Posisi |
 |---|---|---|---|
-| **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **54/74 butir** · sisa Tahap 3–4 |
+| **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **T3.3 selesai**, sisa T3.2 & Tahap 4 |
 | **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1 selesai** · 21/68 butir · berikutnya B2 |
 | **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | dirancang, **antre** · 0/33 butir |
 | **SEO & Konten** | storefront | [TUGAS-SEO-KONTEN.md](TUGAS-SEO-KONTEN.md) | dirancang, **antre** · 0/17 butir |
@@ -27,8 +27,9 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
 2. **C4 Rotasi kunci & ekspor auditor** — rotasi kunci API dengan tumpang tindih
    24 jam, dan ekspor auditor (CSV + manifes hash).
 3. **Tahap 3 Dashboard Travel** — sisa **T3.2** gateway WhatsApp (butuh
-   kredensial penyedia dari pemilik) dan sisa **T3.3**: Rangkaian, Rundown, dan
-   Armada Bus. CRM Leads, tier kamar, Manifes, dan Roomlist sudah selesai.
+   kredensial penyedia dari pemilik). **T3.3 sudah selesai (4 September
+   2026)**: Rangkaian, Rundown, dan Armada Bus melengkapi Manifes & Roomlist
+   yang sudah ada duluan. CRM Leads dan tier kamar juga sudah selesai.
 4. **SEO & Konten** — `sitemap.xml` dan `robots.txt` sudah ada dan sadar-host.
    Sisanya S3: Search Console, menunggu proyek Google Cloud milik pemilik.
 5. **Corong pengunjung** — K1–K6 selesai. Layar travel di `/dashboard/reports`

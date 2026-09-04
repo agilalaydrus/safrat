@@ -367,14 +367,34 @@ Worker memakai SMTP TLS dengan lease, retry, stable Message-ID, dan dead-letter.
 - [ ] **T3.2** Gateway WhatsApp — wizard 4 langkah + Skor Kesiapan + Jam Tenang, §4.7.
       Tiru juga ide mereka yang lebih dalam: **WhatsApp sebagai antarmuka
       cadangan** untuk jamaah lansia, bukan sekadar kanal notifikasi.
-- [~] **T3.3** Perjalanan & rundown — **Manifes selesai**, sisanya belum.
+- [x] **T3.3** Perjalanan & rundown — selesai (4 September 2026).
       - [x] **Manifes** di `/dashboard/kloter/[id]`: seluruh jamaah satu
             penerbangan dengan dokumen yang masih kurang, disebut namanya dan
             berurutan, plus rekap "yang paling menahan keberangkatan" dan unduh
             CSV.
-      - [ ] Rangkaian (segmen transportasi & hotel bergantian)
-      - [ ] Rundown per hari
-      - [ ] Armada Bus (assign jamaah ke bus, tervalidasi terhadap segmen Bus)
+      - [x] **Rangkaian** (`KloterItinerary.tsx`, migrasi 155
+            `kloter_itinerary_segments`) — daftar segmen Transportasi/Hotel
+            yang diurutkan operator, disimpan sebagai satu set lewat
+            `SetKloterItinerary` (ganti-semua, bukan edit satu-satu — sama
+            seperti tier kamar, supaya layar tidak pernah membaca urutan yang
+            separuh tersimpan). Wajib mulai & akhiri dengan Transportasi,
+            ditegakkan di repository dan dibuktikan dengan merusak:
+            pengecekan bookend dibuang → test gagal persis pada kasus
+            "Rangkaian mulai dari Hotel". Movement/hotel juga divalidasi
+            benar-benar milik kloter/operator yang sama, bukan cuma dipercaya
+            dari klien.
+      - [x] **Rundown** per hari (`KloterRundown.tsx`, tabel
+            `kloter_rundown_items`) — jadwal operasional harian yang dipegang
+            koordinator/muttawwif di lapangan, berbeda dari
+            `product_itinerary_days` yang sifatnya materi jualan sebelum
+            pembelian.
+      - [x] **Armada Bus** (`KloterArmadaBus.tsx`) — memakai ulang
+            `TransportService` yang sudah ada (`VehicleFormDialog`,
+            `VehicleManifestPanel`) tapi disaring hanya pada movement Bus yang
+            benar-benar sudah jadi segmen di Rangkaian; kosong berkata persis
+            seperti §4.5 DESAIN: *"Belum ada segmen Bus di Rangkaian
+            Perjalanan — Tambahkan segmen Bus di tab Rangkaian sebelum
+            mengelola armada."*
       - [x] **Roomlist** dikelompokkan per kota → hotel → kamar, dengan unduh
             CSV. Menampilkan yang **belum dapat kamar sama sekali** (baris
             paling mendesak, dan tidak mungkin muncul dari join yang berangkat

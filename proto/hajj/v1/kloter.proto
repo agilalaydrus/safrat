@@ -35,7 +35,80 @@ service KloterService {
   // The per-pilgrim view already existed and answers a different question;
   // nobody sends a hotel a list sorted by pilgrim.
   rpc GetKloterRoomlist(GetKloterRoomlistRequest) returns (GetKloterRoomlistResponse);
+
+  // ListKloterItinerary / SetKloterItinerary manage Rangkaian: the ordered
+  // spine of a kloter's journey, alternating Transport (movement) and Hotel
+  // (stay) segments. Set replaces the whole sequence in one transaction —
+  // the order is one decision, not a series of independent inserts.
+  rpc ListKloterItinerary(ListKloterItineraryRequest) returns (ListKloterItineraryResponse);
+  rpc SetKloterItinerary(SetKloterItineraryRequest) returns (SetKloterItineraryResponse);
+
+  // ListKloterRundown / SetKloterRundown manage the day-by-day operational
+  // schedule — what a coordinator or muttawwif actually reads on the
+  // ground, distinct from a Product's sales-facing itinerary template.
+  rpc ListKloterRundown(ListKloterRundownRequest) returns (ListKloterRundownResponse);
+  rpc SetKloterRundown(SetKloterRundownRequest) returns (SetKloterRundownResponse);
 }
+
+message ItinerarySegment {
+  string id = 1;
+  int32 position = 2;
+  string segment_type = 3; // TRANSPORT | HOTEL
+  string movement_id = 4;
+  string movement_name = 5;
+  string movement_mode = 6; // BUS | FLIGHT | TRAIN
+  google.protobuf.Timestamp movement_scheduled_at = 7;
+  string hotel_id = 8;
+  string hotel_name = 9;
+  string hotel_city = 10;
+  string notes = 11;
+}
+
+message ListKloterItineraryRequest {
+  string kloter_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+message ListKloterItineraryResponse { repeated ItinerarySegment segments = 1; }
+
+message ItinerarySegmentInput {
+  string segment_type = 1;
+  string movement_id = 2;
+  string hotel_id = 3;
+  string notes = 4;
+}
+message SetKloterItineraryRequest {
+  string kloter_id = 1 [(buf.validate.field).string.min_len = 1];
+  repeated ItinerarySegmentInput segments = 2;
+}
+message SetKloterItineraryResponse { repeated ItinerarySegment segments = 1; }
+
+message RundownItem {
+  string id = 1;
+  int32 day_number = 2;
+  int32 position = 3;
+  string time_label = 4;
+  string title = 5;
+  string location = 6;
+  string pic = 7;
+  string notes = 8;
+}
+message ListKloterRundownRequest {
+  string kloter_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+message ListKloterRundownResponse { repeated RundownItem items = 1; }
+
+message RundownItemInput {
+  int32 day_number = 1;
+  string time_label = 2;
+  string title = 3;
+  string location = 4;
+  string pic = 5;
+  string notes = 6;
+}
+message SetKloterRundownRequest {
+  string kloter_id = 1 [(buf.validate.field).string.min_len = 1];
+  repeated RundownItemInput items = 2;
+}
+message SetKloterRundownResponse { repeated RundownItem items = 1; }
 
 message GetKloterRoomlistRequest {
   string kloter_id = 1 [(buf.validate.field).string.min_len = 1];

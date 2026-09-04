@@ -317,3 +317,122 @@ func (s *KloterService) GetRoomlist(ctx context.Context, orgID string, req *hajj
 	}
 	return response, nil
 }
+
+func itinerarySegmentMessage(seg repository.ItinerarySegment) *hajjv1.ItinerarySegment {
+	msg := &hajjv1.ItinerarySegment{
+		Id: seg.ID, Position: seg.Position, SegmentType: seg.SegmentType, Notes: seg.Notes,
+		MovementId: seg.MovementID, MovementName: seg.MovementName, MovementMode: seg.MovementMode,
+		HotelId: seg.HotelID, HotelName: seg.HotelName, HotelCity: seg.HotelCity,
+	}
+	if seg.MovementScheduledAt != nil {
+		msg.MovementScheduledAt = timestamppb.New(*seg.MovementScheduledAt)
+	}
+	return msg
+}
+
+// ListItinerary returns Rangkaian for one kloter.
+func (s *KloterService) ListItinerary(ctx context.Context, orgID string, req *hajjv1.ListKloterItineraryRequest) (*hajjv1.ListKloterItineraryResponse, error) {
+	if req == nil || strings.TrimSpace(req.KloterId) == "" {
+		return nil, serviceError("KloterService.ListItinerary", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("KloterService.ListItinerary", err)
+	}
+	segments, err := s.kloterRepository.ListItinerarySegments(ctx, op.ID, req.KloterId)
+	if err != nil {
+		return nil, serviceError("KloterService.ListItinerary", err)
+	}
+	response := &hajjv1.ListKloterItineraryResponse{}
+	for _, seg := range segments {
+		response.Segments = append(response.Segments, itinerarySegmentMessage(seg))
+	}
+	return response, nil
+}
+
+// SetItinerary replaces the whole Rangkaian for one kloter — see
+// KloterRepository.SetItinerarySegments for why this is a replace, not an
+// incremental edit.
+func (s *KloterService) SetItinerary(ctx context.Context, orgID string, req *hajjv1.SetKloterItineraryRequest) (*hajjv1.SetKloterItineraryResponse, error) {
+	if req == nil || strings.TrimSpace(req.KloterId) == "" {
+		return nil, serviceError("KloterService.SetItinerary", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("KloterService.SetItinerary", err)
+	}
+	inputs := make([]repository.ItinerarySegmentInput, 0, len(req.Segments))
+	for _, seg := range req.Segments {
+		inputs = append(inputs, repository.ItinerarySegmentInput{
+			SegmentType: strings.ToUpper(strings.TrimSpace(seg.SegmentType)),
+			MovementID:  strings.TrimSpace(seg.MovementId),
+			HotelID:     strings.TrimSpace(seg.HotelId),
+			Notes:       strings.TrimSpace(seg.Notes),
+		})
+	}
+	segments, err := s.kloterRepository.SetItinerarySegments(ctx, op.ID, req.KloterId, inputs)
+	if err != nil {
+		return nil, serviceError("KloterService.SetItinerary", err)
+	}
+	response := &hajjv1.SetKloterItineraryResponse{}
+	for _, seg := range segments {
+		response.Segments = append(response.Segments, itinerarySegmentMessage(seg))
+	}
+	return response, nil
+}
+
+func rundownItemMessage(item repository.RundownItem) *hajjv1.RundownItem {
+	return &hajjv1.RundownItem{
+		Id: item.ID, DayNumber: item.DayNumber, Position: item.Position,
+		TimeLabel: item.TimeLabel, Title: item.Title, Location: item.Location,
+		Pic: item.PIC, Notes: item.Notes,
+	}
+}
+
+// ListRundown returns the day-by-day operational schedule for one kloter.
+func (s *KloterService) ListRundown(ctx context.Context, orgID string, req *hajjv1.ListKloterRundownRequest) (*hajjv1.ListKloterRundownResponse, error) {
+	if req == nil || strings.TrimSpace(req.KloterId) == "" {
+		return nil, serviceError("KloterService.ListRundown", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("KloterService.ListRundown", err)
+	}
+	items, err := s.kloterRepository.ListRundownItems(ctx, op.ID, req.KloterId)
+	if err != nil {
+		return nil, serviceError("KloterService.ListRundown", err)
+	}
+	response := &hajjv1.ListKloterRundownResponse{}
+	for _, item := range items {
+		response.Items = append(response.Items, rundownItemMessage(item))
+	}
+	return response, nil
+}
+
+// SetRundown replaces the whole rundown for one kloter.
+func (s *KloterService) SetRundown(ctx context.Context, orgID string, req *hajjv1.SetKloterRundownRequest) (*hajjv1.SetKloterRundownResponse, error) {
+	if req == nil || strings.TrimSpace(req.KloterId) == "" {
+		return nil, serviceError("KloterService.SetRundown", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("KloterService.SetRundown", err)
+	}
+	inputs := make([]repository.RundownItem, 0, len(req.Items))
+	for _, item := range req.Items {
+		inputs = append(inputs, repository.RundownItem{
+			DayNumber: item.DayNumber, TimeLabel: strings.TrimSpace(item.TimeLabel),
+			Title: strings.TrimSpace(item.Title), Location: strings.TrimSpace(item.Location),
+			PIC: strings.TrimSpace(item.Pic), Notes: strings.TrimSpace(item.Notes),
+		})
+	}
+	items, err := s.kloterRepository.SetRundownItems(ctx, op.ID, req.KloterId, inputs)
+	if err != nil {
+		return nil, serviceError("KloterService.SetRundown", err)
+	}
+	response := &hajjv1.SetKloterRundownResponse{}
+	for _, item := range items {
+		response.Items = append(response.Items, rundownItemMessage(item))
+	}
+	return response, nil
+}
