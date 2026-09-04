@@ -539,7 +539,34 @@ repository, service, handler, dan UI telah terhubung utuh.
       Diperiksa di peramban sungguhan lewat akun fixture: linimasa
       tergabung dan terurut lintas tiga sumber, buat/ubah/hapus acara
       internal lewat drawer, tanpa galat konsol.
-- [ ] **T4.4** Layanan tambahan per jamaah
+- [x] **T4.4** Layanan tambahan per jamaah — selesai (5 September 2026).
+      `/dashboard/layanan-tambahan`, migrasi 159 (`addon_items` katalog
+      per-musim, `pilgrim_addons` penetapan per jamaah).
+
+      **Harga di-snapshot saat ditetapkan**, bukan dibaca ulang dari katalog.
+      `pilgrim_addons.unit_price_idr` disalin sekali dari `addon_items` saat
+      `AssignPilgrimAddon` dan tidak pernah disentuh lagi — mengubah harga
+      katalog setelahnya tidak mengubah apa yang sudah disepakati jamaah yang
+      sudah ditetapkan. Dibuktikan dengan merusak: query dibuat membaca harga
+      hidup dari `addon_items` alih-alih baris `pilgrim_addons` — uji gagal
+      persis di titik itu (harga jamaah lama ikut naik).
+
+      **Pembayarannya sengaja masih penanda lunas/belum**, bukan lewat mesin
+      order/cicilan/komisi yang sudah ada. Layanan tambahan bukan bagian dari
+      paket musim (tidak ikut `platformMargin`/`operatorMargin`/
+      `agentMargin`), jadi menyalurkannya lewat `OrderService` berarti
+      menambah jalur komisi baru untuk sesuatu yang bukan produk musim.
+      Kalau nanti perlu ditagih formal, itu perluasan tersendiri.
+
+      **"Jamaah ber-add-on di grup ini" dijawab lewat saringan grup di
+      halaman ini** (`ListPilgrimAddons` menerima `group_id`), bukan dengan
+      menambah badge di `/dashboard/groups/[id]`. Halaman itu sudah stabil
+      dan tidak disentuh — kalau pemilik minta lencana di roster grup,
+      itu tambahan kecil yang bisa menyusul.
+
+      Diperiksa di peramban sungguhan lewat akun fixture: tambah katalog,
+      tetapkan ke jamaah lewat drawer pencarian nama, tandai lunas — semua
+      round-trip tanpa galat konsol.
 - [x] **T4.5** Kelebihan bayar — panel **Kelebihan Bayar** di Profil Jamaah,
       dibangun bersama T4.6 (satu tabel `pilgrim_credits`, karena kelebihan
       bayar hanya pernah muncul dari sana). Status terbuka/dipakai/

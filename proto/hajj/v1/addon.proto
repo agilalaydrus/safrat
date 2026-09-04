@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// AddonService manages layanan tambahan (§2.11 RENCANA): add-on services sold
+// per pilgrim on top of their package — an executive seat, VIP airport
+// handling, a certified badal umrah, and the like. A season-scoped catalog
+// (AddonItem) plus per-pilgrim assignments (PilgrimAddon) that snapshot the
+// price at assignment time, so a later catalog price change never rewrites
+// what a pilgrim already agreed to pay.
+service AddonService {
+  rpc CreateAddonItem(CreateAddonItemRequest) returns (AddonItem);
+  rpc UpdateAddonItem(UpdateAddonItemRequest) returns (AddonItem);
+  rpc ListAddonItems(ListAddonItemsRequest) returns (ListAddonItemsResponse);
+
+  // AssignPilgrimAddon upserts one pilgrim's holding of one add-on type —
+  // calling it again for the same pair corrects the quantity/notes in place
+  // rather than adding a second row.
+  rpc AssignPilgrimAddon(AssignPilgrimAddonRequest) returns (PilgrimAddon);
+  rpc SetPilgrimAddonPaid(SetPilgrimAddonPaidRequest) returns (PilgrimAddon);
+  rpc RemovePilgrimAddon(RemovePilgrimAddonRequest) returns (google.protobuf.Empty);
+
+  // ListPilgrimAddons is every assignment in a season; group_id narrows it to
+  // one group's roster, which is how "who in this group has an add-on" gets
+  // answered without a separate index into the group screen.
+  rpc ListPilgrimAddons(ListPilgrimAddonsRequest) returns (ListPilgrimAddonsResponse);
+}
+
+message AddonItem {
+  string id = 1;
+  string season_id = 2;
+  string name = 3;
+  int64 unit_price_idr = 4;
+  bool is_active = 5;
+}
+
+message CreateAddonItemRequest {
+  string season_id = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  int64 unit_price_idr = 3 [(buf.validate.field).int64.gte = 0];
+}
+
+message UpdateAddonItemRequest {
+  string item_id = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  int64 unit_price_idr = 3 [(buf.validate.field).int64.gte = 0];
+  bool is_active = 4;
+}
+
+message ListAddonItemsRequest { string season_id = 1 [(buf.validate.field).string.min_len = 1]; }
+message ListAddonItemsResponse { repeated AddonItem items = 1; }
+
+message PilgrimAddon {
+  string id = 1;
+  string pilgrim_id = 2;
+  string pilgrim_name = 3;
+  string addon_item_id = 4;
+  string addon_name = 5;
+  string group_name = 6;
+  int32 quantity = 7;
+  int64 unit_price_idr = 8;
+  int64 total_idr = 9;
+  bool paid = 10;
+  string notes = 11;
+}
+
+message AssignPilgrimAddonRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.min_len = 1];
+  string addon_item_id = 2 [(buf.validate.field).string.min_len = 1];
+  int32 quantity = 3 [(buf.validate.field).int32.gte = 1];
+  int64 unit_price_idr = 4 [(buf.validate.field).int64.gte = 0];
+  string notes = 5;
+}
+
+message SetPilgrimAddonPaidRequest {
+  string pilgrim_addon_id = 1 [(buf.validate.field).string.min_len = 1];
+  bool paid = 2;
+}
+
+message RemovePilgrimAddonRequest { string pilgrim_addon_id = 1 [(buf.validate.field).string.min_len = 1]; }
+
+message ListPilgrimAddonsRequest {
+  string season_id = 1 [(buf.validate.field).string.min_len = 1];
+  string group_id = 2;
+}
+
+message ListPilgrimAddonsResponse { repeated PilgrimAddon addons = 1; }

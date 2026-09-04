@@ -1,5 +1,6 @@
 import { createClient } from "@connectrpc/connect";
 import { AccommodationService } from "@hajj-saas/proto-gen/hajj/v1/accommodation_connect";
+import { AddonService } from "@hajj-saas/proto-gen/hajj/v1/addon_connect";
 import { AgendaService } from "@hajj-saas/proto-gen/hajj/v1/agenda_connect";
 import { AgentService } from "@hajj-saas/proto-gen/hajj/v1/agent_connect";
 import { BroadcastService } from "@hajj-saas/proto-gen/hajj/v1/broadcast_connect";
@@ -47,6 +48,7 @@ import { transport } from "./transport";
 
 export const operatorClient = createClient(OperatorService, transport);
 export const agendaClient = createClient(AgendaService, transport);
+export const addonClient = createClient(AddonService, transport);
 export const branchClient = createClient(BranchService, transport);
 export const subscriptionClient = createClient(SubscriptionService, transport);
 export const pilgrimClient = createClient(PilgrimService, transport);
