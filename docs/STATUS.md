@@ -12,7 +12,7 @@ Diperbarui: **5 September 2026** (T4.4 Layanan Tambahan)
 
 | Jalur | Rute | Berkas tugas | Posisi |
 |---|---|---|---|
-| **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **T4.9 selesai**, sisa T3.2 & Tahap 4 |
+| **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **T4.10 selesai (sebagian)**, sisa T3.2 & Tahap 4 |
 | **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1, B2 selesai** (B2 sudah selesai sejak `0c32e52`, 2 Sep — baris ini sempat tidak diperbarui) · berikutnya **C4**, jatah Codex |
 | **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | dirancang, **antre** · 0/33 butir |
 | **SEO & Konten** | storefront | [TUGAS-SEO-KONTEN.md](TUGAS-SEO-KONTEN.md) | dirancang, **antre** · 0/17 butir |
@@ -30,17 +30,26 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
    kredensial penyedia dari pemilik). **T3.3 sudah selesai (4 September
    2026)**: Rangkaian, Rundown, dan Armada Bus melengkapi Manifes & Roomlist
    yang sudah ada duluan. CRM Leads dan tier kamar juga sudah selesai.
-   **Tahap 4: T4.1–T4.4, T4.7, T4.8, dan T4.9 Laporan laba rugi (5 September
+   **Tahap 4: T4.1–T4.4, T4.7, T4.8, T4.9, dan T4.10 (sebagian, 5 September
    2026) sudah selesai** di `/dashboard/inventaris`, `/dashboard/manasik`,
    `/dashboard/agenda`, `/dashboard/layanan-tambahan`, `/dashboard/momen`
-   (+ `/track/[code]` untuk keluarga), `/dashboard/pilgrims/baru`, dan tab
-   **Laba Rugi** baru di `/dashboard/reports` — cakupan lengkap ada di
+   (+ `/track/[code]` untuk keluarga), `/dashboard/pilgrims/baru`, tab
+   **Laba Rugi** di `/dashboard/reports`, dan tab **Kebijakan Keamanan**
+   baru di `/dashboard/settings` — cakupan lengkap ada di
    TUGAS-DASHBOARD-TRAVEL.md. Dipotong dan dicatat di sana: dua grafik
    Inventaris, pembayaran Layanan Tambahan yang masih penanda lunas/belum,
-   Momen yang foto saja (video belum), wizard tanpa "simulasi cicilan", dan
-   laba rugi yang mengecualikan (bukan menolkan) biaya pokok produk yang
-   belum tercatat harganya. Sisa Tahap 4: T4.10 Pengaturan lebih dalam,
-   T4.11 Support.
+   Momen yang foto saja (video belum), wizard tanpa "simulasi cicilan",
+   laba rugi yang mengecualikan biaya pokok produk yang belum tercatat
+   harganya, dan T4.10 yang baru mencakup pembatasan IP + Sesi Aktif —
+   matriks hak akses, matriks notifikasi, jam tenang, dan aturan eskalasi
+   belum dibangun. Sisa Tahap 4: sisa T4.10, T4.11 Support.
+
+   **Ditemukan sebelum membangun T4.10, sama seperti kejadian B2 di Panel
+   SaaS:** dua dari tiga "kesenjangan keamanan" yang disebut §4.9 DESAIN
+   ternyata sudah lama diterapkan tanpa syarat (2FA wajib untuk seluruh
+   staf, satu sesi aktif per akun) — dokumen rancangan belum diperbarui
+   setelah kapabilitasnya lahir dari komit lain. Satu-satunya kesenjangan
+   nyata adalah pembatasan IP, yang baru dibangun sesi ini.
 
    **Prasyarat data lokal yang belum jelas sebelumnya, ditemukan saat
    menguji wizard di peramban (5 September 2026):** `KYC_ENCRYPTION_KEY`

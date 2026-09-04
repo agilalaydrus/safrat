@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// SecuritySettingsService is Kebijakan Keamanan (§4.9 DESAIN): what is
+// already true about this account's security — most of it always has been,
+// unconditionally, and simply had no screen — plus the one real gap, an IP
+// allowlist, which is new and opt-in.
+service SecuritySettingsService {
+  // GetSecurityPosture returns both the fixed, code-level guarantees (2FA
+  // mandatory, single session per account, an immutable audit trail — never
+  // toggles, always true) and this operator's own IP allowlist setting.
+  rpc GetSecurityPosture(GetSecurityPostureRequest) returns (SecurityPosture);
+
+  // SetIpAllowlist refuses to enable the allowlist unless the caller's own
+  // current request IP is already inside one of the CIDRs being saved — the
+  // one configuration this table's CHECK constraint cannot catch on its own,
+  // since an empty-vs-nonempty list says nothing about whether the ranges
+  // given actually include the person turning it on.
+  rpc SetIpAllowlist(SetIpAllowlistRequest) returns (SecurityPosture);
+
+  rpc ListActiveSessions(ListActiveSessionsRequest) returns (ListActiveSessionsResponse);
+  // RevokeSession signs a device out immediately — the same effect as that
+  // device's own session simply expiring, just sooner.
+  rpc RevokeSession(RevokeSessionRequest) returns (google.protobuf.Empty);
+}
+
+message GetSecurityPostureRequest {}
+
+message SecurityPosture {
+  bool ip_allowlist_enabled = 1;
+  repeated string ip_allowlist_cidrs = 2;
+  // The IP this response was served to, so the settings screen can show
+  // "your current IP" next to the allowlist editor rather than making
+  // someone go find it themselves before risking a lockout.
+  string your_ip = 3;
+}
+
+message SetIpAllowlistRequest {
+  bool enabled = 1;
+  repeated string cidrs = 2;
+}
+
+message ListActiveSessionsRequest {}
+
+message ActiveSession {
+  string id = 1;
+  string user_name = 2;
+  string user_email = 3;
+  string ip_address = 4;
+  string user_agent = 5;
+  google.protobuf.Timestamp created_at = 6;
+  bool is_current_session = 7;
+}
+
+message ListActiveSessionsResponse { repeated ActiveSession sessions = 1; }
+
+message RevokeSessionRequest { string session_id = 1 [(buf.validate.field).string.min_len = 1]; }

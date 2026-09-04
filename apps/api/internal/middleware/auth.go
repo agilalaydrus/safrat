@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"strings"
 
 	"connectrpc.com/connect"
@@ -22,6 +23,8 @@ const (
 	ctxKeyUserName   contextKey = "user_name"
 	ctxKeyUserEmail  contextKey = "user_email"
 	ctxKeyOrgRole    contextKey = "org_role"
+	ctxKeySessionID  contextKey = "session_id"
+	ctxKeyClientIP   contextKey = "client_ip"
 )
 
 // publicProcedures lists RPCs that must be reachable without a Better Auth session —
@@ -284,6 +287,19 @@ var billingProcedures = map[string]bool{
 	"/hajj.v1.SubscriptionService/CreateInvoice":     true,
 }
 
+// securitySettingsProcedures stay reachable regardless of the IP allowlist
+// check below, for the same reason billingProcedures stay reachable
+// regardless of the subscription gate: an operator locked out by their own
+// misconfigured allowlist (a changed home IP, a typo'd CIDR) must still be
+// able to reach the one screen that can fix it, or the feature that exists
+// to add security becomes a way to lose access to the account entirely.
+var securitySettingsProcedures = map[string]bool{
+	"/hajj.v1.SecuritySettingsService/GetSecurityPosture": true,
+	"/hajj.v1.SecuritySettingsService/SetIpAllowlist":     true,
+	"/hajj.v1.SecuritySettingsService/ListActiveSessions": true,
+	"/hajj.v1.SecuritySettingsService/RevokeSession":      true,
+}
+
 // NewAuthInterceptor validates Better Auth's opaque database session token.
 // Better Auth does not issue JWTs for its default session strategy.
 //
@@ -317,7 +333,7 @@ type authInterceptor struct {
 
 func (a *authInterceptor) WrapUnary(next connect.UnaryFunc) connect.UnaryFunc {
 	return func(ctx context.Context, request connect.AnyRequest) (connect.AnyResponse, error) {
-		ctx, err := a.authenticate(ctx, request.Spec().Procedure, request.Header())
+		ctx, err := a.authenticate(ctx, request.Spec().Procedure, request.Header(), request.Peer().Addr)
 		if err != nil {
 			return nil, err
 		}
@@ -333,7 +349,7 @@ func (a *authInterceptor) WrapStreamingClient(next connect.StreamingClientFunc) 
 
 func (a *authInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc) connect.StreamingHandlerFunc {
 	return func(ctx context.Context, conn connect.StreamingHandlerConn) error {
-		ctx, err := a.authenticate(ctx, conn.Spec().Procedure, conn.RequestHeader())
+		ctx, err := a.authenticate(ctx, conn.Spec().Procedure, conn.RequestHeader(), conn.Peer().Addr)
 		if err != nil {
 			return err
 		}
@@ -344,7 +360,7 @@ func (a *authInterceptor) WrapStreamingHandler(next connect.StreamingHandlerFunc
 // authenticate holds the exact rule set previously inlined in the unary-only
 // interceptor — same publicProcedures/sessionOnlyProcedures/
 // restrictedMemberProcedures checks, same three context values on success.
-func (a *authInterceptor) authenticate(ctx context.Context, procedure string, header http.Header) (context.Context, error) {
+func (a *authInterceptor) authenticate(ctx context.Context, procedure string, header http.Header, peerAddr string) (context.Context, error) {
 	// An impersonation header on a procedure impersonation may not reach is
 	// refused before anything else is considered.
 	//
@@ -384,9 +400,36 @@ func (a *authInterceptor) authenticate(ctx context.Context, procedure string, he
 		ctx = context.WithValue(ctx, ctxKeyUserEmail, userEmail)
 		return ctx, nil
 	}
-	userID, organizationID, userName, orgRole, err := resolveStaffSessionWithRole(ctx, a.pool, token)
+	userID, organizationID, userName, orgRole, sessionID, err := resolveStaffSessionWithRole(ctx, a.pool, token)
 	if err != nil {
 		return nil, err
+	}
+	callerIP := clientIP(header, peerAddr)
+
+	// IP allowlist. Checked against the operator this session belongs to,
+	// skipped entirely for securitySettingsProcedures (see its own comment)
+	// and for a request with no configured allowlist at all — the common
+	// case, and the only one that must cost nothing.
+	if !securitySettingsProcedures[procedure] {
+		var enabled bool
+		var cidrs []string
+		const allowlistQuery = `
+			SELECT s.ip_allowlist_enabled, s.ip_allowlist_cidrs
+			FROM operator_security_settings s
+			JOIN operators o ON o.id = s.operator_id
+			WHERE o.better_auth_org_id = $1`
+		switch scanErr := a.pool.QueryRow(ctx, allowlistQuery, organizationID).Scan(&enabled, &cidrs); {
+		case errors.Is(scanErr, pgx.ErrNoRows):
+			// No row: this operator never configured an allowlist. Fails
+			// open, deliberately — the feature is opt-in and must change
+			// nothing for the operators who never touch it.
+		case scanErr != nil:
+			slog.Error("resolve IP allowlist", "procedure", procedure, "error", scanErr)
+			return nil, connect.NewError(connect.CodeInternal, errors.New("resolve IP allowlist"))
+		case enabled && !ipAllowed(callerIP, cidrs):
+			return nil, connect.NewError(connect.CodePermissionDenied,
+				errors.New("alamat IP ini tidak ada dalam daftar yang diizinkan operator"))
+		}
 	}
 
 	// Impersonation replaces the tenant this request belongs to, before any of
@@ -451,8 +494,30 @@ func (a *authInterceptor) authenticate(ctx context.Context, procedure string, he
 	ctx = context.WithValue(ctx, ctxKeyOperatorID, organizationID)
 	ctx = context.WithValue(ctx, ctxKeyUserName, userName)
 	ctx = context.WithValue(ctx, ctxKeyOrgRole, orgRole)
+	ctx = context.WithValue(ctx, ctxKeySessionID, sessionID)
+	ctx = context.WithValue(ctx, ctxKeyClientIP, callerIP)
 	ctx = repository.ContextWithStaffActor(ctx, userID)
 	return ctx, nil
+}
+
+// ipAllowed reports whether ip falls inside at least one of cidrs. A CIDR
+// that fails to parse is skipped rather than treated as a match — a typo in
+// one range must narrow the allowlist, never silently widen it to "anything".
+func ipAllowed(ip string, cidrs []string) bool {
+	parsed, err := netip.ParseAddr(ip)
+	if err != nil {
+		return false
+	}
+	for _, cidr := range cidrs {
+		prefix, err := netip.ParsePrefix(cidr)
+		if err != nil {
+			continue
+		}
+		if prefix.Contains(parsed) {
+			return true
+		}
+	}
+	return false
 }
 
 // ResolveStaffSession validates a Better Auth bearer token the same way
@@ -462,7 +527,7 @@ func (a *authInterceptor) authenticate(ctx context.Context, procedure string, he
 // main.go) can authenticate with the identical rule instead of
 // reimplementing this query.
 func ResolveStaffSession(ctx context.Context, pool *pgxpool.Pool, token string) (userID, organizationID, userName string, err error) {
-	userID, organizationID, userName, _, err = resolveStaffSessionWithRole(ctx, pool, token)
+	userID, organizationID, userName, _, _, err = resolveStaffSessionWithRole(ctx, pool, token)
 	return userID, organizationID, userName, err
 }
 
@@ -471,13 +536,14 @@ func ResolveStaffSession(ctx context.Context, pool *pgxpool.Pool, token string) 
 // separate prevents a user's display name from ever being mistaken for an
 // authorization value.
 func ResolveStaffSessionRole(ctx context.Context, pool *pgxpool.Pool, token string) (userID, organizationID, orgRole string, err error) {
-	userID, organizationID, _, orgRole, err = resolveStaffSessionWithRole(ctx, pool, token)
+	userID, organizationID, _, orgRole, _, err = resolveStaffSessionWithRole(ctx, pool, token)
 	return userID, organizationID, orgRole, err
 }
 
-func resolveStaffSessionWithRole(ctx context.Context, pool *pgxpool.Pool, token string) (userID, organizationID, userName, orgRole string, err error) {
+func resolveStaffSessionWithRole(ctx context.Context, pool *pgxpool.Pool, token string) (userID, organizationID, userName, orgRole, sessionID string, err error) {
 	const query = `
-		SELECT s."userId",
+		SELECT s.id,
+		       s."userId",
 		       COALESCE(s."activeOrganizationId", m."organizationId") AS "orgId",
 		       u.name,
 		       m.role
@@ -493,17 +559,17 @@ func resolveStaffSessionWithRole(ctx context.Context, pool *pgxpool.Pool, token 
 		ORDER BY
 		  CASE WHEN s."activeOrganizationId" = m."organizationId" THEN 0 ELSE 1 END
 		LIMIT 1`
-	err = pool.QueryRow(ctx, query, token).Scan(&userID, &organizationID, &userName, &orgRole)
+	err = pool.QueryRow(ctx, query, token).Scan(&sessionID, &userID, &organizationID, &userName, &orgRole)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", "", "", "", connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or expired Better Auth session"))
+		return "", "", "", "", "", connect.NewError(connect.CodeUnauthenticated, errors.New("invalid or expired Better Auth session"))
 	}
 	if err != nil {
-		return "", "", "", "", connect.NewError(connect.CodeInternal, errors.New("validate Better Auth session"))
+		return "", "", "", "", "", connect.NewError(connect.CodeInternal, errors.New("validate Better Auth session"))
 	}
 	if userID == "" || organizationID == "" {
-		return "", "", "", "", connect.NewError(connect.CodeUnauthenticated, errors.New("Better Auth session has no active organization"))
+		return "", "", "", "", "", connect.NewError(connect.CodeUnauthenticated, errors.New("Better Auth session has no active organization"))
 	}
-	return userID, organizationID, userName, orgRole, nil
+	return userID, organizationID, userName, orgRole, sessionID, nil
 }
 
 func UserIDFromCtx(ctx context.Context) string {
@@ -524,6 +590,16 @@ func UserNameFromCtx(ctx context.Context) string {
 func UserEmailFromCtx(ctx context.Context) string {
 	userEmail, _ := ctx.Value(ctxKeyUserEmail).(string)
 	return userEmail
+}
+
+func SessionIDFromCtx(ctx context.Context) string {
+	sessionID, _ := ctx.Value(ctxKeySessionID).(string)
+	return sessionID
+}
+
+func ClientIPFromCtx(ctx context.Context) string {
+	ip, _ := ctx.Value(ctxKeyClientIP).(string)
+	return ip
 }
 
 func OrgRoleFromCtx(ctx context.Context) string {

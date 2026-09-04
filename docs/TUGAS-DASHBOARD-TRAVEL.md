@@ -743,9 +743,58 @@ repository, service, handler, dan UI telah terhubung utuh.
       dengan perhitungan tangan (laba bersih, capaian target cabang,
       kontribusi), dan ekspor CSV yang diklik sungguhan mengunduh berkas
       dengan baris yang cocok — pesanan `REFUNDED` tidak ikut terekspor.
-- [ ] **T4.10** Pengaturan yang lebih dalam (§4.9 DESAIN) — 2FA wajib,
-      pembatasan IP, satu perangkat per akun, matriks hak akses, matriks
-      notifikasi, jam tenang, aturan eskalasi
+- [x] **T4.10** Pengaturan yang lebih dalam (§4.9 DESAIN) — **sebagian**,
+      selesai (5 September 2026). Tab **Kebijakan Keamanan** baru di
+      `/dashboard/settings`, migrasi 161 (`operator_security_settings`).
+
+      **Penemuan sebelum membangun apa pun: dua dari tiga "yang belum kita
+      punya" menurut §4.9 sudah lama ada — hanya belum ada layarnya.**
+      2FA sudah wajib untuk seluruh staf tanpa syarat (`RequireTwoFactor
+      mode="enforce"` di seluruh shell dashboard) dan satu sesi per akun
+      sudah ditegakkan tanpa syarat (`databaseHooks.session.create` di
+      `apps/web/lib/auth.ts` mencabut sesi lain yang sama persis saat sesi
+      baru dibuat) — keduanya **lebih ketat** daripada "bisa diatur per
+      operator" yang diminta rancangan, jadi dibangun sebagai klaim
+      **tetap** (tidak bisa dimatikan dari layar ini), bukan sakelar. Sama
+      persis dengan kejadian B2 di Panel SaaS — dokumen rancangan tidak
+      diperbarui setelah kapabilitasnya lahir dari komit lain.
+
+      **Satu-satunya kesenjangan nyata: pembatasan IP.** Baru dan opsional
+      (nonaktif secara default, tidak mengubah perilaku operator manapun
+      yang tidak pernah membukanya). **Pengaman yang paling penting**:
+      server menolak mengaktifkan daftar yang tidak menyertakan IP
+      pemanggil sendiri saat itu — dibuktikan dengan merusak (guard
+      dilonggarkan → uji gagal tepat di titik itu) dan diperiksa di
+      peramban sungguhan: aktifkan dengan IP sendiri, muat ulang halaman,
+      pastikan tidak terkunci. `SecuritySettingsService` sendiri dikecualikan
+      dari pemeriksaan IP-nya sendiri (pola yang sama dengan
+      `billingProcedures` — lihat komentarnya) supaya operator yang salah
+      mengetik CIDR tetap bisa membuka layar yang memperbaikinya.
+
+      **Sesi Aktif**: daftar + cabut sesi, dibaca langsung dari tabel
+      `session` Better Auth (pola SQL mentah yang sama dengan
+      `internal/middleware/auth.go`). Dicabut dan dibuktikan dengan
+      merusak: kondisi penyaring operator dihapus dari kueri cabut → uji
+      gagal dengan operator A berhasil mencabut sesi milik operator B.
+
+      **Ditemukan saat menguji, diperbaiki sebelum sempat dipakai:** IP
+      pemanggil di middleware awalnya selalu string kosong secara lokal
+      (`clientIP(header, "")` — argumen peer address tidak pernah
+      dialirkan dari `WrapUnary`/`WrapStreamingHandler`), yang berarti
+      pengaktifan pembatasan IP akan **selalu ditolak** di luar produksi
+      (di belakang nginx). Diperbaiki dengan mengalirkan `request.Peer().Addr`/
+      `conn.Peer().Addr` sampai ke `authenticate()`, pola yang sama yang
+      sudah dipakai `ratelimit.go`.
+
+      **Sengaja tidak dibangun sesi ini, dicatat jujur:** matriks hak
+      akses (klik sel untuk ubah level Lihat/Ubah/Penuh), matriks
+      notifikasi per event, jam tenang, dan aturan eskalasi. Keempatnya
+      adalah sistem sendiri-sendiri (mesin izin granular per RPC, mesin
+      perutean notifikasi) yang menyentuh permukaan jauh lebih luas
+      daripada satu tabel pengaturan — membangunnya tergesa demi
+      menyelesaikan daftar berisiko menghasilkan layar yang **terlihat**
+      menegakkan sesuatu padahal tidak, persis peringatan §4.9 tentang
+      "klaim di layar" kompetitor yang coba dihindari proyek ini.
 - [ ] **T4.11** Support (tiket ke platform)
 - [x] **T4.12** Ekspor data mandiri oleh operator — **kewajiban portabilitas
       UU PDP**. Migrasi 154 (`operator_data_exports`), tab **Ekspor Data Saya**

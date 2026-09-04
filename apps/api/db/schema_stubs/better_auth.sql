@@ -20,3 +20,15 @@ CREATE TABLE "member" (
   role text NOT NULL,
   "createdAt" timestamptz NOT NULL
 );
+
+CREATE TABLE "session" (
+  id text PRIMARY KEY,
+  "expiresAt" timestamptz NOT NULL,
+  token text NOT NULL,
+  "createdAt" timestamptz NOT NULL,
+  "updatedAt" timestamptz NOT NULL,
+  "ipAddress" text,
+  "userAgent" text,
+  "userId" text NOT NULL,
+  "activeOrganizationId" text
+);
