@@ -34,8 +34,11 @@ type Order struct {
 	CheckoutChannel    string
 	RiskLevel          string
 	RiskReason         string
-	PaidAt             *time.Time
-	CreatedAt          time.Time
+	// RoomTier is empty for products without tiers, and for orders placed
+	// before tiers existed.
+	RoomTier  string
+	PaidAt    *time.Time
+	CreatedAt time.Time
 }
 
 // PilgrimTransaction is one line in a jamaah's own transaction history.

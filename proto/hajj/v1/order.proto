@@ -245,6 +245,8 @@ message Order {
   string risk_level = 32;
   // Human-readable evidence for staff; empty for NORMAL transactions.
   string risk_reason = 33;
+  // QUAD | TRIPLE | DOUBLE, or empty for a product without tiers.
+  string room_tier = 34;
 }
 
 message CreateOrderRequest {
@@ -255,6 +257,11 @@ message CreateOrderRequest {
   // two invoices, and the jamaah could pay both. The same key always settles
   // the same order and returns its existing payment link.
   string idempotency_key = 4 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+  // Empty for a product without tiers. QUAD | TRIPLE | DOUBLE otherwise —
+  // validated server-side against what the product actually offers, the same
+  // way every other price component here is computed, not trusted from the
+  // client.
+  string room_tier = 5;
 }
 
 message CreateOrderResponse {
@@ -287,6 +294,7 @@ message CreateManualOrderRequest {
   ManualOrderPaymentMethod payment_method = 4 [(buf.validate.field).enum = {defined_only: true, in: [1, 2, 3]}];
   string note = 5 [(buf.validate.field).string.max_len = 500];
   string idempotency_key = 6 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+  string room_tier = 7;
 }
 
 message CreateOrderForPilgrimRequest {
@@ -294,6 +302,7 @@ message CreateOrderForPilgrimRequest {
   string product_id = 2 [(buf.validate.field).string.uuid = true];
   int32 quantity = 3 [(buf.validate.field).int32 = {gte: 1, lte: 20}];
   string idempotency_key = 4 [(buf.validate.field).string = {min_len: 1, max_len: 128}];
+  string room_tier = 5;
 }
 
 message PurchaseCatalogueProduct {

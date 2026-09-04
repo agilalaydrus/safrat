@@ -7,7 +7,7 @@ INSERT INTO orders (
   unit_price_idr, total_price_idr, platform_amount_idr, operator_amount_idr,
   agent_commission_idr, idempotency_key, placed_by_agent_id, buyer_agent_id,
   buyer_kind, base_price_idr, operator_markup_idr, agent_markup_idr,
-  destination, digital_spend_counted_on, checkout_channel, branch_id
+  destination, digital_spend_counted_on, checkout_channel, branch_id, room_tier
 ) SELECT
   sqlc.arg(operator_id), sqlc.arg(season_id), sqlc.narg(pilgrim_id),
   sqlc.arg(product_id), NULLIF(sqlc.arg(agent_id)::text, '')::uuid,
@@ -22,7 +22,8 @@ INSERT INTO orders (
   COALESCE(
     (SELECT p.branch_id FROM pilgrims p WHERE p.id = sqlc.narg(pilgrim_id) AND p.operator_id = sqlc.arg(operator_id)),
     (SELECT a.branch_id FROM agents a WHERE a.id = sqlc.narg(buyer_agent_id) AND a.operator_id = sqlc.arg(operator_id))
-  )
+  ),
+  NULLIF(sqlc.arg(room_tier)::text, '')
 WHERE sqlc.narg(branch_scope)::uuid IS NULL
    OR COALESCE(
         (SELECT p.branch_id FROM pilgrims p WHERE p.id = sqlc.narg(pilgrim_id) AND p.operator_id = sqlc.arg(operator_id)),

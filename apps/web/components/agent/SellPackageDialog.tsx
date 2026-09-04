@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { IconX } from "@tabler/icons-react";
-import { Product } from "@hajj-saas/proto-gen/hajj/v1/product_pb";
+import { Product, ProductRoomTier } from "@hajj-saas/proto-gen/hajj/v1/product_pb";
 import { ManualOrderPaymentMethod } from "@hajj-saas/proto-gen/hajj/v1/order_pb";
 import { productClient, orderClient } from "@/lib/rpc";
 import { checkoutErrorMessage } from "@/lib/checkout-error";
 
 type Props = { open: boolean; pilgrimId: string; pilgrimName: string; seasonId: string; onClose: () => void; onSold: () => void };
+
+const TIER_LABELS: Record<string, string> = { QUAD: "Quad (4 orang sekamar)", TRIPLE: "Triple (3 orang sekamar)", DOUBLE: "Double (2 orang sekamar)" };
 
 const METHODS: [ManualOrderPaymentMethod, string][] = [
   [ManualOrderPaymentMethod.XENDIT_LINK, "Kirim Tautan Pembayaran (Xendit)"],
@@ -18,6 +20,8 @@ const METHODS: [ManualOrderPaymentMethod, string][] = [
 export default function SellPackageDialog({ open, pilgrimId, pilgrimName, seasonId, onClose, onSold }: Props) {
   const [products, setProducts] = useState<Product[]>([]);
   const [productId, setProductId] = useState("");
+  const [roomTiers, setRoomTiers] = useState<ProductRoomTier[]>([]);
+  const [roomTier, setRoomTier] = useState("");
   const [method, setMethod] = useState<ManualOrderPaymentMethod>(ManualOrderPaymentMethod.XENDIT_LINK);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -27,19 +31,28 @@ export default function SellPackageDialog({ open, pilgrimId, pilgrimName, season
 
   useEffect(() => {
     if (!open || !seasonId) return;
-    setProductId(""); setNote(""); setError(""); setCheckoutUrl(""); setMethod(ManualOrderPaymentMethod.XENDIT_LINK); setIdempotencyKey(crypto.randomUUID());
+    setProductId(""); setRoomTiers([]); setRoomTier(""); setNote(""); setError(""); setCheckoutUrl(""); setMethod(ManualOrderPaymentMethod.XENDIT_LINK); setIdempotencyKey(crypto.randomUUID());
     productClient.listProducts({ seasonId }).then((r) => setProducts(r.products.filter((p) => p.category === "TRAVEL_PACKAGE" && p.isActive))).catch(() => setProducts([]));
   }, [open, seasonId]);
+
+  useEffect(() => {
+    setRoomTier("");
+    if (!productId) { setRoomTiers([]); return; }
+    productClient.listProductRoomTiers({ productId })
+      .then((r) => setRoomTiers(r.tiers.filter((t) => t.isActive)))
+      .catch(() => setRoomTiers([]));
+  }, [productId]);
 
   if (!open) return null;
   const selected = products.find((p) => p.id === productId);
 
   async function submit() {
     if (!productId) { setError("Pilih paket terlebih dahulu."); return; }
+    if (roomTiers.length > 0 && !roomTier) { setError("Pilih tier kamar."); return; }
     setSaving(true);
     setError("");
     try {
-      const result = await orderClient.createManualOrder({ pilgrimId, productId, quantity: 1, paymentMethod: method, note, idempotencyKey });
+      const result = await orderClient.createManualOrder({ pilgrimId, productId, quantity: 1, paymentMethod: method, note, idempotencyKey, roomTier });
       if (result.checkoutUrl) {
         setCheckoutUrl(result.checkoutUrl);
       } else {
@@ -80,6 +93,19 @@ export default function SellPackageDialog({ open, pilgrimId, pilgrimName, season
               </label>
               {selected && selected.itineraryDays.length > 0 && (
                 <div style={{ fontSize: 12, color: "var(--color-warm-500)" }}>{selected.itineraryDays.length} hari itinerary{selected.hotelIds.length > 0 && ` · ${selected.hotelIds.length} hotel`}</div>
+              )}
+              {roomTiers.length > 0 && (
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span style={labelStyle}>Tier Kamar</span>
+                  <select value={roomTier} onChange={(e) => setRoomTier(e.target.value)} style={input}>
+                    <option value="">— pilih tier kamar —</option>
+                    {roomTiers.map((t) => (
+                      <option key={t.tier} value={t.tier}>
+                        {TIER_LABELS[t.tier] ?? t.tier} · {t.priceDeltaIdr === 0n ? "tanpa tambahan" : `${t.priceDeltaIdr > 0n ? "+" : ""}Rp${Number(t.priceDeltaIdr).toLocaleString("id-ID")}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               )}
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={labelStyle}>Metode Pembayaran</span>

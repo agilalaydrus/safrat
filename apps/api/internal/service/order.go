@@ -72,6 +72,43 @@ func ensurePriceCoversSupplierCost(product *domain.Product, price Price) error {
 // pricePilgrimOrder is the one pricing gate shared by every lane that sells
 // to a jamaah. Expected configuration gaps are failed preconditions a person
 // can fix, not internal errors.
+// applyRoomTier adds a tier's price difference on top of an already-computed
+// price, and refuses a tier the product does not actually offer.
+//
+// The delta is added after ComputePrice rather than folded into it: a tier is
+// a flat adjustment to what the buyer pays, not a change to how the total
+// splits between platform, operator and agent — the same reasoning
+// ChangeOrderProduct already applies when a pilgrim moves between packages.
+// Kept as one function so first-time checkout and a later plan change can
+// never compute a tier's price two different ways.
+func (s *OrderService) applyRoomTier(ctx context.Context, operatorID, productID, roomTier string, price Price) (Price, error) {
+	if strings.TrimSpace(roomTier) == "" {
+		return price, nil
+	}
+	tiers, _, err := s.productRepository.ListRoomTiers(ctx, operatorID, productID)
+	if err != nil {
+		return price, serviceError("OrderService.applyRoomTier", err)
+	}
+	for _, tier := range tiers {
+		if tier.Tier != roomTier {
+			continue
+		}
+		if !tier.IsActive {
+			return price, connect.NewError(connect.CodeFailedPrecondition,
+				errors.New("tier kamar itu tidak lagi ditawarkan untuk paket ini"))
+		}
+		price.TotalPriceIDR += tier.PriceDeltaIDR
+		price.UnitPriceIDR += tier.PriceDeltaIDR
+		price.BasePriceIDR += tier.PriceDeltaIDR
+		if price.TotalPriceIDR < 0 {
+			return price, serviceError("OrderService.applyRoomTier", apperror.ErrValidation)
+		}
+		return price, nil
+	}
+	return price, connect.NewError(connect.CodeFailedPrecondition,
+		errors.New("tier kamar itu tidak ditawarkan untuk paket ini"))
+}
+
 func pricePilgrimOrder(product *domain.Product, levels domain.PriceLevels, route domain.RouteReadiness, quantity int32, referrerAgentID string) (Price, error) {
 	price, err := ComputePrice(levels, quantity, BuyerPilgrim, referrerAgentID)
 	if err != nil {
@@ -219,6 +256,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *hajjv1.CreateOrderR
 	if err != nil {
 		return nil, err
 	}
+	if price, err = s.applyRoomTier(ctx, info.OperatorID, req.ProductId, req.RoomTier, price); err != nil {
+		return nil, err
+	}
 	destination, err := digitalDestination(product, "", info.Phone)
 	if err != nil {
 		return nil, err
@@ -243,6 +283,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, req *hajjv1.CreateOrderR
 		OperatorAmountIDR: price.OperatorAmountIDR, AgentCommissionIDR: price.AgentCommissionIDR,
 		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey), Destination: destination, CheckoutChannel: "XENDIT",
 		CountsTowardDailyLimit: domain.RoutingRequired(product.Category), SpendDate: jakartaToday(),
+		RoomTier: strings.TrimSpace(req.RoomTier),
 	})
 	if err != nil {
 		return nil, s.checkoutCreateError(ctx, "OrderService.CreateOrder", info.OperatorID, "", string(BuyerPilgrim), info.ID, err)
@@ -311,6 +352,9 @@ func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req 
 	if err != nil {
 		return nil, err
 	}
+	if price, err = s.applyRoomTier(ctx, op.ID, req.ProductId, req.RoomTier, price); err != nil {
+		return nil, err
+	}
 	destination, err := digitalDestination(product, "", pilgrim.Phone)
 	if err != nil {
 		return nil, err
@@ -334,6 +378,7 @@ func (s *OrderService) CreateManualOrder(ctx context.Context, orgID string, req 
 		OperatorAmountIDR: price.OperatorAmountIDR, AgentCommissionIDR: price.AgentCommissionIDR,
 		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey), Destination: destination, CheckoutChannel: checkoutChannel,
 		CountsTowardDailyLimit: domain.RoutingRequired(product.Category), SpendDate: jakartaToday(),
+		RoomTier: strings.TrimSpace(req.RoomTier),
 	})
 	if err != nil {
 		return nil, s.checkoutCreateError(ctx, "OrderService.CreateManualOrder", op.ID, middleware.UserIDFromCtx(ctx), string(BuyerPilgrim), pilgrim.ID, err)
@@ -573,7 +618,7 @@ func orderMessage(o *domain.Order) *hajjv1.Order {
 		BuyerAgentId: o.BuyerAgentID, BuyerKind: o.BuyerKind, BuyerName: o.BuyerName,
 		BasePriceIdr: o.BasePriceIDR, OperatorMarkupIdr: o.OperatorMarkupIDR,
 		AgentMarkupIdr: o.AgentMarkupIDR, Destination: o.Destination,
-		RiskLevel: o.RiskLevel, RiskReason: o.RiskReason,
+		RiskLevel: o.RiskLevel, RiskReason: o.RiskReason, RoomTier: o.RoomTier,
 	}
 	if o.PaidAmountIDR != nil {
 		result.PaidAmountIdr = *o.PaidAmountIDR
@@ -860,6 +905,9 @@ func (s *OrderService) CreateOrderForPilgrim(ctx context.Context, orgID, userID 
 	if err != nil {
 		return nil, err
 	}
+	if price, err = s.applyRoomTier(ctx, op.ID, req.ProductId, req.RoomTier, price); err != nil {
+		return nil, err
+	}
 	destination, err := digitalDestination(product, "", pilgrim.Phone)
 	if err != nil {
 		return nil, err
@@ -879,6 +927,7 @@ func (s *OrderService) CreateOrderForPilgrim(ctx context.Context, orgID, userID 
 		OperatorAmountIDR: price.OperatorAmountIDR, AgentCommissionIDR: price.AgentCommissionIDR,
 		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey), Destination: destination, CheckoutChannel: "XENDIT",
 		CountsTowardDailyLimit: domain.RoutingRequired(product.Category), SpendDate: jakartaToday(),
+		RoomTier: strings.TrimSpace(req.RoomTier),
 	})
 	if err != nil {
 		return nil, s.checkoutCreateError(ctx, "OrderService.CreateOrderForPilgrim", op.ID, userID, string(BuyerPilgrim), pilgrim.ID, err)

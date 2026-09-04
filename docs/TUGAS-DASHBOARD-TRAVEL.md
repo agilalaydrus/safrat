@@ -498,12 +498,20 @@ repository, service, handler, dan UI telah terhubung utuh.
       bukan membalik lalu mencatat ulang dengan kunci pesanan yang sama —
       itu akan bentrok dengan entri `EARNED` asli pesanan itu sendiri.
 
-      **Belum dikerjakan, dan disebut jujur:** tier kamar belum ikut dihitung
-      di jalur pembuatan pesanan biasa (`CreateOrderForPilgrim` dkk) — T3.4
-      membangun katalog tier dan penegakan kuotanya, tapi bukan penghitungan
-      harganya saat checkout. Pindah paket sendiri **sudah** menghitung
-      selisih tier dengan benar untuk paket tujuan; celahnya ada di jalur beli
-      pertama kali, di luar cakupan pekerjaan ini.
+      **Celah ini sudah ditutup (4 September 2026):** tier kamar sekarang ikut
+      dihitung di jalur pembuatan pesanan biasa (`CreateOrder`,
+      `CreateManualOrder`, `CreateOrderForPilgrim`) lewat `applyRoomTier` di
+      `internal/service/order.go` — sqlc → domain → repository → proto →
+      service semua diperbarui supaya `orders.room_tier` benar-benar tertulis,
+      yang berarti trigger kuota (`assert_room_tier_quota`, hanya menyala
+      kalau `room_tier` terisi) akhirnya ikut aktif di pembelian pertama, dan
+      selisih harga tier tidak lagi hilang. Dibuktikan dengan merusak:
+      panggilan `applyRoomTier` dan `RoomTier:` di parameter dibuang →
+      `TestCreateManualOrderPricesAndEnforcesRoomTierIntegration` gagal persis
+      seperti bug aslinya (`total = 30.000.000, mau 35.000.000`). UI pemilihan
+      tier ditambahkan di `CreateOrderDialog.tsx` (dashboard) dan
+      `SellPackageDialog.tsx` (agen) — muncul otomatis kalau produk punya
+      tier aktif.
 - [ ] **T4.7** Momen — **foto & kabar boleh, GPS mentah tidak.**
       `FamilyStatus` kita sengaja menolak GPS, nomor kamar, dan paspor.
       Pertahankan; jadikan bahan jualan.

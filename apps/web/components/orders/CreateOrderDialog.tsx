@@ -2,12 +2,14 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { IconBuildingBank, IconCash, IconCopy, IconLink, IconX } from "@tabler/icons-react";
 import { Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
-import { Product } from "@hajj-saas/proto-gen/hajj/v1/product_pb";
+import { Product, ProductRoomTier } from "@hajj-saas/proto-gen/hajj/v1/product_pb";
 import { ManualOrderPaymentMethod } from "@hajj-saas/proto-gen/hajj/v1/order_pb";
 import { pilgrimClient, productClient, orderClient } from "@/lib/rpc";
 import { checkoutErrorMessage } from "@/lib/checkout-error";
 
 const rupiah = (n: bigint | number) => `Rp${Number(n).toLocaleString("id-ID")}`;
+
+const TIER_LABELS: Record<string, string> = { QUAD: "Quad (4 orang sekamar)", TRIPLE: "Triple (3 orang sekamar)", DOUBLE: "Double (2 orang sekamar)" };
 
 const METHODS: { value: ManualOrderPaymentMethod; label: string; hint: string; icon: typeof IconLink }[] = [
   { value: ManualOrderPaymentMethod.XENDIT_LINK, label: "Kirim Link Xendit", hint: "Jamaah bayar sendiri lewat link", icon: IconLink },
@@ -23,6 +25,8 @@ export default function CreateOrderDialog({ open, seasonId, onClose, onCreated }
   const [pilgrimSearch, setPilgrimSearch] = useState("");
   const [pilgrimId, setPilgrimId] = useState("");
   const [productId, setProductId] = useState("");
+  const [roomTiers, setRoomTiers] = useState<ProductRoomTier[]>([]);
+  const [roomTier, setRoomTier] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [method, setMethod] = useState<ManualOrderPaymentMethod>(ManualOrderPaymentMethod.XENDIT_LINK);
   const [note, setNote] = useState("");
@@ -36,12 +40,20 @@ export default function CreateOrderDialog({ open, seasonId, onClose, onCreated }
 
   useEffect(() => {
     if (!open || !seasonId) return;
-    setPilgrimSearch(""); setPilgrimId(""); setProductId(""); setQuantity(1);
+    setPilgrimSearch(""); setPilgrimId(""); setProductId(""); setRoomTiers([]); setRoomTier(""); setQuantity(1);
     setMethod(ManualOrderPaymentMethod.XENDIT_LINK); setNote(""); setErrors({}); setResult(undefined);
     setIdempotencyKey(crypto.randomUUID());
     pilgrimClient.listPilgrims({ seasonId, limit: 500, offset: 0 }).then((r) => setPilgrims(r.pilgrims)).catch(() => setPilgrims([]));
     productClient.listProducts({ seasonId }).then((r) => setProducts(r.products.filter((p) => p.isActive))).catch(() => setProducts([]));
   }, [open, seasonId]);
+
+  useEffect(() => {
+    setRoomTier("");
+    if (!productId) { setRoomTiers([]); return; }
+    productClient.listProductRoomTiers({ productId })
+      .then((r) => setRoomTiers(r.tiers.filter((t) => t.isActive)))
+      .catch(() => setRoomTiers([]));
+  }, [productId]);
 
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => e.key === "Escape" && !saving && onClose();
@@ -57,7 +69,9 @@ export default function CreateOrderDialog({ open, seasonId, onClose, onCreated }
 
   const selectedPilgrim = pilgrims.find((p) => p.id === pilgrimId);
   const selectedProduct = products.find((p) => p.id === productId);
-  const total = selectedProduct ? selectedProduct.priceIdr * BigInt(quantity) : 0n;
+  const selectedTier = roomTiers.find((t) => t.tier === roomTier);
+  const unitPrice = selectedProduct ? selectedProduct.priceIdr + (selectedTier?.priceDeltaIdr ?? 0n) : 0n;
+  const total = selectedProduct ? unitPrice * BigInt(quantity) : 0n;
 
   if (!open) return null;
 
@@ -66,11 +80,12 @@ export default function CreateOrderDialog({ open, seasonId, onClose, onCreated }
     const errs: Record<string, string> = {};
     if (!pilgrimId) errs.pilgrim = "Pilih jamaah.";
     if (!productId) errs.product = "Pilih produk.";
+    if (roomTiers.length > 0 && !roomTier) errs.roomTier = "Pilih tier kamar.";
     if (quantity < 1 || quantity > 20) errs.quantity = "Jumlah harus 1–20.";
     if (Object.keys(errs).length) { setErrors(errs); return; }
     setSaving(true);
     try {
-      const response = await orderClient.createManualOrder({ pilgrimId, productId, quantity, paymentMethod: method, note: note.trim(), idempotencyKey });
+      const response = await orderClient.createManualOrder({ pilgrimId, productId, quantity, paymentMethod: method, note: note.trim(), idempotencyKey, roomTier });
       if (method === ManualOrderPaymentMethod.XENDIT_LINK) {
         setResult({ checkoutUrl: response.checkoutUrl, paidDirectly: false });
       } else {
@@ -140,6 +155,20 @@ export default function CreateOrderDialog({ open, seasonId, onClose, onCreated }
                 </select>
                 {errors.product && <small style={{ color: "var(--color-danger-600)" }}>{errors.product}</small>}
               </label>
+              {roomTiers.length > 0 && (
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span style={lab}>Tier kamar</span>
+                  <select className="safrat-input" value={roomTier} onChange={(e) => setRoomTier(e.target.value)} style={i}>
+                    <option value="">Pilih tier kamar</option>
+                    {roomTiers.map((t) => (
+                      <option key={t.tier} value={t.tier}>
+                        {TIER_LABELS[t.tier] ?? t.tier} · {t.priceDeltaIdr === 0n ? "tanpa tambahan" : `${t.priceDeltaIdr > 0n ? "+" : ""}${rupiah(t.priceDeltaIdr)}`}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.roomTier && <small style={{ color: "var(--color-danger-600)" }}>{errors.roomTier}</small>}
+                </label>
+              )}
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={lab}>Jumlah</span>
                 <input className="safrat-input" type="number" min={1} max={20} value={quantity} onChange={(e) => setQuantity(Number(e.target.value) || 1)} style={i} />

@@ -61,6 +61,9 @@ type CreateOrderParams struct {
 	IdempotencyKey     string
 	Destination        string
 	CheckoutChannel    string
+	// RoomTier is empty for a product without tiers. Enforced by the database
+	// trigger, not here — this repository only carries the value through.
+	RoomTier string
 
 	// CountsTowardDailyLimit is true only for the digital categories the cap
 	// applies to. Decided by the service, because "which products are digital"
@@ -131,6 +134,7 @@ func (r *OrderRepository) Create(ctx context.Context, params CreateOrderParams) 
 		DigitalSpendCountedOn: spendStamp,
 		CheckoutChannel:       params.CheckoutChannel,
 		BranchScope:           scope,
+		RoomTier:              params.RoomTier,
 	})
 	if err == nil {
 		// Only a genuinely new order spends. A replay reaches the branch below
@@ -390,6 +394,7 @@ func toOrder(o db.Order) *domain.Order {
 		XenditInvoiceID: o.XenditInvoiceID.String, XenditInvoiceURL: o.XenditInvoiceUrl.String,
 		PaidAmountIDR: int8Ptr(o.PaidAmountIdr),
 		PaidAt:        timestamptzPtr(o.PaidAt), CreatedAt: o.CreatedAt.Time,
+		RoomTier: o.RoomTier.String,
 	}
 }
 
@@ -403,6 +408,7 @@ func toOrderFromRow(o db.GetOrderRow) *domain.Order {
 		Status: o.Status, HeldReason: o.HeldReason, PaidAmountIdr: o.PaidAmountIdr, ReceiptNumber: o.ReceiptNumber,
 		Destination: o.Destination, CheckoutChannel: o.CheckoutChannel, RiskLevel: o.RiskLevel, RiskReason: o.RiskReason,
 		XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
+		RoomTier: o.RoomTier,
 	})
 	base.PilgrimName = o.PilgrimName
 	base.BuyerName = o.BuyerName
@@ -421,6 +427,7 @@ func toOrderFromListRow(o db.ListOrdersRow) *domain.Order {
 		Status: o.Status, HeldReason: o.HeldReason, PaidAmountIdr: o.PaidAmountIdr, ReceiptNumber: o.ReceiptNumber,
 		Destination: o.Destination, CheckoutChannel: o.CheckoutChannel, RiskLevel: o.RiskLevel, RiskReason: o.RiskReason,
 		XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
+		RoomTier: o.RoomTier,
 	})
 	base.PilgrimName = o.PilgrimName
 	base.BuyerName = o.BuyerName
