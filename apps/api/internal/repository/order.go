@@ -314,6 +314,52 @@ func (r *OrderRepository) ListBySeason(ctx context.Context, operatorID, seasonID
 	return result, nil
 }
 
+// ListForPilgrim is every order a pilgrim has, newest first — what "pindah
+// paket" needs to find the one to move, and what a profile screen needs to
+// show their purchase history.
+func (r *OrderRepository) ListForPilgrim(ctx context.Context, operatorID, pilgrimID string) ([]*domain.Order, error) {
+	opUUID, err := pgUUID(operatorID)
+	if err != nil {
+		return nil, err
+	}
+	pilgrimUUID, err := pgUUID(pilgrimID)
+	if err != nil {
+		return nil, err
+	}
+	scope, err := branchScope(ctx, r.queries, opUUID)
+	if err != nil {
+		return nil, err
+	}
+	orders, err := r.queries.ListOrdersForPilgrim(ctx, db.ListOrdersForPilgrimParams{
+		OperatorID: opUUID, PilgrimID: pilgrimUUID, BranchScope: scope})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*domain.Order, 0, len(orders))
+	for _, order := range orders {
+		result = append(result, toOrderFromPilgrimRow(order))
+	}
+	return result, nil
+}
+
+func toOrderFromPilgrimRow(o db.ListOrdersForPilgrimRow) *domain.Order {
+	base := toOrder(db.Order{
+		ID: o.ID, OperatorID: o.OperatorID, SeasonID: o.SeasonID, PilgrimID: o.PilgrimID, BuyerAgentID: o.BuyerAgentID, BuyerKind: o.BuyerKind,
+		ProductID: o.ProductID, AgentID: o.AgentID,
+		Quantity: o.Quantity, UnitPriceIdr: o.UnitPriceIdr, TotalPriceIdr: o.TotalPriceIdr,
+		BasePriceIdr: o.BasePriceIdr, OperatorMarkupIdr: o.OperatorMarkupIdr, AgentMarkupIdr: o.AgentMarkupIdr,
+		PlatformAmountIdr: o.PlatformAmountIdr, OperatorAmountIdr: o.OperatorAmountIdr, AgentCommissionIdr: o.AgentCommissionIdr,
+		Status: o.Status, HeldReason: o.HeldReason, PaidAmountIdr: o.PaidAmountIdr, ReceiptNumber: o.ReceiptNumber,
+		Destination: o.Destination, CheckoutChannel: o.CheckoutChannel, RiskLevel: o.RiskLevel, RiskReason: o.RiskReason,
+		XenditInvoiceID: o.XenditInvoiceID, XenditInvoiceUrl: o.XenditInvoiceUrl, PaidAt: o.PaidAt, CreatedAt: o.CreatedAt,
+	})
+	base.PilgrimName = o.PilgrimName
+	base.BuyerName = o.BuyerName
+	base.ProductName = o.ProductName
+	base.AgentName = o.AgentName.String
+	return base
+}
+
 func (r *OrderRepository) CountBySeason(ctx context.Context, operatorID, seasonID string) (int64, error) {
 	opUUID, err := pgUUID(operatorID)
 	if err != nil {

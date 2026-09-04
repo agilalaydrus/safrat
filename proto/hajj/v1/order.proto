@@ -57,7 +57,109 @@ service OrderService {
   // ResolveHeldOrder closes out a transaction whose payment did not match the
   // bill. Without it a held transaction is a dead end needing database access.
   rpc ResolveHeldOrder(ResolveHeldOrderRequest) returns (Order);
+
+  // ChangeOrderProduct is "pindah paket": a pilgrim who already paid moves to
+  // a different package. The old order is never rewritten to look like the
+  // new one — its price columns come to describe the package the pilgrim is
+  // actually on now, and a separate change record keeps the old numbers from
+  // being lost. If the new package cost less than what was already paid, the
+  // difference becomes an open credit rather than vanishing.
+  rpc ChangeOrderProduct(ChangeOrderProductRequest) returns (ChangeOrderProductResponse);
+  // ListOrdersForPilgrim finds the order "pindah paket" moves, and doubles as
+  // a pilgrim's purchase history on their profile screen.
+  rpc ListOrdersForPilgrim(ListOrdersForPilgrimRequest) returns (ListOrdersResponse);
+  // ListPlanChanges is the history behind one pilgrim's current package.
+  rpc ListPlanChanges(ListPlanChangesRequest) returns (ListPlanChangesResponse);
+
+  // Kelebihan Bayar — the credit a pilgrim is owed, most often from a plan
+  // change, and what happens to it. Resolving one is bookkeeping, not a
+  // payment: it does not move money or touch another order's own numbers, it
+  // records where the credit went so it can be found later.
+  rpc ListPilgrimCredits(ListPilgrimCreditsRequest) returns (ListPilgrimCreditsResponse);
+  rpc ResolvePilgrimCredit(ResolvePilgrimCreditRequest) returns (ResolvePilgrimCreditResponse);
 }
+
+message ChangeOrderProductRequest {
+  string order_id = 1 [(buf.validate.field).string.min_len = 1];
+  string to_product_id = 2 [(buf.validate.field).string.min_len = 1];
+  // Empty keeps the order's current tier (or no tier, for a product without
+  // them). QUAD | TRIPLE | DOUBLE otherwise.
+  string to_room_tier = 3;
+  string reason = 4 [(buf.validate.field).string = {min_len: 10, max_len: 500}];
+  string idempotency_key = 5 [(buf.validate.field).string = {min_len: 8, max_len: 128}];
+}
+
+message ListOrdersForPilgrimRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message ChangeOrderProductResponse {
+  Order order = 1;
+  int64 overpayment_idr = 2;
+  int64 shortfall_idr = 3;
+  // Set only when overpayment_idr > 0 — the credit that was opened for it.
+  string credit_id = 4;
+}
+
+message ListPlanChangesRequest {
+  string pilgrim_id = 1 [(buf.validate.field).string.min_len = 1];
+  int32 limit = 2;
+}
+
+message PlanChangeRow {
+  string id = 1;
+  string pilgrim_id = 2;
+  string pilgrim_name = 3;
+  string order_id = 4;
+  string from_product_name = 5;
+  string to_product_name = 6;
+  int64 old_total_idr = 7;
+  int64 new_total_idr = 8;
+  int64 overpayment_idr = 9;
+  int64 shortfall_idr = 10;
+  string reason = 11;
+  string changed_by = 12;
+  google.protobuf.Timestamp created_at = 13;
+}
+
+message ListPlanChangesResponse { repeated PlanChangeRow changes = 1; }
+
+message ListPilgrimCreditsRequest {
+  bool only_open = 1;
+  int32 limit = 2;
+  // Empty means every pilgrim — the operator-wide queue.
+  string pilgrim_id = 3;
+}
+
+message PilgrimCreditRow {
+  string id = 1;
+  string pilgrim_id = 2;
+  string pilgrim_name = 3;
+  int64 amount_idr = 4;
+  // PLAN_CHANGE | MANUAL
+  string source = 5;
+  string reason = 6;
+  // OPEN | APPLIED | REFUNDED
+  string status = 7;
+  string applied_to_order_id = 8;
+  string applied_note = 9;
+  string resolved_by = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp resolved_at = 12;
+}
+
+message ListPilgrimCreditsResponse { repeated PilgrimCreditRow credits = 1; }
+
+message ResolvePilgrimCreditRequest {
+  string credit_id = 1 [(buf.validate.field).string.min_len = 1];
+  // APPLIED | REFUNDED
+  string status = 2 [(buf.validate.field).string = {in: ["APPLIED", "REFUNDED"]}];
+  // Required when status is APPLIED — which order the credit went toward.
+  string applied_to_order_id = 3;
+  string note = 4 [(buf.validate.field).string = {max_len: 500}];
+}
+
+message ResolvePilgrimCreditResponse {}
 
 message Order {
   string id = 1;

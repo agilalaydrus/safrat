@@ -458,8 +458,52 @@ repository, service, handler, dan UI telah terhubung utuh.
 - [ ] **T4.2** Manasik: kurikulum + sesi + absensi
 - [ ] **T4.3** Agenda (kalender kegiatan gabungan)
 - [ ] **T4.4** Layanan tambahan per jamaah
-- [ ] **T4.5** Kelebihan bayar
-- [ ] **T4.6** Pindah paket (dengan selisih harga)
+- [x] **T4.5** Kelebihan bayar — panel **Kelebihan Bayar** di Profil Jamaah,
+      dibangun bersama T4.6 (satu tabel `pilgrim_credits`, karena kelebihan
+      bayar hanya pernah muncul dari sana). Status terbuka/dipakai/
+      dikembalikan, dan menyelesaikan kredit yang sama dua kali ditolak.
+      **Belum ada:** antrean lintas seluruh travel di luar profil per jamaah —
+      desain hanya memintanya di layar Profil Jamaah, jadi itu yang dibangun.
+- [x] **T4.6** Pindah paket — migrasi 153 (`pilgrim_plan_changes`,
+      `pilgrim_credits`), `OrderService.ChangeOrderProduct`, panel di Profil
+      Jamaah → tab Dokumen & Pembayaran.
+
+      **Pesanan lama tidak pernah ditulis ulang seolah menjadi paket baru.**
+      Kolom harganya diperbarui supaya mencerminkan paket yang sedang dijalani
+      sekarang, tapi `paid_amount_idr` — uang yang benar-benar diterima —
+      tidak pernah disentuh, dan `pilgrim_plan_changes` menyimpan angka lama
+      supaya tidak hilang.
+
+      **Hanya untuk pesanan berstatus PAID.** Pesanan yang belum dibayar
+      diedit langsung, bukan "dipindah" — kerangka membandingkan yang sudah
+      dibayar dengan harga baru cuma masuk akal setelah uang benar-benar
+      berpindah.
+
+      **Ditemukan saat menguji, bukan setelah dikirim:** `MarkOrderPaidManually`
+      (pembayaran tunai/manual) **tidak pernah mengisi** `paid_amount_idr` —
+      kolom itu tetap NULL walau status sudah PAID. Tanpa perbaikan, setiap
+      penjualan tunai akan terbaca sebagai "membayar nol", dan pindah paket
+      apa pun dari pesanan tunai akan salah dilaporkan sebagai kekurangan
+      bayar penuh. Diperbaiki dengan `COALESCE(paid_amount_idr,
+      total_price_idr)` — NULL di sini berarti "lunas penuh, angka
+      persisnya tidak dicatat", bukan "belum bayar apa-apa". Diverifikasi
+      dengan merusak: `COALESCE`-nya dibuang → kegagalan pemindaian nilai
+      NULL ke kolom yang tidak boleh kosong, persis seperti yang akan terjadi
+      di produksi.
+
+      **Diverifikasi lagi dengan merusak arah kelebihan/kekurangan bayar**:
+      ditukar terbalik → gagal `kelebihan bayar = 0, mau 15.000.000`.
+
+      Komisi agen disesuaikan lewat **satu entri selisih** (`ADJUSTMENT`),
+      bukan membalik lalu mencatat ulang dengan kunci pesanan yang sama —
+      itu akan bentrok dengan entri `EARNED` asli pesanan itu sendiri.
+
+      **Belum dikerjakan, dan disebut jujur:** tier kamar belum ikut dihitung
+      di jalur pembuatan pesanan biasa (`CreateOrderForPilgrim` dkk) — T3.4
+      membangun katalog tier dan penegakan kuotanya, tapi bukan penghitungan
+      harganya saat checkout. Pindah paket sendiri **sudah** menghitung
+      selisih tier dengan benar untuk paket tujuan; celahnya ada di jalur beli
+      pertama kali, di luar cakupan pekerjaan ini.
 - [ ] **T4.7** Momen — **foto & kabar boleh, GPS mentah tidak.**
       `FamilyStatus` kita sengaja menolak GPS, nomor kamar, dan paspor.
       Pertahankan; jadikan bahan jualan.

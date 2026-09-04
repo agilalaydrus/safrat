@@ -7,6 +7,7 @@ import { Pilgrim } from "@hajj-saas/proto-gen/hajj/v1/pilgrim_pb";
 import { pilgrimClient, groupClient } from "@/lib/rpc";
 import PilgrimFormDialog from "./PilgrimFormDialog";
 import PilgrimDocumentsPanel from "./PilgrimDocumentsPanel";
+import PilgrimPlanChangePanel from "./PilgrimPlanChangePanel";
 import ShareLinkDialog from "./ShareLinkDialog";
 import { RoleGate } from "@/components/auth/RoleGate";
 
@@ -119,7 +120,10 @@ export default function PilgrimDetail({ id }: { id: string }) {
           </RoleGate>
         </>}
       </aside>
-    </div> : <PilgrimDocumentsPanel pilgrim={pilgrim} onUpdated={setPilgrim} />}
+    </div> : <>
+      <PilgrimDocumentsPanel pilgrim={pilgrim} onUpdated={setPilgrim} />
+      <div style={{ marginTop: 16 }}><PilgrimPlanChangePanel pilgrimId={id} seasonId={pilgrim.seasonId} /></div>
+    </>}
     {notice && <p role="status">{notice}</p>}
     <PilgrimFormDialog open={edit} onClose={() => setEdit(false)} seasonId={pilgrim.seasonId} pilgrims={[pilgrim]} initial={pilgrim} onSaved={() => { setNotice("Data jamaah diperbarui"); pilgrimClient.getPilgrim({ pilgrimId: id }).then(setPilgrim); }} />
     {shareLink && <ShareLinkDialog title={shareLink.title} url={shareLink.url} onClose={() => setShareLink(undefined)} />}

@@ -136,3 +136,55 @@ func (h *OrderHandler) ResolveHeldOrder(ctx context.Context, req *connect.Reques
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *OrderHandler) ChangeOrderProduct(ctx context.Context, req *connect.Request[hajjv1.ChangeOrderProductRequest]) (*connect.Response[hajjv1.ChangeOrderProductResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.orderService.ChangeOrderProduct(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *OrderHandler) ListPlanChanges(ctx context.Context, req *connect.Request[hajjv1.ListPlanChangesRequest]) (*connect.Response[hajjv1.ListPlanChangesResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.orderService.ListPlanChanges(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *OrderHandler) ListPilgrimCredits(ctx context.Context, req *connect.Request[hajjv1.ListPilgrimCreditsRequest]) (*connect.Response[hajjv1.ListPilgrimCreditsResponse], error) {
+	result, err := h.orderService.ListPilgrimCredits(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *OrderHandler) ResolvePilgrimCredit(ctx context.Context, req *connect.Request[hajjv1.ResolvePilgrimCreditRequest]) (*connect.Response[hajjv1.ResolvePilgrimCreditResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.orderService.ResolvePilgrimCredit(ctx, middleware.OperatorIDFromCtx(ctx), middleware.UserIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *OrderHandler) ListOrdersForPilgrim(ctx context.Context, req *connect.Request[hajjv1.ListOrdersForPilgrimRequest]) (*connect.Response[hajjv1.ListOrdersResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.orderService.ListOrdersForPilgrim(ctx, middleware.OperatorIDFromCtx(ctx), req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

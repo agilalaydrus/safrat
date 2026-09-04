@@ -32,6 +32,7 @@ type OrderService struct {
 	fulfilmentService    *FulfilmentService
 	fulfilmentRepository *repository.FulfilmentRepository
 	refundRepository     *repository.RefundRepository
+	planChangeRepository *repository.PlanChangeRepository
 	db                   *pgxpool.Pool
 	// appBaseURL is where Xendit redirects the pilgrim's browser back to
 	// after payment — CORS_ALLOWED_ORIGIN doubles as this app's canonical
@@ -40,7 +41,8 @@ type OrderService struct {
 }
 
 func NewOrderService(operators *repository.OperatorRepository, pilgrims *repository.PilgrimRepository, products *repository.ProductRepository, orders *repository.OrderRepository, audit *repository.AuditRepository, ledger *repository.LedgerRepository, refunds *repository.RefundRepository, agents *repository.AgentRepository, seasons *repository.SeasonRepository, db *pgxpool.Pool, xendit *payment.Client, appBaseURL string) *OrderService {
-	return &OrderService{operatorRepository: operators, pilgrimRepository: pilgrims, productRepository: products, orderRepository: orders, auditRepository: audit, ledgerRepository: ledger, refundRepository: refunds, agentRepository: agents, seasonRepository: seasons, db: db, xenditClient: xendit, appBaseURL: appBaseURL}
+	return &OrderService{operatorRepository: operators, pilgrimRepository: pilgrims, productRepository: products, orderRepository: orders, auditRepository: audit, ledgerRepository: ledger, refundRepository: refunds, agentRepository: agents, seasonRepository: seasons, db: db, xenditClient: xendit, appBaseURL: appBaseURL,
+		planChangeRepository: repository.NewPlanChangeRepository(db)}
 }
 
 // ensurePriceCoversSupplierCost refuses a sale whose platform base is below
@@ -1221,4 +1223,239 @@ func (s *OrderService) ResolveHeldOrder(ctx context.Context, orgID, userID strin
 func (s *OrderService) AttachFulfilment(fulfilments *FulfilmentService, records *repository.FulfilmentRepository) {
 	s.fulfilmentService = fulfilments
 	s.fulfilmentRepository = records
+}
+
+// ChangeOrderProduct is "pindah paket".
+//
+// Requires the order to be PAID: the whole framing — comparing what was
+// already paid against what the new package costs — only makes sense once
+// money has actually moved. An order still PENDING should be edited directly,
+// not "moved".
+func (s *OrderService) ChangeOrderProduct(ctx context.Context, orgID, userID string, req *hajjv1.ChangeOrderProductRequest) (*hajjv1.ChangeOrderProductResponse, error) {
+	if req == nil || strings.TrimSpace(req.OrderId) == "" || strings.TrimSpace(req.ToProductId) == "" ||
+		len(strings.TrimSpace(req.Reason)) < 10 || len(strings.TrimSpace(req.IdempotencyKey)) < 8 {
+		return nil, serviceError("OrderService.ChangeOrderProduct", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("OrderService.ChangeOrderProduct", err)
+	}
+
+	toProduct, levels, route, err := s.productRepository.Pricing(ctx, op.ID, req.ToProductId)
+	if err != nil {
+		return nil, serviceError("OrderService.ChangeOrderProduct", apperror.ErrNotFound)
+	}
+	if !toProduct.IsActive {
+		return nil, serviceError("OrderService.ChangeOrderProduct", apperror.ErrFailedPrecondition)
+	}
+
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return nil, serviceError("OrderService.ChangeOrderProduct", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	snapshot, err := s.planChangeRepository.LockOrderForPlanChange(ctx, tx, op.ID, req.OrderId)
+	if errors.Is(err, apperror.ErrNotFound) {
+		return nil, connect.NewError(connect.CodeNotFound, errors.New("pesanan tidak ditemukan"))
+	}
+	if err != nil {
+		return nil, serviceError("OrderService.ChangeOrderProduct", err)
+	}
+	if snapshot.Status != "PAID" {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("pindah paket hanya untuk pesanan yang sudah lunas; pesanan yang belum dibayar bisa diedit langsung"))
+	}
+	if snapshot.FromProductID == req.ToProductId && req.ToRoomTier == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("paket tujuan sama dengan paket saat ini"))
+	}
+
+	pilgrim, err := s.pilgrimRepository.Get(ctx, op.ID, snapshot.PilgrimID)
+	if err != nil {
+		return nil, serviceError("OrderService.ChangeOrderProduct", err)
+	}
+	price, err := pricePilgrimOrder(toProduct, levels, route, 1, pilgrim.AgentID)
+	if err != nil {
+		return nil, err
+	}
+
+	// The room-tier delta is added on top of the computed price rather than
+	// folded into ComputePrice: tiers are a flat adjustment to what the pilgrim
+	// pays, not a change to the platform/operator/agent split underneath it.
+	if req.ToRoomTier != "" {
+		tiers, _, err := s.productRepository.ListRoomTiers(ctx, op.ID, req.ToProductId)
+		if err != nil {
+			return nil, serviceError("OrderService.ChangeOrderProduct", err)
+		}
+		found := false
+		for _, tier := range tiers {
+			if tier.Tier == req.ToRoomTier {
+				found = true
+				price.TotalPriceIDR += tier.PriceDeltaIDR
+				price.UnitPriceIDR += tier.PriceDeltaIDR
+				price.BasePriceIDR += tier.PriceDeltaIDR
+			}
+		}
+		if !found {
+			return nil, connect.NewError(connect.CodeFailedPrecondition,
+				errors.New("tier kamar itu tidak ditawarkan untuk paket tujuan"))
+		}
+	}
+	if price.TotalPriceIDR < 0 {
+		return nil, serviceError("OrderService.ChangeOrderProduct", apperror.ErrValidation)
+	}
+
+	result, err := s.planChangeRepository.ChangePlan(ctx, tx, snapshot, repository.ChangePlanInput{
+		OperatorID: op.ID, OrderID: snapshot.OrderID, ToProductID: req.ToProductId, ToProductName: toProduct.Name,
+		ToRoomTier: req.ToRoomTier, NewTotalIDR: price.TotalPriceIDR, NewUnitIDR: price.UnitPriceIDR,
+		NewBaseIDR: price.BasePriceIDR, NewOperatorMarkupIDR: price.OperatorMarkupIDR, NewAgentMarkupIDR: price.AgentMarkupIDR,
+		NewPlatformAmountIDR: price.PlatformAmountIDR, NewOperatorAmountIDR: price.OperatorAmountIDR,
+		NewAgentCommissionIDR: price.AgentCommissionIDR, Reason: req.Reason, ActorUserID: userID,
+		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+	})
+	if errors.Is(err, apperror.ErrConflict) {
+		return nil, connect.NewError(connect.CodeAlreadyExists,
+			errors.New("kunci idempotensi ini sudah dipakai"))
+	}
+	if err != nil {
+		return nil, serviceError("OrderService.ChangeOrderProduct", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, serviceError("OrderService.ChangeOrderProduct", err)
+	}
+
+	// Commission is recomputed after the commit, the same way every other
+	// side effect in this file is: best-effort, and never able to roll back
+	// money that has already been recorded as moved. Keyed to this specific
+	// change so it cannot collide with the order's original creation or
+	// cancellation entries, which use their own fixed keys.
+	if commissionDelta := price.AgentCommissionIDR - snapshot.OldAgentCommissionIDR; snapshot.AgentID != "" && commissionDelta != 0 {
+		if err := s.ledgerRepository.AppendCommission(ctx, repository.CommissionEntry{
+			OperatorID: op.ID, AgentID: snapshot.AgentID, AmountIDR: commissionDelta,
+			Kind: "ADJUSTMENT", OrderID: snapshot.OrderID, Note: "Penyesuaian komisi dari pindah paket",
+			IdempotencyKey: "planchange-" + result.ChangeID,
+		}); err != nil {
+			sentry.CaptureException(fmt.Errorf("OrderService.ChangeOrderProduct commission: %w", err))
+		}
+	}
+
+	order, err := s.orderRepository.Get(ctx, op.ID, snapshot.OrderID)
+	if err != nil {
+		return nil, serviceError("OrderService.ChangeOrderProduct", err)
+	}
+	order.ProductName = toProduct.Name
+	order.PilgrimName = pilgrim.FullName
+
+	_ = s.auditRepository.Write(ctx, op.ID, userID, "pilgrim_plan_changed", "order", snapshot.OrderID,
+		fmt.Sprintf("%s pindah dari %s ke %s: %s", pilgrim.FullName, snapshot.FromProductName, toProduct.Name, req.Reason))
+
+	return &hajjv1.ChangeOrderProductResponse{
+		Order: orderMessage(order), OverpaymentIdr: result.OverpaymentIDR,
+		ShortfallIdr: result.ShortfallIDR, CreditId: result.CreditID,
+	}, nil
+}
+
+// ListOrdersForPilgrim is what "pindah paket" needs to find the order to
+// move, and a pilgrim's purchase history on their profile screen.
+func (s *OrderService) ListOrdersForPilgrim(ctx context.Context, orgID string, req *hajjv1.ListOrdersForPilgrimRequest) (*hajjv1.ListOrdersResponse, error) {
+	if req == nil || strings.TrimSpace(req.PilgrimId) == "" {
+		return nil, serviceError("OrderService.ListOrdersForPilgrim", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("OrderService.ListOrdersForPilgrim", err)
+	}
+	orders, err := s.orderRepository.ListForPilgrim(ctx, op.ID, req.PilgrimId)
+	if err != nil {
+		return nil, serviceError("OrderService.ListOrdersForPilgrim", err)
+	}
+	response := &hajjv1.ListOrdersResponse{TotalCount: int64(len(orders))}
+	for _, order := range orders {
+		response.Orders = append(response.Orders, orderMessage(order))
+	}
+	return response, nil
+}
+
+func (s *OrderService) ListPlanChanges(ctx context.Context, orgID string, req *hajjv1.ListPlanChangesRequest) (*hajjv1.ListPlanChangesResponse, error) {
+	if req == nil || strings.TrimSpace(req.PilgrimId) == "" {
+		return nil, serviceError("OrderService.ListPlanChanges", apperror.ErrValidation)
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("OrderService.ListPlanChanges", err)
+	}
+	changes, err := s.planChangeRepository.ListForPilgrim(ctx, op.ID, req.PilgrimId, req.Limit)
+	if err != nil {
+		return nil, serviceError("OrderService.ListPlanChanges", err)
+	}
+	response := &hajjv1.ListPlanChangesResponse{Changes: make([]*hajjv1.PlanChangeRow, 0, len(changes))}
+	for _, change := range changes {
+		response.Changes = append(response.Changes, &hajjv1.PlanChangeRow{
+			Id: change.ID, PilgrimId: change.PilgrimID, PilgrimName: change.PilgrimName, OrderId: change.OrderID,
+			FromProductName: change.FromProductName, ToProductName: change.ToProductName,
+			OldTotalIdr: change.OldTotalIDR, NewTotalIdr: change.NewTotalIDR,
+			OverpaymentIdr: change.OverpaymentIDR, ShortfallIdr: change.ShortfallIDR,
+			Reason: change.Reason, ChangedBy: change.ChangedBy, CreatedAt: timestamppb.New(change.CreatedAt),
+		})
+	}
+	return response, nil
+}
+
+func (s *OrderService) ListPilgrimCredits(ctx context.Context, orgID string, req *hajjv1.ListPilgrimCreditsRequest) (*hajjv1.ListPilgrimCreditsResponse, error) {
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("OrderService.ListPilgrimCredits", err)
+	}
+	onlyOpen := req == nil || req.OnlyOpen
+	limit := int32(100)
+	if req != nil && req.Limit > 0 {
+		limit = req.Limit
+	}
+	pilgrimID := ""
+	if req != nil {
+		pilgrimID = req.PilgrimId
+	}
+	credits, err := s.planChangeRepository.ListCreditsForOperator(ctx, op.ID, pilgrimID, onlyOpen, limit)
+	if err != nil {
+		return nil, serviceError("OrderService.ListPilgrimCredits", err)
+	}
+	response := &hajjv1.ListPilgrimCreditsResponse{Credits: make([]*hajjv1.PilgrimCreditRow, 0, len(credits))}
+	for _, credit := range credits {
+		row := &hajjv1.PilgrimCreditRow{
+			Id: credit.ID, PilgrimId: credit.PilgrimID, PilgrimName: credit.PilgrimName, AmountIdr: credit.AmountIDR,
+			Source: credit.Source, Reason: credit.Reason, Status: credit.Status,
+			AppliedToOrderId: credit.AppliedToOrderID, AppliedNote: credit.AppliedNote, ResolvedBy: credit.ResolvedBy,
+			CreatedAt: timestamppb.New(credit.CreatedAt),
+		}
+		if credit.ResolvedAt != nil {
+			row.ResolvedAt = timestamppb.New(*credit.ResolvedAt)
+		}
+		response.Credits = append(response.Credits, row)
+	}
+	return response, nil
+}
+
+func (s *OrderService) ResolvePilgrimCredit(ctx context.Context, orgID, userID string, req *hajjv1.ResolvePilgrimCreditRequest) (*hajjv1.ResolvePilgrimCreditResponse, error) {
+	if req == nil || strings.TrimSpace(req.CreditId) == "" || (req.Status != "APPLIED" && req.Status != "REFUNDED") {
+		return nil, serviceError("OrderService.ResolvePilgrimCredit", apperror.ErrValidation)
+	}
+	if req.Status == "APPLIED" && strings.TrimSpace(req.AppliedToOrderId) == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument,
+			errors.New("sebutkan pesanan mana yang menerima kredit ini"))
+	}
+	op, err := s.operatorRepository.GetByBetterAuthOrgID(ctx, orgID)
+	if err != nil {
+		return nil, serviceError("OrderService.ResolvePilgrimCredit", err)
+	}
+	err = s.planChangeRepository.ResolveCredit(ctx, op.ID, req.CreditId, req.Status, req.AppliedToOrderId, req.Note, userID)
+	if errors.Is(err, apperror.ErrConflict) {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			errors.New("kredit ini sudah diselesaikan sebelumnya"))
+	}
+	if err != nil {
+		return nil, serviceError("OrderService.ResolvePilgrimCredit", err)
+	}
+	_ = s.auditRepository.Write(ctx, op.ID, userID, "pilgrim_credit_resolved", "pilgrim_credit", req.CreditId,
+		fmt.Sprintf("status %s: %s", req.Status, req.Note))
+	return &hajjv1.ResolvePilgrimCreditResponse{}, nil
 }

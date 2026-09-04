@@ -453,3 +453,20 @@ SELECT purge_daily_digital_spend(sqlc.arg(keep_days)::int) AS removed;
 -- DELETE on audit_logs away from the application role, because a trail the
 -- audited credential can erase is not a trail.
 SELECT purge_audit_logs(sqlc.arg(keep_months)::int) AS removed;
+
+-- name: ListOrdersForPilgrim :many
+-- Every order a pilgrim has, newest first — what "pindah paket" needs to find
+-- the one to move, and what a profile screen needs to show their history.
+-- Branch-scoped like every other order read: a pilgrim's purchase history is
+-- exactly the kind of thing branch isolation exists to keep apart.
+SELECT o.*, COALESCE(p.full_name, '') AS pilgrim_name,
+       COALESCE(p.full_name, buyer.name, '') AS buyer_name,
+       pr.name AS product_name, a.name AS agent_name
+FROM orders o
+LEFT JOIN pilgrims p ON p.id = o.pilgrim_id
+LEFT JOIN agents buyer ON buyer.id = o.buyer_agent_id
+JOIN products pr ON pr.id = o.product_id
+LEFT JOIN agents a ON a.id = o.agent_id
+WHERE o.operator_id = $1 AND o.pilgrim_id = $2
+  AND (sqlc.narg(branch_scope)::uuid IS NULL OR o.branch_id = sqlc.narg(branch_scope)::uuid)
+ORDER BY o.created_at DESC;
