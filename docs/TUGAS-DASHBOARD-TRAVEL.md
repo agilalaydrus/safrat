@@ -496,7 +496,26 @@ repository, service, handler, dan UI telah terhubung utuh.
       `per_pilgrim_qty` item ke roster kloter sungguhan, bukan hanya field di
       tabel. Pusat Tindakan Gudang juga baru mencakup "di bawah minimum"; "PO
       lewat ETA", "selisih opname", dan "melebihi kapasitas rak" belum ada.
-- [ ] **T4.2** Manasik: kurikulum + sesi + absensi
+- [x] **T4.2** Manasik: kurikulum + sesi + absensi — selesai (4 September
+      2026). `/dashboard/manasik`, migrasi 157 (`manasik_curricula`,
+      `manasik_sessions`, `manasik_attendance`). Musim-scoped seperti
+      Checklist; sesi opsional dikaitkan ke satu topik kurikulum dan/atau
+      satu kloter, tapi sebagian besar manasik berjalan untuk seluruh musim
+      sebelum kloter final.
+
+      **Absensi adalah upsert, bukan insert.** Roll-call diambil satu nama
+      pada satu waktu; koreksi tanda yang salah (`RecordManasikAttendance`
+      dipanggil ulang untuk pasangan sesi+jamaah yang sama) harus menimpa
+      baris yang sama, bukan menambah baris kedua yang akan menggandakan
+      hitungan hadir/tidak hadir. Ditegakkan oleh
+      `UNIQUE(session_id, pilgrim_id)` + `ON CONFLICT DO UPDATE`. Diverifikasi
+      dengan merusak: klausa `ON CONFLICT` dibuang dari query lalu di-generate
+      ulang lewat sqlc → percobaan koreksi kedua gagal persis dengan
+      pelanggaran constraint unik, bukan diam-diam menggandakan baris.
+
+      Berbeda sengaja dari `product_itinerary_days` (materi jualan sebelum
+      pembelian) dan Rundown kloter (jadwal operasional kloter yang sudah
+      berangkat) — Manasik adalah pelatihan sebelum keberangkatan.
 - [ ] **T4.3** Agenda (kalender kegiatan gabungan)
 - [ ] **T4.4** Layanan tambahan per jamaah
 - [x] **T4.5** Kelebihan bayar — panel **Kelebihan Bayar** di Profil Jamaah,

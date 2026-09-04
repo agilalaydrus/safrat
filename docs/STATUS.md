@@ -30,13 +30,13 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
    kredensial penyedia dari pemilik). **T3.3 sudah selesai (4 September
    2026)**: Rangkaian, Rundown, dan Armada Bus melengkapi Manifes & Roomlist
    yang sudah ada duluan. CRM Leads dan tier kamar juga sudah selesai.
-   **Tahap 4 dimulai: T4.1 Inventaris & PO sudah selesai (4 September 2026)**
-   di `/dashboard/inventaris` — cakupan lengkap ada di
-   TUGAS-DASHBOARD-TRAVEL.md, dua grafik (Radar Kesiapan Keberangkatan,
-   Performa Vendor) sengaja dipotong dan dicatat di sana. Sisa Tahap 4: T4.2
-   Manasik, T4.3 Agenda, T4.4 Layanan tambahan, T4.7 Momen, T4.8 Wizard
-   pendaftaran, T4.9 Laporan laba rugi, T4.10 Pengaturan lebih dalam, T4.11
-   Support.
+   **Tahap 4 dimulai: T4.1 Inventaris & PO dan T4.2 Manasik sudah selesai
+   (4 September 2026)** di `/dashboard/inventaris` dan `/dashboard/manasik`
+   — cakupan lengkap ada di TUGAS-DASHBOARD-TRAVEL.md, dua grafik Inventaris
+   (Radar Kesiapan Keberangkatan, Performa Vendor) sengaja dipotong dan
+   dicatat di sana. Sisa Tahap 4: T4.3 Agenda, T4.4 Layanan tambahan, T4.7
+   Momen, T4.8 Wizard pendaftaran, T4.9 Laporan laba rugi, T4.10 Pengaturan
+   lebih dalam, T4.11 Support.
 4. **SEO & Konten** — `sitemap.xml` dan `robots.txt` sudah ada dan sadar-host.
    Sisanya S3: Search Console, menunggu proyek Google Cloud milik pemilik.
 5. **Corong pengunjung** — K1–K6 selesai. Layar travel di `/dashboard/reports`

@@ -1,0 +1,124 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// ManasikService manages ritual-practice training: a season's curriculum
+// (topics), the sessions scheduled to teach them, and per-session
+// attendance. Distinct from a Product's sales-facing itinerary and from
+// Rundown's day plan for a kloter already in transit.
+service ManasikService {
+  rpc CreateManasikCurriculum(CreateManasikCurriculumRequest) returns (ManasikCurriculum);
+  rpc UpdateManasikCurriculum(UpdateManasikCurriculumRequest) returns (ManasikCurriculum);
+  rpc DeleteManasikCurriculum(DeleteManasikCurriculumRequest) returns (google.protobuf.Empty);
+  rpc ListManasikCurricula(ListManasikCurriculaRequest) returns (ListManasikCurriculaResponse);
+
+  rpc CreateManasikSession(CreateManasikSessionRequest) returns (ManasikSession);
+  rpc UpdateManasikSession(UpdateManasikSessionRequest) returns (ManasikSession);
+  rpc UpdateManasikSessionStatus(UpdateManasikSessionStatusRequest) returns (ManasikSession);
+  rpc DeleteManasikSession(DeleteManasikSessionRequest) returns (google.protobuf.Empty);
+  rpc ListManasikSessions(ListManasikSessionsRequest) returns (ListManasikSessionsResponse);
+
+  // RecordAttendance marks one pilgrim for one session — a roll-call is taken
+  // one name at a time, and re-marking the same pair corrects it in place.
+  rpc RecordManasikAttendance(RecordManasikAttendanceRequest) returns (google.protobuf.Empty);
+  rpc ListManasikAttendance(ListManasikAttendanceRequest) returns (ListManasikAttendanceResponse);
+}
+
+message ManasikCurriculum {
+  string id = 1;
+  string season_id = 2;
+  string title = 3;
+  string description = 4;
+  int32 sort_order = 5;
+}
+message CreateManasikCurriculumRequest {
+  string season_id = 1 [(buf.validate.field).string.min_len = 1];
+  string title = 2 [(buf.validate.field).string.min_len = 1];
+  string description = 3;
+  int32 sort_order = 4;
+}
+message UpdateManasikCurriculumRequest {
+  string curriculum_id = 1 [(buf.validate.field).string.min_len = 1];
+  string title = 2 [(buf.validate.field).string.min_len = 1];
+  string description = 3;
+  int32 sort_order = 4;
+}
+message DeleteManasikCurriculumRequest { string curriculum_id = 1 [(buf.validate.field).string.min_len = 1]; }
+message ListManasikCurriculaRequest { string season_id = 1 [(buf.validate.field).string.min_len = 1]; }
+message ListManasikCurriculaResponse { repeated ManasikCurriculum curricula = 1; }
+
+message ManasikSession {
+  string id = 1;
+  string season_id = 2;
+  string curriculum_id = 3;
+  string curriculum_title = 4;
+  string kloter_id = 5;
+  string kloter_code = 6;
+  string title = 7;
+  string location = 8;
+  string instructor_name = 9;
+  google.protobuf.Timestamp scheduled_at = 10;
+  int32 duration_minutes = 11;
+  int32 capacity = 12;
+  string notes = 13;
+  string status = 14; // SCHEDULED | COMPLETED | CANCELLED
+}
+message CreateManasikSessionRequest {
+  string season_id = 1 [(buf.validate.field).string.min_len = 1];
+  string curriculum_id = 2;
+  string kloter_id = 3;
+  string title = 4 [(buf.validate.field).string.min_len = 1];
+  string location = 5;
+  string instructor_name = 6;
+  google.protobuf.Timestamp scheduled_at = 7 [(buf.validate.field).required = true];
+  int32 duration_minutes = 8;
+  int32 capacity = 9;
+  string notes = 10;
+}
+message UpdateManasikSessionRequest {
+  string session_id = 1 [(buf.validate.field).string.min_len = 1];
+  string curriculum_id = 2;
+  string kloter_id = 3;
+  string title = 4 [(buf.validate.field).string.min_len = 1];
+  string location = 5;
+  string instructor_name = 6;
+  google.protobuf.Timestamp scheduled_at = 7 [(buf.validate.field).required = true];
+  int32 duration_minutes = 8;
+  int32 capacity = 9;
+  string notes = 10;
+}
+message UpdateManasikSessionStatusRequest {
+  string session_id = 1 [(buf.validate.field).string.min_len = 1];
+  string status = 2 [(buf.validate.field).string.min_len = 1];
+}
+message DeleteManasikSessionRequest { string session_id = 1 [(buf.validate.field).string.min_len = 1]; }
+message ListManasikSessionsRequest { string season_id = 1 [(buf.validate.field).string.min_len = 1]; }
+message ListManasikSessionsResponse { repeated ManasikSession sessions = 1; }
+
+message ManasikAttendanceRow {
+  string id = 1;
+  string pilgrim_id = 2;
+  string pilgrim_name = 3;
+  string passport_number = 4;
+  string status = 5; // PRESENT | ABSENT | EXCUSED
+  string notes = 6;
+}
+message RecordManasikAttendanceRequest {
+  string session_id = 1 [(buf.validate.field).string.min_len = 1];
+  string pilgrim_id = 2 [(buf.validate.field).string.min_len = 1];
+  string status = 3 [(buf.validate.field).string.min_len = 1];
+  string notes = 4;
+}
+message ListManasikAttendanceRequest { string session_id = 1 [(buf.validate.field).string.min_len = 1]; }
+message ListManasikAttendanceResponse {
+  repeated ManasikAttendanceRow rows = 1;
+  int32 present_count = 2;
+  int32 absent_count = 3;
+  int32 excused_count = 4;
+}
