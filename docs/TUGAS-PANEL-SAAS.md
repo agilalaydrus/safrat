@@ -408,31 +408,44 @@ orang, dan mencatat semuanya sama saja dengan tidak mencatat apa pun.
 
 ---
 
-## C5 — Kotak masuk Support (sisi platform) 🟡
+## C5 — Kotak masuk Support (sisi platform) ✅
 
 Sisi operator sudah selesai — lihat T4.11 di TUGAS-DASHBOARD-TRAVEL.md:
 `/dashboard/support`, tabel `support_tickets` + `support_ticket_messages`
 (migrasi 162), `SupportService` untuk operator membuat tiket, membalas, dan
 menutup tiketnya sendiri.
 
-Yang belum ada, dan ini bagiannya:
+> **Diimplementasikan 5 September 2026 (Claude, `[K, diimplementasikan]`,
+> `034f5e5`)** — bagian kedua yang diambil alih implementasinya dari Codex,
+> setelah C4. Satu celah nyata ditemukan **saat membangun**, bukan saat
+> menulis spesifikasi ini: butir "jangan bisa CLOSED" di bawah cuma dicegah
+> lewat `buf.validate` di batas API — penjaga `WHERE` di query SQL-nya
+> sendiri hanya menolak tiket yang **sudah** `CLOSED`, tidak menolak
+> **mengatur** ke `CLOSED`. Kalau pemanggil melewati lapisan proto (uji
+> langsung ke repository, bukan lewat RPC), tiket tetap bisa didorong ke
+> `CLOSED`. Ditambahkan `AND $2 != 'CLOSED'` di `WHERE`-nya — dibuktikan
+> dengan memanggil repository langsung sambil sengaja melewati validasi
+> proto, dan merusak perbaikannya untuk memastikan ada uji yang benar-benar
+> menangkap regresinya.
 
-- [C] Layar di `/admin`: daftar tiket **lintas semua tenant**, saring per
-      status/prioritas, urut berdasarkan yang lewat target respons dulu.
-      **Jangan hitung ulang target responsnya** — pakai
-      `domain.SupportTicket.ResponseDueAt()`/`.ResponseOverdue()` yang sudah
-      ada (target dari prioritas, dihitung tiap kali, tidak pernah disimpan;
-      lihat komentarnya di `internal/domain/support.go`).
-- [C] Balas sebagai staf platform — `support_ticket_messages.author_is_platform
-      = true` sudah disiapkan di skema, thread operator otomatis
-      menampilkannya tanpa perubahan apa pun di sisi operator
-- [C] Ubah status **OPEN → IN_PROGRESS → RESOLVED saja**. `status` juga
-      punya nilai `CLOSED` (migrasi 162), tapi itu **sudah** jalurnya sendiri
-      — `SupportService.CloseSupportTicket`, dipanggil operator sendiri untuk
-      menutup tiketnya. RPC platform yang baru **tidak boleh** bisa
-      mengatur `CLOSED`; itu bukan miliknya untuk diputuskan.
-- [C] RPC baru di `PlatformService` (bukan `SupportService` — itu milik
-      operator), scoped platform-admin seperti RPC platform lainnya
+- [x] Layar di `/admin`: daftar tiket **lintas semua tenant**, saring per
+      status/prioritas, urut berdasarkan yang lewat target respons dulu —
+      pakai `domain.SupportTicket.ResponseDueAt()`/`.ResponseOverdue()` yang
+      sudah ada, tidak dihitung ulang.
+- [x] Balas sebagai staf platform — `author_is_platform = true`, thread
+      operator menampilkannya tanpa perubahan apa pun di sisi operator.
+- [x] Ubah status **OPEN → IN_PROGRESS → RESOLVED saja**. `CLOSED` tetap
+      eksklusif milik `SupportService.CloseSupportTicket` — dijaga dua
+      lapis: `buf.validate` di proto **dan** `WHERE` di SQL (lihat catatan
+      di atas soal kenapa keduanya perlu).
+- [x] RPC baru di `PlatformService` (bukan `SupportService`), `SupportTicket`
+      memakai field yang sama dengan sisi operator (`operator_id`/
+      `operator_name` ditambahkan, kosong di sisi operator) — bukan tipe
+      pesan kedua yang terpisah.
+- [x] Diuji lintas tenant sungguhan: admin yang hanya anggota organisasinya
+      sendiri berhasil melihat, membalas, dan mengubah status tiket milik
+      travel lain sepenuhnya, lewat HTTP asli. Diverifikasi juga langsung di
+      `/admin` — balasan staf platform muncul seketika di thread yang sama.
 
 ---
 
