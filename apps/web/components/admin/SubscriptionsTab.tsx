@@ -56,6 +56,15 @@ export default function SubscriptionsTab() {
   const [planReason, setPlanReason] = useState("");
   const [planConfirmation, setPlanConfirmation] = useState("");
   const [planBusy, setPlanBusy] = useState(false);
+  const [extendOperatorId, setExtendOperatorId] = useState("");
+  const [extendDays, setExtendDays] = useState("7");
+  const [extendReason, setExtendReason] = useState("");
+  const [extendConfirmation, setExtendConfirmation] = useState("");
+  const [extendBusy, setExtendBusy] = useState(false);
+  const [cancelOperatorId, setCancelOperatorId] = useState("");
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelConfirmation, setCancelConfirmation] = useState("");
+  const [cancelBusy, setCancelBusy] = useState(false);
 
   const refresh = useCallback(() => {
     setLoading(true);
@@ -236,6 +245,50 @@ export default function SubscriptionsTab() {
     }
   }
 
+  const selectedExtendOperator = operators.find((operator) => operator.id === extendOperatorId);
+  const trialOperators = useMemo(() => operators.filter((o) => o.subscriptionStatus === "TRIALING"), [operators]);
+
+  async function extendTrial() {
+    const days = Number(extendDays);
+    if (!extendOperatorId || !Number.isInteger(days) || days < 1 || days > 90 || !extendReason.trim() || !extendConfirmation.trim()) return;
+    setExtendBusy(true);
+    try {
+      const response = await platformClient.extendTrial({
+        operatorId: extendOperatorId, additionalDays: days,
+        reason: extendReason.trim(), confirmation: extendConfirmation.trim(),
+        idempotencyKey: crypto.randomUUID(),
+      });
+      setNotice(`Trial ${selectedExtendOperator?.name ?? "travel"} diperpanjang sampai ${tanggal(response.accessUntil?.toDate() ?? new Date())}.`);
+      setExtendOperatorId(""); setExtendReason(""); setExtendConfirmation("");
+      refresh();
+    } catch {
+      setNotice("Trial gagal diperpanjang. Pastikan langganan masih berstatus trial dan konfirmasi nama sudah sama persis.");
+    } finally {
+      setExtendBusy(false);
+    }
+  }
+
+  const selectedCancelOperator = operators.find((operator) => operator.id === cancelOperatorId);
+  const cancellableOperators = useMemo(() => operators.filter((o) => !o.cancelledAt), [operators]);
+
+  async function cancelSubscription() {
+    if (!cancelOperatorId || !cancelReason.trim() || !cancelConfirmation.trim()) return;
+    setCancelBusy(true);
+    try {
+      const response = await platformClient.cancelSubscription({
+        operatorId: cancelOperatorId, reason: cancelReason.trim(), confirmation: cancelConfirmation.trim(),
+        idempotencyKey: crypto.randomUUID(),
+      });
+      setNotice(`Langganan ${selectedCancelOperator?.name ?? "travel"} dibatalkan. Akses tetap berjalan sampai ${tanggal(response.accessUntil?.toDate() ?? new Date())} — sisa periode yang sudah dibayar.`);
+      setCancelOperatorId(""); setCancelReason(""); setCancelConfirmation("");
+      refresh();
+    } catch {
+      setNotice("Pembatalan gagal. Langganan mungkin sudah dibatalkan sebelumnya, atau konfirmasi nama belum sama persis.");
+    } finally {
+      setCancelBusy(false);
+    }
+  }
+
   if (loading) return <p style={muted}>Memuat data langganan…</p>;
 
   return (
@@ -365,6 +418,72 @@ export default function SubscriptionsTab() {
               </div>
             </div>
           )}
+        </div>
+      </details>
+
+      <details className="admin-plan-change tw-card">
+        <summary>
+          <span><strong>Perpanjang trial per tenant</strong><small>Prospek yang masih serius mengevaluasi tidak terkunci kalender</small></span>
+          <span className="tw-badge tw-badge--neutral">Hanya trial</span>
+        </summary>
+        <div className="admin-plan-change__body">
+          <div className="admin-plan-change__selectors">
+            <label><span>Travel</span>
+              <select value={extendOperatorId} onChange={(event) => { setExtendOperatorId(event.target.value); setExtendConfirmation(""); }}>
+                <option value="">Pilih travel yang masih trial</option>
+                {trialOperators.map((operator) => (
+                  <option key={operator.id} value={operator.id}>
+                    {operator.name} · trial sampai {operator.accessUntil ? tanggal(operator.accessUntil.toDate()) : "—"}
+                  </option>
+                ))}
+              </select>
+              {trialOperators.length === 0 && <small>Tidak ada travel yang masih berstatus trial saat ini.</small>}
+            </label>
+            <label><span>Tambah (hari)</span><input type="number" min={1} max={90} value={extendDays} onChange={(event) => setExtendDays(event.target.value)} /></label>
+          </div>
+          <div className="admin-plan-change__form">
+            <label><span>Alasan perpanjangan</span><input value={extendReason} maxLength={500} onChange={(event) => setExtendReason(event.target.value)} placeholder="Contoh: masih menunggu persetujuan internal calon pelanggan" /></label>
+            <label><span>Konfirmasi dengan mengetik {selectedExtendOperator?.name ?? "nama travel"}</span><input value={extendConfirmation} onChange={(event) => setExtendConfirmation(event.target.value)} /></label>
+          </div>
+          <div className="admin-plan-change__footer">
+            <span>Hanya menambah hari — trial yang sudah lewat waktunya tetap bisa diperpanjang dari tanggal aslinya.</span>
+            <button className="tw-btn tw-btn--outline tw-btn--md" onClick={() => void extendTrial()}
+              disabled={extendBusy || !extendOperatorId || !extendReason.trim() || !extendConfirmation.trim()}>
+              {extendBusy ? "Menyimpan…" : "Perpanjang trial"}
+            </button>
+          </div>
+        </div>
+      </details>
+
+      <details className="admin-plan-change tw-card">
+        <summary>
+          <span><strong>Batalkan langganan</strong><small>Bukan penghapusan — akses tetap berjalan sampai periode yang sudah dibayar habis</small></span>
+          <span className="tw-badge tw-badge--neutral">Tidak bisa ditarik kembali</span>
+        </summary>
+        <div className="admin-plan-change__body">
+          <div className="admin-plan-change__selectors">
+            <label><span>Travel</span>
+              <select value={cancelOperatorId} onChange={(event) => { setCancelOperatorId(event.target.value); setCancelConfirmation(""); }}>
+                <option value="">Pilih travel</option>
+                {cancellableOperators.map((operator) => (
+                  <option key={operator.id} value={operator.id}>
+                    {operator.name} · akses sampai {operator.accessUntil ? tanggal(operator.accessUntil.toDate()) : "—"}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="admin-plan-change__form">
+            <label><span>Alasan pembatalan</span><input value={cancelReason} maxLength={500} onChange={(event) => setCancelReason(event.target.value)} placeholder="Contoh: pindah ke penyedia lain" /></label>
+            <label><span>Konfirmasi dengan mengetik {selectedCancelOperator?.name ?? "nama travel"}</span><input value={cancelConfirmation} onChange={(event) => setCancelConfirmation(event.target.value)} /></label>
+          </div>
+          <div className="admin-plan-change__footer">
+            <span>cancelled_at tercatat; access_until tidak disentuh — sisa periode yang sudah dibayar tetap haknya.</span>
+            <button className="tw-btn tw-btn--ghost tw-btn--md" onClick={() => void cancelSubscription()}
+              disabled={cancelBusy || !cancelOperatorId || !cancelReason.trim() || !cancelConfirmation.trim()}>
+              <IconBan size={15} />{cancelBusy ? "Membatalkan…" : "Batalkan langganan"}
+            </button>
+          </div>
         </div>
       </details>
 

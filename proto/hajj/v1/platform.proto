@@ -58,6 +58,13 @@ service PlatformService {
   rpc GetSubscriptionBillingSettings(GetSubscriptionBillingSettingsRequest) returns (GetSubscriptionBillingSettingsResponse);
   rpc SetTrialDays(SetTrialDaysRequest) returns (SetTrialDaysResponse);
   rpc SetSubscriptionGracePeriod(SetSubscriptionGracePeriodRequest) returns (SetSubscriptionGracePeriodResponse);
+  // D2 (TUGAS-PANEL-SAAS.md, §7.1 DESAIN): a prospect seriously evaluating
+  // the product should not be locked out by a calendar. Only ever adds days,
+  // and only to a subscription still TRIALING.
+  rpc ExtendTrial(ExtendTrialRequest) returns (ExtendTrialResponse);
+  // D5 (§7.3 DESAIN): cancellation, not deletion — access_until is left
+  // exactly as it is, this only stops billing from trying again.
+  rpc CancelSubscription(CancelSubscriptionRequest) returns (CancelSubscriptionResponse);
   rpc PreviewSubscriptionPlanChange(PreviewSubscriptionPlanChangeRequest) returns (PreviewSubscriptionPlanChangeResponse);
   rpc ApplySubscriptionPlanChange(ApplySubscriptionPlanChangeRequest) returns (ApplySubscriptionPlanChangeResponse);
   rpc VoidSubscriptionInvoice(VoidSubscriptionInvoiceRequest) returns (VoidSubscriptionInvoiceResponse);
@@ -669,6 +676,9 @@ message PlatformOperator {
   optional int32 grace_period_override_days = 15;
   google.protobuf.Timestamp effective_access_until = 16;
   int64 credit_balance_idr = 17;
+  // Set once by CancelSubscription (D5) and never cleared — access still
+  // runs out on access_until exactly as before, this only stops billing.
+  google.protobuf.Timestamp cancelled_at = 18;
 }
 
 message ListOperatorsRequest {}
@@ -856,6 +866,31 @@ message SetSubscriptionGracePeriodResponse {
   string operator_id = 1;
   int32 effective_grace_period_days = 2;
   optional int32 override_grace_period_days = 3;
+}
+
+message ExtendTrialRequest {
+  string operator_id = 1 [(buf.validate.field).string.uuid = true];
+  int32 additional_days = 2 [(buf.validate.field).int32 = {gt: 0, lte: 90}];
+  string reason = 3 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+  // The tenant's own name, typed by hand.
+  string confirmation = 4 [(buf.validate.field).string = {min_len: 1, max_len: 160}];
+  string idempotency_key = 5 [(buf.validate.field).string = {min_len: 8, max_len: 128}];
+}
+message ExtendTrialResponse {
+  google.protobuf.Timestamp access_until = 1;
+}
+
+message CancelSubscriptionRequest {
+  string operator_id = 1 [(buf.validate.field).string.uuid = true];
+  string reason = 2 [(buf.validate.field).string = {min_len: 1, max_len: 500}];
+  string confirmation = 3 [(buf.validate.field).string = {min_len: 1, max_len: 160}];
+  string idempotency_key = 4 [(buf.validate.field).string = {min_len: 8, max_len: 128}];
+}
+message CancelSubscriptionResponse {
+  google.protobuf.Timestamp cancelled_at = 1;
+  // Unchanged by this action — shown so the screen can say exactly when
+  // access actually stops.
+  google.protobuf.Timestamp access_until = 2;
 }
 
 message PreviewSubscriptionPlanChangeRequest {

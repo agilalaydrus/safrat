@@ -120,6 +120,28 @@ func (h *PlatformHandler) SetSubscriptionGracePeriod(ctx context.Context, req *c
 	return connect.NewResponse(result), nil
 }
 
+func (h *PlatformHandler) ExtendTrial(ctx context.Context, req *connect.Request[hajjv1.ExtendTrialRequest]) (*connect.Response[hajjv1.ExtendTrialResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.ExtendTrial(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) CancelSubscription(ctx context.Context, req *connect.Request[hajjv1.CancelSubscriptionRequest]) (*connect.Response[hajjv1.CancelSubscriptionResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.CancelSubscription(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
 func (h *PlatformHandler) PreviewSubscriptionPlanChange(ctx context.Context, req *connect.Request[hajjv1.PreviewSubscriptionPlanChangeRequest]) (*connect.Response[hajjv1.PreviewSubscriptionPlanChangeResponse], error) {
 	if err := protovalidate.Validate(req.Msg); err != nil {
 		return nil, connect.NewError(connect.CodeInvalidArgument, err)

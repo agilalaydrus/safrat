@@ -409,6 +409,48 @@ func (s *PlatformService) SetSubscriptionGracePeriod(ctx context.Context, req *h
 	}, nil
 }
 
+func (s *PlatformService) ExtendTrial(ctx context.Context, req *hajjv1.ExtendTrialRequest) (*hajjv1.ExtendTrialResponse, error) {
+	userID, err := s.requirePlatformAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req == nil || !isUUID(req.OperatorId) || strings.TrimSpace(req.Reason) == "" ||
+		strings.TrimSpace(req.Confirmation) == "" || strings.TrimSpace(req.IdempotencyKey) == "" || req.AdditionalDays <= 0 {
+		return nil, serviceError("PlatformService.ExtendTrial", apperror.ErrValidation)
+	}
+	accessUntil, err := s.subscriptionRepository.ExtendTrial(ctx, repository.ExtendTrialChange{
+		OperatorID: req.OperatorId, AdditionalDays: req.AdditionalDays, Reason: strings.TrimSpace(req.Reason),
+		Confirmation: strings.TrimSpace(req.Confirmation), ActorUserID: userID,
+		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+	})
+	if err != nil {
+		return nil, serviceError("PlatformService.ExtendTrial", err)
+	}
+	return &hajjv1.ExtendTrialResponse{AccessUntil: timestamppb.New(*accessUntil)}, nil
+}
+
+func (s *PlatformService) CancelSubscription(ctx context.Context, req *hajjv1.CancelSubscriptionRequest) (*hajjv1.CancelSubscriptionResponse, error) {
+	userID, err := s.requirePlatformAdmin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req == nil || !isUUID(req.OperatorId) || strings.TrimSpace(req.Reason) == "" ||
+		strings.TrimSpace(req.Confirmation) == "" || strings.TrimSpace(req.IdempotencyKey) == "" {
+		return nil, serviceError("PlatformService.CancelSubscription", apperror.ErrValidation)
+	}
+	result, err := s.subscriptionRepository.Cancel(ctx, repository.CancelSubscriptionChange{
+		OperatorID: req.OperatorId, Reason: strings.TrimSpace(req.Reason),
+		Confirmation: strings.TrimSpace(req.Confirmation), ActorUserID: userID,
+		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+	})
+	if err != nil {
+		return nil, serviceError("PlatformService.CancelSubscription", err)
+	}
+	return &hajjv1.CancelSubscriptionResponse{
+		CancelledAt: timestamppb.New(result.CancelledAt), AccessUntil: timestamppb.New(result.AccessUntil),
+	}, nil
+}
+
 func (s *PlatformService) PreviewSubscriptionPlanChange(ctx context.Context, req *hajjv1.PreviewSubscriptionPlanChangeRequest) (*hajjv1.PreviewSubscriptionPlanChangeResponse, error) {
 	if _, err := s.requirePlatformAdmin(ctx); err != nil {
 		return nil, err

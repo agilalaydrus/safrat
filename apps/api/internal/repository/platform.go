@@ -71,6 +71,9 @@ type PlatformOperator struct {
 	GraceOverrideDays    *int32
 	EffectiveAccessUntil *time.Time
 	CreditBalanceIDR     int64
+	// CancelledAt is nil until D5's CancelSubscription is called — access
+	// keeps running on AccessUntil exactly as before either way.
+	CancelledAt *time.Time
 }
 
 // ListOperators returns tenants, most urgent first, up to limit.
@@ -100,7 +103,8 @@ func (r *PlatformRepository) ListOperators(ctx context.Context, limit int32) ([]
 		         SELECT i.amount_idr FROM subscription_invoices i
 		         WHERE i.operator_id = o.id AND i.status = 'PENDING'
 		         ORDER BY i.created_at DESC LIMIT 1
-		       ), 0)
+		       ), 0),
+		       s.cancelled_at
 		FROM operators o
 		LEFT JOIN subscriptions s ON s.operator_id = o.id
 		LEFT JOIN (SELECT operator_id, COUNT(*) AS count FROM pilgrims WHERE is_substituted = false GROUP BY operator_id) p ON p.operator_id = o.id
@@ -126,7 +130,7 @@ func (r *PlatformRepository) ListOperators(ctx context.Context, limit int32) ([]
 			&operator.SubscriptionStatus, &operator.AccessUntil, &operator.EffectiveAccessUntil,
 			&operator.GracePeriodDays, &operator.GraceOverrideDays, &operator.CreditBalanceIDR, &operator.PilgrimCount,
 			&operator.ProductCount, &operator.HeldOrderCount, &operator.CreatedAt,
-			&operator.SuspendedAt, &operator.DunningStage, &operator.OutstandingIDR); err != nil {
+			&operator.SuspendedAt, &operator.DunningStage, &operator.OutstandingIDR, &operator.CancelledAt); err != nil {
 			return nil, err
 		}
 		operators = append(operators, &operator)
