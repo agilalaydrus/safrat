@@ -352,11 +352,46 @@ pribadi → uji gagal dengan `pembacaan data pribadi tidak tercatat: no rows in
 result set`. Uji juga memastikan `ListSeasons` **tidak** tercatat: musim bukan
 orang, dan mencatat semuanya sama saja dengan tidak mencatat apa pun.
 
-## C4 — Rotasi kunci & ekspor auditor 🟡
+## C4 — Kunci penandatangan platform & ekspor auditor 🟡
 
-- [C] Rotasi kunci API dengan tumpang tindih 24 jam (pola yang sama dengan kunci
-      KYC)
-- [C] Ekspor auditor: CSV + hash manifes, ditandatangani kunci platform
+> **Diperjelas 5 September 2026 (Claude, `[K]`).** Judul lama "Rotasi kunci
+> API" menyiratkan ada sistem kunci API publik (operator memanggil sesuatu
+> dengan kunci mereka sendiri) — **itu tidak ada di produk ini sama sekali**.
+> Dua butir di bawah ini sebenarnya **satu fitur**: kunci milik platform
+> sendiri, dipakai untuk menandatangani ekspor auditor, dirotasi dengan pola
+> yang sama seperti `KYC_ENCRYPTION_KEY`. Butir ini juga sebelumnya dobel
+> tercatat sebagai **E5** di TAHAP E — sudah digabung ke sini karena ini
+> soal keamanan/kepatuhan, bukan pertumbuhan; E5 sekarang hanya menunjuk balik
+> ke sini.
+
+- [C] **Kunci penandatangan** — variabel lingkungan baru
+      `AUDIT_EXPORT_SIGNING_KEY` (base64, dibuat dengan `openssl rand -base64
+      32`, persis pola `KYC_ENCRYPTION_KEY`). **Bukan** kunci enkripsi
+      (`Sealer` di `internal/crypto` tidak dipakai di sini) — ini kunci HMAC,
+      dipakai untuk menandatangani manifes, bukan menyandikan isi ekspor.
+- [C] **Rotasi tumpang-tindih 24 jam**: dukung dua variabel,
+      `AUDIT_EXPORT_SIGNING_KEY` (aktif, dipakai untuk tanda tangan baru) dan
+      `AUDIT_EXPORT_SIGNING_KEY_PREVIOUS` (opsional, hanya untuk memverifikasi
+      ekspor yang ditandatangani sebelum rotasi). Sidik jari kunci
+      (`SHA256(kunci)[:8]`, pola yang sama dengan `Sealer.Fingerprint()`)
+      ditulis di manifes supaya jelas kunci mana yang menandatangani, tanpa
+      membuka kuncinya sendiri.
+- [C] **Ekspor auditor**: CSV **streaming sejak awal** (pola yang sama dengan
+      `ProfitLossService.StreamProfitLossExport` — baca baris demi baris lewat
+      `pgxpool.Pool` langsung, jangan sqlc `:many` yang menampung semuanya di
+      memori) dari layar Audit (§10.3 DESAIN), menghormati saringan yang
+      sedang aktif di layar (per tenant, per aktor, rentang waktu, dll).
+      Manifes terpisah (bukan digabung ke CSV) berisi: `sha256` (hash isi CSV
+      setelah selesai ditulis), `signed_at`, `key_fingerprint`,
+      `hmac_sha256` (HMAC atas `sha256` di atas, memakai kunci aktif).
+      Memverifikasi berarti: hitung ulang SHA256 CSV, cocokkan ke manifes,
+      lalu cocokkan HMAC memakai kunci yang sidik jarinya tercantum (aktif
+      atau sebelumnya).
+- [C] Setiap ekspor **masuk `audit_logs`** miliknya sendiri (siapa,
+      kapan, saringan apa yang dipakai) — mengekspor seluruh jejak audit
+      adalah pemrosesan data pribadi juga, pola yang sama dengan C3.
+      **Bukan** `privileged_actions`/four-eyes: ini ekspor (baca), bukan
+      tindakan tak bisa ditarik seperti SUSPEND — lihat C2.
 
 ---
 
@@ -370,12 +405,19 @@ menutup tiketnya sendiri.
 Yang belum ada, dan ini bagiannya:
 
 - [C] Layar di `/admin`: daftar tiket **lintas semua tenant**, saring per
-      status/prioritas, urut berdasarkan yang lewat target respons dulu
+      status/prioritas, urut berdasarkan yang lewat target respons dulu.
+      **Jangan hitung ulang target responsnya** — pakai
+      `domain.SupportTicket.ResponseDueAt()`/`.ResponseOverdue()` yang sudah
+      ada (target dari prioritas, dihitung tiap kali, tidak pernah disimpan;
+      lihat komentarnya di `internal/domain/support.go`).
 - [C] Balas sebagai staf platform — `support_ticket_messages.author_is_platform
       = true` sudah disiapkan di skema, thread operator otomatis
       menampilkannya tanpa perubahan apa pun di sisi operator
-- [C] Ubah status (OPEN → IN_PROGRESS → RESOLVED), operator melihat
-      perubahannya di tiketnya sendiri
+- [C] Ubah status **OPEN → IN_PROGRESS → RESOLVED saja**. `status` juga
+      punya nilai `CLOSED` (migrasi 162), tapi itu **sudah** jalurnya sendiri
+      — `SupportService.CloseSupportTicket`, dipanggil operator sendiri untuk
+      menutup tiketnya. RPC platform yang baru **tidak boleh** bisa
+      mengatur `CLOSED`; itu bukan miliknya untuk diputuskan.
 - [C] RPC baru di `PlatformService` (bukan `SupportService` — itu milik
       operator), scoped platform-admin seperti RPC platform lainnya
 
@@ -487,8 +529,9 @@ Lihat §7 DESAIN. Bagian ini sebelumnya tidak dirancang di mana pun.
       **Membuka layar ini tidak dicatat**, dengan sengaja: layar audit yang
       menulis entri audit setiap kali dibuka akan memenuhi jejaknya dengan
       tindakan membacanya sendiri dan mengubur apa yang benar-benar terjadi.
-- [C] **E5** Ekspor auditor: CSV + hash manifes, ditandatangani kunci platform,
-      streaming sejak awal
+- **E5 dipindahkan ke C4** (5 September 2026) — ekspor auditor adalah soal
+  keamanan/kepatuhan, bukan pertumbuhan. Lihat **C4** untuk spesifikasi
+  lengkapnya (kunci penandatangan, rotasi, format manifes).
 
 ---
 

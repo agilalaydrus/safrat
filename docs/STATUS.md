@@ -13,7 +13,7 @@ Diperbarui: **5 September 2026** (Corong Pengunjung selesai 33/33 — K2.5 formu
 | Jalur | Rute | Berkas tugas | Posisi |
 |---|---|---|---|
 | **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **Tahap 4 selesai** (2 butir sengaja dicatat belum dibangun), sisa T3.2 |
-| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1, B2 selesai** · berikutnya **C4** atau **C5** (kotak masuk Support, baru — lihat T4.11), jatah Codex |
+| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1, B2 selesai** · **C4 spesifikasinya baru diperjelas** (5 Sept, gabung dengan E5) · berikutnya **C4** atau **C5**, jatah Codex |
 | **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | **33/33 selesai** |
 | **SEO & Konten** | storefront | [TUGAS-SEO-KONTEN.md](TUGAS-SEO-KONTEN.md) | **12/17 selesai** — sisa TAHAP S3 menunggu proyek Google Cloud pemilik |
 
@@ -22,10 +22,17 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
 
 ## Yang sedang menunggu, berurutan
 
-1. **C4 Rotasi kunci & ekspor auditor** — jatah Codex (implementasi Panel
-   SaaS dikerjakan Codex; Claude hanya menulis spesifikasi dan verifikasi).
-   Rotasi kunci API dengan tumpang tindih 24 jam, dan ekspor auditor (CSV +
-   manifes hash).
+1. **C4 Kunci penandatangan platform & ekspor auditor** — jatah Codex
+   (implementasi Panel SaaS dikerjakan Codex; Claude menulis spesifikasi dan
+   verifikasi). Spesifikasinya **diperjelas 5 September 2026**: judul lama
+   "rotasi kunci API" menyiratkan sistem kunci API publik yang tidak ada di
+   produk ini — sebenarnya satu fitur (kunci HMAC milik platform sendiri,
+   `AUDIT_EXPORT_SIGNING_KEY`, menandatangani manifes ekspor auditor,
+   dirotasi seperti `KYC_ENCRYPTION_KEY`). Juga ditemukan dobel tercatat
+   sebagai **E5** di tahap lain — sudah digabung. Lihat C4 di
+   TUGAS-PANEL-SAAS.md untuk rinciannya (format manifes, env var, batas
+   dengan C2/C3). **C5 Kotak masuk Support** juga siap dikerjakan Codex —
+   ambil salah satu.
 2. **Tahap 3 Dashboard Travel** — sisa **T3.2** gateway WhatsApp (butuh
    kredensial penyedia dari pemilik). **T3.3 sudah selesai (4 September
    2026)**: Rangkaian, Rundown, dan Armada Bus melengkapi Manifes & Roomlist
