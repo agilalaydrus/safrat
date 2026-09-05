@@ -51,6 +51,7 @@ import { operatorClient, seasonClient, subscriptionClient } from "@/lib/rpc";
 import { RequireAccess } from "@/components/auth/RequireAccess";
 import { RequireTwoFactor } from "@/components/auth/RequireTwoFactor";
 import { invalidateMyAccessCache } from "@/lib/access-cache";
+import { AnnouncementBell } from "@/components/announcements/AnnouncementBell";
 
 type NavItem = readonly [label: string, href: string, icon: typeof IconLayoutDashboard, feature?: "branches" | "crm"];
 type NavGroup = { readonly label: string; readonly items: readonly NavItem[] };
@@ -259,6 +260,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <IconChevronRight size={15} stroke={1.8} aria-hidden />
                 <span>{currentLabel}</span>
               </div>
+              <AnnouncementBell />
               <div className="dashboard-topbar-user">
                 <span>Hai, {userLabel}</span>
                 <span className="dashboard-avatar" aria-hidden>{initials || "TH"}</span>

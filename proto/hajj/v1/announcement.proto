@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// AnnouncementService is the operator-facing half of Pengumuman (§10.1
+// DESAIN): reading what the platform sent to this tenant, and marking it
+// read. Composing and sending an announcement is a platform action —
+// PreviewAnnouncementRecipients/SendAnnouncement/ListPlatformAnnouncements
+// live on PlatformService, the same split SupportService uses.
+service AnnouncementService {
+  rpc ListMyAnnouncements(ListMyAnnouncementsRequest) returns (ListMyAnnouncementsResponse);
+  rpc MarkAnnouncementRead(MarkAnnouncementReadRequest) returns (MarkAnnouncementReadResponse);
+}
+
+// AnnouncementRecipientFilter is the criteria an announcement was sent
+// under — re-evaluated at the moment of send, never a frozen list until
+// then. See AnnouncementRepository.ResolveRecipients (Go) for what each
+// mode actually matches.
+message AnnouncementRecipientFilter {
+  // ALL | PLAN | TRIALING | MULTI_BRANCH | OVERDUE | MANUAL
+  string mode = 1 [(buf.validate.field).string = {in: ["ALL", "PLAN", "TRIALING", "MULTI_BRANCH", "OVERDUE", "MANUAL"]}];
+  // Required when mode = PLAN.
+  string plan = 2;
+  // Required when mode = MANUAL.
+  repeated string operator_ids = 3;
+}
+
+// Announcement is the platform-side view — one row of the "Riwayat" table
+// (§10.1 DESAIN), or the thing being composed in the wizard before it sends.
+message Announcement {
+  string id = 1;
+  string title = 2;
+  string body = 3;
+  string link = 4;
+  // IN_APP always present; EMAIL optional.
+  repeated string channels = 5;
+  AnnouncementRecipientFilter recipient_filter = 6;
+  // The count as of the last time recipients were resolved: an estimate
+  // before sent_at is set, the real frozen count afterward.
+  int32 recipient_count = 7;
+  google.protobuf.Timestamp scheduled_at = 8;
+  // Unset until the announcement has actually gone out — a schedule in the
+  // future is not yet a fact.
+  google.protobuf.Timestamp sent_at = 9;
+  google.protobuf.Timestamp created_at = 10;
+  int32 read_count = 11;
+  // Resolved from admin_user_id against Better Auth's own table — "oleh
+  // siapa" (§10.1 DESAIN) means a name a person recognises, not a raw id.
+  string admin_email = 12;
+}
+
+message PreviewAnnouncementRecipientsRequest {
+  AnnouncementRecipientFilter filter = 1;
+}
+message PreviewAnnouncementRecipientsResponse {
+  int32 count = 1;
+  // How many of these recipients already got some other announcement in the
+  // last 24 hours — the readiness score's most important check (§10.1
+  // DESAIN): "dua pengumuman berturut membuat yang ketiga tidak dibaca."
+  int32 overlapping_recent_count = 2;
+}
+
+message SendAnnouncementRequest {
+  string title = 1 [(buf.validate.field).string.min_len = 1];
+  string body = 2 [(buf.validate.field).string.min_len = 1];
+  string link = 3;
+  repeated string channels = 4;
+  AnnouncementRecipientFilter filter = 5;
+  // Empty/absent means "now" — set by the caller only for a genuinely
+  // future schedule, never used to backdate one.
+  google.protobuf.Timestamp scheduled_at = 6;
+  string idempotency_key = 7 [(buf.validate.field).string.min_len = 1];
+}
+message SendAnnouncementResponse {
+  Announcement announcement = 1;
+}
+
+message ListPlatformAnnouncementsRequest {
+  int32 limit = 1;
+}
+message ListPlatformAnnouncementsResponse {
+  repeated Announcement announcements = 1;
+}
+
+// OperatorAnnouncement is one tenant's own view of one announcement — only
+// what was actually delivered to them, never the platform-side targeting
+// criteria that produced it.
+message OperatorAnnouncement {
+  string id = 1;
+  string title = 2;
+  string body = 3;
+  string link = 4;
+  google.protobuf.Timestamp sent_at = 5;
+  // Unset until this operator's own team has read it.
+  google.protobuf.Timestamp read_at = 6;
+}
+
+message ListMyAnnouncementsRequest {}
+message ListMyAnnouncementsResponse {
+  repeated OperatorAnnouncement announcements = 1;
+}
+
+message MarkAnnouncementReadRequest {
+  string announcement_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+message MarkAnnouncementReadResponse {}

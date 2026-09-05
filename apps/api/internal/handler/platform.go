@@ -691,3 +691,36 @@ func (h *PlatformHandler) DeleteTenant(ctx context.Context, req *connect.Request
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) PreviewAnnouncementRecipients(ctx context.Context, req *connect.Request[hajjv1.PreviewAnnouncementRecipientsRequest]) (*connect.Response[hajjv1.PreviewAnnouncementRecipientsResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.PreviewAnnouncementRecipients(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) SendAnnouncement(ctx context.Context, req *connect.Request[hajjv1.SendAnnouncementRequest]) (*connect.Response[hajjv1.SendAnnouncementResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.SendAnnouncement(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) ListPlatformAnnouncements(ctx context.Context, req *connect.Request[hajjv1.ListPlatformAnnouncementsRequest]) (*connect.Response[hajjv1.ListPlatformAnnouncementsResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.ListPlatformAnnouncements(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

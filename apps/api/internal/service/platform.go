@@ -41,6 +41,9 @@ type PlatformService struct {
 	// pre-deletion export check — the same table DataExportService uses,
 	// just requested on the tenant's behalf instead of by themselves.
 	dataExportRepository *repository.DataExportRepository
+	// announcementRepository backs E2's compose/send/history — the same
+	// table AnnouncementService's operator-side reads from.
+	announcementRepository *repository.AnnouncementRepository
 	// auditSigner is nil when AUDIT_EXPORT_SIGNING_KEY is unset — see
 	// ExportAuditTrail (C4, TUGAS-PANEL-SAAS.md), which refuses to export
 	// unsigned rather than silently producing something an auditor cannot
@@ -135,8 +138,8 @@ func (s *PlatformService) IgnoreBankMutation(ctx context.Context, req *hajjv1.Ig
 	return &hajjv1.IgnoreBankMutationResponse{}, nil
 }
 
-func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, products *repository.ProductRepository, subscriptions *repository.SubscriptionRepository, kyc *repository.KYCRepository, audit *repository.AuditRepository, funnel *repository.FunnelRepository, impersonation *repository.ImpersonationRepository, personalDataReads *repository.PersonalDataReadRepository, auditSigner *crypto.Signer, support *repository.SupportRepository, dataExports *repository.DataExportRepository) *PlatformService {
-	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, supplierRepository: suppliers, productRepository: products, subscriptionRepository: subscriptions, kycRepository: kyc, auditRepository: audit, funnelRepository: funnel, impersonationRepository: impersonation, personalDataReads: personalDataReads, auditSigner: auditSigner, supportRepository: support, dataExportRepository: dataExports}
+func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, products *repository.ProductRepository, subscriptions *repository.SubscriptionRepository, kyc *repository.KYCRepository, audit *repository.AuditRepository, funnel *repository.FunnelRepository, impersonation *repository.ImpersonationRepository, personalDataReads *repository.PersonalDataReadRepository, auditSigner *crypto.Signer, support *repository.SupportRepository, dataExports *repository.DataExportRepository, announcements *repository.AnnouncementRepository) *PlatformService {
+	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, supplierRepository: suppliers, productRepository: products, subscriptionRepository: subscriptions, kycRepository: kyc, auditRepository: audit, funnelRepository: funnel, impersonationRepository: impersonation, personalDataReads: personalDataReads, auditSigner: auditSigner, supportRepository: support, dataExportRepository: dataExports, announcementRepository: announcements}
 }
 
 // requirePlatformAdmin is the only thing standing between a signed-in operator

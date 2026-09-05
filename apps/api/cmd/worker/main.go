@@ -57,6 +57,7 @@ func main() {
 	pilgrimRepository := repository.NewPilgrimRepository(queries)
 	sosRepository := repository.NewSOSRepository(queries)
 	waitlistRepository := repository.NewWaitlistRepository(queries)
+	announcementRepository := repository.NewAnnouncementRepository(pool)
 	notificationRepository := repository.NewNotificationRepository(queries)
 	auditRepository := repository.NewAuditRepository(queries)
 	outboxRepository := repository.NewOutboxRepository(queries)
@@ -113,6 +114,7 @@ func main() {
 	sosService := service.NewSOSService(operatorRepository, pilgrimRepository, sosRepository, auditRepository, firebasePusher, eventBus)
 	sosHandler := worker.NewSOSHandler(logger, sosService)
 	waitlistHandler := worker.NewWaitlistHandler(logger, waitlistRepository)
+	announcementHandler := worker.NewAnnouncementHandler(logger, announcementRepository)
 	cashFlowHandler := worker.NewCashFlowHandler(logger, queries)
 	smtpMailer, err := mailer.FromEnv(strings.TrimSpace(os.Getenv("SMTP_HOST")), envOrDefault("SMTP_PORT", "465"), strings.TrimSpace(os.Getenv("SMTP_USER")), os.Getenv("SMTP_PASSWORD"), strings.TrimSpace(os.Getenv("SMTP_FROM_EMAIL")))
 	if err != nil {
@@ -187,6 +189,10 @@ func main() {
 	}
 	if _, err := scheduler.Register("@every 5m", worker.NewWaitlistExpireTask()); err != nil {
 		logger.Error("register waitlist expiration schedule", "error", err)
+		os.Exit(1)
+	}
+	if _, err := scheduler.Register("@every 5m", worker.NewAnnouncementDispatchTask()); err != nil {
+		logger.Error("register announcement dispatch schedule", "error", err)
 		os.Exit(1)
 	}
 	if _, err := scheduler.Register("@every 1h", worker.NewMarkOverdueVendorPaymentsTask()); err != nil {
@@ -308,6 +314,7 @@ func main() {
 	mux.HandleFunc(worker.TaskTierRecalculateAll, tierHandler.HandleRecalculateAll)
 	mux.HandleFunc(worker.TaskSOSEscalate, sosHandler.HandleEscalate)
 	mux.HandleFunc(worker.TaskWaitlistExpire, waitlistHandler.HandleExpire)
+	mux.HandleFunc(worker.TaskAnnouncementDispatch, announcementHandler.HandleDispatch)
 	mux.HandleFunc(worker.TaskMarkOverdueVendorPayments, cashFlowHandler.HandleMarkOverdue)
 	mux.HandleFunc(worker.TaskCascadeDispatch, outboxHandler.HandleDispatch)
 	mux.HandleFunc(worker.TaskSubscriptionSweep, subscriptionHandler.HandleSweep)

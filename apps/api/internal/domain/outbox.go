@@ -11,6 +11,7 @@ const (
 	EventInstallmentReceipt  = "finance.installment_receipt"
 	EventInstallmentReminder = "finance.installment_reminder"
 	EventSubscriptionDunning = "billing.subscription_dunning"
+	EventAnnouncementEmail   = "platform.announcement_email"
 )
 
 // HealthReportCreatedPayload is the JSON payload for EventHealthReportCreated.
@@ -68,4 +69,16 @@ type SubscriptionDunningPayload struct {
 	OperatorName string `json:"operator_name"`
 	Email        string `json:"email"`
 	Suspended    bool   `json:"suspended"`
+}
+
+// AnnouncementEmailPayload is the JSON payload for EventAnnouncementEmail.
+// One event per recipient operator rather than one event for the whole
+// announcement — the relay's retry unit is then a single tenant's email, not
+// the entire send, so one bad address cannot hold up the rest.
+type AnnouncementEmailPayload struct {
+	AnnouncementID string `json:"announcement_id"`
+	Title          string `json:"title"`
+	Body           string `json:"body"`
+	Link           string `json:"link,omitempty"`
+	Email          string `json:"email"`
 }

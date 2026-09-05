@@ -83,7 +83,7 @@ func TestTenantDetailIsScopedToOneTenantIntegration(t *testing.T) {
 	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
 		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool),
 		repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool),
-		repository.NewKYCRepository(pool), repository.NewAuditRepository(queries), repository.NewFunnelRepository(pool), repository.NewImpersonationRepository(pool), repository.NewPersonalDataReadRepository(pool), nil, repository.NewSupportRepository(queries), repository.NewDataExportRepository(pool))
+		repository.NewKYCRepository(pool), repository.NewAuditRepository(queries), repository.NewFunnelRepository(pool), repository.NewImpersonationRepository(pool), repository.NewPersonalDataReadRepository(pool), nil, repository.NewSupportRepository(queries), repository.NewDataExportRepository(pool), repository.NewAnnouncementRepository(pool))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,

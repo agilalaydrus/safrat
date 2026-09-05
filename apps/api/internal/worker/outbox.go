@@ -188,6 +188,8 @@ func (h *OutboxHandler) dispatch(ctx context.Context, ev domain.CascadeEvent) er
 		return h.sendInstallmentReminder(ctx, ev)
 	case domain.EventSubscriptionDunning:
 		return h.sendSubscriptionDunning(ctx, ev)
+	case domain.EventAnnouncementEmail:
+		return h.sendAnnouncementEmail(ctx, ev)
 	default:
 		return fmt.Errorf("unsupported cascade event type %q", ev.EventType)
 	}
@@ -301,4 +303,30 @@ func (h *OutboxHandler) sendSubscriptionDunning(ctx context.Context, ev domain.C
 		html.EscapeString(payload.OperatorName), payload.DaysOverdue, html.EscapeString(amount), closing))
 	return h.mailer.SendHTML(ctx, to, subject, body,
 		fmt.Sprintf("billing-dunning-%s-%s@tawafiqhub.id", ev.OperatorID, payload.Stage))
+}
+
+// sendAnnouncementEmail is E2's email channel (§10.1 DESAIN) — one event per
+// recipient operator (see AnnouncementRepository.Dispatch), so one bad
+// address retries on its own without holding up the rest of the send. The
+// in-app copy needs no dispatch at all: it is already visible the moment
+// Dispatch writes the announcement_deliveries row.
+func (h *OutboxHandler) sendAnnouncementEmail(ctx context.Context, ev domain.CascadeEvent) error {
+	if h.mailer == nil {
+		return fmt.Errorf("SMTP is not configured")
+	}
+	var payload domain.AnnouncementEmailPayload
+	if err := json.Unmarshal(ev.Payload, &payload); err != nil {
+		return err
+	}
+	to := strings.TrimSpace(payload.Email)
+	if to == "" {
+		return fmt.Errorf("operator %s has no email address", ev.OperatorID)
+	}
+	content := fmt.Sprintf("<p>%s</p>", strings.ReplaceAll(html.EscapeString(payload.Body), "\n", "<br>"))
+	if payload.Link != "" {
+		content += fmt.Sprintf("<p><a href=\"%s\">%s</a></p>", html.EscapeString(payload.Link), html.EscapeString(payload.Link))
+	}
+	body := financeEmailShell(payload.Title, content)
+	return h.mailer.SendHTML(ctx, to, payload.Title, body,
+		fmt.Sprintf("announcement-%s-%s@tawafiqhub.id", payload.AnnouncementID, ev.OperatorID))
 }

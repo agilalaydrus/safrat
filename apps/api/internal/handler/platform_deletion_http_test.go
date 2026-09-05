@@ -84,7 +84,7 @@ func TestDeleteTenantRequiresGraceExportAndNameIntegration(t *testing.T) {
 		repository.NewKYCRepository(pool), repository.NewAuditRepository(queries),
 		repository.NewFunnelRepository(pool), repository.NewImpersonationRepository(pool),
 		repository.NewPersonalDataReadRepository(pool), nil, repository.NewSupportRepository(queries),
-		repository.NewDataExportRepository(pool))
+		repository.NewDataExportRepository(pool), repository.NewAnnouncementRepository(pool))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
 			repository.NewIdentityRepository(queries, repository.NewAgentRepository(queries)),

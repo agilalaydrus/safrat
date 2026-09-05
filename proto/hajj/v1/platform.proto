@@ -18,6 +18,11 @@ import "hajj/v1/support.proto";
 // RequestTenantDataExport writes into the exact same operator_data_exports
 // table, just on the tenant's behalf instead of by their own request.
 import "hajj/v1/order.proto";
+// Announcement/AnnouncementRecipientFilter are shared with the operator-facing
+// AnnouncementService (E2, TUGAS-PANEL-SAAS.md) for the same reason SupportTicket
+// is shared with SupportService: composing and sending is a platform action,
+// reading your own copy is a tenant action, and both sides describe the same row.
+import "hajj/v1/announcement.proto";
 
 option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 
@@ -272,6 +277,14 @@ service PlatformService {
   // three preconditions enforced server-side, not just suggested by the UI.
   rpc RequestTenantDataExport(RequestTenantDataExportRequest) returns (DataExportRow);
   rpc DeleteTenant(DeleteTenantRequest) returns (DeleteTenantResponse);
+
+  // E2 (TUGAS-PANEL-SAAS.md, §10.1 DESAIN): pengumuman ke tenant. Preview
+  // computes the recipient count from live data and the 24h overlap warning
+  // before anything is composed; Send stores the announcement and, when
+  // scheduled_at is now or past, dispatches it immediately in the same call.
+  rpc PreviewAnnouncementRecipients(PreviewAnnouncementRecipientsRequest) returns (PreviewAnnouncementRecipientsResponse);
+  rpc SendAnnouncement(SendAnnouncementRequest) returns (SendAnnouncementResponse);
+  rpc ListPlatformAnnouncements(ListPlatformAnnouncementsRequest) returns (ListPlatformAnnouncementsResponse);
 }
 
 message RequestTenantDataExportRequest {

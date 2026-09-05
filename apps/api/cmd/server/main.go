@@ -120,6 +120,7 @@ func main() {
 		profitLossRepository := repository.NewProfitLossRepository(pool)
 		securitySettingsRepository := repository.NewSecuritySettingsRepository(queries)
 		supportRepository := repository.NewSupportRepository(queries)
+		announcementRepository := repository.NewAnnouncementRepository(pool)
 		notificationSettingsRepository := repository.NewNotificationSettingsRepository(queries)
 		staffScheduleRepository := repository.NewStaffScheduleRepository(queries)
 		insuranceRepository := repository.NewInsuranceRepository(queries)
@@ -313,6 +314,7 @@ func main() {
 		profitLossService := service.NewProfitLossService(operatorRepository, profitLossRepository)
 		securitySettingsService := service.NewSecuritySettingsService(operatorRepository, securitySettingsRepository)
 		supportService := service.NewSupportService(operatorRepository, supportRepository)
+		announcementService := service.NewAnnouncementService(operatorRepository, announcementRepository)
 		notificationSettingsService := service.NewNotificationSettingsService(operatorRepository, notificationSettingsRepository)
 		staffScheduleService := service.NewStaffScheduleService(operatorRepository, staffScheduleRepository)
 		insuranceService := service.NewInsuranceService(operatorRepository, insuranceRepository)
@@ -372,7 +374,7 @@ func main() {
 		orderService.AttachFulfilment(fulfilmentService, fulfilmentRepository)
 		impersonationRepository := repository.NewImpersonationRepository(pool)
 		personalDataReadRepository := repository.NewPersonalDataReadRepository(pool)
-		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, productRepository, subscriptionRepository, repository.NewKYCRepository(pool), auditRepository, repository.NewFunnelRepository(pool), impersonationRepository, personalDataReadRepository, auditSigner, supportRepository, repository.NewDataExportRepository(pool))
+		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, productRepository, subscriptionRepository, repository.NewKYCRepository(pool), auditRepository, repository.NewFunnelRepository(pool), impersonationRepository, personalDataReadRepository, auditSigner, supportRepository, repository.NewDataExportRepository(pool), announcementRepository)
 		// The platform review queue refunds when it resolves a failure, so it
 		// needs both — composed after construction because the order service is
 		// built later and takes the fulfilment service itself.
@@ -398,6 +400,7 @@ func main() {
 		profitLossHandler := handler.NewProfitLossHandler(profitLossService)
 		securitySettingsHandler := handler.NewSecuritySettingsHandler(securitySettingsService)
 		supportHandler := handler.NewSupportHandler(supportService)
+		announcementHandler := handler.NewAnnouncementHandler(announcementService)
 		notificationSettingsHandler := handler.NewNotificationSettingsHandler(notificationSettingsService)
 		momentHandler := handler.NewMomentHandler(momentService)
 		staffScheduleHandler := handler.NewStaffScheduleHandler(staffScheduleService)
@@ -457,6 +460,7 @@ func main() {
 		profitLossPath, profitLossServiceHandler := hajjv1connect.NewProfitLossServiceHandler(profitLossHandler, handlerOptions...)
 		securitySettingsPath, securitySettingsServiceHandler := hajjv1connect.NewSecuritySettingsServiceHandler(securitySettingsHandler, handlerOptions...)
 		supportPath, supportServiceHandler := hajjv1connect.NewSupportServiceHandler(supportHandler, handlerOptions...)
+		announcementPath, announcementServiceHandler := hajjv1connect.NewAnnouncementServiceHandler(announcementHandler, handlerOptions...)
 		notificationSettingsPath, notificationSettingsServiceHandler := hajjv1connect.NewNotificationSettingsServiceHandler(notificationSettingsHandler, handlerOptions...)
 		momentPath, momentServiceHandler := hajjv1connect.NewMomentServiceHandler(momentHandler, handlerOptions...)
 		staffSchedulePath, staffScheduleServiceHandler := hajjv1connect.NewStaffScheduleServiceHandler(staffScheduleHandler, handlerOptions...)
@@ -519,6 +523,7 @@ func main() {
 		mux.Handle(profitLossPath, profitLossServiceHandler)
 		mux.Handle(securitySettingsPath, securitySettingsServiceHandler)
 		mux.Handle(supportPath, supportServiceHandler)
+		mux.Handle(announcementPath, announcementServiceHandler)
 		mux.Handle(notificationSettingsPath, notificationSettingsServiceHandler)
 		mux.Handle(momentPath, momentServiceHandler)
 		mux.Handle(staffSchedulePath, staffScheduleServiceHandler)

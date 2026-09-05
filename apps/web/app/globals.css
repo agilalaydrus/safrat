@@ -960,7 +960,8 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-seri
 .dashboard-user-copy small { overflow: hidden; color: var(--dashboard-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .dashboard-signout,
 .dashboard-menu-button,
-.dashboard-drawer-close {
+.dashboard-drawer-close,
+.dashboard-bell-button {
   display: grid;
   width: 38px;
   height: 38px;
@@ -973,10 +974,12 @@ input, select, textarea { font-family: 'Plus Jakarta Sans', system-ui, sans-seri
 }
 .dashboard-signout:hover,
 .dashboard-menu-button:hover,
-.dashboard-drawer-close:hover { border-color: var(--color-cream-400); background: var(--color-cream-100); color: var(--color-warm-700); }
+.dashboard-drawer-close:hover,
+.dashboard-bell-button:hover { border-color: var(--color-cream-400); background: var(--color-cream-100); color: var(--color-warm-700); }
 .dashboard-signout:active,
 .dashboard-menu-button:active,
-.dashboard-drawer-close:active { transform: translateY(1px); }
+.dashboard-drawer-close:active,
+.dashboard-bell-button:active { transform: translateY(1px); }
 .dashboard-content { min-width: 0; flex: 1; }
 .dashboard-topbar {
   position: sticky;
