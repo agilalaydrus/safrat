@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { IconBuildingStore, IconCurrencyDollar, IconAlertTriangle, IconTruckDelivery, IconPackage, IconBuildingBank, IconReceipt2, IconUsers, IconId, IconAdjustments, IconPlugConnected, IconCalendarDollar, IconGauge, IconFilter, IconChartBar, IconHeartbeat, IconHistory, IconHeadset } from "@tabler/icons-react";
+import { IconBuildingStore, IconCurrencyDollar, IconAlertTriangle, IconTruckDelivery, IconPackage, IconBuildingBank, IconReceipt2, IconUsers, IconId, IconAdjustments, IconPlugConnected, IconCalendarDollar, IconGauge, IconFilter, IconChartBar, IconHeartbeat, IconHistory, IconHeadset, IconSparkles, IconCheck, IconX } from "@tabler/icons-react";
 import { PlatformOperator, PlatformProduct } from "@hajj-saas/proto-gen/hajj/v1/platform_pb";
 import { platformClient } from "@/lib/rpc";
 import CatalogueTab from "@/components/admin/CatalogueTab";
@@ -86,8 +86,47 @@ function OperatorsTab() {
   if (loading) return <p style={{ color: "var(--color-warm-500)" }}>Memuat...</p>;
   if (error) return <p style={{ color: "var(--color-danger-600)" }}>{error}</p>;
 
+  // D4 (TUGAS-PANEL-SAAS.md, §7.2 DESAIN): "tenant yang mendaftar lalu tidak
+  // pernah kembali adalah sinyal paling awal tentang onboarding yang rusak."
+  // A plain filter of data already in this same list — no separate fetch.
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const newTenants = operators
+    .filter((operator) => (operator.createdAt?.toDate().getTime() ?? 0) >= sevenDaysAgo)
+    .sort((a, b) => (b.createdAt?.toDate().getTime() ?? 0) - (a.createdAt?.toDate().getTime() ?? 0));
+
   return (
-    <div style={{ overflowX: "auto" }}>
+    <div style={{ display: "grid", gap: 20 }}>
+      {newTenants.length > 0 && (
+        <div className="tw-card" style={{ padding: 16 }}>
+          <p style={{ margin: "0 0 10px", fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+            <IconSparkles size={16} />{newTenants.length} tenant baru 7 hari terakhir
+          </p>
+          <div style={{ overflowX: "auto" }}>
+            <table style={table}>
+              <thead>
+                <tr>{["Travel", "Daftar", "Musim", "Jamaah", "Login lagi"].map((h) => <th key={h} style={th}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {newTenants.map((operator) => (
+                  <tr key={operator.id} style={tr}>
+                    <td style={td}><Link href={`/admin/tenant/${operator.id}`} style={tenantLink}>{operator.name}</Link></td>
+                    <td style={td}>{operator.createdAt?.toDate().toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}</td>
+                    <td style={td}>{completenessMark(operator.seasonCount > 0)}</td>
+                    <td style={td}>{completenessMark(operator.pilgrimCount > 0)}</td>
+                    <td style={td}>{completenessMark(operator.hasReturnedSinceSignup)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--color-warm-400)" }}>
+            &quot;Login lagi&quot; hanya perkiraan: tidak ada riwayat masuk yang tersimpan (setiap sesi baru menghapus
+            sesi sebelumnya), jadi ini melihat apakah sesi yang aktif sekarang jauh lebih baru dari waktu pendaftaran.
+          </p>
+        </div>
+      )}
+
+      <div style={{ overflowX: "auto" }}>
       <table style={table}>
         <thead><tr>{["Travel", "Paket", "Status", "Jamaah", "Produk", "Perlu Ditinjau"].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
         <tbody>
@@ -124,8 +163,15 @@ function OperatorsTab() {
           Menampilkan 100 travel pertama — yang punya transaksi perlu ditinjau didahulukan.
         </p>
       )}
+      </div>
     </div>
   );
+}
+
+function completenessMark(done: boolean) {
+  return done
+    ? <span style={{ color: "var(--color-emerald-800, #065f46)", display: "inline-flex", alignItems: "center" }}><IconCheck size={15} /></span>
+    : <span style={{ color: "var(--color-warm-400)", display: "inline-flex", alignItems: "center" }}><IconX size={15} /></span>;
 }
 
 function SupplierCostsTab() {

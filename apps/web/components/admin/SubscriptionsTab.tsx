@@ -87,6 +87,19 @@ export default function SubscriptionsTab() {
   }, []);
   useEffect(refresh, [refresh]);
 
+  // D3 (TUGAS-PANEL-SAAS.md, §7.1 DESAIN): "trial habis tanpa ada yang
+  // menyadari adalah pelanggan yang hilang tanpa pernah ditawari" — a plain
+  // display filter, no new data needed. 7 days including one already at 0
+  // (ends today) but not yet negative (lapsed already has that case).
+  const trialsEndingSoon = useMemo(
+    () => operators
+      .filter((o) => o.subscriptionStatus === "TRIALING" && o.accessUntil)
+      .map((o) => ({ operator: o, daysLeft: Math.ceil((o.accessUntil!.toDate().getTime() - Date.now()) / 86_400_000) }))
+      .filter((item) => item.daysLeft >= 0 && item.daysLeft <= 7)
+      .sort((a, b) => a.daysLeft - b.daysLeft),
+    [operators],
+  );
+
   const lapsed = useMemo(
     () => operators
       .filter((o) => o.suspendedAt || (o.effectiveAccessUntil && o.effectiveAccessUntil.toDate() < new Date()))
@@ -297,6 +310,7 @@ export default function SubscriptionsTab() {
         <h2 style={heading}>Langganan</h2>
         <p style={muted}>
           {operators.length} travel · {lapsed.length} lewat jatuh tempo · {suspended} ditangguhkan
+          {trialsEndingSoon.length > 0 ? ` · ${trialsEndingSoon.length} trial berakhir pekan ini` : ""}
           {outstanding > 0 ? ` · ${rupiah(outstanding)} belum tertagih` : ""}
         </p>
       </div>
@@ -309,6 +323,24 @@ export default function SubscriptionsTab() {
           {rupiah(outstanding)} belum tertagih dari {lapsed.length} travel. Pengingat berjalan otomatis;
           penangguhan menutup akses tanpa menghapus data apa pun.
         </p>
+      )}
+
+      {trialsEndingSoon.length > 0 && (
+        <div className="tw-card" style={{ padding: 16 }}>
+          <p style={{ margin: "0 0 10px", fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+            <IconClockHour4 size={16} />{trialsEndingSoon.length} trial berakhir pekan ini
+          </p>
+          <div style={{ display: "grid", gap: 6 }}>
+            {trialsEndingSoon.map(({ operator, daysLeft }) => (
+              <div key={operator.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <span>{operator.name}</span>
+                <span style={{ color: daysLeft <= 2 ? "var(--color-danger-600)" : "var(--color-warm-500)", fontWeight: 600 }}>
+                  {daysLeft === 0 ? "berakhir hari ini" : daysLeft === 1 ? "berakhir besok" : `berakhir dalam ${daysLeft} hari`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       <details className="admin-policy-card tw-card">

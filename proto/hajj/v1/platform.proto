@@ -679,6 +679,14 @@ message PlatformOperator {
   // Set once by CancelSubscription (D5) and never cleared — access still
   // runs out on access_until exactly as before, this only stops billing.
   google.protobuf.Timestamp cancelled_at = 18;
+  // D4 onboarding-completeness markers (§7.2 DESAIN): has this tenant
+  // created a season, and has anyone from it signed in more than once.
+  // pilgrim_count above already answers "sudah ada jamaah?".
+  int32 season_count = 19;
+  // An approximation, not an exact login count — see the SQL comment on
+  // PlatformRepository.ListOperators for why an exact count isn't possible
+  // (every sign-in deletes every other session for that user).
+  bool has_returned_since_signup = 20;
 }
 
 message ListOperatorsRequest {}

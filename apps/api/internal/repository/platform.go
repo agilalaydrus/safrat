@@ -74,6 +74,11 @@ type PlatformOperator struct {
 	// CancelledAt is nil until D5's CancelSubscription is called — access
 	// keeps running on AccessUntil exactly as before either way.
 	CancelledAt *time.Time
+	SeasonCount int32
+	// HasReturnedSinceSignup is D4's onboarding-health signal — see the SQL
+	// comment in ListOperators for why this is an approximation, not an
+	// exact login count.
+	HasReturnedSinceSignup bool
 }
 
 // ListOperators returns tenants, most urgent first, up to limit.
@@ -104,12 +109,33 @@ func (r *PlatformRepository) ListOperators(ctx context.Context, limit int32) ([]
 		         WHERE i.operator_id = o.id AND i.status = 'PENDING'
 		         ORDER BY i.created_at DESC LIMIT 1
 		       ), 0),
-		       s.cancelled_at
+		       s.cancelled_at,
+		       COALESCE(sn.count, 0)::int,
+		       -- D4 (TUGAS-PANEL-SAAS.md, §7.2 DESAIN): "sudah pernah login kedua
+		       -- kali?" as an onboarding-health signal. There is no login-history
+		       -- table to count against — every sign-in deletes every other
+		       -- session for that user (see apps/web/lib/auth.ts's single-session
+		       -- hook), so a session row's own existence proves nothing about
+		       -- how many times someone has signed in. What survives is time:
+		       -- the *current* session's createdAt is whenever its owner most
+		       -- recently signed in, and the very first session (created during
+		       -- signup, seconds after the operator row itself) still shows a
+		       -- createdAt close to o.created_at if nobody has been back since.
+		       -- A live session more than two hours newer than the operator
+		       -- means somebody, at some point, came back and signed in again —
+		       -- an approximation of "returned," not an exact login count.
+		       COALESCE((
+		         SELECT MAX(sess."createdAt") > o.created_at + INTERVAL '2 hours'
+		         FROM member m
+		         JOIN "session" sess ON sess."userId" = m."userId"
+		         WHERE m."organizationId" = o.better_auth_org_id
+		       ), false)
 		FROM operators o
 		LEFT JOIN subscriptions s ON s.operator_id = o.id
 		LEFT JOIN (SELECT operator_id, COUNT(*) AS count FROM pilgrims WHERE is_substituted = false GROUP BY operator_id) p ON p.operator_id = o.id
 		LEFT JOIN (SELECT operator_id, COUNT(*) AS count FROM products GROUP BY operator_id) pr ON pr.operator_id = o.id
 		LEFT JOIN (SELECT operator_id, COUNT(*) AS count FROM orders WHERE status = 'HELD' GROUP BY operator_id) h ON h.operator_id = o.id
+		LEFT JOIN (SELECT operator_id, COUNT(*) AS count FROM seasons GROUP BY operator_id) sn ON sn.operator_id = o.id
 		-- Held transactions first: money has arrived and is waiting on somebody,
 		-- which is the only thing on this screen that is actually urgent.
 		-- Newest next, so a tenant that just signed up is easy to find.
@@ -130,7 +156,8 @@ func (r *PlatformRepository) ListOperators(ctx context.Context, limit int32) ([]
 			&operator.SubscriptionStatus, &operator.AccessUntil, &operator.EffectiveAccessUntil,
 			&operator.GracePeriodDays, &operator.GraceOverrideDays, &operator.CreditBalanceIDR, &operator.PilgrimCount,
 			&operator.ProductCount, &operator.HeldOrderCount, &operator.CreatedAt,
-			&operator.SuspendedAt, &operator.DunningStage, &operator.OutstandingIDR, &operator.CancelledAt); err != nil {
+			&operator.SuspendedAt, &operator.DunningStage, &operator.OutstandingIDR, &operator.CancelledAt,
+			&operator.SeasonCount, &operator.HasReturnedSinceSignup); err != nil {
 			return nil, err
 		}
 		operators = append(operators, &operator)

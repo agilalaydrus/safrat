@@ -206,6 +206,7 @@ func (s *PlatformService) ListOperators(ctx context.Context) (*hajjv1.ListOperat
 			DunningStage: operator.DunningStage, OutstandingIdr: operator.OutstandingIDR,
 			GracePeriodDays: operator.GracePeriodDays, GracePeriodOverrideDays: operator.GraceOverrideDays,
 			CreditBalanceIdr: operator.CreditBalanceIDR,
+			SeasonCount: operator.SeasonCount, HasReturnedSinceSignup: operator.HasReturnedSinceSignup,
 		}
 		if operator.AccessUntil != nil {
 			message.AccessUntil = timestamppb.New(*operator.AccessUntil)
@@ -215,6 +216,9 @@ func (s *PlatformService) ListOperators(ctx context.Context) (*hajjv1.ListOperat
 		}
 		if operator.EffectiveAccessUntil != nil {
 			message.EffectiveAccessUntil = timestamppb.New(*operator.EffectiveAccessUntil)
+		}
+		if operator.CancelledAt != nil {
+			message.CancelledAt = timestamppb.New(*operator.CancelledAt)
 		}
 		result.Operators = append(result.Operators, message)
 	}
