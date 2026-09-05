@@ -8,6 +8,12 @@ import "google/protobuf/timestamp.proto";
 // funnels are the same shape, and a second copy of the message would let them
 // drift apart step by step.
 import "hajj/v1/funnel_report.proto";
+// SupportTicket/SupportTicketMessage/SupportTicketDetail are shared with the
+// operator-facing SupportService deliberately (C5, TUGAS-PANEL-SAAS.md): the
+// platform inbox reads and writes the exact same rows, just unscoped by
+// tenant, and a second copy of these messages would let the two views drift
+// apart field by field.
+import "hajj/v1/support.proto";
 
 option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 
@@ -232,6 +238,44 @@ service PlatformService {
   // receives, never re-encode it — there is no way for the downloaded file
   // and the hash that vouches for it to disagree.
   rpc ExportAuditTrail(ExportAuditTrailRequest) returns (stream AuditExportChunk);
+
+  // C5 (TUGAS-PANEL-SAAS.md): the platform-side half of Support. The
+  // operator-facing half (create a ticket, read it, reply, close it) is
+  // SupportService — this is the admin inbox across every tenant.
+  rpc ListAllSupportTickets(ListAllSupportTicketsRequest) returns (ListAllSupportTicketsResponse);
+  rpc GetSupportTicketAsPlatform(GetSupportTicketAsPlatformRequest) returns (SupportTicketDetail);
+  // ReplyToSupportTicketAsPlatform writes with author_is_platform = true —
+  // the operator's own thread view (SupportService.GetSupportTicket) shows
+  // it automatically, no change needed on that side.
+  rpc ReplyToSupportTicketAsPlatform(ReplyToSupportTicketAsPlatformRequest) returns (SupportTicketMessage);
+  // SetSupportTicketStatus moves a ticket between OPEN, IN_PROGRESS and
+  // RESOLVED only — CLOSED is deliberately unreachable here. Closing is the
+  // operator's own decision (SupportService.CloseSupportTicket); it is not
+  // this RPC's to make.
+  rpc SetSupportTicketStatus(SetSupportTicketStatusRequest) returns (SupportTicket);
+}
+
+message ListAllSupportTicketsRequest {
+  string status = 1; // "" (all) | OPEN | IN_PROGRESS | RESOLVED | CLOSED
+  string priority = 2; // "" (all) | LOW | MEDIUM | HIGH | URGENT
+}
+
+message ListAllSupportTicketsResponse {
+  repeated SupportTicket tickets = 1;
+}
+
+message GetSupportTicketAsPlatformRequest {
+  string ticket_id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message ReplyToSupportTicketAsPlatformRequest {
+  string ticket_id = 1 [(buf.validate.field).string.min_len = 1];
+  string body = 2 [(buf.validate.field).string.min_len = 1];
+}
+
+message SetSupportTicketStatusRequest {
+  string ticket_id = 1 [(buf.validate.field).string.min_len = 1];
+  string status = 2 [(buf.validate.field).string = {in: ["OPEN", "IN_PROGRESS", "RESOLVED"]}];
 }
 
 // Same fields as ListAuditTrailRequest minus limit, which means nothing for

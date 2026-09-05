@@ -40,6 +40,11 @@ message SupportTicket {
   // SupportService's Go comment for the fixed targets per priority.
   google.protobuf.Timestamp response_due_at = 7;
   bool response_overdue = 8;
+  // Only set on the platform-side listing (PlatformService.
+  // ListAllSupportTickets/GetSupportTicketAsPlatform, C5) — an operator
+  // reading their own ticket already knows who they are.
+  string operator_id = 9;
+  string operator_name = 10;
 }
 
 message SupportTicketMessage {

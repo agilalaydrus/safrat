@@ -24,6 +24,9 @@ func supportTicketMessage(t *domain.SupportTicket) *hajjv1.SupportTicket {
 	msg := &hajjv1.SupportTicket{
 		Id: t.ID, Subject: t.Subject, Priority: t.Priority, Status: t.Status,
 		CreatedAt: timestamppb.New(t.CreatedAt), ResponseDueAt: timestamppb.New(t.ResponseDueAt()), ResponseOverdue: t.ResponseOverdue(),
+		// Empty on an operator's own ticket (they already know who they are) —
+		// only ever set via the platform-side listing, see PlatformService.
+		OperatorId: t.OperatorID, OperatorName: t.OperatorName,
 	}
 	if t.ResolvedAt != nil {
 		msg.ResolvedAt = timestamppb.New(*t.ResolvedAt)

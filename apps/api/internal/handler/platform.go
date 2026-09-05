@@ -606,3 +606,44 @@ func (h *PlatformHandler) ExportAuditTrail(ctx context.Context, req *connect.Req
 	}
 	return nil
 }
+
+func (h *PlatformHandler) ListAllSupportTickets(ctx context.Context, req *connect.Request[hajjv1.ListAllSupportTicketsRequest]) (*connect.Response[hajjv1.ListAllSupportTicketsResponse], error) {
+	result, err := h.platformService.ListAllSupportTickets(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) GetSupportTicketAsPlatform(ctx context.Context, req *connect.Request[hajjv1.GetSupportTicketAsPlatformRequest]) (*connect.Response[hajjv1.SupportTicketDetail], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.GetSupportTicketAsPlatform(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) ReplyToSupportTicketAsPlatform(ctx context.Context, req *connect.Request[hajjv1.ReplyToSupportTicketAsPlatformRequest]) (*connect.Response[hajjv1.SupportTicketMessage], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.ReplyToSupportTicketAsPlatform(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) SetSupportTicketStatus(ctx context.Context, req *connect.Request[hajjv1.SetSupportTicketStatusRequest]) (*connect.Response[hajjv1.SupportTicket], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.SetSupportTicketStatus(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

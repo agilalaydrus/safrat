@@ -127,3 +127,88 @@ func (r *SupportRepository) Close(ctx context.Context, operatorID, ticketID stri
 	}
 	return toSupportTicket(row), nil
 }
+
+// ListAll, GetAsPlatform, ReplyAsPlatform and SetStatus are the platform-side
+// half (C5, TUGAS-PANEL-SAAS.md) — deliberately unscoped by operator_id,
+// which is what makes this the admin inbox rather than a tenant's own.
+
+func (r *SupportRepository) ListAll(ctx context.Context) ([]*domain.SupportTicket, error) {
+	rows, err := r.queries.ListAllSupportTickets(ctx)
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	out := make([]*domain.SupportTicket, 0, len(rows))
+	for _, row := range rows {
+		t := &domain.SupportTicket{
+			ID: uuidString(row.ID), OperatorID: uuidString(row.OperatorID), OperatorName: row.OperatorName,
+			Subject: row.Subject, Priority: row.Priority, Status: row.Status,
+			CreatedByID: row.CreatedByUserID, CreatedAt: row.CreatedAt.Time,
+		}
+		if row.ResolvedAt.Valid {
+			resolved := row.ResolvedAt.Time
+			t.ResolvedAt = &resolved
+		}
+		out = append(out, t)
+	}
+	return out, nil
+}
+
+func (r *SupportRepository) GetAsPlatform(ctx context.Context, ticketID string) (*domain.SupportTicket, []*domain.SupportTicketMessage, error) {
+	id, err := pgUUID(ticketID)
+	if err != nil {
+		return nil, nil, apperror.ErrValidation
+	}
+	row, err := r.queries.GetSupportTicketAsPlatform(ctx, id)
+	if err != nil {
+		return nil, nil, databaseError(err)
+	}
+	messageRows, err := r.queries.ListSupportTicketMessages(ctx, row.ID)
+	if err != nil {
+		return nil, nil, databaseError(err)
+	}
+	messages := make([]*domain.SupportTicketMessage, 0, len(messageRows))
+	for _, m := range messageRows {
+		messages = append(messages, toSupportTicketMessage(m))
+	}
+	ticket := &domain.SupportTicket{
+		ID: uuidString(row.ID), OperatorID: uuidString(row.OperatorID), OperatorName: row.OperatorName,
+		Subject: row.Subject, Priority: row.Priority, Status: row.Status,
+		CreatedByID: row.CreatedByUserID, CreatedAt: row.CreatedAt.Time,
+	}
+	if row.ResolvedAt.Valid {
+		resolved := row.ResolvedAt.Time
+		ticket.ResolvedAt = &resolved
+	}
+	return ticket, messages, nil
+}
+
+// ReplyAsPlatform requires the ticket to exist — checked by the caller via
+// GetAsPlatform first, same reasoning as AddMessage above — and writes with
+// author_is_platform true.
+func (r *SupportRepository) ReplyAsPlatform(ctx context.Context, ticketID, body, authorUserID, authorName string) (*domain.SupportTicketMessage, error) {
+	id, err := pgUUID(ticketID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	row, err := r.queries.CreateSupportTicketMessageAsPlatform(ctx, db.CreateSupportTicketMessageAsPlatformParams{
+		TicketID: id, Body: body, AuthorUserID: authorUserID, AuthorName: authorName,
+	})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toSupportTicketMessage(row), nil
+}
+
+// SetStatus refuses to touch a CLOSED ticket (see the query's WHERE clause)
+// — CLOSED is exclusively the operator's own CloseSupportTicket action.
+func (r *SupportRepository) SetStatus(ctx context.Context, ticketID, status string) (*domain.SupportTicket, error) {
+	id, err := pgUUID(ticketID)
+	if err != nil {
+		return nil, apperror.ErrValidation
+	}
+	row, err := r.queries.SetSupportTicketStatus(ctx, db.SetSupportTicketStatusParams{ID: id, Status: status})
+	if err != nil {
+		return nil, databaseError(err)
+	}
+	return toSupportTicket(row), nil
+}

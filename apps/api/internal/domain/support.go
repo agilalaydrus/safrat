@@ -5,7 +5,11 @@ import "time"
 type SupportTicket struct {
 	ID          string
 	OperatorID  string
-	Subject     string
+	// OperatorName is only ever populated on the platform-side listing (C5,
+	// TUGAS-PANEL-SAAS.md) — an operator reading their own tickets already
+	// knows who they are.
+	OperatorName string
+	Subject      string
 	Priority    string // LOW | MEDIUM | HIGH | URGENT
 	Status      string // OPEN | IN_PROGRESS | RESOLVED | CLOSED
 	CreatedByID string
