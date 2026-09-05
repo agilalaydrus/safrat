@@ -20,6 +20,12 @@ Tandai pemilik sebelum mulai supaya dua agen tidak menyentuh berkas yang sama:
 > dikerjakan Codex. Claude menulis spesifikasi dan menjalankan pass verifikasi
 > setelah tiap tahap. Karena itu setiap butir di berkas ini berpenanda `[C]`
 > kecuali disebut lain.
+>
+> **Diperluas 5 September 2026:** pemilik meminta Claude melanjutkan
+> pekerjaan implementasi Codex juga, bukan hanya spesifikasi. Butir yang
+> Claude ambil alih implementasinya ditandai `[K, diimplementasikan]` di
+> tempatnya masing-masing, dengan tanggal dan commit — supaya jelas mana
+> yang benar-benar sudah dikerjakan siapa, bukan cuma "jatahnya siapa".
 - `[K]` Claude — spesifikasi, verifikasi, keputusan lintas-modul & keamanan
 - `[ ]` belum diklaim
 
@@ -352,46 +358,53 @@ pribadi → uji gagal dengan `pembacaan data pribadi tidak tercatat: no rows in
 result set`. Uji juga memastikan `ListSeasons` **tidak** tercatat: musim bukan
 orang, dan mencatat semuanya sama saja dengan tidak mencatat apa pun.
 
-## C4 — Kunci penandatangan platform & ekspor auditor 🟡
+## C4 — Kunci penandatangan platform & ekspor auditor ✅
 
 > **Diperjelas 5 September 2026 (Claude, `[K]`).** Judul lama "Rotasi kunci
 > API" menyiratkan ada sistem kunci API publik (operator memanggil sesuatu
 > dengan kunci mereka sendiri) — **itu tidak ada di produk ini sama sekali**.
-> Dua butir di bawah ini sebenarnya **satu fitur**: kunci milik platform
-> sendiri, dipakai untuk menandatangani ekspor auditor, dirotasi dengan pola
-> yang sama seperti `KYC_ENCRYPTION_KEY`. Butir ini juga sebelumnya dobel
-> tercatat sebagai **E5** di TAHAP E — sudah digabung ke sini karena ini
-> soal keamanan/kepatuhan, bukan pertumbuhan; E5 sekarang hanya menunjuk balik
-> ke sini.
+> Dua butir itu sebenarnya **satu fitur**: kunci milik platform sendiri,
+> dipakai untuk menandatangani ekspor auditor. Butir ini juga sebelumnya
+> dobel tercatat sebagai **E5** di TAHAP E — sudah digabung ke sini. E5
+> sekarang hanya menunjuk balik ke sini.
+>
+> **Diimplementasikan 5 September 2026 (Claude, `[K, diimplementasikan]`,
+> `e88e524`)** — pemilik meminta implementasi Panel SaaS dilanjutkan juga,
+> bukan hanya spesifikasinya. Dua hal berubah dari spesifikasi di atas saat
+> benar-benar dibangun:
+>
+> - **Tidak ada `AUDIT_EXPORT_SIGNING_KEY_PREVIOUS`.** Tidak ada kode di
+>   aplikasi ini yang pernah memverifikasi ulang ekspornya sendiri, jadi
+>   tidak ada yang benar-benar butuh kunci lama saat runtime — beda dengan
+>   `KYC_ENCRYPTION_KEY` yang harus bisa membuka data lama yang tersimpan.
+>   Manifes tiap ekspor sudah mencatat `key_fingerprint`-nya sendiri; rotasi
+>   cukup deploy nilai baru.
+> - **CSV dikirim sebagai bita mentah, bukan pesan baris bertipe** — beda
+>   dari pola `StreamProfitLossExport` yang dirujuk di atas. Alasannya: hash
+>   di manifes harus sama persis dengan berkas yang diunduh. Kalau baris
+>   dikirim bertipe dan klien merakit ulang CSV-nya sendiri, hash di server
+>   dan berkas di komputer auditor adalah dua hasil enkode terpisah yang
+>   harus kebetulan sama persis — rapuh. Dengan bita mentah, klien tidak
+>   pernah menyandikan ulang apa pun, jadi tidak mungkin beda.
 
-- [C] **Kunci penandatangan** — variabel lingkungan baru
-      `AUDIT_EXPORT_SIGNING_KEY` (base64, dibuat dengan `openssl rand -base64
-      32`, persis pola `KYC_ENCRYPTION_KEY`). **Bukan** kunci enkripsi
-      (`Sealer` di `internal/crypto` tidak dipakai di sini) — ini kunci HMAC,
-      dipakai untuk menandatangani manifes, bukan menyandikan isi ekspor.
-- [C] **Rotasi tumpang-tindih 24 jam**: dukung dua variabel,
-      `AUDIT_EXPORT_SIGNING_KEY` (aktif, dipakai untuk tanda tangan baru) dan
-      `AUDIT_EXPORT_SIGNING_KEY_PREVIOUS` (opsional, hanya untuk memverifikasi
-      ekspor yang ditandatangani sebelum rotasi). Sidik jari kunci
-      (`SHA256(kunci)[:8]`, pola yang sama dengan `Sealer.Fingerprint()`)
-      ditulis di manifes supaya jelas kunci mana yang menandatangani, tanpa
-      membuka kuncinya sendiri.
-- [C] **Ekspor auditor**: CSV **streaming sejak awal** (pola yang sama dengan
-      `ProfitLossService.StreamProfitLossExport` — baca baris demi baris lewat
-      `pgxpool.Pool` langsung, jangan sqlc `:many` yang menampung semuanya di
-      memori) dari layar Audit (§10.3 DESAIN), menghormati saringan yang
-      sedang aktif di layar (per tenant, per aktor, rentang waktu, dll).
-      Manifes terpisah (bukan digabung ke CSV) berisi: `sha256` (hash isi CSV
-      setelah selesai ditulis), `signed_at`, `key_fingerprint`,
-      `hmac_sha256` (HMAC atas `sha256` di atas, memakai kunci aktif).
-      Memverifikasi berarti: hitung ulang SHA256 CSV, cocokkan ke manifes,
-      lalu cocokkan HMAC memakai kunci yang sidik jarinya tercantum (aktif
-      atau sebelumnya).
-- [C] Setiap ekspor **masuk `audit_logs`** miliknya sendiri (siapa,
-      kapan, saringan apa yang dipakai) — mengekspor seluruh jejak audit
-      adalah pemrosesan data pribadi juga, pola yang sama dengan C3.
-      **Bukan** `privileged_actions`/four-eyes: ini ekspor (baca), bukan
-      tindakan tak bisa ditarik seperti SUSPEND — lihat C2.
+- [x] Kunci penandatangan: `AUDIT_EXPORT_SIGNING_KEY`, HMAC bukan enkripsi
+      (`internal/crypto.Signer`, bukan `Sealer`). Kosong = ditolak dengan
+      jelas (`FailedPrecondition`), bukan mengekspor tanpa tanda tangan.
+- [x] `PlatformService.ExportAuditTrail`, streaming, saringan sama persis
+      dengan layar Audit (`ListAuditTrail`) minus batas baris — sebuah
+      ekspor yang terpotong demi hemat memori adalah jawaban salah untuk
+      "semua yang cocok".
+- [x] Manifes: `sha256`, `signed_at`, `key_fingerprint`, `hmac_sha256`.
+      Tombol **Ekspor auditor** di layar Audit mengunduh dua berkas: CSV
+      dan `manifest.json`.
+- [x] Setiap ekspor masuk `audit_logs` miliknya sendiri (siapa, kapan,
+      berapa baris) — pola yang sama dengan C3, dicatat setelah stream
+      selesai supaya klien yang putus di tengah tidak tercatat berhasil.
+- [x] Diuji dengan merusak: hash yang dihitung dari input kosong (bukan
+      stream sungguhan) membuat pengujian gagal dengan pesan yang benar,
+      dipulihkan. Dibuktikan juga di luar aplikasi — manifes yang diunduh
+      dicocokkan ke CSV yang diunduh pakai `openssl` biasa, bukan kode dari
+      proyek ini, karena itulah yang sebenarnya dilakukan seorang auditor.
 
 ---
 
