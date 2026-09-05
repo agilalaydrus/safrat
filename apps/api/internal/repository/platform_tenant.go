@@ -78,6 +78,14 @@ func (r *PlatformRepository) GetTenantDetail(ctx context.Context, operatorID str
 		SELECT o.id::text, o.name, COALESCE(o.slug, ''),
 		       COALESCE(s.plan::text, ''), COALESCE(s.status::text, ''), s.access_until,
 		       CASE WHEN s.operator_id IS NULL THEN NULL ELSE subscription_effective_access_until(s.access_until, s.grace_period_days) END,
+		       -- D7: only set once access has actually lapsed — see the same
+		       -- guard and comment in PlatformRepository.ListOperators. 90 days
+		       -- here must match TenantDeletionGraceDays in platform_deletion.go.
+		       CASE WHEN s.operator_id IS NULL
+		              OR subscription_effective_access_until(s.access_until, s.grace_period_days) > NOW()
+		            THEN NULL
+		            ELSE subscription_effective_access_until(s.access_until, s.grace_period_days) + INTERVAL '90 days'
+		       END,
 		       COALESCE(s.grace_period_days, platform_grace_period_days())::int,
 		       s.grace_period_days,
 		       COALESCE(s.credit_balance_idr,0),
@@ -102,6 +110,7 @@ func (r *PlatformRepository) GetTenantDetail(ctx context.Context, operatorID str
 		WHERE o.id = $1`, operator).Scan(
 		&detail.Operator.ID, &detail.Operator.Name, &detail.Operator.Slug, &detail.Operator.Plan,
 		&detail.Operator.SubscriptionStatus, &detail.Operator.AccessUntil, &detail.Operator.EffectiveAccessUntil,
+		&detail.Operator.DeletionEligibleAt,
 		&detail.Operator.GracePeriodDays, &detail.Operator.GraceOverrideDays, &detail.Operator.CreditBalanceIDR,
 		&detail.Operator.PilgrimCount, &detail.Operator.ProductCount, &detail.Operator.HeldOrderCount,
 		&detail.Operator.CreatedAt, &detail.Operator.SuspendedAt, &detail.Operator.DunningStage,

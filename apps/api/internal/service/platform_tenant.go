@@ -47,6 +47,9 @@ func (s *PlatformService) GetTenantDetail(ctx context.Context, req *hajjv1.GetTe
 	if detail.Operator.EffectiveAccessUntil != nil {
 		operator.EffectiveAccessUntil = timestamppb.New(*detail.Operator.EffectiveAccessUntil)
 	}
+	if detail.Operator.DeletionEligibleAt != nil {
+		operator.DeletionEligibleAt = timestamppb.New(*detail.Operator.DeletionEligibleAt)
+	}
 
 	response := &hajjv1.GetTenantDetailResponse{
 		Operator: operator,

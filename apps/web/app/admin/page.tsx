@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { IconBuildingStore, IconCurrencyDollar, IconAlertTriangle, IconTruckDelivery, IconPackage, IconBuildingBank, IconReceipt2, IconUsers, IconId, IconAdjustments, IconPlugConnected, IconCalendarDollar, IconGauge, IconFilter, IconChartBar, IconHeartbeat, IconHistory, IconHeadset, IconSparkles, IconCheck, IconX } from "@tabler/icons-react";
+import { IconBuildingStore, IconCurrencyDollar, IconAlertTriangle, IconTruckDelivery, IconPackage, IconBuildingBank, IconReceipt2, IconUsers, IconId, IconAdjustments, IconPlugConnected, IconCalendarDollar, IconGauge, IconFilter, IconChartBar, IconHeartbeat, IconHistory, IconHeadset, IconSparkles, IconCheck, IconX, IconTrash } from "@tabler/icons-react";
 import { PlatformOperator, PlatformProduct } from "@hajj-saas/proto-gen/hajj/v1/platform_pb";
 import { platformClient } from "@/lib/rpc";
 import CatalogueTab from "@/components/admin/CatalogueTab";
@@ -94,8 +94,56 @@ function OperatorsTab() {
     .filter((operator) => (operator.createdAt?.toDate().getTime() ?? 0) >= sevenDaysAgo)
     .sort((a, b) => (b.createdAt?.toDate().getTime() ?? 0) - (a.createdAt?.toDate().getTime() ?? 0));
 
+  // D7 (TUGAS-PANEL-SAAS.md, §7.3 DESAIN): tenants whose 90-day deletion
+  // window has already opened, or opens within the next 14 days — so this
+  // sits on the same screen as the queue that catches problems, not buried
+  // in a tab nobody opens unless they already know to look.
+  const fourteenDaysFromNow = Date.now() + 14 * 24 * 60 * 60 * 1000;
+  const deletionQueue = operators
+    .filter((operator) => {
+      const at = operator.deletionEligibleAt?.toDate().getTime();
+      return at !== undefined && at <= fourteenDaysFromNow;
+    })
+    .sort((a, b) => (a.deletionEligibleAt?.toDate().getTime() ?? 0) - (b.deletionEligibleAt?.toDate().getTime() ?? 0));
+
   return (
     <div style={{ display: "grid", gap: 20 }}>
+      {deletionQueue.length > 0 && (
+        <div className="tw-card" style={{ padding: 16, borderColor: "var(--color-danger-100)" }}>
+          <p style={{ margin: "0 0 10px", fontWeight: 700, display: "flex", alignItems: "center", gap: 8, color: "var(--color-danger-600)" }}>
+            <IconTrash size={16} />{deletionQueue.length} travel sudah atau akan bisa dihapus permanen
+          </p>
+          <div style={{ overflowX: "auto" }}>
+            <table style={table}>
+              <thead>
+                <tr>{["Travel", "Bisa dihapus mulai", "Status"].map((h) => <th key={h} style={th}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {deletionQueue.map((operator) => {
+                  const eligibleAt = operator.deletionEligibleAt?.toDate();
+                  const alreadyEligible = Boolean(eligibleAt && eligibleAt.getTime() <= Date.now());
+                  return (
+                    <tr key={operator.id} style={tr}>
+                      <td style={td}><Link href={`/admin/tenant/${operator.id}`} style={tenantLink}>{operator.name}</Link></td>
+                      <td style={td}>{eligibleAt?.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                      <td style={td}>
+                        {alreadyEligible
+                          ? <span style={alert}><IconAlertTriangle size={13} />Sudah bisa dihapus</span>
+                          : <span style={{ color: "var(--color-warm-400)" }}>Menunggu masa tenggang</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--color-warm-400)" }}>
+            Penghapusan tetap memerlukan ekspor data yang sudah siap dan nama travel diketik ulang — buka halaman
+            travelnya masing-masing untuk melakukannya.
+          </p>
+        </div>
+      )}
+
       {newTenants.length > 0 && (
         <div className="tw-card" style={{ padding: 16 }}>
           <p style={{ margin: "0 0 10px", fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>

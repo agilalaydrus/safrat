@@ -70,6 +70,14 @@ func TestTenantDetailIsScopedToOneTenantIntegration(t *testing.T) {
 		VALUES ($1,$2,'MILIK_SENDIRI','order',$3)`, fixture.operatorID, userID, uuid.NewString()); err != nil {
 		t.Fatalf("fixture audit sendiri: %v", err)
 	}
+	// Access ended well past the 90-day grace period, so GetTenantDetail's own
+	// copy of D7's deletion_eligible_at computation (repository/platform_tenant.go)
+	// has something to report — the same field ListOperators already carries,
+	// and the two must not drift into showing a customer two different dates.
+	if _, err := pool.Exec(ctx, `INSERT INTO subscriptions (operator_id,plan,status,access_until,grace_period_days)
+		VALUES ($1,'GROWTH','CANCELLED', NOW() - INTERVAL '95 days', 0)`, other); err != nil {
+		t.Fatalf("fixture subscription lain: %v", err)
+	}
 
 	queries := db.New(pool)
 	platform := service.NewPlatformService(repository.NewPlatformRepository(pool),
@@ -142,6 +150,12 @@ func TestTenantDetailIsScopedToOneTenantIntegration(t *testing.T) {
 	}
 	if otherDetail.Counts.GetPilgrims() != 0 {
 		t.Fatalf("travel lain punya %d jamaah padahal tidak diisi", otherDetail.Counts.GetPilgrims())
+	}
+	if otherDetail.Operator.GetDeletionEligibleAt() == nil {
+		t.Fatal("deletion_eligible_at kosong padahal akses travel lain sudah berakhir 95 hari")
+	}
+	if detail.Operator.GetDeletionEligibleAt() != nil {
+		t.Fatalf("travel pertama belum pernah punya langganan tapi deletion_eligible_at terisi: %v", detail.Operator.GetDeletionEligibleAt())
 	}
 	for _, entry := range otherDetail.Audit {
 		if entry.GetAction() == "MILIK_SENDIRI" {

@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  IconAlertTriangle, IconArrowLeft, IconBuildingStore, IconExternalLink,
-  IconEyeglass, IconLock, IconLockOpen, IconShieldCheck, IconShieldOff, IconWorld,
+  IconAlertTriangle, IconArrowLeft, IconBuildingStore, IconDatabaseExport, IconExternalLink,
+  IconEyeglass, IconLock, IconLockOpen, IconShieldCheck, IconShieldOff, IconTrash, IconWorld,
 } from "@tabler/icons-react";
 import type { GetTenantDetailResponse, ImpersonationRow, PersonalDataReadRow, PrivilegedActionRow } from "@hajj-saas/proto-gen/hajj/v1/platform_pb";
 import { startImpersonationLocally } from "@/lib/impersonation";
@@ -101,6 +101,7 @@ export default function TenantDetail({ operatorId }: { operatorId: string }) {
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <StartImpersonation operatorId={operator.id} operatorName={operator.name} />
             <SuspensionControl operatorId={operator.id} operatorName={operator.name} suspended={suspended} />
+            <DeletionControl operatorId={operator.id} operatorName={operator.name} deletionEligibleAt={operator.deletionEligibleAt} />
             {storefront && (
               <a href={storefront} target="_blank" rel="noreferrer" className="tw-btn tw-btn--ghost tw-btn--md">
                 <IconBuildingStore size={16} />Buka storefront<IconExternalLink size={13} />
@@ -633,6 +634,126 @@ function SuspensionControl({ operatorId, operatorName, suspended }: { operatorId
   );
 }
 
+/**
+ * Deleting a tenant for good.
+ *
+ * The button stays disabled until the tenant has actually been eligible for
+ * 90 days since access ended — showing the real date rather than "90 hari"
+ * lets whoever is looking at this screen check the arithmetic themselves.
+ * The export offer is a separate step on purpose: it is the thing D6 (see
+ * TUGAS-PANEL-SAAS.md §7.3) requires exist before deletion is legal, not a
+ * courtesy folded silently into the delete button.
+ */
+function DeletionControl({ operatorId, operatorName, deletionEligibleAt }: { operatorId: string; operatorName: string; deletionEligibleAt?: { toDate(): Date } }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState("");
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportStatus, setExportStatus] = useState("");
+
+  const eligibleDate = deletionEligibleAt?.toDate();
+  const eligible = Boolean(eligibleDate && eligibleDate.getTime() <= Date.now());
+
+  const requestExport = useCallback(async () => {
+    setExportBusy(true);
+    setExportStatus("");
+    try {
+      const response = await platformClient.requestTenantDataExport({
+        operatorId,
+        idempotencyKey: `texport-${operatorId}-${crypto.randomUUID()}`,
+      });
+      setExportStatus(
+        response.status === "READY"
+          ? "Ekspor sudah siap."
+          : "Ekspor diminta, sedang diproses — coba hapus lagi setelah statusnya siap.",
+      );
+    } catch (error: unknown) {
+      setExportStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setExportBusy(false);
+    }
+  }, [operatorId]);
+
+  const submit = useCallback(async () => {
+    setBusy(true);
+    setFailure("");
+    try {
+      await platformClient.deleteTenant({
+        operatorId, reason: reason.trim(), confirmation: typed.trim(),
+        idempotencyKey: `del-${operatorId}-${crypto.randomUUID()}`,
+      });
+      window.location.href = "/admin";
+    } catch (error: unknown) {
+      setFailure(error instanceof Error ? error.message : String(error));
+      setBusy(false);
+    }
+  }, [operatorId, reason, typed]);
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} style={deleteButton}>
+        <IconTrash size={16} />Hapus travel ini
+      </button>
+    );
+  }
+
+  return (
+    <div style={deleteForm}>
+      <p style={{ margin: "0 0 10px", fontSize: 13, lineHeight: 1.6, color: "var(--color-warm-700)" }}>
+        Tindakan ini menghapus seluruh data travel ini secara permanen dan tidak bisa dibatalkan. Jejak audit bahwa
+        ini pernah terjadi tetap ada — itulah yang tersisa setelahnya.
+      </p>
+      <p style={{ margin: "0 0 10px", fontSize: 13, fontWeight: 700, color: eligible ? "var(--color-emerald-800)" : "var(--color-warning-700)" }}>
+        {eligibleDate
+          ? eligible
+            ? `Sudah bisa dihapus sejak ${date({ toDate: () => eligibleDate })}.`
+            : `Baru bisa dihapus mulai ${date({ toDate: () => eligibleDate })} — 90 hari sejak akses berakhir.`
+          : "Travel ini belum pernah punya langganan, sehingga belum ada akses yang berakhir untuk dihitung."}
+      </p>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <button type="button" onClick={requestExport} disabled={exportBusy} style={exportButton}>
+          <IconDatabaseExport size={15} />{exportBusy ? "Meminta…" : "Minta ekspor data dulu"}
+        </button>
+        {exportStatus && <span style={{ fontSize: 12, color: "var(--color-warm-600)" }}>{exportStatus}</span>}
+      </div>
+      <label style={fieldLabel} htmlFor="deletion-reason">Alasan (minimal 10 huruf)</label>
+      <textarea
+        id="deletion-reason"
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        rows={2}
+        placeholder="mis. keputusan pemilik untuk menghapus tenant ini setelah masa tenggang lewat"
+        style={textarea}
+      />
+      <label style={fieldLabel} htmlFor="deletion-confirm">
+        Ketik nama travel persis: <strong>{operatorName}</strong>
+      </label>
+      <input
+        id="deletion-confirm"
+        value={typed}
+        onChange={(event) => setTyped(event.target.value)}
+        placeholder={operatorName}
+        style={confirmInput}
+        autoComplete="off"
+      />
+      {failure && <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--color-danger-600)" }}>{failure}</p>}
+      <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={busy || !eligible || reason.trim().length < 10 || typed.trim().toLowerCase() !== operatorName.trim().toLowerCase()}
+          style={confirmDelete}
+        >
+          {busy ? "Menghapus…" : "Hapus permanen"}
+        </button>
+        <button type="button" onClick={() => { setOpen(false); setFailure(""); setExportStatus(""); }} style={cancelButton}>Batal</button>
+      </div>
+    </div>
+  );
+}
+
 const page: React.CSSProperties = { maxWidth: 1100, margin: "0 auto", padding: "32px 24px" };
 const back: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, color: "var(--color-warm-500)", fontSize: 13, fontWeight: 600, textDecoration: "none", marginBottom: 16 };
 const muted: React.CSSProperties = { color: "var(--color-warm-500)", fontSize: 14, margin: 0 };
@@ -662,3 +783,7 @@ const confirmInput: React.CSSProperties = { width: "100%", minHeight: 40, paddin
 const confirmSuspend: React.CSSProperties = { minHeight: 42, padding: "0 18px", borderRadius: 8, border: 0, background: "var(--color-danger-600)", color: "#fff", font: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer" };
 const confirmReinstate: React.CSSProperties = { minHeight: 42, padding: "0 18px", borderRadius: 8, border: 0, background: "var(--color-emerald-800)", color: "#fff", font: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer" };
 const cancelButton: React.CSSProperties = { minHeight: 42, padding: "0 16px", borderRadius: 8, border: "1px solid var(--color-cream-400)", background: "#fff", font: "inherit", fontWeight: 700, fontSize: 13, color: "var(--color-warm-700)", cursor: "pointer" };
+const deleteButton: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44, padding: "0 18px", borderRadius: 8, border: "1px solid var(--color-danger-100)", background: "#fff", color: "var(--color-danger-600)", fontWeight: 700, fontSize: 13, cursor: "pointer" };
+const deleteForm: React.CSSProperties = { width: "min(480px, 100%)", padding: 16, borderRadius: 10, border: "1px solid var(--color-danger-100)", background: "var(--color-danger-100)" };
+const exportButton: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, minHeight: 36, padding: "0 14px", borderRadius: 8, border: "1px solid var(--color-cream-400)", background: "#fff", color: "var(--color-warm-700)", fontWeight: 700, fontSize: 12, cursor: "pointer" };
+const confirmDelete: React.CSSProperties = { minHeight: 42, padding: "0 18px", borderRadius: 8, border: 0, background: "var(--color-danger-600)", color: "#fff", font: "inherit", fontWeight: 700, fontSize: 13, cursor: "pointer" };

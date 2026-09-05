@@ -216,8 +216,14 @@ func (r *SubscriptionRepository) IssueBillingPeriod(ctx context.Context, operato
 				return Invoice{}, operatorName, false, err
 			}
 			message := fmt.Sprintf("tagihan %s untuk periode %s", plan, periodStart.Format(time.DateOnly))
+			// The audit table's uniqueness is (user_id, action, idempotency_key)
+			// with no operator_id in it — an empty key here would make every
+			// operator's first invoice collide with every other operator's,
+			// since the recurring worker issues them all as the same "system"
+			// actor. invoice.ID is fresh on this branch (a brand new invoice
+			// row, never a replay), so it is unique on its own.
 			if err := insertPlatformMutationAudit(ctx, tx, operatorID, actorUserID,
-				"subscription_invoice_issued", "subscription_invoice", invoice.ID, message, "", ""); err != nil {
+				"subscription_invoice_issued", "subscription_invoice", invoice.ID, message, invoice.ID, ""); err != nil {
 				return Invoice{}, operatorName, false, err
 			}
 			if err := tx.Commit(ctx); err != nil {
