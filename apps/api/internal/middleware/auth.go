@@ -110,6 +110,11 @@ var publicProcedures = map[string]bool{
 	// SeasonService/ResolveSeasonSlug — same pattern, for an explicit-season
 	// subdomain link (vacana.tawafiqhub.id/register/musim-haji-2026).
 	"/hajj.v1.SeasonService/ResolveSeasonSlug": true,
+	// InquiryService/SubmitInquiry — the storefront's "Hubungi Kami" form.
+	// Same trust boundary as SubmitRegistration: no session, authenticated
+	// only by a real operator_id, re-validated server-side on every call
+	// (see InquiryService.Submit).
+	"/hajj.v1.InquiryService/SubmitInquiry": true,
 }
 
 // sessionOnlyProcedures lists RPCs that require a real, server-validated

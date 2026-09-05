@@ -13,6 +13,7 @@ import { ChecklistService } from "@hajj-saas/proto-gen/hajj/v1/checklist_connect
 import { FamilyTrackerService } from "@hajj-saas/proto-gen/hajj/v1/family_tracker_connect";
 import { GroupService } from "@hajj-saas/proto-gen/hajj/v1/group_connect";
 import { GroupLeaderService } from "@hajj-saas/proto-gen/hajj/v1/groupleader_connect";
+import { InquiryService } from "@hajj-saas/proto-gen/hajj/v1/inquiry_connect";
 import { HealthReportService } from "@hajj-saas/proto-gen/hajj/v1/health_report_connect";
 import { IdentityService } from "@hajj-saas/proto-gen/hajj/v1/identity_connect";
 import { MomentService } from "@hajj-saas/proto-gen/hajj/v1/moment_connect";
@@ -58,6 +59,7 @@ export const momentClient = createClient(MomentService, transport);
 export const branchClient = createClient(BranchService, transport);
 export const subscriptionClient = createClient(SubscriptionService, transport);
 export const supportClient = createClient(SupportService, transport);
+export const inquiryClient = createClient(InquiryService, transport);
 export const pilgrimClient = createClient(PilgrimService, transport);
 export const seasonClient = createClient(SeasonService, transport);
 export const securitySettingsClient = createClient(SecuritySettingsService, transport);

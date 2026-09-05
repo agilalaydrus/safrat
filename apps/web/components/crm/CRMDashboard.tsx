@@ -35,6 +35,7 @@ import { DetailDrawer } from "@/components/ui/DetailDrawer";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHero } from "@/components/ui/PageHero";
 import { StatCard } from "@/components/ui/StatCard";
+import InquiryInbox from "./InquiryInbox";
 
 const STAGES = [
   CRMLeadStage.CRM_LEAD_STAGE_NEW,
@@ -176,6 +177,8 @@ export default function CRMDashboard() {
         <StatCard label="Konversi bulan ini" value={`${Number(summary?.monthlyConversionBps ?? 0) / 100}%`} unit="closing / lead baru" tone="success" />
         <StatCard label="Follow-up telat" value={String(summary?.overdueFollowUpCount ?? 0n)} unit="butuh tindakan" tone={(summary?.overdueFollowUpCount ?? 0n) > 0n ? "danger" : "neutral"} />
       </section>
+
+      <InquiryInbox onConverted={() => void refresh()} />
 
       {(summary?.attentionLeads.length ?? 0) > 0 && <section className="tw-card crm-attention" aria-labelledby="crm-attention-title">
         <div><span className="crm-attention__icon"><IconClock size={19} /></span><div><h2 id="crm-attention-title">{summary?.attentionLeads.length} lead butuh perhatian tim hari ini</h2><p>Follow-up melewati jadwal. Dahulukan prospek terlama agar pipeline tidak mendingin.</p></div></div>

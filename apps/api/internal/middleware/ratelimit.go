@@ -52,6 +52,8 @@ var rateLimitedProcedures = map[string]rate.Limit{
 	// the form itself) so it gets the looser read-endpoint ceiling instead.
 	"/hajj.v1.RegistrationService/SubmitRegistration":  rate.Every(time.Minute / rateLimitBurst), // 5 per minute per IP
 	"/hajj.v1.RegistrationService/GetRegistrationForm": rate.Every(time.Minute / 4),
+	// A contact-form submission is the same one-shot tier as SubmitRegistration.
+	"/hajj.v1.InquiryService/SubmitInquiry":            rate.Every(time.Minute / rateLimitBurst), // 5 per minute per IP
 	"/hajj.v1.WaitlistService/JoinWaitlist":            rate.Every(time.Hour / rateLimitBurst), // 5 per hour per IP
 	"/hajj.v1.WaitlistService/LeaveWaitlist":           rate.Every(time.Hour / rateLimitBurst),
 	"/hajj.v1.WaitlistService/ConfirmWaitlistSlot":     rate.Every(time.Hour / rateLimitBurst),

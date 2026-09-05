@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+import "hajj/v1/crm.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// K2.5 (TUGAS-CORONG.md): the storefront's "Hubungi Kami" contact form,
+// separate from CRMService because a visitor filling this out has no
+// Better Auth session and no CRM plan entitlement — an inquiry is free to
+// receive on every plan, exactly like a season registration. Converting one
+// into a crm_lead is a staff action gated the same way CreateLead already is.
+service InquiryService {
+  // PUBLIC — see publicProcedures in internal/middleware/auth.go and
+  // rateLimitedProcedures in ratelimit.go. Never trusts operator_id beyond
+  // "does this operator exist" — nothing here is derived from a session.
+  rpc SubmitInquiry(SubmitInquiryRequest) returns (SubmitInquiryResponse);
+
+  // AUTHENTICATED — operator dashboard inbox.
+  rpc ListInquiries(ListInquiriesRequest) returns (ListInquiriesResponse);
+  rpc ConvertInquiryToLead(ConvertInquiryToLeadRequest) returns (CRMLead);
+  rpc DismissInquiry(DismissInquiryRequest) returns (DismissInquiryResponse);
+}
+
+message StorefrontInquiry {
+  string id = 1;
+  string full_name = 2;
+  string phone = 3;
+  string email = 4;
+  string message = 5;
+  string utm_source = 6;
+  string utm_campaign = 7;
+  string status = 8; // NEW | CONVERTED | DISMISSED
+  string converted_lead_id = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message SubmitInquiryRequest {
+  string operator_id = 1 [(buf.validate.field).string.uuid = true];
+  string full_name = 2 [(buf.validate.field).string = {min_len: 2, max_len: 150}];
+  string phone = 3 [(buf.validate.field).string.max_len = 40];
+  string email = 4 [(buf.validate.field).string.max_len = 254];
+  string message = 5 [(buf.validate.field).string.max_len = 2000];
+  // Same reasoning as SubmitRegistrationRequest.utm_source/utm_campaign in
+  // registration.proto: the page the form was actually submitted from.
+  string utm_source = 6 [(buf.validate.field).string.max_len = 80];
+  string utm_campaign = 7 [(buf.validate.field).string.max_len = 120];
+}
+
+message SubmitInquiryResponse {
+  string message = 1; // "Pesan Anda telah terkirim. Tim kami akan segera menghubungi Anda."
+}
+
+message ListInquiriesRequest {
+  string status = 1; // "" (all), NEW, CONVERTED, DISMISSED
+}
+
+message ListInquiriesResponse {
+  repeated StorefrontInquiry inquiries = 1;
+}
+
+message ConvertInquiryToLeadRequest {
+  string inquiry_id = 1 [(buf.validate.field).string.uuid = true];
+  string idempotency_key = 2 [(buf.validate.field).string.min_len = 1];
+}
+
+message DismissInquiryRequest {
+  string inquiry_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message DismissInquiryResponse {
+  bool dismissed = 1;
+}

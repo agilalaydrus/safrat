@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { CSSProperties } from "react";
 import type { Timestamp } from "@bufbuild/protobuf";
 import Link from "next/link";
@@ -32,6 +33,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { ThemeProvider } from "@/components/landing/ThemeProvider";
+import { inquiryClient } from "@/lib/rpc";
 import TenantThemeToggle from "@/components/storefront/TenantThemeToggle";
 
 export type StorefrontSeason = {
@@ -585,7 +587,7 @@ export default function TenantStorefront({ profile, preview = false }: { profile
 
         <section id="agen" className="tenant-section scroll-mt-24"><div className="tenant-contact mx-auto max-w-7xl"><div><p className="tenant-eyebrow">Kemitraan perjalanan</p><h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">{content.agentTitle || "Tumbuh bersama sebagai agen atau tour leader"}</h2><p className="mt-4 max-w-xl text-base leading-7 opacity-80">{content.agentDescription || "Bantu lebih banyak keluarga berangkat dengan program kemitraan yang jelas, materi pendampingan, dan tim yang siap menjawab."}</p></div><AgentWhatsAppForm managerWhatsapp={managerWhatsapp} /></div></section>
 
-        <section id="kontak" className="scroll-mt-24 px-4 pb-20 sm:px-6 lg:px-8 lg:pb-24"><div className="tenant-contact mx-auto max-w-7xl"><div><p className="tenant-eyebrow">Hubungi kami</p><h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">Mari menyiapkan perjalanan Anda</h2><p className="mt-4 max-w-xl text-base leading-7 opacity-80">Tim {name} siap membantu memilih jadwal, tipe kamar, dan kebutuhan pendampingan keluarga.</p><div className="tenant-contact-details"><span>{[address, city].filter(Boolean).join(", ") || "Alamat kantor tersedia melalui tim travel"}</span>{operatingHours.map((item) => <span key={item.dayLabel}>{item.dayLabel}, {item.hoursLabel}</span>)}{content.contactEmail && <a href={`mailto:${content.contactEmail}`}>{content.contactEmail}</a>}</div></div><div className="flex flex-col gap-3 sm:flex-row">{whatsapp ? <a href={whatsapp} target="_blank" rel="noreferrer" className="tenant-contact-cta"><IconBrandWhatsapp size={19} stroke={1.9} /> Konsultasi WhatsApp</a> : <span className="tenant-contact-ghost">Nomor WhatsApp segera tersedia</span>}{website && <a href={website} target="_blank" rel="noreferrer" className="tenant-contact-ghost"><IconExternalLink size={19} stroke={1.9} /> Website</a>}</div></div></section>
+        <section id="kontak" className="scroll-mt-24 px-4 pb-20 sm:px-6 lg:px-8 lg:pb-24"><div className="tenant-contact mx-auto max-w-7xl"><div><p className="tenant-eyebrow">Hubungi kami</p><h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">Mari menyiapkan perjalanan Anda</h2><p className="mt-4 max-w-xl text-base leading-7 opacity-80">Tim {name} siap membantu memilih jadwal, tipe kamar, dan kebutuhan pendampingan keluarga.</p><div className="tenant-contact-details"><span>{[address, city].filter(Boolean).join(", ") || "Alamat kantor tersedia melalui tim travel"}</span>{operatingHours.map((item) => <span key={item.dayLabel}>{item.dayLabel}, {item.hoursLabel}</span>)}{content.contactEmail && <a href={`mailto:${content.contactEmail}`}>{content.contactEmail}</a>}</div><div className="flex flex-col gap-3 mt-6 sm:flex-row">{whatsapp ? <a href={whatsapp} target="_blank" rel="noreferrer" className="tenant-contact-cta"><IconBrandWhatsapp size={19} stroke={1.9} /> Konsultasi WhatsApp</a> : <span className="tenant-contact-ghost">Nomor WhatsApp segera tersedia</span>}{website && <a href={website} target="_blank" rel="noreferrer" className="tenant-contact-ghost"><IconExternalLink size={19} stroke={1.9} /> Website</a>}</div></div><ContactInquiryForm operatorId={profile.operatorId} disabled={preview} /></div></section>
 
         <footer className="tenant-footer"><div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.2fr_0.8fr_1fr] lg:px-8"><div><div className="flex items-center gap-3">{logoImage ? <img src={logoImage} alt={`Logo ${name}`} className="h-12 w-12 rounded-xl object-contain" /> : <span className="tenant-logo-fallback">{initials}</span>}<strong>{name}</strong></div><p>{content.tagline || description || "Pendampingan perjalanan ibadah yang hangat dan terpercaya."}</p></div><div><strong>Navigasi</strong><nav className="mt-4 grid gap-2 text-sm"><a href="#beranda">Beranda</a><a href="#paket">Paket</a>{socialLinks.length > 0 && <a href="#sosial">Sosial Media</a>}<a href="#tentang">Tentang Kami</a><a href="#kontak">Hubungi Kami</a></nav></div><div><strong>Kontak &amp; legalitas</strong><p>{address || city || "Alamat kantor tersedia melalui tim travel."}</p>{content.contactEmail && <a href={`mailto:${content.contactEmail}`}>{content.contactEmail}</a>}{profile.licenseNumber && <p className="mt-2">Izin PPIU/PIHK: {profile.licenseNumber}</p>}{content.mapUrl && <a className="tenant-footer-map" href={content.mapUrl} target="_blank" rel="noreferrer">Buka lokasi di Google Maps <IconExternalLink size={15} /></a>}</div></div><div className="mx-auto flex max-w-7xl flex-col gap-3 border-t border-white/10 px-4 py-5 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8"><span>© {new Date().getFullYear()} {name}. All Rights Reserved.</span><a href="https://tawafiqhub.id" className="tenant-powered" target="_blank" rel="noreferrer">Powered by <strong>TawafiqHub</strong></a></div></footer>
         {packagePanelOpen && (
@@ -685,6 +687,51 @@ function AgentWhatsAppForm({ managerWhatsapp }: { managerWhatsapp: string | null
   const [phone, setPhone] = useState("");
   const submit = (event: React.FormEvent) => { event.preventDefault(); if (!managerWhatsapp || !name.trim() || !phone.trim()) return; const text = encodeURIComponent(`Assalamu'alaikum, saya ingin bergabung sebagai ${role}.\nNama: ${name.trim()}\nWhatsApp: ${phone.trim()}`); window.open(`${managerWhatsapp}?text=${text}`, "_blank", "noopener,noreferrer"); };
   return <form className="tenant-agent-form" onSubmit={submit}><select value={role} onChange={(event) => setRole(event.target.value)} aria-label="Peran kemitraan"><option>Mitra Agen Syiar</option><option>Tour Leader / Muthowif</option></select><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Nama lengkap" aria-label="Nama lengkap" required /><input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Nomor WhatsApp aktif" aria-label="Nomor WhatsApp aktif" inputMode="tel" required /><button type="submit" className="tenant-contact-cta" disabled={!managerWhatsapp}>Kirim ke WhatsApp <IconArrowRight size={18} /></button>{!managerWhatsapp && <small>Nomor manajer kemitraan belum diatur oleh travel.</small>}</form>;
+}
+
+// The storefront's "Hubungi Kami" form. Unlike the WhatsApp deep-link CTA
+// above it, this one actually reaches the operator's dashboard as a
+// storefront_inquiry — carrying whatever utm_source/utm_campaign the visitor
+// arrived with, which is the whole reason it exists (see K2.5 in
+// TUGAS-CORONG.md): a lead created from this form knows its own channel
+// instead of a staff member typing a guess after the fact.
+function ContactInquiryForm({ operatorId, disabled }: { operatorId: string; disabled?: boolean }) {
+  const searchParams = useSearchParams();
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (disabled || !fullName.trim() || (!phone.trim() && !email.trim())) return;
+    setStatus("sending");
+    try {
+      await inquiryClient.submitInquiry({
+        operatorId, fullName: fullName.trim(), phone: phone.trim(), email: email.trim(), message: message.trim(),
+        utmSource: searchParams?.get("utm_source") ?? "", utmCampaign: searchParams?.get("utm_campaign") ?? "",
+      });
+      setStatus("sent");
+      setFullName(""); setPhone(""); setEmail(""); setMessage("");
+    } catch {
+      setStatus("error");
+    }
+  }
+
+  if (status === "sent") return <div className="tenant-inquiry-form tenant-inquiry-form--done"><p>Pesan Anda telah terkirim. Tim kami akan segera menghubungi Anda.</p></div>;
+
+  return <form className="tenant-inquiry-form" onSubmit={(event) => void submit(event)}>
+    <p className="tenant-inquiry-form__label">Atau tinggalkan pesan, tim kami yang menghubungi Anda kembali</p>
+    <div className="tenant-inquiry-form__grid">
+      <input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Nama lengkap" aria-label="Nama lengkap" required />
+      <input value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="Nomor WhatsApp" aria-label="Nomor WhatsApp" inputMode="tel" />
+      <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email (opsional bila nomor WhatsApp sudah diisi)" aria-label="Email" type="email" />
+    </div>
+    <textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Ceritakan kebutuhan perjalanan Anda (opsional)" rows={3} />
+    <button type="submit" className="tenant-contact-ghost" disabled={disabled || status === "sending"}>{status === "sending" ? "Mengirim…" : "Kirim pesan"}</button>
+    {status === "error" && <small>Pesan gagal terkirim. Coba lagi atau hubungi lewat WhatsApp.</small>}
+  </form>;
 }
 
 function BookingModal({ booking, onClose }: { booking: { packageTitle: string; seasonName?: string; whatsapp: string }; onClose: () => void }) {
