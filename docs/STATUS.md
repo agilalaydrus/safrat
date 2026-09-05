@@ -4,7 +4,7 @@ Satu halaman, selalu diperbarui. **Titik masuk pertama untuk agen mana pun** —
 Claude, Codex, atau siapa pun berikutnya. Kalau hanya sempat membaca satu
 berkas, baca ini.
 
-Diperbarui: **5 September 2026** (Panel SaaS: TAHAP C, D, E selesai semua; F2/F4 dipenuhi untuk kerja baru)
+Diperbarui: **5 September 2026** (Panel SaaS: TAHAP C, D, E, F selesai semua)
 
 ---
 
@@ -13,7 +13,7 @@ Diperbarui: **5 September 2026** (Panel SaaS: TAHAP C, D, E selesai semua; F2/F4
 | Jalur | Rute | Berkas tugas | Posisi |
 |---|---|---|---|
 | **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **Tahap 4 selesai** (2 butir sengaja dicatat belum dibangun), sisa T3.2 |
-| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1, B2, C1–C5, D1–D7, E1–E4 selesai** · F3/F5/F6 perlu audit terpisah atas RPC lama · G belum ditinjau |
+| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1, B2, C1–C5, D1–D7, E1–E4, F1–F6 selesai** · G belum ditinjau (daftar periksa rilis, bukan kerja bangun) |
 | **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | **33/33 selesai** |
 | **SEO & Konten** | storefront | [TUGAS-SEO-KONTEN.md](TUGAS-SEO-KONTEN.md) | **12/17 selesai** — sisa TAHAP S3 menunggu proyek Google Cloud pemilik |
 
@@ -49,11 +49,24 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
    tombol menu hamburger) saat diverifikasi langsung di browser. TAHAP F:
    **F2** (`bac7584`, galat tak terpetakan kini juga ke `slog`) dan **F4**
    untuk setiap RPC baru sesi ini sudah selesai; **F1** sudah benar sejak
-   awal. **F3, F5, F6** memerlukan audit tersendiri atas RPC
-   `PlatformService` yang sudah ada sebelum sesi ini (puluhan RPC) — di
-   luar cakupan kerja yang sedang berjalan, belum dikerjakan. **TAHAP G**
-   (urutan rilis bertahap) adalah daftar periksa untuk peluncuran produksi,
-   bukan sesuatu untuk "dibangun" — belum ditinjau.
+   awal. **F3, F5, F6 dikerjakan pemilik diminta lanjut** (`b6f3f37`):
+   `scripts/uji-batas-platform.sh` menguji semua constraint §9 langsung
+   terhadap skema (dibuktikan bisa gagal dengan mencabut PK `dunning_log`
+   sungguhan), dan audit jejak+idempotensi menyeluruh atas setiap RPC
+   `PlatformService` yang mengubah data menemukan dua bug nyata:
+   `VoidSubscriptionInvoice` memakai kunci idempoten kosong (kelas bug yang
+   sama dengan `IssueBillingPeriod` di TAHAP D — admin yang membatalkan satu
+   invoice tidak bisa membatalkan invoice lain setelahnya), dan
+   `ReplyToSupportTicketAsPlatform`/`SetSupportTicketStatus` (C5) ternyata
+   tidak pernah menulis `audit_logs` sama sekali. F3 juga menemukan
+   `impersonation_sessions` belum pernah diberi `REVOKE UPDATE, DELETE`
+   yang sudah dimiliki dua tabel bukti lainnya (migrasi 167). F4 diperiksa
+   mundur lewat satu uji struktural (`0281dd8`, mendarat dari proses paralel
+   saat audit ini berjalan) yang menelusuri rantai pemanggilan setiap RPC
+   di `platform.proto`, bukan menulis puluhan uji HTTP yang saling mengulang
+   fakta yang sama. **TAHAP G** (urutan rilis bertahap) adalah daftar
+   periksa untuk peluncuran produksi, bukan sesuatu untuk "dibangun" — belum
+   ditinjau.
 2. **Tahap 3 Dashboard Travel** — sisa **T3.2** gateway WhatsApp (butuh
    kredensial penyedia dari pemilik). **T3.3 sudah selesai (4 September
    2026)**: Rangkaian, Rundown, dan Armada Bus melengkapi Manifes & Roomlist

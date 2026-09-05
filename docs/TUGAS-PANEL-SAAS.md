@@ -710,27 +710,75 @@ Berlaku di sepanjang pengerjaan, bukan di akhir.
       5 September 2026, `bac7584`). Diuji dengan menangkap output `slog` ke
       buffer dan merusak baris logging-nya untuk membuktikan ujinya
       benar-benar memeriksa isi pesan, bukan cuma bahwa sesuatu terpanggil.
-- [ ] **F3** `scripts/uji-batas-platform.sh` — menguji constraint §9 langsung
+- [x] **F3** `scripts/uji-batas-platform.sh` — menguji constraint §9 langsung
       terhadap skema, dan **dibuktikan bisa gagal** dengan mematikan salah satu
-      constraint, seperti pada skrip cabang. **Belum dikerjakan** — perlu
-      audit tersendiri atas semua constraint §9, bukan bagian dari tugas yang
-      sedang berjalan.
+      constraint, seperti pada skrip cabang (`[K, diimplementasikan]`,
+      5 September 2026, `b6f3f37`). Mengikuti bentuk `uji-batas-cabang.sh`
+      persis: menguji PK `usage_counters`, PK + CHECK tahap `dunning_log`,
+      CHECK alasan/kind/kunci idempoten `privileged_actions`, CHECK
+      alasan/panjang token/kunci idempoten/urutan waktu `impersonation_sessions`,
+      dan syarat catatan `plan_overrides` — plus aturan "peran aplikasi tidak
+      boleh menghapus bukti" lewat `has_table_privilege()`, tanpa perlu
+      kredensial peran `safrat_app` itu sendiri. Dibuktikan bisa gagal dengan
+      mencabut PK `dunning_log` sungguhan, memastikan skrip melaporkan
+      MASALAH, lalu memulihkannya.
+
+      Pemeriksaan privilese itu sendiri menemukan lubang nyata: migrasi 167
+      — `impersonation_sessions` tidak pernah diberi `REVOKE UPDATE, DELETE`
+      yang sudah dimiliki `dunning_log` dan `privileged_actions` sejak
+      migrasi 139 dan 138, padahal §9 DESAIN menyebut ketiganya sama-sama
+      bukti. Dicakup per kolom, bukan blanket seperti `audit_logs` —
+      `ImpersonationRepository.End` sah mengubah `ended_at`/`ended_reason`
+      saat sesi ditutup.
 - [x] **F4** Setiap RPC platform baru diuji **dua arah**: tanpa sesi →
       `unauthenticated`, sesi owner operator asli → `permission_denied`, admin
       platform → berhasil, dicabut → ditolak pada panggilan **berikutnya**
       (`[K, diperiksa untuk D6/D7/E2]`, 5 September 2026). Sudah dipenuhi
       untuk setiap RPC baru yang ditambahkan sepanjang TAHAP D dan E sesi ini
       (`platform_deletion_http_test.go`, `announcement_access_test.go`).
-      **Belum diperiksa mundur** untuk RPC `PlatformService` yang sudah ada
-      sebelum sesi ini — itu audit terpisah atas puluhan RPC lama, bukan
-      bagian dari tugas yang sedang berjalan.
-- [ ] **F5** Uji jejak: panggil RPC, periksa `audit_logs` bertambah — dan
-      **gagal kalau tidak**. Dipenuhi untuk setiap RPC baru sesi ini
-      (mis. `TestDeleteTenantRequiresGraceExportAndNameIntegration`), tapi
-      **belum diperiksa mundur** ke RPC lama — audit terpisah, sama seperti F3.
-- [ ] **F6** Uji idempotensi dengan **menjalankan dua kali**, bukan membaca kode.
-      Dipenuhi untuk setiap RPC baru sesi ini, **belum diperiksa mundur** ke
-      RPC lama — audit terpisah, sama seperti F3.
+
+      **Diperiksa mundur juga** (`0281dd8`, komit paralel yang mendarat saat
+      audit F3–F6 ini berjalan): daripada menulis puluhan uji HTTP yang
+      hampir sama persis untuk ~70 RPC — semuanya memanggil
+      `requirePlatformAdmin` yang sama, yang perilakunya sendiri sudah
+      dibuktikan lewat HTTP sungguhan oleh
+      `TestPlatformPanelIsClosedToOperatorStaffIntegration` — satu uji
+      struktural menelusuri rantai pemanggilan setiap RPC di `platform.proto`
+      dan memastikan `requirePlatformAdmin` disebut di suatu tempat, langsung
+      maupun lewat helper privat. Menyeluruh, bukan sampel: RPC baru yang
+      lupa memanggilnya akan gagal seketika ditambahkan.
+- [x] **F5** Uji jejak: panggil RPC, periksa `audit_logs` bertambah — dan
+      **gagal kalau tidak** (`[K, diperiksa]`, 5 September 2026, `b6f3f37`).
+      Ditelusuri untuk setiap RPC platform yang mengubah data (bukan hanya
+      RPC baru sesi ini) — menemukan dua bug nyata:
+
+      1. `VoidSubscriptionInvoice` menulis audit dengan `idempotency_key`
+         kosong — kelas bug yang sama persis dengan `IssueBillingPeriod`
+         yang sudah diperbaiki lebih dulu di TAHAP D. Karena keunikan
+         `audit_logs` adalah `(user_id, action, idempotency_key)` tanpa
+         invoice atau operator sama sekali, admin yang pertama kali
+         membatalkan **satu** invoice tidak bisa membatalkan invoice
+         **lain** manapun setelahnya. Diperbaiki dengan memakai id invoice
+         itu sendiri sebagai kunci.
+      2. `ReplyToSupportTicketAsPlatform` dan `SetSupportTicketStatus`
+         (dibangun sesi ini sebagai C5) ternyata **tidak pernah menulis**
+         `audit_logs` sama sekali — admin platform membalas atau mengubah
+         status tiket dukungan tenant lain tidak meninggalkan jejak apa pun
+         di travel yang bersangkutan. Diperbaiki dengan menulis entri
+         tercakup pada `operator_id` tiket itu sendiri, bukan kosong.
+
+      Keduanya dibuktikan dengan mematikan perbaikannya dan memastikan uji
+      gagal, sebelum dipulihkan.
+- [x] **F6** Uji idempotensi dengan **menjalankan dua kali**, bukan membaca kode
+      (`[K, diperiksa]`, 5 September 2026, `b6f3f37`). Bagian dari audit F5
+      yang sama: setiap RPC yang mengubah data ditelusuri untuk pola
+      "Set/Save" yang aman ditimpa, kunci idempoten + dedup pada
+      `privileged_actions`/`checkPlatformMutationKey`, atau penjaga
+      `WHERE status = '...'` yang membuat panggilan kedua menjadi no-op —
+      dan menemukan bug `VoidSubscriptionInvoice` yang sama dengan F5 di
+      atas (kunci kosong menjadikan panggilan kedua **oleh admin yang sama
+      pada invoice berbeda** gagal, bukan berhasil dua kali — arah
+      sebaliknya dari bug idempotensi biasa, tapi bug idempotensi juga).
 
 # TAHAP G — Rilis bertahap
 
