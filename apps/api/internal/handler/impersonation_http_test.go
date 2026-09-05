@@ -81,7 +81,7 @@ func TestImpersonationReadsTenantDataAndCannotWriteIntegration(t *testing.T) {
 		repository.NewSupplierCostRepository(pool), repository.NewSupplierRepository(pool),
 		repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool),
 		repository.NewKYCRepository(pool), repository.NewAuditRepository(queries),
-		repository.NewFunnelRepository(pool), repository.NewImpersonationRepository(pool), repository.NewPersonalDataReadRepository(pool), nil, repository.NewSupportRepository(queries))
+		repository.NewFunnelRepository(pool), repository.NewImpersonationRepository(pool), repository.NewPersonalDataReadRepository(pool), nil, repository.NewSupportRepository(queries), repository.NewDataExportRepository(pool))
 
 	interceptors := connect.WithInterceptors(middleware.NewAuthInterceptorWithImpersonation(pool,
 		repository.NewIdentityRepository(queries, repository.NewAgentRepository(queries)),

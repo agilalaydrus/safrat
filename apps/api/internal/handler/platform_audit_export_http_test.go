@@ -83,7 +83,7 @@ func TestExportAuditTrailIsSignedStreamedAndTamperEvidentIntegration(t *testing.
 		repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool),
 		repository.NewKYCRepository(pool), repository.NewAuditRepository(queries),
 		repository.NewFunnelRepository(pool), repository.NewImpersonationRepository(pool),
-		repository.NewPersonalDataReadRepository(pool), signer, repository.NewSupportRepository(queries))
+		repository.NewPersonalDataReadRepository(pool), signer, repository.NewSupportRepository(queries), repository.NewDataExportRepository(pool))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,
@@ -201,7 +201,7 @@ func TestExportAuditTrailRefusesWithoutSigningKeyIntegration(t *testing.T) {
 		repository.NewProductRepository(queries, pool), repository.NewSubscriptionRepository(pool),
 		repository.NewKYCRepository(pool), repository.NewAuditRepository(queries),
 		repository.NewFunnelRepository(pool), repository.NewImpersonationRepository(pool),
-		repository.NewPersonalDataReadRepository(pool), nil, repository.NewSupportRepository(queries))
+		repository.NewPersonalDataReadRepository(pool), nil, repository.NewSupportRepository(queries), repository.NewDataExportRepository(pool))
 	path, serviceHandler := hajjv1connect.NewPlatformServiceHandler(
 		handler.NewPlatformHandler(platform),
 		connect.WithInterceptors(middleware.NewAuthInterceptor(pool,

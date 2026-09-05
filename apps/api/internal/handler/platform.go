@@ -669,3 +669,25 @@ func (h *PlatformHandler) SetSupportTicketStatus(ctx context.Context, req *conne
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) RequestTenantDataExport(ctx context.Context, req *connect.Request[hajjv1.RequestTenantDataExportRequest]) (*connect.Response[hajjv1.DataExportRow], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.RequestTenantDataExport(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}
+
+func (h *PlatformHandler) DeleteTenant(ctx context.Context, req *connect.Request[hajjv1.DeleteTenantRequest]) (*connect.Response[hajjv1.DeleteTenantResponse], error) {
+	if err := protovalidate.Validate(req.Msg); err != nil {
+		return nil, connect.NewError(connect.CodeInvalidArgument, err)
+	}
+	result, err := h.platformService.DeleteTenant(ctx, req.Msg)
+	if err != nil {
+		return nil, connectError(err)
+	}
+	return connect.NewResponse(result), nil
+}

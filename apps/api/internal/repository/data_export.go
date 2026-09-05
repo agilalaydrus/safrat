@@ -194,3 +194,19 @@ func (r *DataExportRepository) MarkExpired(ctx context.Context, exportID string)
 		WHERE id = $1 AND status = 'READY'`, export)
 	return databaseError(err)
 }
+
+// HasReadyExport is D6's hard gate (TUGAS-PANEL-SAAS.md, §7.3 DESAIN):
+// "ekspor data tenant wajib ditawarkan" before a tenant can be deleted. Not
+// whether the tenant downloaded it — proving that is unnecessary and mostly
+// unenforceable — only whether one was actually produced and is sitting
+// there available. An expired link still counts: the file existed and the
+// portability right was honoured at the time.
+func (r *DataExportRepository) HasReadyExport(ctx context.Context, operatorID string) (bool, error) {
+	operator, err := pgUUID(operatorID)
+	if err != nil {
+		return false, apperror.ErrValidation
+	}
+	var exists bool
+	err = r.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM operator_data_exports WHERE operator_id = $1 AND status = 'READY')`, operator).Scan(&exists)
+	return exists, databaseError(err)
+}

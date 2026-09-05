@@ -14,6 +14,10 @@ import "hajj/v1/funnel_report.proto";
 // tenant, and a second copy of these messages would let the two views drift
 // apart field by field.
 import "hajj/v1/support.proto";
+// DataExportRow is shared with DataExportService (D6, TUGAS-PANEL-SAAS.md):
+// RequestTenantDataExport writes into the exact same operator_data_exports
+// table, just on the tenant's behalf instead of by their own request.
+import "hajj/v1/order.proto";
 
 option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
 
@@ -260,6 +264,35 @@ service PlatformService {
   // operator's own decision (SupportService.CloseSupportTicket); it is not
   // this RPC's to make.
   rpc SetSupportTicketStatus(SetSupportTicketStatusRequest) returns (SupportTicket);
+
+  // D6/D7 (TUGAS-PANEL-SAAS.md, §7.3 DESAIN): tenant deletion, 90 days after
+  // access ends. RequestTenantDataExport is the "wajib ditawarkan" step —
+  // the portability right — and DeleteTenant refuses outright if one was
+  // never produced. See internal/repository/platform_deletion.go for the
+  // three preconditions enforced server-side, not just suggested by the UI.
+  rpc RequestTenantDataExport(RequestTenantDataExportRequest) returns (DataExportRow);
+  rpc DeleteTenant(DeleteTenantRequest) returns (DeleteTenantResponse);
+}
+
+message RequestTenantDataExportRequest {
+  string operator_id = 1 [(buf.validate.field).string.uuid = true];
+  string idempotency_key = 2 [(buf.validate.field).string = {min_len: 8, max_len: 128}];
+}
+
+message DeleteTenantRequest {
+  string operator_id = 1 [(buf.validate.field).string.uuid = true];
+  string reason = 2 [(buf.validate.field).string = {min_len: 10, max_len: 500}];
+  // The tenant's own name, typed by hand — same mistake-proofing as
+  // Suspend/Reinstate, and for the same reason this is the one action in
+  // the system where clicking the wrong row matters most.
+  string confirmation = 3 [(buf.validate.field).string = {min_len: 1, max_len: 160}];
+  string idempotency_key = 4 [(buf.validate.field).string = {min_len: 8, max_len: 128}];
+}
+
+message DeleteTenantResponse {
+  string operator_id = 1;
+  string operator_name = 2;
+  google.protobuf.Timestamp deleted_at = 3;
 }
 
 message ListAllSupportTicketsRequest {
@@ -687,6 +720,10 @@ message PlatformOperator {
   // PlatformRepository.ListOperators for why an exact count isn't possible
   // (every sign-in deletes every other session for that user).
   bool has_returned_since_signup = 20;
+  // D7: set only once access has actually lapsed — access_until (plus grace
+  // period) plus 90 days. A tenant still within their paid/trial period has
+  // no deletion clock running at all, so this stays unset for them.
+  google.protobuf.Timestamp deletion_eligible_at = 21;
 }
 
 message ListOperatorsRequest {}

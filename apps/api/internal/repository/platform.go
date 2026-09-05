@@ -79,6 +79,8 @@ type PlatformOperator struct {
 	// comment in ListOperators for why this is an approximation, not an
 	// exact login count.
 	HasReturnedSinceSignup bool
+	// DeletionEligibleAt is nil until access has actually lapsed — see D6/D7.
+	DeletionEligibleAt *time.Time
 }
 
 // ListOperators returns tenants, most urgent first, up to limit.
@@ -129,7 +131,17 @@ func (r *PlatformRepository) ListOperators(ctx context.Context, limit int32) ([]
 		         FROM member m
 		         JOIN "session" sess ON sess."userId" = m."userId"
 		         WHERE m."organizationId" = o.better_auth_org_id
-		       ), false)
+		       ), false),
+		       -- D7: only set once access has actually lapsed — a tenant still
+		       -- inside their paid/trial period has no deletion clock running.
+		       -- 90 days here must match TenantDeletionGraceDays in
+		       -- platform_deletion.go, which is what DeleteTenant actually
+		       -- enforces; this is only ever a countdown shown to a human.
+		       CASE WHEN s.operator_id IS NULL
+		              OR subscription_effective_access_until(s.access_until, s.grace_period_days) > NOW()
+		            THEN NULL
+		            ELSE subscription_effective_access_until(s.access_until, s.grace_period_days) + INTERVAL '90 days'
+		       END
 		FROM operators o
 		LEFT JOIN subscriptions s ON s.operator_id = o.id
 		LEFT JOIN (SELECT operator_id, COUNT(*) AS count FROM pilgrims WHERE is_substituted = false GROUP BY operator_id) p ON p.operator_id = o.id
@@ -157,7 +169,7 @@ func (r *PlatformRepository) ListOperators(ctx context.Context, limit int32) ([]
 			&operator.GracePeriodDays, &operator.GraceOverrideDays, &operator.CreditBalanceIDR, &operator.PilgrimCount,
 			&operator.ProductCount, &operator.HeldOrderCount, &operator.CreatedAt,
 			&operator.SuspendedAt, &operator.DunningStage, &operator.OutstandingIDR, &operator.CancelledAt,
-			&operator.SeasonCount, &operator.HasReturnedSinceSignup); err != nil {
+			&operator.SeasonCount, &operator.HasReturnedSinceSignup, &operator.DeletionEligibleAt); err != nil {
 			return nil, err
 		}
 		operators = append(operators, &operator)

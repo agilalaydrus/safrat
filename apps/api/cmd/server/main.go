@@ -372,7 +372,7 @@ func main() {
 		orderService.AttachFulfilment(fulfilmentService, fulfilmentRepository)
 		impersonationRepository := repository.NewImpersonationRepository(pool)
 		personalDataReadRepository := repository.NewPersonalDataReadRepository(pool)
-		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, productRepository, subscriptionRepository, repository.NewKYCRepository(pool), auditRepository, repository.NewFunnelRepository(pool), impersonationRepository, personalDataReadRepository, auditSigner, supportRepository)
+		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, productRepository, subscriptionRepository, repository.NewKYCRepository(pool), auditRepository, repository.NewFunnelRepository(pool), impersonationRepository, personalDataReadRepository, auditSigner, supportRepository, repository.NewDataExportRepository(pool))
 		// The platform review queue refunds when it resolves a failure, so it
 		// needs both — composed after construction because the order service is
 		// built later and takes the fulfilment service itself.
