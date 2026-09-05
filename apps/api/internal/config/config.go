@@ -21,6 +21,7 @@ type Config struct {
 	XenditWebhookToken          string
 	StorefrontStorage           storage.Config
 	StorefrontStorageQuotaBytes int64
+	GeoIPDBPath                 string
 }
 
 func Load() (Config, error) {
@@ -43,6 +44,11 @@ func Load() (Config, error) {
 		// Resolved by the storage package so the server, the cleanup worker,
 		// and the backfill command all read these the same way.
 		StorefrontStorage: storage.ConfigFromEnv(),
+		// GeoIPDBPath is optional — unset means visitor city/province stay
+		// empty (see internal/geoip.Open). The file itself is downloaded and
+		// kept current by cmd/worker (internal/worker/geoip_refresh.go), not
+		// shipped in the repo or fetched inline on the request path.
+		GeoIPDBPath: value("GEOIP_DB_PATH", ""),
 	}
 	quotaMB, err := strconv.ParseInt(value("STOREFRONT_STORAGE_QUOTA_MB", "250"), 10, 64)
 	if err != nil || quotaMB < 25 || quotaMB > 10240 {

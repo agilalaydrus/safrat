@@ -252,8 +252,8 @@ export default function FunnelDashboard() {
               <p style={cardSubtitle}>Sampai tingkat kota, tidak lebih rinci dari itu.</p>
               {report.places.length === 0 ? (
                 <p style={emptyRow}>
-                  Belum ada data daerah. Pencarian lokasi belum aktif di server, jadi bagian ini akan kosong sampai
-                  basis data lokasi dipasang.
+                  Belum ada data daerah pada periode ini. Hanya pengunjung baru sejak lokasi diaktifkan yang tercatat —
+                  kunjungan sebelum itu tidak ditebak mundur.
                 </p>
               ) : (
                 <div style={{ display: "grid", gap: 10 }}>

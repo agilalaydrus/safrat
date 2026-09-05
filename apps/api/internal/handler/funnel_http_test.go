@@ -50,7 +50,7 @@ func TestFunnelRecordingCountsPeopleAndIgnoresBotsIntegration(t *testing.T) {
 
 	serve := func(salt string) hajjv1connect.FunnelServiceClient {
 		t.Helper()
-		funnelService := service.NewFunnelService(repository.NewFunnelRepository(pool), funnel.NewHasher(salt))
+		funnelService := service.NewFunnelService(repository.NewFunnelRepository(pool), funnel.NewHasher(salt), nil)
 		path, serviceHandler := hajjv1connect.NewFunnelServiceHandler(handler.NewFunnelHandler(funnelService, ""))
 		mux := http.NewServeMux()
 		mux.Handle(path, serviceHandler)

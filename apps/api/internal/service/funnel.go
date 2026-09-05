@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/hajj-saas/api/internal/funnel"
+	"github.com/hajj-saas/api/internal/geoip"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/repository"
 )
@@ -17,10 +18,11 @@ import (
 type FunnelService struct {
 	repository *repository.FunnelRepository
 	hasher     *funnel.Hasher
+	geo        *geoip.Resolver
 }
 
-func NewFunnelService(funnelRepository *repository.FunnelRepository, hasher *funnel.Hasher) *FunnelService {
-	return &FunnelService{repository: funnelRepository, hasher: hasher}
+func NewFunnelService(funnelRepository *repository.FunnelRepository, hasher *funnel.Hasher, geo *geoip.Resolver) *FunnelService {
+	return &FunnelService{repository: funnelRepository, hasher: hasher, geo: geo}
 }
 
 // RecordEvent takes the client address and user agent explicitly rather than
@@ -70,6 +72,13 @@ func (s *FunnelService) RecordEvent(ctx context.Context, req *hajjv1.RecordEvent
 		return empty, nil
 	}
 
+	// City/province only — see internal/geoip. clientIP is used here and
+	// nowhere else in this method; it never reaches the row being written.
+	var city, province string
+	if s.geo != nil {
+		city, province = s.geo.Lookup(clientIP)
+	}
+
 	_ = s.repository.Record(ctx, repository.FunnelEvent{
 		OperatorID:   operatorID,
 		VisitorHash:  visitor,
@@ -79,6 +88,8 @@ func (s *FunnelService) RecordEvent(ctx context.Context, req *hajjv1.RecordEvent
 		ReferrerHost: req.ReferrerHost,
 		UTMSource:    req.UtmSource,
 		UTMCampaign:  req.UtmCampaign,
+		City:         city,
+		Province:     province,
 	})
 	return empty, nil
 }

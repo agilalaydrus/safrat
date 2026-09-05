@@ -17,6 +17,7 @@ import (
 	"github.com/hajj-saas/api/internal/crypto"
 	"github.com/hajj-saas/api/internal/events"
 	"github.com/hajj-saas/api/internal/funnel"
+	"github.com/hajj-saas/api/internal/geoip"
 	"github.com/hajj-saas/api/internal/gen/db"
 	"github.com/hajj-saas/api/internal/gen/hajj/v1/hajjv1connect"
 	"github.com/hajj-saas/api/internal/handler"
@@ -313,7 +314,11 @@ func main() {
 		if !funnelHasher.Configured() {
 			logger.Warn("FUNNEL_SALT is not set or too short; visitor funnel recording is disabled")
 		}
-		funnelService := service.NewFunnelService(repository.NewFunnelRepository(pool), funnelHasher)
+		// GeoIPDBPath is optional — see internal/geoip.Open and config.Load.
+		// The file is downloaded and kept current by cmd/worker, not here.
+		geoResolver := geoip.Open(config.GeoIPDBPath)
+		geoResolver.WatchForChanges(config.GeoIPDBPath, 10*time.Minute)
+		funnelService := service.NewFunnelService(repository.NewFunnelRepository(pool), funnelHasher, geoResolver)
 		operatorHandler := handler.NewOperatorHandler(operatorService, funnelService)
 		subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService)
 		branchHandler := handler.NewBranchHandler(branchService)

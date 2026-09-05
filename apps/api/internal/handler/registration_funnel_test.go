@@ -58,7 +58,7 @@ func TestRegistrationRecordsAttemptAndCompletionSeparatelyIntegration(t *testing
 	})
 
 	queries := db.New(pool)
-	funnelService := service.NewFunnelService(repository.NewFunnelRepository(pool), funnel.NewHasher(strings.Repeat("s", 32)))
+	funnelService := service.NewFunnelService(repository.NewFunnelRepository(pool), funnel.NewHasher(strings.Repeat("s", 32)), nil)
 	registrationService := service.NewRegistrationService(
 		repository.NewOperatorRepository(queries), repository.NewRegistrationRepository(queries),
 		repository.NewAuditRepository(queries), repository.NewAgentRepository(queries))

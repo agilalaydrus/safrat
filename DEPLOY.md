@@ -872,6 +872,30 @@ and rotate them independently. If this secret is missing, the web middleware
 skips recording rather than collapsing every visitor onto the web container's
 address.
 
+### GEOIP_DB_PATH — visitor city/province (K2.8, TUGAS-CORONG.md)
+
+Set in both `apps/api/.env` (the API server) and the worker's environment:
+
+    GEOIP_DB_PATH=/var/lib/safrat/geoip/dbip-city-lite.mmdb
+
+Points at a local file, not a URL — `cmd/worker` downloads and keeps it
+current (checked daily, only actually re-downloaded when DB-IP's monthly
+release rolls over; see `internal/worker/geoip_refresh.go`), and
+`cmd/server` watches that same path for changes (`internal/geoip.Resolver.
+WatchForChanges`, polled every 10 minutes) so a new month's database is
+picked up without restarting the API. Both processes must see the same
+path, which in practice means the same shared volume or host filesystem.
+
+No account, license key, or credential of any kind — DB-IP City Lite is
+downloaded anonymously from `download.db-ip.com`. **Unset entirely is a
+safe, silent no-op**: city/province stay empty on every funnel row, same
+as before this feature existed. The database itself (60MB+ compressed) is
+never checked into the repo or fetched on the request path — only by the
+worker, on its own schedule.
+
+The directory must exist and be writable by the worker process; `cmd/worker`
+creates it on first run if it doesn't.
+
 ## 12c. The KYC encryption key
 
 > **Sejak 30 Agustus 2026 kunci ini juga wajib untuk membuat jamaah.** Nomor

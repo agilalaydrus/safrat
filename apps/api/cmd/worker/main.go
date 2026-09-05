@@ -10,6 +10,7 @@ import (
 	"github.com/hajj-saas/api/internal/crypto"
 	"github.com/hajj-saas/api/internal/events"
 	"github.com/hajj-saas/api/internal/gen/db"
+	"github.com/hajj-saas/api/internal/geoip"
 	"github.com/hajj-saas/api/internal/mailer"
 	"github.com/hajj-saas/api/internal/notification"
 	"github.com/hajj-saas/api/internal/payment"
@@ -163,6 +164,12 @@ func main() {
 	// in development, requests simply stay PENDING rather than failing.
 	dataExportHandler := worker.NewDataExportHandler(logger, repository.NewDataExportRepository(pool), orderService, objectStorage)
 
+	// GeoIPDBPath is optional — see internal/geoip.Open and config.Load in
+	// cmd/server. An empty path makes HandleRefresh (and EnsureCurrent) a
+	// no-op, same as every other optional integration in this file.
+	geoIPHandler := worker.NewGeoIPRefreshHandler(logger, strings.TrimSpace(os.Getenv("GEOIP_DB_PATH")), geoip.Open(""))
+	geoIPHandler.EnsureCurrent(context.Background())
+
 	redisOpt, err := asynq.ParseRedisURI(redisURL)
 	if err != nil {
 		logger.Error("parse REDIS_URL", "error", err)
@@ -283,6 +290,13 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	// Daily check, not monthly: DB-IP releases on the 1st but not always at
+	// the same hour, and a daily check that mostly no-ops (see
+	// GeoIPRefreshHandler's marker file) costs nothing.
+	if _, err := scheduler.Register("@every 24h", worker.NewGeoIPRefreshTask()); err != nil {
+		logger.Error("register geoip refresh schedule", "error", err)
+		os.Exit(1)
+	}
 	go func() {
 		if err := scheduler.Run(); err != nil {
 			logger.Error("scheduler stopped", "error", err)
@@ -312,6 +326,7 @@ func main() {
 	mux.HandleFunc(worker.TaskKYCMigrate, kycHandler.HandleMigrate)
 	mux.HandleFunc(worker.TaskDailySpendPurge, dailySpendHandler.HandlePurge)
 	mux.HandleFunc(worker.TaskAuditPurge, dailySpendHandler.HandleAuditPurge)
+	mux.HandleFunc(worker.TaskGeoIPRefresh, geoIPHandler.HandleRefresh)
 	if storefrontAssetHandler != nil {
 		mux.HandleFunc(worker.TaskStorefrontAssetGC, storefrontAssetHandler.HandleGC)
 	}
