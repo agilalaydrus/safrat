@@ -4,7 +4,7 @@ Satu halaman, selalu diperbarui. **Titik masuk pertama untuk agen mana pun** —
 Claude, Codex, atau siapa pun berikutnya. Kalau hanya sempat membaca satu
 berkas, baca ini.
 
-Diperbarui: **5 September 2026** (T4.4 Layanan Tambahan)
+Diperbarui: **5 September 2026** (Tahap 4 Dashboard Travel selesai — T4.10 Jam Tenang & Matriks Notifikasi)
 
 ---
 
@@ -12,7 +12,7 @@ Diperbarui: **5 September 2026** (T4.4 Layanan Tambahan)
 
 | Jalur | Rute | Berkas tugas | Posisi |
 |---|---|---|---|
-| **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **T4.11 selesai (sisi operator)**, sisa T3.2 & Tahap 4 |
+| **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **Tahap 4 selesai** (2 butir sengaja dicatat belum dibangun), sisa T3.2 |
 | **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1, B2 selesai** · berikutnya **C4** atau **C5** (kotak masuk Support, baru — lihat T4.11), jatah Codex |
 | **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | dirancang, **antre** · 0/33 butir |
 | **SEO & Konten** | storefront | [TUGAS-SEO-KONTEN.md](TUGAS-SEO-KONTEN.md) | dirancang, **antre** · 0/17 butir |
@@ -30,29 +30,32 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
    kredensial penyedia dari pemilik). **T3.3 sudah selesai (4 September
    2026)**: Rangkaian, Rundown, dan Armada Bus melengkapi Manifes & Roomlist
    yang sudah ada duluan. CRM Leads dan tier kamar juga sudah selesai.
-   **Tahap 4: T4.1–T4.4, T4.7–T4.9, T4.10 (sebagian), dan T4.11 (sisi
-   operator, 5 September 2026) sudah selesai** di
+   **Tahap 4 (T4.1–T4.11) sudah selesai, 4–5 September 2026** di
    `/dashboard/inventaris`, `/dashboard/manasik`, `/dashboard/agenda`,
    `/dashboard/layanan-tambahan`, `/dashboard/momen` (+ `/track/[code]`
    untuk keluarga), `/dashboard/pilgrims/baru`, tab **Laba Rugi** di
-   `/dashboard/reports`, tab **Kebijakan Keamanan** di
+   `/dashboard/reports`, tab **Kebijakan Keamanan** + **Notifikasi** di
    `/dashboard/settings`, dan `/dashboard/support` — cakupan lengkap ada di
-   TUGAS-DASHBOARD-TRAVEL.md. Dipotong dan dicatat di sana: dua grafik
+   TUGAS-DASHBOARD-TRAVEL.md. Dipotong dan dicatat jujur di sana: dua grafik
    Inventaris, pembayaran Layanan Tambahan yang masih penanda lunas/belum,
    Momen yang foto saja (video belum), wizard tanpa "simulasi cicilan",
    laba rugi yang mengecualikan biaya pokok produk yang belum tercatat
-   harganya, T4.10 yang baru mencakup pembatasan IP + Sesi Aktif (matriks
-   hak akses/notifikasi, jam tenang, aturan eskalasi belum dibangun), dan
-   T4.11 yang baru sisi operator — kotak masuk platform di `/admin` dicatat
-   sebagai **C5** baru di TUGAS-PANEL-SAAS.md, jatah Codex. Sisa Tahap 4:
-   sisa T4.10.
+   harganya, T4.11 yang baru sisi operator (kotak masuk platform dicatat
+   sebagai **C5** di TUGAS-PANEL-SAAS.md, jatah Codex), dan dua butir T4.10
+   yang sengaja tidak dibangun: **matriks hak akses** (butuh mesin izin
+   granular yang belum ada sama sekali di model peran saat ini) dan
+   **aturan eskalasi** (satu-satunya logika eskalasi nyata adalah aturan
+   SOS 10 menit — mesin keselamatan, bukan pengaturan bisnis, dan tidak
+   diubah tanpa izin eksplisit pemilik).
 
    **Ditemukan sebelum membangun T4.10, sama seperti kejadian B2 di Panel
    SaaS:** dua dari tiga "kesenjangan keamanan" yang disebut §4.9 DESAIN
    ternyata sudah lama diterapkan tanpa syarat (2FA wajib untuk seluruh
    staf, satu sesi aktif per akun) — dokumen rancangan belum diperbarui
-   setelah kapabilitasnya lahir dari komit lain. Satu-satunya kesenjangan
-   nyata adalah pembatasan IP, yang baru dibangun sesi ini.
+   setelah kapabilitasnya lahir dari komit lain.
+
+   **Tahap 4 selesai. Sisa Dashboard Travel: T3.2** gateway WhatsApp,
+   terblokir menunggu kredensial penyedia dari pemilik.
 
    **Prasyarat data lokal yang belum jelas sebelumnya, ditemukan saat
    menguji wizard di peramban (5 September 2026):** `KYC_ENCRYPTION_KEY`

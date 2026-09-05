@@ -121,7 +121,8 @@ func main() {
 	if smtpMailer == nil {
 		logger.Warn("finance email delivery disabled", "reason", "SMTP_USER/SMTP_PASSWORD are not configured")
 	}
-	outboxHandler := worker.NewOutboxHandler(logger, outboxRepository, firebasePusher, journeyService, eventBus, queries, smtpMailer)
+	notificationSettingsRepository := repository.NewNotificationSettingsRepository(queries)
+	outboxHandler := worker.NewOutboxHandler(logger, outboxRepository, firebasePusher, journeyService, eventBus, queries, smtpMailer, notificationSettingsRepository)
 	subscriptionHandler := worker.NewSubscriptionHandler(logger, subscriptionRepository)
 	planOverrideHandler := worker.NewPlanOverrideHandler(logger, platformRepository)
 	// Dry run until the owner has compared one cycle's output against a list

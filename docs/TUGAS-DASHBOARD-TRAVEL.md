@@ -786,15 +786,53 @@ repository, service, handler, dan UI telah terhubung utuh.
       `conn.Peer().Addr` sampai ke `authenticate()`, pola yang sama yang
       sudah dipakai `ratelimit.go`.
 
-      **Sengaja tidak dibangun sesi ini, dicatat jujur:** matriks hak
-      akses (klik sel untuk ubah level Lihat/Ubah/Penuh), matriks
-      notifikasi per event, jam tenang, dan aturan eskalasi. Keempatnya
-      adalah sistem sendiri-sendiri (mesin izin granular per RPC, mesin
-      perutean notifikasi) yang menyentuh permukaan jauh lebih luas
-      daripada satu tabel pengaturan — membangunnya tergesa demi
-      menyelesaikan daftar berisiko menghasilkan layar yang **terlihat**
-      menegakkan sesuatu padahal tidak, persis peringatan §4.9 tentang
-      "klaim di layar" kompetitor yang coba dihindari proyek ini.
+      **Susulan (5 September 2026): Jam Tenang + Matriks Notifikasi**, tab
+      **Notifikasi** baru di `/dashboard/settings`, migrasi 163
+      (`operator_notification_settings`).
+
+      **Dipersempit dengan sengaja ke yang benar-benar sudah terhubung.**
+      Hanya tiga event cascade push yang nyata di `internal/worker/outbox.go`
+      (`GroupCityUpdated`, `KloterStatusUpdated`, `RitualBulkCompleted`) yang
+      dapat sakelar dan bisa diredam Jam Tenang — **bukan** kisi
+      kanal-per-event, karena push memang satu-satunya kanal yang pernah
+      dimiliki ketiganya. Menampilkan pilihan "email"/"WhatsApp" yang tidak
+      pernah benar-benar mengirim apa pun akan menjadi persis layar palsu
+      yang ingin dihindari. Peringatan kesehatan BERAT sengaja tidak bisa
+      disakelar dan tidak pernah diredam Jam Tenang — alasan yang sama
+      dengan SOS yang tidak pernah dibatasi laju.
+
+      **Meredam notifikasi tidak boleh meredam perubahan datanya.** Mematikan
+      sakelar "beri tahu saat kota berubah" tetap harus memperbarui status
+      perjalanan jamaah — hanya pemberitahuannya yang dibisukan. Dibuktikan
+      dengan merusak: pengecekan sakelar dihapus dari jalur push → uji gagal
+      dengan push tetap terkirim padahal sakelarnya mati; diuji terpisah
+      bahwa `BulkUpdateForGroupAs` tetap berjalan walau sakelarnya mati.
+
+      **Jam Tenang yang melewati tengah malam diuji eksplisit.** Jendela
+      `22:00–06:00` bukan `mulai ≤ sekarang < selesai` biasa — itu logika
+      yang benar untuk jendela dalam satu hari, tapi salah total untuk
+      jendela yang menyeberangi tengah malam. Dibuktikan dengan merusak:
+      logika disederhanakan ke bentuk biasa → uji gagal tepat pada jam-jam
+      dini hari yang seharusnya diam.
+
+      **Sengaja tidak dibangun, dicatat jujur:** matriks hak akses (klik sel
+      untuk ubah level Lihat/Ubah/Penuh) dan aturan eskalasi.
+
+      Matriks hak akses butuh mesin izin granular yang diperiksa di
+      (idealnya) setiap RPC, sementara model peran saat ini hanya
+      owner/admin/member bawaan Better Auth plus satu konsep "member
+      terbatas" yang kasar untuk leader/agent — membangun kisi Lihat/Ubah/
+      Penuh yang terlihat berfungsi tapi tidak benar-benar menegakkan apa
+      pun di baliknya adalah persis "klaim di layar" yang coba dihindari
+      §4.9.
+
+      Aturan eskalasi: satu-satunya logika eskalasi nyata di proyek ini
+      adalah aturan SOS 10 menit (`db/query/sos_alert.sql`,
+      `EscalateStaleSOSAlerts`) — mesin keselamatan yang melindungi jamaah
+      dalam kondisi darurat sungguhan, bukan pengaturan bisnis. Menjadikannya
+      bisa diatur per operator berarti mengubah query itu secara tergesa
+      tanpa sesi kerja khusus dan izin pemilik yang eksplisit — risiko yang
+      tidak sepadan dengan menyelesaikan satu baris di daftar tugas.
 - [x] **T4.11** Support (tiket ke platform) — **sisi operator**, selesai (5
       September 2026). `/dashboard/support`, migrasi 162 (`support_tickets`,
       `support_ticket_messages`).

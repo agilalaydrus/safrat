@@ -1,32 +1,35 @@
 "use client";
 
 import { useState } from "react";
-import { IconBuilding, IconDownload, IconShieldLock, IconUsersGroup, IconWorld } from "@tabler/icons-react";
+import { IconBellRinging, IconBuilding, IconDownload, IconShieldLock, IconUsersGroup, IconWorld } from "@tabler/icons-react";
 import OperatorProfilePanel from "./OperatorProfilePanel";
 import TeamPanel from "./TeamPanel";
 import DomainPanel from "./DomainPanel";
 import DataExportPanel from "./DataExportPanel";
 import SecurityPolicyPanel from "./SecurityPolicyPanel";
+import NotificationSettingsPanel from "./NotificationSettingsPanel";
 
 export default function SettingsDashboard() {
-  const [tab, setTab] = useState<"profil" | "tim" | "domain" | "keamanan" | "data">("profil");
+  const [tab, setTab] = useState<"profil" | "tim" | "domain" | "keamanan" | "notifikasi" | "data">("profil");
 
-  const TAB_LABEL: Record<typeof tab, string> = { profil: "Profil Operator", tim: "Tim & Anggota", domain: "Domain", keamanan: "Kebijakan Keamanan", data: "Ekspor Data Saya" };
+  const TAB_LABEL: Record<typeof tab, string> = { profil: "Profil Operator", tim: "Tim & Anggota", domain: "Domain", keamanan: "Kebijakan Keamanan", notifikasi: "Notifikasi", data: "Ekspor Data Saya" };
 
   return <main style={page}>
-    <header><p style={eyebrow}>PENGATURAN</p><h1 style={title}>Pengaturan</h1><p style={{ color: "var(--color-warm-500)", margin: 0 }}>5 area pengaturan · {TAB_LABEL[tab]} sedang dibuka</p></header>
+    <header><p style={eyebrow}>PENGATURAN</p><h1 style={title}>Pengaturan</h1><p style={{ color: "var(--color-warm-500)", margin: 0 }}>6 area pengaturan · {TAB_LABEL[tab]} sedang dibuka</p></header>
     <div className="gold-divider" />
     <div style={tabBar}>
       <button onClick={() => setTab("profil")} style={tab === "profil" ? tabActive : tabInactive}><IconBuilding size={18} />Profil Operator</button>
       <button onClick={() => setTab("tim")} style={tab === "tim" ? tabActive : tabInactive}><IconUsersGroup size={18} />Tim &amp; Anggota</button>
       <button onClick={() => setTab("domain")} style={tab === "domain" ? tabActive : tabInactive}><IconWorld size={18} />Domain</button>
       <button onClick={() => setTab("keamanan")} style={tab === "keamanan" ? tabActive : tabInactive}><IconShieldLock size={18} />Kebijakan Keamanan</button>
+      <button onClick={() => setTab("notifikasi")} style={tab === "notifikasi" ? tabActive : tabInactive}><IconBellRinging size={18} />Notifikasi</button>
       <button onClick={() => setTab("data")} style={tab === "data" ? tabActive : tabInactive}><IconDownload size={18} />Ekspor Data Saya</button>
     </div>
     {tab === "profil" && <OperatorProfilePanel />}
     {tab === "tim" && <TeamPanel />}
     {tab === "domain" && <DomainPanel />}
     {tab === "keamanan" && <SecurityPolicyPanel />}
+    {tab === "notifikasi" && <NotificationSettingsPanel />}
     {tab === "data" && <DataExportPanel />}
   </main>;
 }

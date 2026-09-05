@@ -7,6 +7,7 @@ import (
 	"html"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hajj-saas/api/internal/domain"
@@ -52,17 +53,48 @@ type FinanceMailer interface {
 // side-effect. Delivery is at-least-once (claim increments attempts before the
 // side-effect runs), so side-effects must be idempotent.
 type OutboxHandler struct {
-	logger   *slog.Logger
-	outbox   *repository.OutboxRepository
-	push     OperatorPusher
-	journeys JourneyCascader
-	eventBus *events.Bus
-	queries  *db.Queries
-	mailer   FinanceMailer
+	logger               *slog.Logger
+	outbox               *repository.OutboxRepository
+	push                 OperatorPusher
+	journeys             JourneyCascader
+	eventBus             *events.Bus
+	queries              *db.Queries
+	mailer               FinanceMailer
+	notificationSettings *repository.NotificationSettingsRepository
 }
 
-func NewOutboxHandler(logger *slog.Logger, outbox *repository.OutboxRepository, push OperatorPusher, journeys JourneyCascader, bus *events.Bus, queries *db.Queries, mailer FinanceMailer) *OutboxHandler {
-	return &OutboxHandler{logger: logger, outbox: outbox, push: push, journeys: journeys, eventBus: bus, queries: queries, mailer: mailer}
+func NewOutboxHandler(logger *slog.Logger, outbox *repository.OutboxRepository, push OperatorPusher, journeys JourneyCascader, bus *events.Bus, queries *db.Queries, mailer FinanceMailer, notificationSettings *repository.NotificationSettingsRepository) *OutboxHandler {
+	return &OutboxHandler{logger: logger, outbox: outbox, push: push, journeys: journeys, eventBus: bus, queries: queries, mailer: mailer, notificationSettings: notificationSettings}
+}
+
+// pushAllowed gates only the notification itself — never the state change
+// that produced it. A muted event still updates journey status, records, and
+// everything else the cascade does; the operator asked not to be pinged
+// about it, not for it to stop happening.
+//
+// Fails open on every kind of uncertainty (no settings row, timezone load
+// failure, lookup error): a bug in this convenience feature must never
+// silently suppress a real notification.
+func (h *OutboxHandler) pushAllowed(ctx context.Context, operatorID string, eventEnabled func(s *domain.NotificationSettings) bool) bool {
+	if h.notificationSettings == nil {
+		return true
+	}
+	settings, err := h.notificationSettings.Get(ctx, operatorID)
+	if err != nil {
+		h.logger.Error("load notification settings", "operator_id", operatorID, "error", err)
+		return true
+	}
+	if !eventEnabled(settings) {
+		return false
+	}
+	jakarta, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		h.logger.Error("load Asia/Jakarta", "error", err)
+		return true
+	}
+	now := time.Now().In(jakarta)
+	nowMinutes := int32(now.Hour()*60 + now.Minute())
+	return !settings.InQuietHours(nowMinutes)
 }
 
 func (h *OutboxHandler) HandleDispatch(ctx context.Context, _ *asynq.Task) error {
@@ -107,7 +139,7 @@ func (h *OutboxHandler) dispatch(ctx context.Context, ev domain.CascadeEvent) er
 				return err
 			}
 		}
-		if payload.NotificationBody != "" && h.push != nil {
+		if payload.NotificationBody != "" && h.push != nil && h.pushAllowed(ctx, ev.OperatorID, func(s *domain.NotificationSettings) bool { return s.NotifyGroupCityChange }) {
 			if err := h.push.NotifyGroupPilgrims(ctx, ev.OperatorID, payload.GroupID, "", "Tawafiq Hub", payload.NotificationBody); err != nil {
 				return err
 			}
@@ -128,7 +160,7 @@ func (h *OutboxHandler) dispatch(ctx context.Context, ev domain.CascadeEvent) er
 				return err
 			}
 		}
-		if payload.NotificationBody != "" && h.push != nil {
+		if payload.NotificationBody != "" && h.push != nil && h.pushAllowed(ctx, ev.OperatorID, func(s *domain.NotificationSettings) bool { return s.NotifyKloterStatusChange }) {
 			if err := h.push.NotifyKloterPilgrims(ctx, ev.OperatorID, payload.KloterID, "Tawafiq Hub", payload.NotificationBody); err != nil {
 				return err
 			}
@@ -143,7 +175,7 @@ func (h *OutboxHandler) dispatch(ctx context.Context, ev domain.CascadeEvent) er
 		if payload.GroupID == "" {
 			return fmt.Errorf("ritual bulk event missing group_id")
 		}
-		if payload.NotificationBody != "" && h.push != nil {
+		if payload.NotificationBody != "" && h.push != nil && h.pushAllowed(ctx, ev.OperatorID, func(s *domain.NotificationSettings) bool { return s.NotifyRitualBulkComplete }) {
 			if err := h.push.NotifyGroupPilgrims(ctx, ev.OperatorID, payload.GroupID, payload.BranchID, "Tawafiq Hub", payload.NotificationBody); err != nil {
 				return err
 			}

@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// NotificationSettingsService is Matriks Notifikasi + Jam Tenang (§4.9
+// DESAIN), scoped to what is actually wired: three routine push cascade
+// events (GroupCityUpdated, KloterStatusUpdated, RitualBulkCompleted — see
+// internal/worker/outbox.go) each get an on/off toggle, and can be muted
+// during a quiet-hours window. Not a channel-per-event grid — push is the
+// only channel any of these three events has ever had.
+//
+// A BERAT health alert to staff is never toggleable here and never muted by
+// quiet hours, same reasoning as SOS never being rate-limited. Escalation
+// rules are out of scope entirely — the only real escalation logic in this
+// codebase is the SOS 10-minute rule, a safety mechanism this service does
+// not touch.
+service NotificationSettingsService {
+  rpc GetNotificationSettings(GetNotificationSettingsRequest) returns (NotificationSettings);
+  rpc SetNotificationSettings(SetNotificationSettingsRequest) returns (NotificationSettings);
+}
+
+message GetNotificationSettingsRequest {}
+
+message NotificationSettings {
+  bool quiet_hours_enabled = 1;
+  // "HH:MM", 24-hour, the operator's own local wall-clock time.
+  string quiet_hours_start = 2;
+  string quiet_hours_end = 3;
+  bool notify_group_city_change = 4;
+  bool notify_kloter_status_change = 5;
+  bool notify_ritual_bulk_complete = 6;
+}
+
+message SetNotificationSettingsRequest {
+  bool quiet_hours_enabled = 1;
+  string quiet_hours_start = 2 [(buf.validate.field).string.pattern = "^([01][0-9]|2[0-3]):[0-5][0-9]$"];
+  string quiet_hours_end = 3 [(buf.validate.field).string.pattern = "^([01][0-9]|2[0-3]):[0-5][0-9]$"];
+  bool notify_group_city_change = 4;
+  bool notify_kloter_status_change = 5;
+  bool notify_ritual_bulk_complete = 6;
+}

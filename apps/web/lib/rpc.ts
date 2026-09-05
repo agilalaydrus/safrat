@@ -38,6 +38,7 @@ import { RefundPayoutService } from "@hajj-saas/proto-gen/hajj/v1/refund_payout_
 import { RitualService } from "@hajj-saas/proto-gen/hajj/v1/ritual_connect";
 import { SeasonService } from "@hajj-saas/proto-gen/hajj/v1/season_connect";
 import { SecuritySettingsService } from "@hajj-saas/proto-gen/hajj/v1/security_settings_connect";
+import { NotificationSettingsService } from "@hajj-saas/proto-gen/hajj/v1/notification_settings_connect";
 import { SOSService } from "@hajj-saas/proto-gen/hajj/v1/sos_connect";
 import { StaffScheduleService } from "@hajj-saas/proto-gen/hajj/v1/staff_schedule_connect";
 import { SubscriptionService } from "@hajj-saas/proto-gen/hajj/v1/subscription_connect";
@@ -60,6 +61,7 @@ export const supportClient = createClient(SupportService, transport);
 export const pilgrimClient = createClient(PilgrimService, transport);
 export const seasonClient = createClient(SeasonService, transport);
 export const securitySettingsClient = createClient(SecuritySettingsService, transport);
+export const notificationSettingsClient = createClient(NotificationSettingsService, transport);
 export const accommodationClient = createClient(AccommodationService, transport);
 export const transportClient = createClient(TransportService, transport);
 export const productClient = createClient(ProductService, transport);
