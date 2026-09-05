@@ -591,10 +591,49 @@ Lihat §7 DESAIN. Bagian ini sebelumnya tidak dirancang di mana pun.
       sama muncul di churn bukan di ekspansi; konversi trial diukur pada
       rombongan yang mulai di periode itu sehingga angkanya baru mengendap
       belakangan.
-- [C] **E2** Pengumuman ke tenant (§10.1 DESAIN): wizard 4 langkah, penerima
+- [x] **E2** Pengumuman ke tenant (§10.1 DESAIN): wizard 4 langkah, penerima
       **dihitung dari data**, Skor Kesiapan termasuk pemeriksaan "sudah ada
       pengumuman lain ke penerima sama dalam 24 jam", riwayat baca.
       **Tidak bisa diedit setelah terkirim** — kalau salah, kirim ralat
+      (`[K, diimplementasikan]`, 5 September 2026, `434a08d`).
+
+      Dibangun di atas `components/ui/Wizard.tsx` yang sudah ada tapi belum
+      pernah dipakai satu layar pun — inilah pemakai pertamanya. Enam mode
+      penerima (semua, per paket, trial, multi-cabang, menunggak, pilih
+      manual), semuanya query langsung terhadap data hidup, dievaluasi ulang
+      persis pada saat kirim (bukan saat preview) — pengumuman terjadwal
+      menghitung ulang siapa yang cocok ketika benar-benar terkirim, bukan
+      siapa yang cocok saat ditulis.
+
+      Kanal email memakai `internal/mailer` dan `cascade_events` yang sudah
+      ada (§11 DESAIN) — satu event per penerima, bukan satu event untuk
+      seluruh pengiriman, supaya satu alamat email yang gagal tidak menahan
+      yang lain. Dalam-aplikasi tidak perlu jalur pengiriman sama sekali:
+      begitu baris `announcement_deliveries` ditulis, ia langsung terlihat.
+      Dashboard mendapat lonceng notifikasi pertamanya
+      (`components/announcements/AnnouncementBell.tsx`).
+
+      Tidak bisa diedit setelah terkirim ditegakkan dua lapis: tidak ada RPC
+      yang menawarkan itu, dan `title`/`body`/`recipient_filter` dicabut hak
+      UPDATE-nya dari peran aplikasi di database (migrasi 166), pola
+      pertahanan yang sama dengan migrasi 125 untuk `audit_logs`.
+
+      Diuji lewat HTTP sungguhan: dua tenant masing-masing hanya melihat
+      salinannya sendiri, satu tenant membaca tidak ikut menandai tenant
+      lain, tenant tidak bisa menandai terbaca pengumuman yang tidak pernah
+      dikirim ke mereka (not_found, bukan berhasil diam-diam), riwayat
+      platform menghitung pembaca dengan benar, pengulangan kunci yang sama
+      tidak menggandakan baris pengiriman, dan sapuan jadwal worker
+      membiarkan pengumuman yang belum waktunya lalu mengirimnya tepat
+      sekali setelah lewat jadwalnya — masing-masing dibuktikan dengan
+      merusak kode penjaganya dan memastikan ujinya gagal sebelum diperbaiki
+      kembali.
+
+      Diverifikasi langsung di browser: alur wizard penuh empat langkah,
+      dan lonceng dashboard. Verifikasi ini menemukan bug nyata: tombol
+      lonceng memakai kelas CSS yang sama dengan tombol menu hamburger, yang
+      sengaja disembunyikan (`display:none`) di lebar desktop — lonceng ikut
+      lenyap. Diperbaiki dengan kelas `.dashboard-bell-button` sendiri.
 - [x] **E3** Tab **Kesehatan** di `/admin`. Tujuh sinyal: event outbox yang
       sudah menyerah, antrean event tertinggal, poller mutasi bank, kegagalan
       supplier 24 jam, tagihan langganan macet, transaksi tertahan, dan backup.
@@ -657,23 +696,41 @@ Lihat §7 DESAIN. Bagian ini sebelumnya tidak dirancang di mana pun.
 
 Berlaku di sepanjang pengerjaan, bukan di akhir.
 
-- [C] **F1** Dunning & pengumuman memakai outbox `cascade_events` yang ada,
+- [x] **F1** Dunning & pengumuman memakai outbox `cascade_events` yang ada,
       **jangan buat jalur pengiriman baru** (§11 DESAIN). Efeknya harus
       idempoten karena pengirimannya at-least-once — itulah gunanya PK
-      `(invoice_id, stage)`
-- [C] **F2** `service/errors.go`: galat tak terpetakan **juga** ditulis ke
+      `(invoice_id, stage)` (`[K, diperiksa]`, 5 September 2026). Sudah benar
+      untuk dunning sejak awal; E2 mengikuti pola yang sama persis — satu
+      `cascade_events` per penerima email, idempoten lewat
+      `EnqueueIdempotentTx`, bukan jalur pengiriman baru.
+- [x] **F2** `service/errors.go`: galat tak terpetakan **juga** ditulis ke
       `slog` level error dengan nama metodenya. Sekarang hanya ke Sentry, dan
       `sentry.Init` no-op saat `SENTRY_DSN` kosong — di pengembangan galat itu
-      hilang tanpa jejak (§12 DESAIN). Pesan ke klien tetap `internal error`
-- [C] **F3** `scripts/uji-batas-platform.sh` — menguji constraint §9 langsung
+      hilang tanpa jejak (§12 DESAIN) (`[K, diimplementasikan]`,
+      5 September 2026, `bac7584`). Diuji dengan menangkap output `slog` ke
+      buffer dan merusak baris logging-nya untuk membuktikan ujinya
+      benar-benar memeriksa isi pesan, bukan cuma bahwa sesuatu terpanggil.
+- [ ] **F3** `scripts/uji-batas-platform.sh` — menguji constraint §9 langsung
       terhadap skema, dan **dibuktikan bisa gagal** dengan mematikan salah satu
-      constraint, seperti pada skrip cabang
-- [C] **F4** Setiap RPC platform baru diuji **dua arah**: tanpa sesi →
+      constraint, seperti pada skrip cabang. **Belum dikerjakan** — perlu
+      audit tersendiri atas semua constraint §9, bukan bagian dari tugas yang
+      sedang berjalan.
+- [x] **F4** Setiap RPC platform baru diuji **dua arah**: tanpa sesi →
       `unauthenticated`, sesi owner operator asli → `permission_denied`, admin
       platform → berhasil, dicabut → ditolak pada panggilan **berikutnya**
-- [C] **F5** Uji jejak: panggil RPC, periksa `audit_logs` bertambah — dan
-      **gagal kalau tidak**
-- [C] **F6** Uji idempotensi dengan **menjalankan dua kali**, bukan membaca kode
+      (`[K, diperiksa untuk D6/D7/E2]`, 5 September 2026). Sudah dipenuhi
+      untuk setiap RPC baru yang ditambahkan sepanjang TAHAP D dan E sesi ini
+      (`platform_deletion_http_test.go`, `announcement_access_test.go`).
+      **Belum diperiksa mundur** untuk RPC `PlatformService` yang sudah ada
+      sebelum sesi ini — itu audit terpisah atas puluhan RPC lama, bukan
+      bagian dari tugas yang sedang berjalan.
+- [ ] **F5** Uji jejak: panggil RPC, periksa `audit_logs` bertambah — dan
+      **gagal kalau tidak**. Dipenuhi untuk setiap RPC baru sesi ini
+      (mis. `TestDeleteTenantRequiresGraceExportAndNameIntegration`), tapi
+      **belum diperiksa mundur** ke RPC lama — audit terpisah, sama seperti F3.
+- [ ] **F6** Uji idempotensi dengan **menjalankan dua kali**, bukan membaca kode.
+      Dipenuhi untuk setiap RPC baru sesi ini, **belum diperiksa mundur** ke
+      RPC lama — audit terpisah, sama seperti F3.
 
 # TAHAP G — Rilis bertahap
 

@@ -4,7 +4,7 @@ Satu halaman, selalu diperbarui. **Titik masuk pertama untuk agen mana pun** —
 Claude, Codex, atau siapa pun berikutnya. Kalau hanya sempat membaca satu
 berkas, baca ini.
 
-Diperbarui: **5 September 2026** (Panel SaaS: TAHAP C dan TAHAP D selesai semua)
+Diperbarui: **5 September 2026** (Panel SaaS: TAHAP C, D, E selesai semua; F2/F4 dipenuhi untuk kerja baru)
 
 ---
 
@@ -13,7 +13,7 @@ Diperbarui: **5 September 2026** (Panel SaaS: TAHAP C dan TAHAP D selesai semua)
 | Jalur | Rute | Berkas tugas | Posisi |
 |---|---|---|---|
 | **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **Tahap 4 selesai** (2 butir sengaja dicatat belum dibangun), sisa T3.2 |
-| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1, B2, C1–C5, D1–D7 selesai** · berikutnya TAHAP E/F/G |
+| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1, B2, C1–C5, D1–D7, E1–E4 selesai** · F3/F5/F6 perlu audit terpisah atas RPC lama · G belum ditinjau |
 | **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | **33/33 selesai** |
 | **SEO & Konten** | storefront | [TUGAS-SEO-KONTEN.md](TUGAS-SEO-KONTEN.md) | **12/17 selesai** — sisa TAHAP S3 menunggu proyek Google Cloud pemilik |
 
@@ -39,7 +39,21 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
    kelayakan hapus, dan bug tak terkait di worker penagihan berulang
    (`IssueBillingPeriod` memakai `idempotency_key` kosong, tersingkap oleh
    migrasi 165) yang akan menghalangi tagihan tenant kedua dan seterusnya.
-   TAHAP E/F/G belum ditinjau sama sekali.
+   TAHAP E: **E1, E3, E4 sudah lebih dulu selesai**; **E2** pengumuman ke
+   tenant selesai sesi ini (`434a08d`) — wizard 4 langkah memakai
+   `components/ui/Wizard.tsx` yang sebelumnya belum pernah dipakai, kanal
+   email lewat `cascade_events`/`internal/mailer` yang sudah ada, dan
+   lonceng notifikasi pertama di dashboard travel
+   (`components/announcements/AnnouncementBell.tsx`) — menemukan bug CSS
+   nyata (lonceng ikut sembunyi di lebar desktop karena memakai kelas
+   tombol menu hamburger) saat diverifikasi langsung di browser. TAHAP F:
+   **F2** (`bac7584`, galat tak terpetakan kini juga ke `slog`) dan **F4**
+   untuk setiap RPC baru sesi ini sudah selesai; **F1** sudah benar sejak
+   awal. **F3, F5, F6** memerlukan audit tersendiri atas RPC
+   `PlatformService` yang sudah ada sebelum sesi ini (puluhan RPC) — di
+   luar cakupan kerja yang sedang berjalan, belum dikerjakan. **TAHAP G**
+   (urutan rilis bertahap) adalah daftar periksa untuk peluncuran produksi,
+   bukan sesuatu untuk "dibangun" — belum ditinjau.
 2. **Tahap 3 Dashboard Travel** — sisa **T3.2** gateway WhatsApp (butuh
    kredensial penyedia dari pemilik). **T3.3 sudah selesai (4 September
    2026)**: Rangkaian, Rundown, dan Armada Bus melengkapi Manifes & Roomlist
