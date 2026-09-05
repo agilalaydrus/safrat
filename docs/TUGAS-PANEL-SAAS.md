@@ -302,9 +302,9 @@ lebih besar dari perapian ini.
 - [x] Bisa dibaca: tabel **Tindakan yang tidak bisa ditarik** di halaman detail
       tenant. Tabel yang tidak pernah dibaca adalah tabel yang tidak ada yang
       sadar kalau kosong.
-- [ ] **Menghapus tenant** — sengaja belum. Itu D6, dan syaratnya lebih berat:
-      tawarkan ekspor data lebih dulu (hak portabilitas UU PDP), dan
-      `audit_logs` tidak ikut terhapus.
+- [x] **Menghapus tenant** — bagian dari `privileged_actions` di atas, tapi
+      syaratnya lebih berat: tawarkan ekspor data lebih dulu (hak
+      portabilitas UU PDP), dan `audit_logs` tidak ikut terhapus. Lihat D6.
 - [ ] **Rekening settlement** — tidak ada yang bisa dirutekan. Nomornya hanya
       ada di `.env.prod` di VPS, tidak pernah di database dan tidak pernah di
       repo. Mengubahnya berarti masuk ke server, bukan menekan tombol. Kalau
@@ -467,9 +467,23 @@ Lihat §7 DESAIN. Bagian ini sebelumnya tidak dirancang di mana pun.
       masih `TRIALING` — memperpanjang akses tenant yang sudah bayar adalah
       tindakan lain (kredit/diskon), bukan ini. Konfirmasi nama travel
       diketik tangan, pola yang sama dengan Suspend/SetGracePeriod.
-- [C] **D3** Layar Langganan menampilkan trial yang berakhir pekan ini
-- [C] **D4** Antrean tenant baru 7 hari terakhir + penanda kelengkapan
-      (sudah ada musim? jamaah? login kedua?)
+- [x] **D3** Layar Langganan menampilkan trial yang berakhir pekan ini
+      (`[K, diimplementasikan]`, 5 September 2026, `b9b2b5d`). Filter murni di
+      frontend atas data `ListOperators`/`ListSubscriptions` yang sudah ada —
+      tidak ada RPC baru.
+- [x] **D4** Antrean tenant baru 7 hari terakhir + penanda kelengkapan
+      (sudah ada musim? jamaah? login kedua?) (`[K, diimplementasikan]`,
+      5 September 2026, `b9b2b5d`). "Login kedua" ternyata tidak bisa diukur
+      dari riwayat sesi — `session.create.after` menghapus sesi lama setiap
+      kali seseorang masuk, jadi tabel `session` tidak pernah menyimpan lebih
+      dari satu baris per akun. Didekati: sesi yang aktif sekarang
+      dibandingkan dengan `operators.created_at` — kalau sesi itu lebih baru
+      dari dua jam setelah pendaftaran, seseorang pasti masuk lagi. Disebut
+      terang-terangan sebagai perkiraan, di kode maupun di layar.
+      Ditemukan sekaligus diperbaiki saat mengerjakan ini: `CancelledAt` dari
+      D5 tidak pernah disalin ke pesan proto `ListOperators`, jadi filter
+      "belum dibatalkan" di layar sejak D5 selalu membandingkan dengan nilai
+      yang tidak mungkin terisi.
 - [x] **D5** Pembatalan (`[K, diimplementasikan]`, 5 September 2026,
       `1f7f3a0`): `cancelled_at` diisi, `access_until` **sama sekali tidak
       disentuh** — sisa periode yang sudah dibayar tetap haknya. Percobaan
@@ -480,11 +494,73 @@ Lihat §7 DESAIN. Bagian ini sebelumnya tidak dirancang di mana pun.
       mengatur akses sejak awal (dipakai di mana-mana, dari pengecekan
       entitlement sampai proses dunning) tidak berubah sama sekali oleh
       aksi ini — yang berubah hanya penagihan berhenti mencoba lagi.
-- [C] **D6** Penghapusan setelah 90 hari: **tawarkan ekspor data lebih dulu**
+- [x] **D6** Penghapusan setelah 90 hari: **tawarkan ekspor data lebih dulu**
       (hak portabilitas UU PDP), four-eyes, dan **`audit_logs` tidak ikut
-      dihapus** — ia bukti bahwa penghapusan itu sah
-- [C] **D7** Hitung mundur penghapusan tampil sebagai tanggal, dan masuk Pusat
-      Tindakan saat mendekat
+      dihapus** — ia bukti bahwa penghapusan itu sah (`[K, diimplementasikan]`,
+      5 September 2026, `0a0a6f6` + `faf088b`).
+
+      Tiga syarat, semua diperiksa ulang dalam satu transaksi berkunci
+      advisory yang sama dengan Suspend/Reinstate: (1) akses sudah berakhir
+      **90 hari** — dihitung dari `subscription_effective_access_until`
+      (akses + masa tenggang), bukan `access_until` mentah, supaya trial yang
+      habis tanpa pernah dibatalkan tetap terhitung; (2) ekspor data **READY**
+      sudah pernah dibuat — dibuktikan ada, bukan diklaim sudah diunduh,
+      karena membuktikan itu tidak perlu dan nyaris tidak bisa ditegakkan; (3)
+      nama travel diketik ulang persis, pola yang sama dengan Suspend.
+
+      Penghapusannya sendiri `DELETE FROM operators` biasa: hampir seluruh
+      tabel di skema ini sudah `ON DELETE CASCADE` dari `operators(id)` —
+      itulah yang membuat satu DELETE ini penghapusan yang lengkap tanpa
+      menyisakan apa pun, dibanding memilih satu-satu tabel mana yang
+      "data pribadi" (rawan lupa satu tabel). Diperiksa langsung dua
+      pengecualian yang bukan CASCADE (`seat_assignments` — aman lewat rantai
+      cascade tabel lain; `product_routes` — `SET NULL`, tidak menghalangi)
+      dan satu yang sengaja tidak ber-FK ke `operators` sama sekali
+      (`privileged_actions` — menyimpan nama & id tenant sebagai teks JSON,
+      jadi selamat dengan sendirinya, pola yang sama dipakai Suspend/Reinstate).
+
+      `audit_logs` adalah pengecualian yang disengaja: migrasi 165 mengubah
+      FK-nya dari CASCADE ke SET NULL, supaya baris tentang tenant yang sudah
+      dihapus tetap ada — dibaca sebagai "peristiwa ini soal tenant yang
+      sudah tidak ada", pola NULL yang sama yang migrasi 108 pakai untuk
+      "tidak pernah punya tenant sama sekali".
+
+      Diuji dengan mematahkan tiap syarat satu-satu (masing-masing dibuktikan
+      cukup sendirian untuk menolak, meski dua syarat lain sudah terpenuhi),
+      nama salah tetap ditolak, penghapusan sungguhan menghapus barisnya,
+      `audit_logs` bertahan dengan `operator_id` NULL, dan pengulangan dengan
+      kunci yang sama menyelesaikan tindakan yang sama tanpa mengeksekusi
+      ulang.
+- [x] **D7** Hitung mundur penghapusan tampil sebagai tanggal, dan masuk Pusat
+      Tindakan saat mendekat (`[K, diimplementasikan]`, 5 September 2026,
+      `0a0a6f6` + `faf088b`). `deletion_eligible_at` masuk `ListOperators` dan
+      `GetTenantDetail` — tanggal yang sama di kedua tempat, dihitung dari
+      fungsi SQL yang sama. Blok Pusat Tindakan di `OperatorsTab` menampilkan
+      tenant yang sudah atau akan (dalam 14 hari) bisa dihapus, di atas
+      antrean tenant baru D4.
+
+      Diverifikasi langsung di browser sungguhan dengan tenant fixture
+      sekali-pakai: tombol hapus terkunci sampai tanggal itu lewat, tombol
+      "minta ekspor" memicu `RequestTenantDataExport`, pesan penolakan
+      menyebut alasan sebenarnya (belum 90 hari / belum ada ekspor / nama
+      salah), dan penghapusan sungguhan berhasil sampai baris tenantnya
+      hilang.
+
+      Verifikasi langsung ini menemukan dua bacaan nyata, keduanya diperbaiki
+      di commit yang sama: (1) `GetTenantDetail` (repositori terpisah dari
+      `ListOperators`) ternyata tidak pernah menghitung `deletion_eligible_at`
+      sama sekali — halaman detail tenant, tempat tombol hapus itu sendiri
+      berada, selalu menampilkan "belum pernah punya langganan" apa pun
+      keadaan tenantnya; (2) tidak berkaitan dengan D6/D7, tersingkap justru
+      karena migrasi 165 membuat baris `audit_logs` lama di database
+      pengujian bertahan alih-alih ikut CASCADE terhapus:
+      `IssueBillingPeriod` menulis jejak audit tagihan dengan
+      `idempotency_key` kosong memakai aktor tetap `"system"` — karena
+      keunikan `audit_logs` adalah `(user_id, action, idempotency_key)` tanpa
+      `operator_id` sama sekali, tagihan pertama yang pernah diterbitkan
+      worker penagihan berulang untuk **tenant mana pun** akan menghalangi
+      tagihan pertama tenant lain berikutnya selamanya. Diperbaiki dengan
+      memakai id invoice yang baru dibuat sebagai kuncinya.
 
 ---
 

@@ -4,7 +4,7 @@ Satu halaman, selalu diperbarui. **Titik masuk pertama untuk agen mana pun** —
 Claude, Codex, atau siapa pun berikutnya. Kalau hanya sempat membaca satu
 berkas, baca ini.
 
-Diperbarui: **5 September 2026** (Panel SaaS: TAHAP C selesai, D2 dan D5 dari TAHAP D juga selesai)
+Diperbarui: **5 September 2026** (Panel SaaS: TAHAP C dan TAHAP D selesai semua)
 
 ---
 
@@ -13,7 +13,7 @@ Diperbarui: **5 September 2026** (Panel SaaS: TAHAP C selesai, D2 dan D5 dari TA
 | Jalur | Rute | Berkas tugas | Posisi |
 |---|---|---|---|
 | **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **Tahap 4 selesai** (2 butir sengaja dicatat belum dibangun), sisa T3.2 |
-| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1, B2, C1–C5, D2, D5 selesai** · berikutnya **D3/D4/D6/D7** |
+| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1, B2, C1–C5, D1–D7 selesai** · berikutnya TAHAP E/F/G |
 | **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | **33/33 selesai** |
 | **SEO & Konten** | storefront | [TUGAS-SEO-KONTEN.md](TUGAS-SEO-KONTEN.md) | **12/17 selesai** — sisa TAHAP S3 menunggu proyek Google Cloud pemilik |
 
@@ -22,19 +22,24 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
 
 ## Yang sedang menunggu, berurutan
 
-1. **Panel SaaS, 5 September 2026: TAHAP C selesai semua (C1–C5), lanjut ke
-   TAHAP D.** Pemilik meminta implementasi Panel SaaS dilanjutkan juga oleh
-   Claude, bukan cuma spesifikasi. **C4** (`e88e524`, kunci penandatangan +
-   ekspor auditor) dan **C5** (`034f5e5`, kotak masuk Support lintas tenant)
+1. **Panel SaaS, 5 September 2026: TAHAP C dan TAHAP D selesai semua.**
+   Pemilik meminta implementasi Panel SaaS dilanjutkan juga oleh Claude,
+   bukan cuma spesifikasi. **C4** (`e88e524`, kunci penandatangan + ekspor
+   auditor) dan **C5** (`034f5e5`, kotak masuk Support lintas tenant)
    masing-masing menemukan celah nyata **saat dibangun** — lihat
-   TUGAS-PANEL-SAAS.md untuk rinciannya. Dari TAHAP D (siklus hidup tenant):
-   **D2** perpanjang trial per tenant dan **D5** batalkan langganan
-   (`1f7f3a0`) sudah selesai — keduanya bukan tindakan four-eyes, mengikuti
-   pola `SetGracePeriod` yang sudah ada. Sisa TAHAP D: **D3** (trial yang
-   berakhir pekan ini tampil di layar), **D4** (antrean tenant baru +
-   penanda kelengkapan), **D6/D7** (penghapusan 90 hari — perlu four-eyes,
-   ekspor data dulu, dan `audit_logs` tidak ikut terhapus; ini yang paling
-   berisiko di TAHAP D, dikerjakan hati-hati terakhir).
+   TUGAS-PANEL-SAAS.md untuk rinciannya. TAHAP D (siklus hidup tenant), semua
+   selesai: **D2** perpanjang trial dan **D5** batalkan langganan (`1f7f3a0`),
+   **D3** trial berakhir pekan ini + **D4** antrean tenant baru (`b9b2b5d`,
+   sekalian memperbaiki `CancelledAt` D5 yang tidak pernah tersalin ke
+   respons), dan **D6/D7** penghapusan tenant setelah 90 hari (`0a0a6f6` +
+   `faf088b`) — four-eyes, ekspor data wajib ditawarkan lebih dulu,
+   `audit_logs` bertahan lewat migrasi 165. Diverifikasi langsung di browser
+   dengan penghapusan tenant fixture sungguhan sampai selesai; menemukan dan
+   memperbaiki bug `GetTenantDetail` yang tidak pernah menghitung tanggal
+   kelayakan hapus, dan bug tak terkait di worker penagihan berulang
+   (`IssueBillingPeriod` memakai `idempotency_key` kosong, tersingkap oleh
+   migrasi 165) yang akan menghalangi tagihan tenant kedua dan seterusnya.
+   TAHAP E/F/G belum ditinjau sama sekali.
 2. **Tahap 3 Dashboard Travel** — sisa **T3.2** gateway WhatsApp (butuh
    kredensial penyedia dari pemilik). **T3.3 sudah selesai (4 September
    2026)**: Rangkaian, Rundown, dan Armada Bus melengkapi Manifes & Roomlist
