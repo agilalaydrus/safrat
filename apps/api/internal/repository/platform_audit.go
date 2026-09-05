@@ -120,3 +120,66 @@ func (r *PlatformRepository) AuditTrail(ctx context.Context, filter AuditFilter)
 	}
 	return entries, rows.Err()
 }
+
+// StreamAuditTrail is AuditTrail without the LIMIT, for the auditor export
+// (C4): an export exists specifically to answer "everything that matched,"
+// so capping it the way the screen caps itself would silently produce an
+// incomplete export with nothing on screen saying so. Reads row by row via
+// the pool directly rather than buffering the whole trail into a slice —
+// same reasoning as ProfitLossRepository.StreamExport, and the same
+// requirement here: this trail is exactly the data an export must never
+// truncate by running out of memory first.
+func (r *PlatformRepository) StreamAuditTrail(ctx context.Context, filter AuditFilter, emit func(AuditEntry) error) error {
+	conditions := []string{"TRUE"}
+	args := []any{}
+	add := func(condition string, value any) {
+		args = append(args, value)
+		conditions = append(conditions, strings.ReplaceAll(condition, "$?", "$"+strconv.Itoa(len(args))))
+	}
+
+	if strings.TrimSpace(filter.OperatorID) != "" {
+		operator, err := pgUUID(filter.OperatorID)
+		if err != nil {
+			return apperror.ErrValidation
+		}
+		add("a.operator_id = $?", operator)
+	}
+	if actor := strings.TrimSpace(filter.Actor); actor != "" {
+		add("(a.user_id = $? OR u.email ILIKE '%' || $? || '%')", actor)
+	}
+	if actions, ok := auditCategoryActions[filter.Category]; ok {
+		add("a.action = ANY($?)", actions)
+	}
+	if filter.Since != nil {
+		add("a.created_at >= $?", *filter.Since)
+	}
+
+	query := `
+		SELECT a.id::text, a.created_at,
+		       COALESCE(NULLIF(u.email, ''), a.user_id, 'sistem'), COALESCE(a.user_id, ''),
+		       a.action, COALESCE(a.entity_type, ''), COALESCE(a.entity_id, ''),
+		       COALESCE(a.operator_id::text, ''), COALESCE(o.name, ''),
+		       COALESCE(a.metadata->>'message', '')
+		FROM audit_logs a
+		LEFT JOIN "user" u ON u.id = a.user_id
+		LEFT JOIN operators o ON o.id = a.operator_id
+		WHERE ` + strings.Join(conditions, " AND ") + `
+		ORDER BY a.created_at ASC`
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return databaseError(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var entry AuditEntry
+		if err := rows.Scan(&entry.ID, &entry.At, &entry.Actor, &entry.ActorID, &entry.Action,
+			&entry.EntityType, &entry.EntityID, &entry.OperatorID, &entry.Operator, &entry.Message); err != nil {
+			return databaseError(err)
+		}
+		if err := emit(entry); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
+}

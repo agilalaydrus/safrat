@@ -896,6 +896,31 @@ worker, on its own schedule.
 The directory must exist and be writable by the worker process; `cmd/worker`
 creates it on first run if it doesn't.
 
+### AUDIT_EXPORT_SIGNING_KEY — auditor export (C4, TUGAS-PANEL-SAAS.md)
+
+Set in `apps/api/.env` (the API server only — the worker never exports):
+
+    AUDIT_EXPORT_SIGNING_KEY=$(openssl rand -base64 32)
+
+Signs the manifest that comes with every `/admin` Audit-screen CSV export
+(`PlatformService.ExportAuditTrail`): a SHA-256 of the exported CSV, HMAC-
+signed with this key. An auditor holding the key can recompute both and
+confirm the file they were handed is the exact one this platform produced.
+
+Unlike `KYC_ENCRYPTION_KEY`, rotating this needs no overlap window and no
+`_PREVIOUS` variable: nothing already on disk was signed with the old key
+and needs re-verifying by this process — each export's manifest simply
+records which key signed it (`key_fingerprint`, same derivation as
+`Sealer.Fingerprint`), so a rotation is just deploying a new value. Losing
+track of an old key only matters if someone needs to re-verify an export
+made before the rotation, and that is done externally with `openssl`/a
+script, never inside this app.
+
+**Unset is a refusal, not a silent no-op** — the one exception among the
+optional keys in this section. `ExportAuditTrail` returns FailedPrecondition
+rather than producing something unsigned: an auditor export nobody can prove
+the integrity of answers nothing an auditor actually asked.
+
 ## 12c. The KYC encryption key
 
 > **Sejak 30 Agustus 2026 kunci ini juga wajib untuk membuat jamaah.** Nomor

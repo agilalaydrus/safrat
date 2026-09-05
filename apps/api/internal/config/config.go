@@ -22,6 +22,7 @@ type Config struct {
 	StorefrontStorage           storage.Config
 	StorefrontStorageQuotaBytes int64
 	GeoIPDBPath                 string
+	AuditExportSigningKey       string
 }
 
 func Load() (Config, error) {
@@ -49,6 +50,10 @@ func Load() (Config, error) {
 		// kept current by cmd/worker (internal/worker/geoip_refresh.go), not
 		// shipped in the repo or fetched inline on the request path.
 		GeoIPDBPath: value("GEOIP_DB_PATH", ""),
+		// AuditExportSigningKey is optional — unset means
+		// PlatformService.ExportAuditTrail refuses with a clear error instead
+		// of exporting something unsigned (see internal/crypto.NewSigner).
+		AuditExportSigningKey: strings.TrimSpace(os.Getenv("AUDIT_EXPORT_SIGNING_KEY")),
 	}
 	quotaMB, err := strconv.ParseInt(value("STOREFRONT_STORAGE_QUOTA_MB", "250"), 10, 64)
 	if err != nil || quotaMB < 25 || quotaMB > 10240 {

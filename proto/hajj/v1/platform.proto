@@ -223,6 +223,48 @@ service PlatformService {
   // UPDATE and DELETE from the application role, so there is nothing to offer
   // here but reading.
   rpc ListAuditTrail(ListAuditTrailRequest) returns (ListAuditTrailResponse);
+
+  // ExportAuditTrail streams the same trail as ListAuditTrail (same filters,
+  // no limit) as CSV bytes, ending with one AuditExportManifest message.
+  // "Streams as CSV bytes" rather than typed rows on purpose (see C4,
+  // TUGAS-PANEL-SAAS.md): the manifest's sha256 is computed server-side over
+  // the exact bytes sent, so the client only ever has to write what it
+  // receives, never re-encode it — there is no way for the downloaded file
+  // and the hash that vouches for it to disagree.
+  rpc ExportAuditTrail(ExportAuditTrailRequest) returns (stream AuditExportChunk);
+}
+
+// Same fields as ListAuditTrailRequest minus limit, which means nothing for
+// an export that streams every matching row — kept as its own message
+// because the two requests mean different things even when their filters
+// happen to match (see PLATFORM_SERVICE naming lint).
+message ExportAuditTrailRequest {
+  string operator_id = 1;
+  string actor = 2;
+  string category = 3;
+  int32 days = 4;
+}
+
+message AuditExportChunk {
+  oneof payload {
+    bytes csv_chunk = 1;
+    // Sent exactly once, as the last message on the stream.
+    AuditExportManifest manifest = 2;
+  }
+}
+
+message AuditExportManifest {
+  // Hex-encoded SHA-256 of the full CSV byte stream (header row included).
+  string sha256 = 1;
+  string signed_at = 2; // RFC3339
+  // Identifies which AUDIT_EXPORT_SIGNING_KEY produced hmac_sha256, without
+  // revealing it — see internal/crypto.Signer.Fingerprint.
+  string key_fingerprint = 3;
+  // Hex-encoded HMAC-SHA256(sha256 above, the signing key). An auditor who
+  // independently recomputes the CSV's SHA-256 and gets a different value
+  // than this manifest's sha256 knows the file was altered; one who has the
+  // key can additionally confirm the manifest itself came from this platform.
+  string hmac_sha256 = 4;
 }
 
 message ListAuditTrailRequest {

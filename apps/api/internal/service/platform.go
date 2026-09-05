@@ -8,6 +8,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/hajj-saas/api/internal/apperror"
+	"github.com/hajj-saas/api/internal/crypto"
 	"github.com/hajj-saas/api/internal/domain"
 	hajjv1 "github.com/hajj-saas/api/internal/gen/hajj/v1"
 	"github.com/hajj-saas/api/internal/middleware"
@@ -33,6 +34,11 @@ type PlatformService struct {
 	personalDataReads       *repository.PersonalDataReadRepository
 	kycRepository           *repository.KYCRepository
 	auditRepository         *repository.AuditRepository
+	// auditSigner is nil when AUDIT_EXPORT_SIGNING_KEY is unset — see
+	// ExportAuditTrail (C4, TUGAS-PANEL-SAAS.md), which refuses to export
+	// unsigned rather than silently producing something an auditor cannot
+	// verify.
+	auditSigner *crypto.Signer
 
 	// Composed rather than reimplemented. Resolving a supplier failure has to
 	// refund, and a second copy of the refund path for this caller is the last
@@ -122,8 +128,8 @@ func (s *PlatformService) IgnoreBankMutation(ctx context.Context, req *hajjv1.Ig
 	return &hajjv1.IgnoreBankMutationResponse{}, nil
 }
 
-func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, products *repository.ProductRepository, subscriptions *repository.SubscriptionRepository, kyc *repository.KYCRepository, audit *repository.AuditRepository, funnel *repository.FunnelRepository, impersonation *repository.ImpersonationRepository, personalDataReads *repository.PersonalDataReadRepository) *PlatformService {
-	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, supplierRepository: suppliers, productRepository: products, subscriptionRepository: subscriptions, kycRepository: kyc, auditRepository: audit, funnelRepository: funnel, impersonationRepository: impersonation, personalDataReads: personalDataReads}
+func NewPlatformService(platform *repository.PlatformRepository, supplierCosts *repository.SupplierCostRepository, suppliers *repository.SupplierRepository, products *repository.ProductRepository, subscriptions *repository.SubscriptionRepository, kyc *repository.KYCRepository, audit *repository.AuditRepository, funnel *repository.FunnelRepository, impersonation *repository.ImpersonationRepository, personalDataReads *repository.PersonalDataReadRepository, auditSigner *crypto.Signer) *PlatformService {
+	return &PlatformService{platformRepository: platform, supplierCostRepository: supplierCosts, supplierRepository: suppliers, productRepository: products, subscriptionRepository: subscriptions, kycRepository: kyc, auditRepository: audit, funnelRepository: funnel, impersonationRepository: impersonation, personalDataReads: personalDataReads, auditSigner: auditSigner}
 }
 
 // requirePlatformAdmin is the only thing standing between a signed-in operator

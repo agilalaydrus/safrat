@@ -196,6 +196,25 @@ func main() {
 				}
 			}
 		}
+		// AuditExportSigningKey is optional — unset means
+		// PlatformService.ExportAuditTrail refuses with a clear error at export
+		// time rather than producing something unsigned. Same fail-loud-not-
+		// fail-silent shape as KYC_ENCRYPTION_KEY above, minus the encrypted-
+		// data-at-rest problem: there is nothing on disk this key has to be
+		// able to read back, so a rotation is just deploying a new value.
+		auditSigner, signerErr := crypto.NewSigner(config.AuditExportSigningKey)
+		if signerErr != nil {
+			logger.Error("read AUDIT_EXPORT_SIGNING_KEY", "error", signerErr)
+			os.Exit(1)
+		}
+		if auditSigner == nil {
+			logger.Warn("audit trail exports cannot be signed",
+				"reason", "AUDIT_EXPORT_SIGNING_KEY is not set",
+				"effect", "ExportAuditTrail will be refused rather than producing an unsigned export")
+		} else {
+			logger.Info("audit export signing key loaded", "fingerprint", auditSigner.Fingerprint())
+		}
+
 		platformRepository := repository.NewPlatformRepository(pool)
 		supplierCostRepository := repository.NewSupplierCostRepository(pool)
 		supplierRepository := repository.NewSupplierRepository(pool)
@@ -353,7 +372,7 @@ func main() {
 		orderService.AttachFulfilment(fulfilmentService, fulfilmentRepository)
 		impersonationRepository := repository.NewImpersonationRepository(pool)
 		personalDataReadRepository := repository.NewPersonalDataReadRepository(pool)
-		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, productRepository, subscriptionRepository, repository.NewKYCRepository(pool), auditRepository, repository.NewFunnelRepository(pool), impersonationRepository, personalDataReadRepository)
+		platformService := service.NewPlatformService(platformRepository, supplierCostRepository, supplierRepository, productRepository, subscriptionRepository, repository.NewKYCRepository(pool), auditRepository, repository.NewFunnelRepository(pool), impersonationRepository, personalDataReadRepository, auditSigner)
 		// The platform review queue refunds when it resolves a failure, so it
 		// needs both — composed after construction because the order service is
 		// built later and takes the fulfilment service itself.

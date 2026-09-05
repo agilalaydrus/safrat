@@ -599,3 +599,10 @@ func (h *PlatformHandler) ListAuditTrail(ctx context.Context, req *connect.Reque
 	}
 	return connect.NewResponse(result), nil
 }
+
+func (h *PlatformHandler) ExportAuditTrail(ctx context.Context, req *connect.Request[hajjv1.ExportAuditTrailRequest], stream *connect.ServerStream[hajjv1.AuditExportChunk]) error {
+	if err := h.platformService.ExportAuditTrail(ctx, req.Msg, stream); err != nil {
+		return connectError(err)
+	}
+	return nil
+}
