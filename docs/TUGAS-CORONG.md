@@ -83,11 +83,21 @@ Menyentuh dua permukaan: `/dashboard` (travel melihat corongnya sendiri) dan
       (migrasi 147), dibaca dari URL halaman form (`bd09302`).
       `season_waitlists` menyusul.
 - [x] **K2.7** Langkah `ARTIKEL` dengan `article_slug` (`ff4ebea`)
-- [ ] **K2.8 — menunggu keputusan pemilik.** Geolokasi kota/provinsi dari IP
-      (MaxMind GeoLite2). **IP tidak pernah ditulis** — hanya nama daerahnya.
-      Tingkat kota, tidak lebih halus. Butuh akun/lisensi MaxMind dari
-      pemilik — agen tidak bisa menyediakan itu, sama seperti Search Console
-      di TUGAS-SEO-KONTEN.md TAHAP S3.
+- [x] **K2.8** Dibangun pakai **DB-IP City Lite**, bukan MaxMind GeoLite2 —
+      skema sama, tingkat kota sama, tapi tidak butuh akun atau kunci lisensi
+      apa pun (pemilik memilih ini secara eksplisit setelah dijelaskan
+      perbandingannya, 5 September 2026). `internal/geoip.Resolver` mengubah
+      IP jadi kota/provinsi lalu IP-nya dibuang — **tidak pernah ditulis**,
+      sama seperti sebelumnya. Berkasnya (60MB+, terbit ulang tiap bulan)
+      diunduh oleh worker (dicek harian, hanya benar-benar unduh ulang saat
+      bulan berganti) dan server memantau berkas yang sama tiap 10 menit,
+      jadi pembaruan bulanan tidak perlu restart. `GEOIP_DB_PATH` opsional —
+      kosong berarti diam, sama seperti sebelum fitur ini ada. Diuji dengan
+      merusak dua hal: nama kolom skema (gagal, dipulihkan) dan pemeriksa
+      penanda bulan (memicu unduhan ulang sungguhan 127MB, gagal dengan
+      benar, dipulihkan) — lalu dibuktikan langsung: panggilan asli ke
+      `RecordEvent` dengan IP Jakarta menghasilkan baris `city=Jakarta`,
+      dan layar Asal Daerah menampilkannya seketika (`252d514`)
 
 # TAHAP K3 — Rollup & retensi
 
