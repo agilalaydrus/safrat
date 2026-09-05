@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package hajj.v1;
+
+import "buf/validate/validate.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/hajj-saas/api/internal/gen/hajj/v1;hajjv1";
+
+// SupportService is the operator-facing half of Support (§2.17 RENCANA): a
+// ticket to the platform, with a priority and a response-time target —
+// small, but proof someone is accountable. The platform-side inbox (view
+// every tenant's tickets, reply as staff, change status) lives on
+// PlatformService and is Panel SaaS territory; this service only covers what
+// an operator does with their own tickets.
+service SupportService {
+  rpc CreateSupportTicket(CreateSupportTicketRequest) returns (SupportTicket);
+  rpc ListMySupportTickets(ListMySupportTicketsRequest) returns (ListMySupportTicketsResponse);
+  rpc GetSupportTicket(GetSupportTicketRequest) returns (SupportTicketDetail);
+  // AddSupportTicketMessage replies on the thread — from the operator's own
+  // side only; a platform reply is written by the admin inbox this
+  // service does not expose.
+  rpc AddSupportTicketMessage(AddSupportTicketMessageRequest) returns (SupportTicketMessage);
+  // CloseSupportTicket lets the operator close their own ticket once
+  // answered — the platform side can also resolve one, but that path isn't
+  // exposed here.
+  rpc CloseSupportTicket(CloseSupportTicketRequest) returns (SupportTicket);
+}
+
+message SupportTicket {
+  string id = 1;
+  string subject = 2;
+  // LOW | MEDIUM | HIGH | URGENT
+  string priority = 3;
+  // OPEN | IN_PROGRESS | RESOLVED | CLOSED
+  string status = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp resolved_at = 6;
+  // Computed from priority + created_at, never stored — see
+  // SupportService's Go comment for the fixed targets per priority.
+  google.protobuf.Timestamp response_due_at = 7;
+  bool response_overdue = 8;
+}
+
+message SupportTicketMessage {
+  string id = 1;
+  string body = 2;
+  string author_name = 3;
+  bool author_is_platform = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+
+message SupportTicketDetail {
+  SupportTicket ticket = 1;
+  repeated SupportTicketMessage messages = 2;
+}
+
+message CreateSupportTicketRequest {
+  string subject = 1 [(buf.validate.field).string.min_len = 1];
+  string priority = 2 [(buf.validate.field).string = {in: ["LOW", "MEDIUM", "HIGH", "URGENT"]}];
+  // The ticket's first message — a ticket with a subject and nothing else
+  // gives the platform side nothing to respond to.
+  string body = 3 [(buf.validate.field).string.min_len = 1];
+}
+
+message ListMySupportTicketsRequest {}
+message ListMySupportTicketsResponse { repeated SupportTicket tickets = 1; }
+
+message GetSupportTicketRequest { string ticket_id = 1 [(buf.validate.field).string.min_len = 1]; }
+
+message AddSupportTicketMessageRequest {
+  string ticket_id = 1 [(buf.validate.field).string.min_len = 1];
+  string body = 2 [(buf.validate.field).string.min_len = 1];
+}
+
+message CloseSupportTicketRequest { string ticket_id = 1 [(buf.validate.field).string.min_len = 1]; }

@@ -41,6 +41,7 @@ import { SecuritySettingsService } from "@hajj-saas/proto-gen/hajj/v1/security_s
 import { SOSService } from "@hajj-saas/proto-gen/hajj/v1/sos_connect";
 import { StaffScheduleService } from "@hajj-saas/proto-gen/hajj/v1/staff_schedule_connect";
 import { SubscriptionService } from "@hajj-saas/proto-gen/hajj/v1/subscription_connect";
+import { SupportService } from "@hajj-saas/proto-gen/hajj/v1/support_connect";
 import { TransportService } from "@hajj-saas/proto-gen/hajj/v1/transport_connect";
 import { TripService } from "@hajj-saas/proto-gen/hajj/v1/trip_connect";
 import { VendorService } from "@hajj-saas/proto-gen/hajj/v1/vendor_connect";
@@ -55,6 +56,7 @@ export const addonClient = createClient(AddonService, transport);
 export const momentClient = createClient(MomentService, transport);
 export const branchClient = createClient(BranchService, transport);
 export const subscriptionClient = createClient(SubscriptionService, transport);
+export const supportClient = createClient(SupportService, transport);
 export const pilgrimClient = createClient(PilgrimService, transport);
 export const seasonClient = createClient(SeasonService, transport);
 export const securitySettingsClient = createClient(SecuritySettingsService, transport);

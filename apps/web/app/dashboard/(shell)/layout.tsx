@@ -26,6 +26,7 @@ import {
   IconMapPinExclamation,
   IconMenu2,
   IconGift,
+  IconHeadset,
   IconPackage,
   IconPhoto,
   IconPlane,
@@ -104,6 +105,10 @@ const nav: readonly NavGroup[] = [
   {
     label: "Laporan",
     items: [["Laporan & Analitik", "/dashboard/reports", IconFileAnalytics]],
+  },
+  {
+    label: "Bantuan",
+    items: [["Tiket Dukungan", "/dashboard/support", IconHeadset]],
   },
 ];
 

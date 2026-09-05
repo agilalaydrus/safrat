@@ -795,7 +795,34 @@ repository, service, handler, dan UI telah terhubung utuh.
       menyelesaikan daftar berisiko menghasilkan layar yang **terlihat**
       menegakkan sesuatu padahal tidak, persis peringatan §4.9 tentang
       "klaim di layar" kompetitor yang coba dihindari proyek ini.
-- [ ] **T4.11** Support (tiket ke platform)
+- [x] **T4.11** Support (tiket ke platform) — **sisi operator**, selesai (5
+      September 2026). `/dashboard/support`, migrasi 162 (`support_tickets`,
+      `support_ticket_messages`).
+
+      **Target waktu respons dihitung, tidak disimpan.** Ditulis sekali dari
+      `priority` + `created_at` (Mendesak 1 jam, Tinggi 4 jam, Sedang 24 jam,
+      Rendah 3 hari) — menyimpannya akan membuatnya diam-diam salah kalau
+      pemetaan prioritas→target pernah berubah nanti, sementara tiket lama
+      tetap membawa angka usang.
+
+      **Isolasi tenant di setiap operasi tulis**, bukan hanya di daftar.
+      `AddSupportTicketMessage` mengecek tiket itu milik operator pemanggil
+      sebelum menulis pesan — bukan insert polos yang hanya mengandalkan
+      `ticket_id`. Dibuktikan dengan merusak: pengecekan kepemilikan dihapus
+      → uji gagal persis dengan operator B berhasil membalas tiket operator
+      A.
+
+      **Sengaja hanya separuh — sisi operator.** Kotak masuk platform di
+      `/admin` (lihat tiket semua tenant, balas sebagai staf, ubah status)
+      adalah wilayah Panel SaaS, dan keputusan pemilik implementasi Panel
+      SaaS dikerjakan Codex. `support_ticket_messages.author_is_platform`
+      sudah disiapkan supaya balasan staf platform tampil di thread yang
+      sama tanpa perubahan skema — lihat TUGAS-PANEL-SAAS.md untuk sisi
+      admin-nya.
+
+      Diperiksa di peramban sungguhan lewat akun fixture: buat tiket
+      Mendesak, kirim balasan, tutup tiket — semua round-trip tanpa galat
+      konsol.
 - [x] **T4.12** Ekspor data mandiri oleh operator — **kewajiban portabilitas
       UU PDP**. Migrasi 154 (`operator_data_exports`), tab **Ekspor Data Saya**
       di Pengaturan.

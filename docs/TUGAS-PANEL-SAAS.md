@@ -360,6 +360,27 @@ orang, dan mencatat semuanya sama saja dengan tidak mencatat apa pun.
 
 ---
 
+## C5 — Kotak masuk Support (sisi platform) 🟡
+
+Sisi operator sudah selesai — lihat T4.11 di TUGAS-DASHBOARD-TRAVEL.md:
+`/dashboard/support`, tabel `support_tickets` + `support_ticket_messages`
+(migrasi 162), `SupportService` untuk operator membuat tiket, membalas, dan
+menutup tiketnya sendiri.
+
+Yang belum ada, dan ini bagiannya:
+
+- [C] Layar di `/admin`: daftar tiket **lintas semua tenant**, saring per
+      status/prioritas, urut berdasarkan yang lewat target respons dulu
+- [C] Balas sebagai staf platform — `support_ticket_messages.author_is_platform
+      = true` sudah disiapkan di skema, thread operator otomatis
+      menampilkannya tanpa perubahan apa pun di sisi operator
+- [C] Ubah status (OPEN → IN_PROGRESS → RESOLVED), operator melihat
+      perubahannya di tiketnya sendiri
+- [C] RPC baru di `PlatformService` (bukan `SupportService` — itu milik
+      operator), scoped platform-admin seperti RPC platform lainnya
+
+---
+
 # TAHAP D — Siklus hidup tenant
 
 Lihat §7 DESAIN. Bagian ini sebelumnya tidak dirancang di mana pun.
