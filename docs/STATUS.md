@@ -4,7 +4,7 @@ Satu halaman, selalu diperbarui. **Titik masuk pertama untuk agen mana pun** —
 Claude, Codex, atau siapa pun berikutnya. Kalau hanya sempat membaca satu
 berkas, baca ini.
 
-Diperbarui: **5 September 2026** (Tahap 4 Dashboard Travel selesai — T4.10 Jam Tenang & Matriks Notifikasi)
+Diperbarui: **5 September 2026** (Corong Pengunjung K2.5 — formulir kontak storefront mengisi sumber lead CRM)
 
 ---
 
@@ -14,8 +14,8 @@ Diperbarui: **5 September 2026** (Tahap 4 Dashboard Travel selesai — T4.10 Jam
 |---|---|---|---|
 | **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **Tahap 4 selesai** (2 butir sengaja dicatat belum dibangun), sisa T3.2 |
 | **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1, B2 selesai** · berikutnya **C4** atau **C5** (kotak masuk Support, baru — lihat T4.11), jatah Codex |
-| **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | dirancang, **antre** · 0/33 butir |
-| **SEO & Konten** | storefront | [TUGAS-SEO-KONTEN.md](TUGAS-SEO-KONTEN.md) | dirancang, **antre** · 0/17 butir |
+| **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | **32/33 selesai** — sisa K2.8 menunggu akun MaxMind pemilik |
+| **SEO & Konten** | storefront | [TUGAS-SEO-KONTEN.md](TUGAS-SEO-KONTEN.md) | **12/17 selesai** — sisa TAHAP S3 menunggu proyek Google Cloud pemilik |
 
 Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
 `admin/page.tsx`.
@@ -78,12 +78,20 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
    melawan MinIO sampai Momen memaksanya.
 3. **SEO & Konten** — `sitemap.xml` dan `robots.txt` sudah ada dan sadar-host.
    Sisanya S3: Search Console, menunggu proyek Google Cloud milik pemilik.
-4. **Corong pengunjung** — K1–K6 selesai. Layar travel di `/dashboard/reports`
-   → tab **Corong Pengunjung**; layar platform di `/admin` → tab **Corong**.
-   Beban terukur pada 180.000 baris: rollup 68 ms/hari, layar travel 177 ms,
-   layar platform 1 ms. Yang tersisa bergantung pada hal lain: **K2.8**
-   geolokasi (GeoLite2 belum dipasang di server, jadi "Asal Daerah" kosong dan
-   layarnya mengatakan begitu). **K5.6 sudah tertutup** oleh B3.
+4. **Corong pengunjung** — K1–K6 selesai (32/33). Layar travel di
+   `/dashboard/reports` → tab **Corong Pengunjung**; layar platform di
+   `/admin` → tab **Corong**. Beban terukur pada 180.000 baris: rollup
+   68 ms/hari, layar travel 177 ms, layar platform 1 ms. **K5.6 sudah
+   tertutup** oleh B3. **K2.5** (5 September 2026, `d567974`): `crm_leads`
+   tidak pernah punya jalur dari pengunjung website ke `source`/`campaign` —
+   `CreateLead` adalah CRUD staf, tidak menyentuh browser. Dibangun formulir
+   "Hubungi Kami" di storefront + tabel `storefront_inquiries` (migrasi 164,
+   terpisah dari `crm_leads` karena itu butuh fitur CRM berbayar dan aktor
+   staf asli) + tombol "Jadikan lead" di panel CRM yang mengisi
+   `Source=WEBSITE`/`Campaign` dari `utm_campaign` pengunjung sendiri. Yang
+   tersisa bergantung pada hal lain: **K2.8** geolokasi (butuh akun/lisensi
+   MaxMind dari pemilik, agen tidak bisa menyediakan itu — sama seperti
+   Search Console di baris SEO di atas).
 
 **Dunning masih mode kering.** Ia berjalan tiap 24 jam, mengisi `dunning_log`,
 dan **tidak mengirim apa pun** sampai `DUNNING_LIVE=true` diset. Bandingkan satu

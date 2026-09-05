@@ -65,14 +65,29 @@ Menyentuh dua permukaan: `/dashboard` (travel melihat corongnya sendiri) dan
 - [x] **K2.4** Corong platform: `LANDING` dari middleware, `KIRIM`/`SELESAI`
       saat operator dibuat, `operator_id` sengaja NULL — barisnya lalu lintas
       TawafiqHub, bukan milik tenant barunya (`8f83596`)
-- [ ] **K2.5** Isi `crm_leads.source` dan `campaign` dari `utm_source` bila ada.
-      Hari ini kolom itu diketik manual oleh staf travel.
+- [x] **K2.5** Ternyata tidak ada apa pun untuk disambungkan: `CreateLead`
+      adalah CRUD staf yang butuh sesi, tidak pernah menyentuh browser
+      pengunjung. Yang hilang bukan pengisian otomatis kolom yang sudah ada,
+      tapi formulirnya sendiri. Dibangun `storefront_inquiries` (migrasi 164,
+      tabel terpisah — `crm_leads` mensyaratkan fitur berbayar dan aktor staf
+      asli, dua hal yang tidak dimiliki pengunjung) plus formulir "Hubungi
+      Kami" di storefront. Tombol "Jadikan lead" di panel CRM mengisi
+      `Source=WEBSITE`/`Campaign` dari `utm_campaign` pengunjung sendiri,
+      bukan ketikan staf. Diuji dengan merusak penyaring `operator_id` —
+      gagal dengan baris travel lain ikut terlihat, dipulihkan — dan
+      dibuktikan langsung di browser: isi form dengan
+      `utm_source=instagram&utm_campaign=umrah-des-2026`, klik "Jadikan
+      lead", lead yang jadi benar membawa `Website` / `umrah-des-2026`
+      (`d567974`)
 - [x] **K2.6** `utm_source`/`utm_campaign` di `pilgrim_registrations`
       (migrasi 147), dibaca dari URL halaman form (`bd09302`).
       `season_waitlists` menyusul.
 - [x] **K2.7** Langkah `ARTIKEL` dengan `article_slug` (`ff4ebea`)
-- [ ] **K2.8** Geolokasi kota/provinsi dari IP (MaxMind GeoLite2). **IP tidak
-      pernah ditulis** — hanya nama daerahnya. Tingkat kota, tidak lebih halus.
+- [ ] **K2.8 — menunggu keputusan pemilik.** Geolokasi kota/provinsi dari IP
+      (MaxMind GeoLite2). **IP tidak pernah ditulis** — hanya nama daerahnya.
+      Tingkat kota, tidak lebih halus. Butuh akun/lisensi MaxMind dari
+      pemilik — agen tidak bisa menyediakan itu, sama seperti Search Console
+      di TUGAS-SEO-KONTEN.md TAHAP S3.
 
 # TAHAP K3 — Rollup & retensi
 
