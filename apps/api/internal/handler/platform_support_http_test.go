@@ -141,6 +141,19 @@ func TestSupportAdminInboxIsCrossTenantAndCannotCloseIntegration(t *testing.T) {
 		t.Fatal("balasan platform tidak muncul di thread yang sama")
 	}
 
+	// F5 (TUGAS-PANEL-SAAS.md): a platform admin writing into another
+	// tenant's own support thread must leave a trace on that tenant's audit
+	// trail, scoped to them — not blank, and not on the admin's own tenant.
+	var replyAuditCount int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM audit_logs
+		WHERE operator_id = $1 AND user_id = $2 AND action = 'support_ticket_replied_as_platform' AND entity_id = $3`,
+		otherOperatorID, adminUserID, ticket.ID).Scan(&replyAuditCount); err != nil {
+		t.Fatal(err)
+	}
+	if replyAuditCount != 1 {
+		t.Fatalf("%d jejak audit balasan platform pada travel lain, mau 1", replyAuditCount)
+	}
+
 	// Status: OPEN -> IN_PROGRESS is allowed.
 	statusReq := connect.NewRequest(&hajjv1.SetSupportTicketStatusRequest{TicketId: ticket.ID, Status: "IN_PROGRESS"})
 	statusReq.Header().Set("Authorization", "Bearer "+fixture.sessionToken)
@@ -150,6 +163,15 @@ func TestSupportAdminInboxIsCrossTenantAndCannotCloseIntegration(t *testing.T) {
 	}
 	if updated.Msg.Status != "IN_PROGRESS" {
 		t.Fatalf("status = %q, mau IN_PROGRESS", updated.Msg.Status)
+	}
+	var statusAuditCount int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM audit_logs
+		WHERE operator_id = $1 AND user_id = $2 AND action = 'support_ticket_status_set_as_platform' AND entity_id = $3`,
+		otherOperatorID, adminUserID, ticket.ID).Scan(&statusAuditCount); err != nil {
+		t.Fatal(err)
+	}
+	if statusAuditCount != 1 {
+		t.Fatalf("%d jejak audit perubahan status platform pada travel lain, mau 1", statusAuditCount)
 	}
 
 	// CLOSED is unreachable from this RPC — buf.validate rejects it before

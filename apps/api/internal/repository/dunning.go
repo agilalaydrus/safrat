@@ -452,8 +452,16 @@ func (r *SubscriptionRepository) VoidInvoice(ctx context.Context, invoiceID, rea
 	if err != nil {
 		return databaseError(err)
 	}
+	// F5/F6 audit (TUGAS-PANEL-SAAS.md): the same bug class found in
+	// IssueBillingPeriod — audit_logs' uniqueness is (user_id, action,
+	// idempotency_key) with no invoice/operator in it, so an empty key here
+	// would make the first invoice any admin ever voids permanently block
+	// them from voiding a second one. invoiceID is fresh per call (the
+	// WHERE status='PENDING' above already makes a second void of the SAME
+	// invoice short-circuit before reaching this line), so it is unique on
+	// its own without needing a caller-supplied key.
 	if err := insertPlatformMutationAudit(ctx, tx, operatorID, actorUserID, "subscription_invoice_voided",
-		"subscription_invoice", invoiceID, strings.TrimSpace(reason), "", ""); err != nil {
+		"subscription_invoice", invoiceID, strings.TrimSpace(reason), invoiceID, ""); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

@@ -84,7 +84,8 @@ func (s *PlatformService) ReplyToSupportTicketAsPlatform(ctx context.Context, re
 	if req == nil || strings.TrimSpace(req.TicketId) == "" || strings.TrimSpace(req.Body) == "" {
 		return nil, serviceError("PlatformService.ReplyToSupportTicketAsPlatform", apperror.ErrValidation)
 	}
-	if _, _, err := s.supportRepository.GetAsPlatform(ctx, req.TicketId); err != nil {
+	ticket, _, err := s.supportRepository.GetAsPlatform(ctx, req.TicketId)
+	if err != nil {
 		return nil, serviceError("PlatformService.ReplyToSupportTicketAsPlatform", err)
 	}
 	// Same source SupportService.AddSupportTicketMessage uses for the
@@ -98,6 +99,13 @@ func (s *PlatformService) ReplyToSupportTicketAsPlatform(ctx context.Context, re
 	if err != nil {
 		return nil, serviceError("PlatformService.ReplyToSupportTicketAsPlatform", err)
 	}
+	// F5 (TUGAS-PANEL-SAAS.md): a platform admin writing into a tenant's own
+	// support thread is exactly the kind of cross-tenant action the audit
+	// trail exists to catch — scoped to that tenant, not blank, so it shows
+	// up on their own "Jejak audit" the same as any other platform action
+	// taken on their account.
+	_ = s.auditRepository.Write(ctx, ticket.OperatorID, adminUserID, "support_ticket_replied_as_platform",
+		"support_ticket", req.TicketId, "Dibalas oleh "+authorName)
 	return supportMessageMessage(message), nil
 }
 
@@ -107,15 +115,21 @@ func (s *PlatformService) ReplyToSupportTicketAsPlatform(ctx context.Context, re
 // this is defence in depth, not the only thing standing between this RPC and
 // touching a ticket that belongs to the operator's own CloseSupportTicket.
 func (s *PlatformService) SetSupportTicketStatus(ctx context.Context, req *hajjv1.SetSupportTicketStatusRequest) (*hajjv1.SupportTicket, error) {
-	if _, err := s.requirePlatformAdmin(ctx); err != nil {
+	adminUserID, err := s.requirePlatformAdmin(ctx)
+	if err != nil {
 		return nil, err
 	}
 	if req == nil || strings.TrimSpace(req.TicketId) == "" {
 		return nil, serviceError("PlatformService.SetSupportTicketStatus", apperror.ErrValidation)
 	}
-	ticket, err := s.supportRepository.SetStatus(ctx, req.TicketId, strings.ToUpper(strings.TrimSpace(req.Status)))
+	status := strings.ToUpper(strings.TrimSpace(req.Status))
+	ticket, err := s.supportRepository.SetStatus(ctx, req.TicketId, status)
 	if err != nil {
 		return nil, serviceError("PlatformService.SetSupportTicketStatus", err)
 	}
+	// F5 (TUGAS-PANEL-SAAS.md): see ReplyToSupportTicketAsPlatform — same
+	// reasoning, scoped to the ticket's own tenant.
+	_ = s.auditRepository.Write(ctx, ticket.OperatorID, adminUserID, "support_ticket_status_set_as_platform",
+		"support_ticket", req.TicketId, "Status diubah menjadi "+status)
 	return supportTicketMessage(ticket), nil
 }
