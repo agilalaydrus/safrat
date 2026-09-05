@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"connectrpc.com/connect"
 	"github.com/getsentry/sentry-go"
@@ -42,8 +43,11 @@ func serviceError(method string, err error) error {
 		return connect.NewError(connect.CodeUnauthenticated, err)
 	default:
 		// Unmapped errors are bugs, not expected failure modes — report them.
-		// sentry.Init (main.go) is a no-op when SENTRY_DSN is unset, so this is
-		// safe to call unconditionally in dev.
+		// sentry.Init (main.go) is a no-op when SENTRY_DSN is unset, so without
+		// this slog line a bug in local dev (no DSN configured) would vanish
+		// the moment the client got its generic "internal error" — nothing on
+		// the machine that just failed would say why (F2, TUGAS-PANEL-SAAS.md).
+		slog.Error("unmapped service error", "method", method, "error", err)
 		sentry.CaptureException(fmt.Errorf("%s: %w", method, err))
 		return connect.NewError(connect.CodeInternal, errors.New("internal error"))
 	}
