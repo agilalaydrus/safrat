@@ -4,7 +4,7 @@ Satu halaman, selalu diperbarui. **Titik masuk pertama untuk agen mana pun** —
 Claude, Codex, atau siapa pun berikutnya. Kalau hanya sempat membaca satu
 berkas, baca ini.
 
-Diperbarui: **5 September 2026** (Panel SaaS C4 dan C5 selesai — Claude kini melanjutkan implementasi Codex, bukan hanya spesifikasi)
+Diperbarui: **5 September 2026** (Panel SaaS: TAHAP C selesai, D2 dan D5 dari TAHAP D juga selesai)
 
 ---
 
@@ -13,7 +13,7 @@ Diperbarui: **5 September 2026** (Panel SaaS C4 dan C5 selesai — Claude kini m
 | Jalur | Rute | Berkas tugas | Posisi |
 |---|---|---|---|
 | **Dashboard Travel** | `/dashboard` | [TUGAS-DASHBOARD-TRAVEL.md](TUGAS-DASHBOARD-TRAVEL.md) | Tahap 0–2 selesai · **Tahap 4 selesai** (2 butir sengaja dicatat belum dibangun), sisa T3.2 |
-| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1, B2, C1–C5 selesai** · Claude kini juga mengimplementasikan (bukan hanya spesifikasi) · berikutnya **TAHAP D** |
+| **Panel SaaS** | `/admin` | [TUGAS-PANEL-SAAS.md](TUGAS-PANEL-SAAS.md) | **A1, A2, B1, B2, C1–C5, D2, D5 selesai** · berikutnya **D3/D4/D6/D7** |
 | **Corong Pengunjung** | `/dashboard` + `/admin` | [TUGAS-CORONG.md](TUGAS-CORONG.md) | **33/33 selesai** |
 | **SEO & Konten** | storefront | [TUGAS-SEO-KONTEN.md](TUGAS-SEO-KONTEN.md) | **12/17 selesai** — sisa TAHAP S3 menunggu proyek Google Cloud pemilik |
 
@@ -22,15 +22,19 @@ Keduanya tidak beririsan berkas kecuali `globals.css`, `platform.proto`, dan
 
 ## Yang sedang menunggu, berurutan
 
-1. **TAHAP C Panel SaaS selesai semua (C1–C5), 5 September 2026.** Pemilik
-   meminta implementasi Panel SaaS dilanjutkan juga oleh Claude, bukan cuma
-   spesifikasi — **C4** (`e88e524`, kunci penandatangan + ekspor auditor;
-   spesifikasi lama sempat menyiratkan sistem kunci API publik yang tidak
-   ada di produk ini, sudah diperjelas) dan **C5** (`034f5e5`, kotak masuk
-   Support lintas tenant di `/admin`) adalah dua yang pertama diambil di
-   bawah keputusan itu. Keduanya menemukan celah nyata **saat dibangun**,
-   bukan saat spesifikasi ditulis — lihat C4 dan C5 di TUGAS-PANEL-SAAS.md
-   untuk rinciannya. Berikutnya: **TAHAP D** (siklus hidup tenant).
+1. **Panel SaaS, 5 September 2026: TAHAP C selesai semua (C1–C5), lanjut ke
+   TAHAP D.** Pemilik meminta implementasi Panel SaaS dilanjutkan juga oleh
+   Claude, bukan cuma spesifikasi. **C4** (`e88e524`, kunci penandatangan +
+   ekspor auditor) dan **C5** (`034f5e5`, kotak masuk Support lintas tenant)
+   masing-masing menemukan celah nyata **saat dibangun** — lihat
+   TUGAS-PANEL-SAAS.md untuk rinciannya. Dari TAHAP D (siklus hidup tenant):
+   **D2** perpanjang trial per tenant dan **D5** batalkan langganan
+   (`1f7f3a0`) sudah selesai — keduanya bukan tindakan four-eyes, mengikuti
+   pola `SetGracePeriod` yang sudah ada. Sisa TAHAP D: **D3** (trial yang
+   berakhir pekan ini tampil di layar), **D4** (antrean tenant baru +
+   penanda kelengkapan), **D6/D7** (penghapusan 90 hari — perlu four-eyes,
+   ekspor data dulu, dan `audit_logs` tidak ikut terhapus; ini yang paling
+   berisiko di TAHAP D, dikerjakan hati-hati terakhir).
 2. **Tahap 3 Dashboard Travel** — sisa **T3.2** gateway WhatsApp (butuh
    kredensial penyedia dari pemilik). **T3.3 sudah selesai (4 September
    2026)**: Rangkaian, Rundown, dan Armada Bus melengkapi Manifes & Roomlist

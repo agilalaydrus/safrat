@@ -458,12 +458,28 @@ Lihat §7 DESAIN. Bagian ini sebelumnya tidak dirancang di mana pun.
       memendekkan trial yang sedang berjalan, karena panjangnya hanya dibaca
       sekali di awal. Nilai rusak jatuh ke 10, bukan menghentikan pendaftaran
       (`80fa6fd`)
-- [C] **D2** Perpanjang trial per tenant, alasan wajib
+- [x] **D2** Perpanjang trial per tenant (`[K, diimplementasikan]`,
+      5 September 2026, `1f7f3a0`). Bukan tindakan four-eyes — beda dengan
+      SUSPEND/DELETE_TENANT, tidak ada yang sulit ditarik balik di sini —
+      jadi mengikuti bentuk `SetGracePeriod` yang sudah ada (kunci advisory
+      + anti-duplikat + audit_logs biasa), bukan ledger `privileged_actions`.
+      Hanya menambah hari ke `access_until`, dan **hanya** kalau langganan
+      masih `TRIALING` — memperpanjang akses tenant yang sudah bayar adalah
+      tindakan lain (kredit/diskon), bukan ini. Konfirmasi nama travel
+      diketik tangan, pola yang sama dengan Suspend/SetGracePeriod.
 - [C] **D3** Layar Langganan menampilkan trial yang berakhir pekan ini
 - [C] **D4** Antrean tenant baru 7 hari terakhir + penanda kelengkapan
       (sudah ada musim? jamaah? login kedua?)
-- [C] **D5** Pembatalan: `cancelled_at`, akses tetap sampai `access_until`
-      berjalan habis — sisa periode yang sudah dibayar adalah haknya
+- [x] **D5** Pembatalan (`[K, diimplementasikan]`, 5 September 2026,
+      `1f7f3a0`): `cancelled_at` diisi, `access_until` **sama sekali tidak
+      disentuh** — sisa periode yang sudah dibayar tetap haknya. Percobaan
+      membatalkan langganan yang sudah dibatalkan **ditolak**, bukan
+      diperlakukan sebagai tidak melakukan apa-apa — admin kedua yang
+      mencoba lagi harus tahu tidak ada yang berubah, bukan mengira
+      berhasil. Sama seperti D2, bukan four-eyes: `access_until` yang sudah
+      mengatur akses sejak awal (dipakai di mana-mana, dari pengecekan
+      entitlement sampai proses dunning) tidak berubah sama sekali oleh
+      aksi ini — yang berubah hanya penagihan berhenti mencoba lagi.
 - [C] **D6** Penghapusan setelah 90 hari: **tawarkan ekspor data lebih dulu**
       (hak portabilitas UU PDP), four-eyes, dan **`audit_logs` tidak ikut
       dihapus** — ia bukti bahwa penghapusan itu sah
