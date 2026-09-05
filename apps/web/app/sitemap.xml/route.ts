@@ -1,15 +1,7 @@
 import { tenantFromHost } from "@/lib/tenant-from-host";
+import { getPublicProfile } from "@/lib/public-profile";
 
 export const dynamic = "force-dynamic";
-
-type Season = { slug?: string; id?: string; endDate?: string };
-type Article = { slug?: string; publishedAt?: string };
-type Profile = {
-  slug?: string;
-  activeSeasons?: Season[];
-  content?: { news?: Article[]; blogPosts?: Article[] };
-  updatedAt?: string;
-};
 
 /**
  * sitemap.xml, built from the hostname being crawled.
@@ -30,7 +22,7 @@ export async function GET(request: Request) {
     return xml([{ loc: `${base}/` }, { loc: `${base}/keamanan` }]);
   }
 
-  const profile = await getProfile(tenant.slug);
+  const profile = await getPublicProfile(tenant.slug);
   if (!profile) return new Response("Not found", { status: 404 });
 
   const entries: SitemapEntry[] = [{ loc: `${base}/` }];
@@ -45,28 +37,17 @@ export async function GET(request: Request) {
   ] as const) {
     for (const article of articles ?? []) {
       if (!article.slug) continue;
-      entries.push({ loc: `${base}/${path}/${article.slug}`, lastmod: article.publishedAt });
+      // publishedAt comes back from raw JSON here (not the protobuf-parsed
+      // client), so it is always a plain RFC3339 string at runtime even
+      // though the shared StorefrontArticle type also allows a Timestamp
+      // object for callers that go through the generated proto client.
+      entries.push({ loc: `${base}/${path}/${article.slug}`, lastmod: typeof article.publishedAt === "string" ? article.publishedAt : undefined });
     }
   }
   return xml(entries);
 }
 
 type SitemapEntry = { loc: string; lastmod?: string };
-
-async function getProfile(slug: string): Promise<Profile | null> {
-  try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/hajj.v1.OperatorService/GetPublicProfile`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Connect-Protocol-Version": "1" },
-      body: JSON.stringify({ slug }),
-      cache: "no-store",
-    });
-    if (!response.ok) return null;
-    return (await response.json()) as Profile;
-  } catch {
-    return null;
-  }
-}
 
 function xml(entries: SitemapEntry[]): Response {
   const body = [

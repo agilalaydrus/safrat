@@ -3,15 +3,14 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { articleJsonLd, jsonLdScript } from "@/lib/structured-data";
+import { getPublicProfile as getProfile } from "@/lib/public-profile";
 
-type Article = { title: string; slug: string; body: string; excerpt?: string; coverImageUrl?: string; altText?: string; author?: string; publishedAt?: string; seoTitle?: string; seoDescription?: string };
-type Profile = { name: string; slug: string; logoUrl?: string; canonicalHost?: string; content?: { displayName?: string; logoUrl?: string; blogPosts?: Article[]; seoTitle?: string; seoDescription?: string } };
-
-async function getProfile(slug: string): Promise<Profile | null> {
-  try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/hajj.v1.OperatorService/GetPublicProfile`, { method: "POST", headers: { "Content-Type": "application/json", "Connect-Protocol-Version": "1" }, body: JSON.stringify({ slug }), cache: "no-store" });
-    return response.ok ? await response.json() as Profile : null;
-  } catch { return null; }
+// This page fetches the profile as raw JSON (see lib/public-profile.ts), so
+// publishedAt is always a plain RFC3339 string here even though the shared
+// StorefrontArticle type also allows a protobuf Timestamp for callers going
+// through the generated proto client.
+function publishedAtString(value: string | { toDate: () => Date } | undefined): string | undefined {
+  return typeof value === "string" ? value : undefined;
 }
 
 /**
@@ -41,7 +40,7 @@ export default async function BlogArticlePage({ params }: { params: Promise<{ sl
   const article = profile?.content?.blogPosts?.find((item) => item.slug === articleSlug);
   if (!profile || !article) notFound();
   const name = profile.content?.displayName || profile.name;
-  const published = formatPublishedDate(article.publishedAt);
+  const published = formatPublishedDate(publishedAtString(article.publishedAt));
   const base = canonicalUrl(profile.canonicalHost, profile.slug, `/blog/${article.slug}`);
   const jsonLd = articleJsonLd({
     title: article.title,
@@ -51,7 +50,7 @@ export default async function BlogArticlePage({ params }: { params: Promise<{ sl
     description: article.seoDescription || article.excerpt,
     imageUrl: article.coverImageUrl,
     author: article.author,
-    publishedAt: article.publishedAt,
+    publishedAt: publishedAtString(article.publishedAt),
     publisherName: name,
     publisherLogoUrl: profile.content?.logoUrl || profile.logoUrl,
   });

@@ -1,23 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import TenantStorefront, { packagePriceAmount, type StorefrontProfile } from "@/components/storefront/TenantStorefront";
+import TenantStorefront, { packagePriceAmount } from "@/components/storefront/TenantStorefront";
 import { jsonLdScript, packageJsonLd, travelAgencyJsonLd } from "@/lib/structured-data";
 import { buildTenantLinkFromBase } from "@/lib/tenant-link";
-
-async function getProfile(slug: string): Promise<StorefrontProfile | null> {
-  try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/hajj.v1.OperatorService/GetPublicProfile`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Connect-Protocol-Version": "1" },
-      body: JSON.stringify({ slug }),
-      cache: "no-store",
-    });
-    if (!response.ok) return null;
-    return (await response.json()) as StorefrontProfile;
-  } catch {
-    return null;
-  }
-}
+import { getPublicProfile as getProfile } from "@/lib/public-profile";
 
 /**
  * The address search engines should treat as authoritative: the operator's own
